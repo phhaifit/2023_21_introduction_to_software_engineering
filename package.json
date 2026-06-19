@@ -1,0 +1,11 @@
+{
+  "name": "virtual-company-platform-foundation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:contracts",
+    "test:contracts": "node tests/contract/shared-contracts.test.mjs",
+    "validate:openspec": "openspec validate design-virtual-company-platform-architecture"
+  }
+}

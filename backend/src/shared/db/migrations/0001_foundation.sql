@@ -1,0 +1,3 @@
+-- Foundation migration slot.
+-- Add concrete tables after the team finalizes the database and ORM/migration tool.
+-- This file intentionally contains no DDL yet.

@@ -1,0 +1,133 @@
+{
+  "version": "0.1.0-foundation",
+  "capabilities": [
+    "authentication",
+    "subscription-payment",
+    "workspace-management",
+    "workspace-user-management",
+    "agent-management",
+    "tools-integration",
+    "workflow-management",
+    "task-orchestration",
+    "knowledge-base-rag"
+  ],
+  "idKinds": [
+    "userId",
+    "workspaceId",
+    "memberId",
+    "agentId",
+    "toolId",
+    "workflowId",
+    "taskId",
+    "documentId",
+    "subscriptionId",
+    "transactionId",
+    "eventId",
+    "jobId"
+  ],
+  "roles": ["admin", "editor", "viewer"],
+  "plans": {
+    "standard": {
+      "cpuCores": 2,
+      "memoryGb": 4,
+      "maxAgents": 10,
+      "maxDocuments": 100
+    },
+    "premium": {
+      "cpuCores": 4,
+      "memoryGb": 8,
+      "maxAgents": 30,
+      "maxDocuments": 1000
+    }
+  },
+  "statuses": {
+    "workspace": ["pending", "running", "failed", "stopping", "deleted"],
+    "agent": ["enabled", "disabled", "deleted"],
+    "task": [
+      "queued",
+      "running",
+      "requires_action",
+      "succeeded",
+      "failed",
+      "cancelled"
+    ],
+    "subscription": [
+      "pending",
+      "active",
+      "expiring_soon",
+      "expired",
+      "cancelled"
+    ],
+    "workflow": ["draft", "published", "archived"],
+    "knowledgeIndex": ["pending", "ingesting", "ready", "failed"]
+  },
+  "permissions": [
+    "workspace:read",
+    "workspace:delete",
+    "members:manage",
+    "agents:manage",
+    "tools:manage",
+    "workflows:manage",
+    "tasks:run",
+    "knowledge:manage",
+    "billing:manage"
+  ],
+  "rolePermissions": {
+    "admin": [
+      "workspace:read",
+      "workspace:delete",
+      "members:manage",
+      "agents:manage",
+      "tools:manage",
+      "workflows:manage",
+      "tasks:run",
+      "knowledge:manage",
+      "billing:manage"
+    ],
+    "editor": [
+      "workspace:read",
+      "agents:manage",
+      "tools:manage",
+      "workflows:manage",
+      "tasks:run",
+      "knowledge:manage"
+    ],
+    "viewer": ["workspace:read"]
+  },
+  "events": {
+    "subscription.activated": ["eventId", "occurredAt", "userId", "subscriptionId", "plan"],
+    "subscription.upgraded": ["eventId", "occurredAt", "userId", "subscriptionId", "fromPlan", "toPlan"],
+    "workspace.provisioning_requested": ["eventId", "occurredAt", "workspaceId", "subscriptionId", "plan"],
+    "workspace.running": ["eventId", "occurredAt", "workspaceId", "status", "runtimeUrl"],
+    "workspace.deleted": ["eventId", "occurredAt", "workspaceId", "deletedBy"],
+    "member.invited": ["eventId", "occurredAt", "workspaceId", "email", "role"],
+    "agent.created": ["eventId", "occurredAt", "workspaceId", "agentId", "status"],
+    "agent.updated": ["eventId", "occurredAt", "workspaceId", "agentId", "status"],
+    "tool.connected": ["eventId", "occurredAt", "workspaceId", "toolId", "provider"],
+    "workflow.published": ["eventId", "occurredAt", "workspaceId", "workflowId"],
+    "task.submitted": ["eventId", "occurredAt", "workspaceId", "taskId", "submittedBy"],
+    "task.completed": ["eventId", "occurredAt", "workspaceId", "taskId", "status"],
+    "knowledge.document_uploaded": ["eventId", "occurredAt", "workspaceId", "documentId", "uploadedBy"],
+    "knowledge.index_ready": ["eventId", "occurredAt", "workspaceId", "documentId", "status"]
+  },
+  "api": {
+    "successShape": ["ok", "data", "meta"],
+    "errorShape": ["ok", "error", "meta"],
+    "errorCodes": [
+      "auth.invalid_credentials",
+      "auth.session_expired",
+      "auth.forbidden",
+      "validation.invalid_input",
+      "workspace.not_found",
+      "workspace.not_ready",
+      "subscription.required",
+      "subscription.payment_failed",
+      "agent.not_available",
+      "tool.secret_unavailable",
+      "workflow.invalid_definition",
+      "task.execution_failed",
+      "knowledge.access_denied",
+      "system.unexpected_error"
+    ]
+  }
+}
