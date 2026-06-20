@@ -1,8 +1,8 @@
 ## 1. Agent Domain
 
-- [ ] 1.1 Define workspace-scoped agent model with name, role, model, instructions, and lifecycle status
-- [ ] 1.2 Implement agent repository or persistence interface
-- [ ] 1.3 Implement public agent summary contract for other modules
+- [x] 1.1 Define workspace-scoped agent model with name, role, model, instructions, and lifecycle status
+- [x] 1.2 Implement agent repository or persistence interface
+- [x] 1.3 Implement public agent summary contract for other modules
 
 ## 2. Agent Lifecycle
 
