@@ -17,3 +17,10 @@ The system SHALL keep representative mock Agent Management data as isolated test
 #### Scenario: Isolated UI test uses fixtures
 - **WHEN** an isolated view-model or component test needs representative agents
 - **THEN** it can use mock fixtures containing at least one enabled agent and one disabled agent without calling the backend
+
+### Requirement: Manual Browser Verification
+The system SHALL document how to manually verify the API-backed Agent Management app shell in a browser.
+
+#### Scenario: Manual test instructions followed
+- **WHEN** a developer follows the documented manual test steps
+- **THEN** they can verify API-backed list, create, edit, lifecycle controls, validation feedback, and recoverable errors
