@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import express, { type Express } from "express";
 
 import { DEMO_WORKSPACE_ID } from "../../shared/demo-workspace.ts";
+import type { AgentRepository } from "./modules/agent-management/application/agent-repository.ts";
 import { AgentLifecycleUseCases } from "./modules/agent-management/application/agent-lifecycle-use-cases.ts";
 import { createAgentManagementRouter } from "./modules/agent-management/api/agent-management-router.ts";
 import { createAgent } from "./modules/agent-management/domain/agent.ts";
@@ -14,19 +15,38 @@ export const LOCAL_AGENT_API_PORT = 3001;
 
 export type LocalAgentManagementRuntime = {
   app: Express;
-  repository: InMemoryAgentRepository;
+  repository: AgentRepository;
   useCases: AgentLifecycleUseCases;
 };
 
+async function createRepository(): Promise<AgentRepository> {
+  if (process.env.DATABASE_URL) {
+    const { PrismaClient } = await import("@prisma/client");
+    const { PrismaPg } = await import("@prisma/adapter-pg");
+    const pg = await import("pg");
+    const { PrismaAgentRepository } = await import(
+      "./modules/agent-management/infrastructure/prisma-agent-repository.ts"
+    );
+    const Pool = pg.default ? pg.default.Pool : pg.Pool;
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaPg(pool);
+    return new PrismaAgentRepository(new PrismaClient({ adapter }));
+  }
+
+  return new InMemoryAgentRepository();
+}
+
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
-  const repository = new InMemoryAgentRepository();
+  const repository = await createRepository();
   const useCases = new AgentLifecycleUseCases({
     repository,
     now: () => new Date().toISOString(),
     generateAgentId: () => randomUUID()
   });
 
-  await seedDemoAgents(repository);
+  if (repository instanceof InMemoryAgentRepository) {
+    await seedDemoAgents(repository);
+  }
 
   const app = express();
   app.use(express.json());
@@ -38,7 +58,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   return { app, repository, useCases };
 }
 
-async function seedDemoAgents(repository: InMemoryAgentRepository): Promise<void> {
+async function seedDemoAgents(repository: AgentRepository): Promise<void> {
   await repository.save(
     createAgent({
       agentId: "agent-research",

@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Agent {
+  agentId      String @id
+  workspaceId  String
+  name         String
+  role         String
+  model        String
+  instructions String
+  status       String @default("enabled")
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@map("agents")
+}
