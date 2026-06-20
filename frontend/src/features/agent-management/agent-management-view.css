@@ -1,0 +1,137 @@
+.agent-management {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  gap: 24px;
+  color: #17202a;
+  font-family: system-ui, sans-serif;
+}
+
+.agent-list,
+.agent-form {
+  min-width: 0;
+}
+
+.agent-list__header,
+.agent-row__summary,
+.agent-row__actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.agent-list__count {
+  align-items: center;
+  background: #eef2f7;
+  border-radius: 999px;
+  color: #243447;
+  display: inline-flex;
+  font-weight: 700;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+}
+
+.agent-row {
+  border-block-start: 1px solid #d8dee8;
+  padding-block: 16px;
+}
+
+.agent-row__status {
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.agent-row__status--ready {
+  background: #dff6e8;
+  color: #14532d;
+}
+
+.agent-row__status--paused {
+  background: #fff4cf;
+  color: #6b4e00;
+}
+
+.agent-row__status--removed {
+  background: #f1f3f5;
+  color: #495057;
+}
+
+.agent-row__meta {
+  display: grid;
+  gap: 8px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-row__meta div {
+  min-width: 0;
+}
+
+.agent-row__meta dt {
+  color: #5b6777;
+  font-size: 0.8rem;
+}
+
+.agent-row__meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-row__actions {
+  justify-content: flex-start;
+}
+
+.agent-row__actions button,
+.agent-form button {
+  border: 1px solid #8b97a8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17202a;
+  cursor: pointer;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.agent-form {
+  display: grid;
+  gap: 14px;
+}
+
+.agent-form__field {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-form input,
+.agent-form textarea {
+  border: 1px solid #aab4c1;
+  border-radius: 6px;
+  color: #17202a;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.agent-form textarea {
+  min-height: 132px;
+  resize: vertical;
+}
+
+.agent-form__error {
+  color: #b42318;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .agent-management,
+  .agent-row__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-row__summary,
+  .agent-row__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

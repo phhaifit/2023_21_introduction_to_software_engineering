@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:contracts && npm run test:agent-management",
-    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs",
+    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs",
     "test:contracts": "node tests/contract/shared-contracts.test.mjs",
     "validate:openspec": "openspec validate --all --strict"
   }
