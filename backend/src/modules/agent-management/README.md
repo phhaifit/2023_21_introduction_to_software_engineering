@@ -23,3 +23,18 @@ Lifecycle rules:
 - `disabled` agents remain visible in active lists but are not selectable for new work.
 - `deleted` agents are retained as lifecycle records, excluded from active lists, and cannot be re-enabled.
 - Create and update flows generate `skill.md` content from canonical stored fields through the application boundary.
+
+HTTP API:
+
+- Mount `createAgentManagementRouter()` at `/api/workspaces/:workspaceId/agents`.
+- `GET /` lists enabled and disabled agents.
+- `POST /` creates an agent.
+- `PATCH /:agentId` updates role, model, and instructions.
+- `POST /:agentId/enable` and `POST /:agentId/disable` change availability.
+- `DELETE /:agentId` marks an agent as deleted.
+- Every response uses the shared `ApiResponse` envelope and exposes only public agent summaries.
+
+Current integration limitation:
+
+- The router derives workspace and current-user data from a mock request-context boundary.
+- Real authentication, authorization, and workspace membership checks belong to the later RBAC/workspace integration change.
