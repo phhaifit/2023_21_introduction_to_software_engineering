@@ -1,8 +1,11 @@
-import type { AgentListItem } from "../../../../backend/src/modules/agent-management/application/agent-lifecycle-use-cases.ts";
+import type { AgentPublicSummary } from "../../../../shared/contracts/agent-management.ts";
 import type { AgentStatus } from "../../../../shared/contracts/statuses.ts";
 
 export type AgentFormMode = "create" | "edit";
 export type AgentFormField = "name" | "role" | "model" | "instructions";
+export type AgentListItem = AgentPublicSummary & {
+  createdAt: string;
+};
 
 export type AgentFormState = {
   mode: AgentFormMode;

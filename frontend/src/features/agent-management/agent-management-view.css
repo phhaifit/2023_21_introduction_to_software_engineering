@@ -1,3 +1,54 @@
+.agent-management-page {
+  display: grid;
+  gap: 20px;
+}
+
+.agent-management-page__header {
+  align-items: end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.agent-management-page__header h2,
+.agent-management-page__header p {
+  margin: 0;
+}
+
+.agent-management-page__header h2 {
+  font-size: 1.4rem;
+}
+
+.agent-management-page__header p {
+  color: #526071;
+  margin-block-start: 4px;
+}
+
+.agent-management-page__stats {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+}
+
+.agent-management-page__stats div {
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  min-width: 92px;
+  padding: 10px 12px;
+}
+
+.agent-management-page__stats dt {
+  color: #5b6777;
+  font-size: 0.78rem;
+}
+
+.agent-management-page__stats dd {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 2px 0 0;
+}
+
 .agent-management {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
@@ -8,7 +59,11 @@
 
 .agent-list,
 .agent-form {
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
   min-width: 0;
+  padding: 18px;
 }
 
 .agent-list__header,
@@ -32,9 +87,24 @@
   min-width: 28px;
 }
 
+.agent-list__new {
+  border-color: #2c6bed;
+  background: #2c6bed;
+  color: #ffffff;
+}
+
 .agent-row {
   border-block-start: 1px solid #d8dee8;
   padding-block: 16px;
+}
+
+.agent-row[aria-current="true"] {
+  border-inline-start: 3px solid #2c6bed;
+  padding-inline-start: 12px;
+}
+
+.agent-row h3 {
+  margin: 0;
 }
 
 .agent-row__status {
@@ -94,9 +164,18 @@
   padding: 8px 12px;
 }
 
+.agent-row__actions button:hover,
+.agent-form button:hover {
+  border-color: #2c6bed;
+}
+
 .agent-form {
   display: grid;
   gap: 14px;
+}
+
+.agent-form h2 {
+  margin: 0;
 }
 
 .agent-form__field {
@@ -127,6 +206,11 @@
   .agent-management,
   .agent-row__meta {
     grid-template-columns: 1fr;
+  }
+
+  .agent-management-page__header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .agent-row__summary,
