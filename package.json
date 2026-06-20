@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:contracts",
+    "test": "npm run test:contracts && npm run test:agent-management",
+    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs",
     "test:contracts": "node tests/contract/shared-contracts.test.mjs",
-    "validate:openspec": "openspec validate design-virtual-company-platform-architecture"
+    "validate:openspec": "openspec validate --all --strict"
   }
 }
