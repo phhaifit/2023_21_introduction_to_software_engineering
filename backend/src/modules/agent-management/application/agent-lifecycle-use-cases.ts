@@ -15,6 +15,17 @@ export type AgentMutationResult = {
   skillConfiguration: string;
 };
 
+export type AgentEditableConfiguration = {
+  agentId: EntityId<"agentId">;
+  workspaceId: EntityId<"workspaceId">;
+  name: string;
+  role: string;
+  model: string;
+  instructions: string;
+  status: Exclude<AgentStatus, "deleted">;
+  updatedAt: string;
+};
+
 export type CreateAgentInput = {
   workspaceId: EntityId<"workspaceId">;
   name: string;
@@ -70,6 +81,28 @@ export class AgentLifecycleUseCases {
       ...toAgentPublicSummary(agent),
       createdAt: agent.createdAt
     }));
+  }
+
+  async getAgentConfiguration(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentEditableConfiguration> {
+    const agent = await this.requireAgent(workspaceId, agentId);
+
+    if (agent.status === "deleted") {
+      throw new AgentNotFoundError(agentId);
+    }
+
+    return {
+      agentId: agent.agentId,
+      workspaceId: agent.workspaceId,
+      name: agent.name,
+      role: agent.role,
+      model: agent.model,
+      instructions: agent.instructions,
+      status: agent.status,
+      updatedAt: agent.updatedAt
+    };
   }
 
   async createAgent(input: CreateAgentInput): Promise<AgentMutationResult> {
