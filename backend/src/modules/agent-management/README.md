@@ -29,12 +29,15 @@ HTTP API:
 - Mount `createAgentManagementRouter()` at `/api/workspaces/:workspaceId/agents`.
 - `GET /` lists enabled and disabled agents.
 - `POST /` creates an agent.
+- `GET /:agentId/configuration` returns active editable configuration for the edit form.
 - `PATCH /:agentId` updates role, model, and instructions.
 - `POST /:agentId/enable` and `POST /:agentId/disable` change availability.
 - `DELETE /:agentId` marks an agent as deleted.
-- Every response uses the shared `ApiResponse` envelope and exposes only public agent summaries.
+- Every response uses the shared `ApiResponse` envelope; list and mutation routes expose only public agent summaries.
+- The configuration route is the only route that returns private `instructions`; it never returns generated skill content.
 
 Current integration limitation:
 
 - The router derives workspace and current-user data from a mock request-context boundary.
 - Real authentication, authorization, and workspace membership checks belong to the later RBAC/workspace integration change.
+- `backend/src/local-agent-management-server.ts` is a development-only composition root backed by resettable in-memory data.
