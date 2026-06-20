@@ -8,15 +8,17 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "npm run test:contracts && npm run test:agent-management",
-    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-app-shell.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs",
+    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-app-shell.test.mjs && node tests/contract/agent-management-api.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs",
     "test:contracts": "node tests/contract/shared-contracts.test.mjs",
     "validate:openspec": "openspec validate --all --strict"
   },
   "dependencies": {
+    "express": "^5.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.2",
