@@ -14,8 +14,10 @@ const requiredShellFiles = [
   "tsconfig.json",
   "frontend/src/main.tsx",
   "frontend/src/App.tsx",
+  "frontend/src/features/agent-management/agent-management-api-client.ts",
   "frontend/src/features/agent-management/agent-management-page.tsx",
-  "frontend/src/features/agent-management/agent-management-mock-data.ts"
+  "frontend/src/features/agent-management/agent-management-mock-data.ts",
+  "backend/src/local-agent-management-server.ts"
 ];
 
 for (const file of requiredShellFiles) {
@@ -23,7 +25,9 @@ for (const file of requiredShellFiles) {
 }
 
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-assert.equal(packageJson.scripts.dev, "vite --host 127.0.0.1");
+assert.match(packageJson.scripts.dev, /concurrently/);
+assert.equal(packageJson.scripts["dev:api"], "node backend/src/local-agent-management-server.ts");
+assert.equal(packageJson.scripts["dev:web"], "vite --host 127.0.0.1");
 assert.equal(packageJson.scripts.build, "vite build");
 assert.equal(packageJson.dependencies.react.startsWith("^18."), true);
 assert.equal(packageJson.dependencies["react-dom"].startsWith("^18."), true);
@@ -36,14 +40,20 @@ assert.match(indexHtml, /\/frontend\/src\/main\.tsx/);
 const appSource = readFileSync(join(root, "frontend/src/App.tsx"), "utf8");
 assert.match(appSource, /AgentManagementPage/);
 assert.match(appSource, /Agent Management/);
+assert.match(appSource, /DEMO_WORKSPACE_ID/);
 
 const pageSource = readFileSync(
   join(root, "frontend/src/features/agent-management/agent-management-page.tsx"),
   "utf8"
 );
 assert.match(pageSource, /createAgentManagementViewModel/);
-assert.match(pageSource, /agentManagementMockInput/);
+assert.match(pageSource, /listAgents/);
+assert.doesNotMatch(pageSource, /agentManagementMockInput/);
 assert.doesNotMatch(pageSource, /backend\/src/);
+
+const viteConfig = readFileSync(join(root, "vite.config.ts"), "utf8");
+assert.match(viteConfig, /"\/api"/);
+assert.match(viteConfig, /127\.0\.0\.1:3001/);
 
 const viewSource = readFileSync(
   join(root, "frontend/src/features/agent-management/agent-management-view.ts"),

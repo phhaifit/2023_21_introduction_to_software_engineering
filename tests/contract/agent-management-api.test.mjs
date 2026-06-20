@@ -143,6 +143,40 @@ function makeAgent(overrides = {}) {
 
 {
   const { repository, useCases } = createUseCases();
+  await repository.save(makeAgent());
+  await repository.save(
+    makeAgent({
+      agentId: "agent-other-workspace",
+      workspaceId: "workspace-b",
+      name: "Other Agent"
+    })
+  );
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const configuration = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-enabled/configuration"
+    );
+
+    assert.equal(configuration.status, 200);
+    assert.equal(configuration.body.ok, true);
+    assert.equal(configuration.body.data.name, "Research Agent");
+    assert.equal(configuration.body.data.instructions, "Prepare market research.");
+    assert.equal(configuration.body.data.skillConfiguration, undefined);
+
+    const crossWorkspace = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-other-workspace/configuration"
+    );
+
+    assert.equal(crossWorkspace.status, 404);
+    assert.equal(crossWorkspace.body.error.code, "agent.not_available");
+    assert.equal(crossWorkspace.body.data, undefined);
+  });
+}
+
+{
+  const { repository, useCases } = createUseCases();
 
   await withAgentApi(useCases, async (baseUrl) => {
     const response = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
