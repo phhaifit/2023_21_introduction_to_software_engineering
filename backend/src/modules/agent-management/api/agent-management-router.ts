@@ -42,6 +42,17 @@ export function createAgentManagementRouter(
     });
   });
 
+  router.get("/:agentId/configuration", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = createMockAgentManagementRequestContext(request);
+
+      return dependencies.useCases.getAgentConfiguration(
+        context.workspace!.workspaceId,
+        request.params.agentId as EntityId<"agentId">
+      );
+    });
+  });
+
   router.patch("/:agentId", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
       const context = createMockAgentManagementRequestContext(request);

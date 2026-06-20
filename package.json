@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "concurrently --kill-others --names api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "node backend/src/local-agent-management-server.ts",
+    "dev:web": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "npm run test:contracts && npm run test:agent-management",
-    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-app-shell.test.mjs && node tests/contract/agent-management-api.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs",
+    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-app-shell.test.mjs && node tests/contract/agent-management-api.test.mjs && node tests/contract/agent-management-local-runtime.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs && npm run test:agent-management:components",
+    "test:agent-management:components": "vitest run --config vitest.config.ts",
     "test:contracts": "node tests/contract/shared-contracts.test.mjs",
     "validate:openspec": "openspec validate --all --strict"
   },
@@ -18,11 +21,17 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/express": "^5.0.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^10.0.3",
+    "jsdom": "^29.1.1",
     "typescript": "^5.6.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
   }
 }

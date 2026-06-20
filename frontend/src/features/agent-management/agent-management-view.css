@@ -19,6 +19,19 @@
   font-size: 1.4rem;
 }
 
+.agent-management-page__error,
+.agent-list__error {
+  border: 1px solid #f0b4ad;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: #8f1d14;
+  padding: 10px 12px;
+}
+
+.agent-list__error p {
+  margin-block-start: 0;
+}
+
 .agent-management-page__header p {
   color: #526071;
   margin-block-start: 4px;
@@ -167,6 +180,15 @@
 .agent-row__actions button:hover,
 .agent-form button:hover {
   border-color: #2c6bed;
+}
+
+.agent-row__actions button:disabled,
+.agent-form button:disabled,
+.agent-list button:disabled,
+.agent-form input:disabled,
+.agent-form textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .agent-form {

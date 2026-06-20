@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   AgentLifecycleUseCases,
+  AgentNotFoundError,
   AgentValidationError
 } from "../../backend/src/modules/agent-management/application/agent-lifecycle-use-cases.ts";
 import { createAgent } from "../../backend/src/modules/agent-management/domain/agent.ts";
@@ -79,6 +80,54 @@ function makeAgent(overrides = {}) {
     "updatedAt",
     "createdAt"
   ]);
+}
+
+{
+  const { repository, useCases } = createHarness();
+  await repository.save(makeAgent({ agentId: "agent-enabled" }));
+  await repository.save(
+    makeAgent({ agentId: "agent-disabled", name: "Disabled Agent", status: "disabled" })
+  );
+  await repository.save(
+    makeAgent({ agentId: "agent-deleted", name: "Deleted Agent", status: "deleted" })
+  );
+  await repository.save(
+    makeAgent({
+      agentId: "agent-other-workspace",
+      workspaceId: workspaceB,
+      name: "Other Agent"
+    })
+  );
+
+  const enabled = await useCases.getAgentConfiguration(workspaceA, "agent-enabled");
+  const disabled = await useCases.getAgentConfiguration(workspaceA, "agent-disabled");
+
+  assert.equal(enabled.instructions, "Collect and summarize market data.");
+  assert.equal(enabled.status, "enabled");
+  assert.equal(disabled.status, "disabled");
+  assert.deepEqual(Object.keys(enabled), [
+    "agentId",
+    "workspaceId",
+    "name",
+    "role",
+    "model",
+    "instructions",
+    "status",
+    "updatedAt"
+  ]);
+
+  await assert.rejects(
+    () => useCases.getAgentConfiguration(workspaceA, "missing-agent"),
+    AgentNotFoundError
+  );
+  await assert.rejects(
+    () => useCases.getAgentConfiguration(workspaceA, "agent-deleted"),
+    AgentNotFoundError
+  );
+  await assert.rejects(
+    () => useCases.getAgentConfiguration(workspaceA, "agent-other-workspace"),
+    AgentNotFoundError
+  );
 }
 
 {
