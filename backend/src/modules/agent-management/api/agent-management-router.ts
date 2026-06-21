@@ -7,11 +7,36 @@ import {
   AgentValidationError
 } from "../application/agent-lifecycle-use-cases.ts";
 import { sendAgentApiFailure, sendAgentApiSuccess } from "./api-response.ts";
-import { createMockAgentManagementRequestContext } from "./mock-request-context.ts";
-
+import type { RequestContext } from "../../../shared/auth/request-context.ts";
+import { canPerform } from "../../../shared/rbac/permissions.ts";
 export type AgentManagementRouterDependencies = {
   useCases: AgentLifecycleUseCases;
 };
+
+class AuthenticationError extends Error {}
+class AuthorizationError extends Error {}
+
+function getRequestContext(request: Request): RequestContext {
+  return (request as any).context || { requestId: "unknown" };
+}
+
+function enforceAuth(context: RequestContext) {
+  if (!context.user) {
+    throw new AuthenticationError("User is not authenticated");
+  }
+  if (!context.workspace) {
+    throw new AuthorizationError("Workspace context required");
+  }
+}
+
+function enforcePermission(context: RequestContext, permission: "agents:manage") {
+  enforceAuth(context);
+  const role = context.workspace!.role;
+  const decision = canPerform(role, permission);
+  if (!decision.allowed) {
+    throw new AuthorizationError(decision.reason || "Forbidden");
+  }
+}
 
 export function createAgentManagementRouter(
   dependencies: AgentManagementRouterDependencies
@@ -20,7 +45,8 @@ export function createAgentManagementRouter(
 
   router.get("/", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforceAuth(context);
 
       return dependencies.useCases.listAgents(context.workspace!.workspaceId);
     });
@@ -28,7 +54,9 @@ export function createAgentManagementRouter(
 
   router.post("/", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
       const payload = readStringPayload(request, ["name", "role", "model", "instructions"]);
       const result = await dependencies.useCases.createAgent({
         workspaceId: context.workspace!.workspaceId,
@@ -44,7 +72,8 @@ export function createAgentManagementRouter(
 
   router.get("/:agentId/configuration", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforceAuth(context);
 
       return dependencies.useCases.getAgentConfiguration(
         context.workspace!.workspaceId,
@@ -55,7 +84,9 @@ export function createAgentManagementRouter(
 
   router.patch("/:agentId", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
       const payload = readStringPayload(request, ["role", "model", "instructions"]);
       const result = await dependencies.useCases.updateAgent({
         workspaceId: context.workspace!.workspaceId,
@@ -71,7 +102,8 @@ export function createAgentManagementRouter(
 
   router.post("/:agentId/disable", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
 
       return dependencies.useCases.disableAgent(
         context.workspace!.workspaceId,
@@ -82,7 +114,8 @@ export function createAgentManagementRouter(
 
   router.post("/:agentId/enable", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
 
       return dependencies.useCases.enableAgent(
         context.workspace!.workspaceId,
@@ -93,7 +126,8 @@ export function createAgentManagementRouter(
 
   router.delete("/:agentId", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
-      const context = createMockAgentManagementRequestContext(request);
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
 
       return dependencies.useCases.deleteAgent(
         context.workspace!.workspaceId,
@@ -114,6 +148,24 @@ async function handleAgentApiRequest<T>(
     const data = await action();
     sendAgentApiSuccess(request, response, data);
   } catch (error) {
+    if (error instanceof AuthenticationError) {
+      sendAgentApiFailure(request, response, {
+        code: "auth.unauthorized",
+        message: error.message,
+        statusCode: 401
+      });
+      return;
+    }
+
+    if (error instanceof AuthorizationError) {
+      sendAgentApiFailure(request, response, {
+        code: "auth.forbidden",
+        message: error.message,
+        statusCode: 403
+      });
+      return;
+    }
+
     if (error instanceof AgentValidationError) {
       sendAgentApiFailure(request, response, {
         code: "validation.invalid_input",

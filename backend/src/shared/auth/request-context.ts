@@ -1,5 +1,5 @@
-import type { EntityId } from "../../../../shared/contracts";
-import type { WorkspaceRole } from "../../../../shared/contracts";
+import type { EntityId } from "../../../../shared/contracts/ids.ts";
+import type { WorkspaceRole } from "../../../../shared/contracts/index.ts";
 
 export type AuthenticatedUser = {
   userId: EntityId<"userId">;
