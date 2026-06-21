@@ -5,9 +5,15 @@ context unless the user explicitly overrides them.
 
 ## Communication
 
-- Respond to the user in Vietnamese by default.
-- Keep technical terms in English when they are clearer than translation.
+- Use Vietnamese by default, but retain technical terms in their original form.
+- Use English when executing OpenSpec actions, and when performing commit, push, or creating PRs.
+- Response Style: Pragmatic, scientific, and straight to the point.
 - Be concise and report the concrete commands, files, and outcomes that matter.
+
+## Personal Files Protection
+
+- **STRICT RULE**: NEVER read, modify, `git add`, or commit any files inside the `.local-docs/` directory or any other explicit personal directories.
+- These files are strictly for the user's personal planning and tracking. Treat them as completely invisible to Git operations.
 
 ## OpenSpec Apply Change Workflow
 
