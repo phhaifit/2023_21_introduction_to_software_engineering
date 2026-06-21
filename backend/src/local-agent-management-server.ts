@@ -5,10 +5,13 @@ import express, { type Express } from "express";
 
 import { DEMO_WORKSPACE_ID } from "../../shared/demo-workspace.ts";
 import type { AgentRepository } from "./modules/agent-management/application/agent-repository.ts";
+import type { AgentSkillWriter } from "./modules/agent-management/application/agent-skill-writer.ts";
 import { AgentLifecycleUseCases } from "./modules/agent-management/application/agent-lifecycle-use-cases.ts";
 import { createAgentManagementRouter } from "./modules/agent-management/api/agent-management-router.ts";
 import { createAgent } from "./modules/agent-management/domain/agent.ts";
 import { InMemoryAgentRepository } from "./modules/agent-management/infrastructure/in-memory-agent-repository.ts";
+import { FileSystemAgentSkillWriter } from "./modules/agent-management/infrastructure/file-system-agent-skill-writer.ts";
+import { NoOpAgentSkillWriter } from "./modules/agent-management/infrastructure/no-op-agent-skill-writer.ts";
 
 export const LOCAL_AGENT_API_HOST = "127.0.0.1";
 export const LOCAL_AGENT_API_PORT = 3001;
@@ -36,10 +39,19 @@ async function createRepository(): Promise<AgentRepository> {
   return new InMemoryAgentRepository();
 }
 
+function createSkillWriter(): AgentSkillWriter {
+  if (process.env.AGENT_SKILLS_DIR) {
+    return new FileSystemAgentSkillWriter(process.env.AGENT_SKILLS_DIR);
+  }
+  return new NoOpAgentSkillWriter();
+}
+
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
   const repository = await createRepository();
+  const skillWriter = createSkillWriter();
   const useCases = new AgentLifecycleUseCases({
     repository,
+    skillWriter,
     now: () => new Date().toISOString(),
     generateAgentId: () => randomUUID()
   });
