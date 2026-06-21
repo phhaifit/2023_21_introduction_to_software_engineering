@@ -60,3 +60,10 @@ The system SHALL enforce strict workspace isolation for all agent data.
 #### Scenario: Agent data isolated
 - **WHEN** the system queries or persists agents
 - **THEN** the data must be strictly scoped to the `workspaceId` provided in the authorized context, preventing cross-workspace leakage
+
+### Requirement: E2E Verification
+The system SHALL verify the agent management workflows via E2E testing.
+
+#### Scenario: Run Playwright tests
+- **WHEN** the e2e test suite is executed
+- **THEN** all agent management tests pass

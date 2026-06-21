@@ -27,3 +27,26 @@ Các tác vụ chậm hoặc cần retry như cấp phát OpenClaw, xử lý tha
 ## Mục Tiêu Dự Án
 
 Mục tiêu của dự án là xây dựng một nền tảng mô phỏng công ty ảo có khả năng mở rộng theo module, đủ rõ ràng về kiến trúc để nhóm 9 thành viên có thể triển khai độc lập từng phần, đồng thời vẫn đảm bảo các module tích hợp được với nhau thông qua shared contracts và ranh giới trách nhiệm đã thống nhất.
+
+## Phát triển & Kiểm thử (Development & Testing)
+
+### Cài đặt
+1. Cài đặt các thư viện: `npm install`
+2. Cài đặt trình duyệt cho Playwright E2E: `npx playwright install`
+
+### Chạy hệ thống (Local)
+1. Khởi động server (Backend API + Frontend Vite): `npm run dev`
+2. Mở trình duyệt truy cập ứng dụng tại `http://127.0.0.1:5173`
+
+### Chạy Tests
+- **Unit, Contract & Integration Tests:** `npm test`
+- **End-to-End (E2E) Tests:** `npm run test:e2e`
+
+### Hướng dẫn Manual Test cho Agent Management
+1. Chạy `npm run dev` để start server.
+2. Truy cập ứng dụng, trang Agent Management sẽ tải danh sách agents.
+3. Có sẵn 2 demo agents: `Research Agent` và `Support Agent`.
+4. Nhấn **"New agent"** để thêm một nhân viên ảo mới.
+5. Sử dụng nút **"Edit"** để cập nhật `Role`, `Model`, hoặc `Instructions`.
+6. Sử dụng nút **"Disable"**, **"Enable"**, hoặc **"Delete"** để thử nghiệm lifecycle của agent.
+7. Thử gửi form trống hoặc thiếu thông tin để kiểm tra validation.
