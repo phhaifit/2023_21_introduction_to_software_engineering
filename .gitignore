@@ -34,3 +34,6 @@ agent-skills/
 # Postman Local Sync
 /postman/
 /.postman/
+
+playwright-report/
+test-results/
