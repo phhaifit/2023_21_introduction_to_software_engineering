@@ -1,0 +1,12 @@
+{
+  "name": "@vcp/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/contracts/index.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./contracts/*": "./src/contracts/*",
+    "./demo-workspace.ts": "./src/demo-workspace.ts"
+  }
+}

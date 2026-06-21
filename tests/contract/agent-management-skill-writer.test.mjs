@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 
-import { AgentLifecycleUseCases } from "../../backend/src/modules/agent-management/application/agent-lifecycle-use-cases.ts";
-import { generateAgentSkillConfiguration } from "../../backend/src/modules/agent-management/application/agent-skill-configuration.ts";
-import { InMemoryAgentRepository } from "../../backend/src/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
+import { AgentLifecycleUseCases } from "@vcp/backend/modules/agent-management/application/agent-lifecycle-use-cases.ts";
+import { generateAgentSkillConfiguration } from "@vcp/backend/modules/agent-management/application/agent-skill-configuration.ts";
+import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
 let generatedIdCounter = 1;
 const generateAgentId = () => `agent-${generatedIdCounter++}`;

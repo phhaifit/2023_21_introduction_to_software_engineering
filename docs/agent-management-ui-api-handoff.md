@@ -10,14 +10,14 @@ OpenSpec change: `connect-agent-management-ui-api`
 - Create and edit submissions with validation details, preserved values, canonical list refresh, and duplicate-request prevention.
 - Enable, disable, and confirmed/cancelled delete flows with canonical list refresh.
 - Local Express composition root, representative seed agents, and Vite `/api` proxy.
+- Optional Prisma/PostgreSQL repository when `DATABASE_URL` is set.
 - Contract tests, API-client tests, React component interaction tests, production build, and manual desktop/mobile browser verification.
 
 ## Deferred Scenarios
 
-- Prisma/PostgreSQL persistence and database restart durability.
 - Real Authentication, RBAC permission enforcement, and workspace membership resolution.
 - Production backend composition, deployment configuration, observability, and rate limiting.
 - Playwright end-to-end tests in CI.
 - OpenClaw/workspace `skill.md` writes.
 
-The local API uses mock request context and resettable in-memory data. It must not be treated as the production authorization or persistence boundary.
+The local API still uses mock request context. Without `DATABASE_URL`, it uses resettable in-memory seed data. With `DATABASE_URL`, it uses PostgreSQL through `@vcp/database`, so the list reflects database records and may be empty.

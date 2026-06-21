@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import {
   AGENT_PUBLIC_SUMMARY_FIELDS,
   SELECTABLE_AGENT_STATUSES
-} from "../../shared/contracts/agent-management.ts";
+} from "@vcp/shared/contracts/agent-management.ts";
 import {
   createAgent,
   isAgentSelectable,
   toAgentPublicSummary
-} from "../../backend/src/modules/agent-management/domain/agent.ts";
-import { InMemoryAgentRepository } from "../../backend/src/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
+} from "@vcp/backend/modules/agent-management/domain/agent.ts";
+import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
 const workspaceA = "workspace-a";
 const workspaceB = "workspace-b";

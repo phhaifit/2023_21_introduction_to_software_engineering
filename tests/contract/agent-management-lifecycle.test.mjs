@@ -4,9 +4,9 @@ import {
   AgentLifecycleUseCases,
   AgentNotFoundError,
   AgentValidationError
-} from "../../backend/src/modules/agent-management/application/agent-lifecycle-use-cases.ts";
-import { createAgent } from "../../backend/src/modules/agent-management/domain/agent.ts";
-import { InMemoryAgentRepository } from "../../backend/src/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
+} from "@vcp/backend/modules/agent-management/application/agent-lifecycle-use-cases.ts";
+import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.ts";
+import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
 const workspaceA = "workspace-a";
 const workspaceB = "workspace-b";

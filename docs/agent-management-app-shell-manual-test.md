@@ -28,8 +28,11 @@ The command starts:
 - Agent Management API: `http://127.0.0.1:3001`
 - Vite UI: usually `http://127.0.0.1:5173`
 
-Vite proxies `/api` to the local API. No database or OpenClaw service is required.
-The in-memory data resets to the two seed agents whenever the API process restarts.
+Vite proxies `/api` to the local API.
+
+Without `DATABASE_URL`, no database or OpenClaw service is required. The in-memory data resets to the two seed agents whenever the API process restarts.
+
+With `DATABASE_URL`, the API uses PostgreSQL through `@vcp/database`; the list reflects records in the `agents` table and may be empty until you create agents.
 
 ## Browser Checklist
 
@@ -57,6 +60,17 @@ The in-memory data resets to the two seed agents whenever the API process restar
 3. Confirm the page displays a recoverable load error and a `Retry` button instead of mock data.
 4. Restart `npm run dev`, then click `Retry` and confirm the seeded list returns.
 
+## Port Cleanup
+
+If `npm run dev` exits with code `143` or Vite starts on `5174`, an old dev process may still be listening on `3001` or `5173`.
+
+```bash
+lsof -nP -iTCP:3001 -sTCP:LISTEN
+lsof -nP -iTCP:5173 -sTCP:LISTEN
+```
+
+Stop the old process, then rerun `npm run dev`.
+
 ## Smoke Check
 
 Run the production build smoke check before handoff:
@@ -65,5 +79,5 @@ Run the production build smoke check before handoff:
 npm run build
 ```
 
-Prisma persistence, real RBAC/workspace membership, production server composition,
-Playwright automation, and OpenClaw skill writing remain outside this change.
+Real Authentication, production workspace membership resolution, production server composition,
+Playwright automation, and OpenClaw skill writing remain outside this manual check.

@@ -20,8 +20,8 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/workspace-user-management`
-- Frontend feature: `frontend/src/features/workspace-user-management`
-- Shared infrastructure: `backend/src/shared/rbac`, `backend/src/shared/auth`
+- Backend module: `apps/backend/src/modules/workspace-user-management`
+- Frontend feature: `apps/frontend/src/features/workspace-user-management`
+- Shared infrastructure: `apps/backend/src/shared/rbac`, `apps/backend/src/shared/auth`
 - Shared contracts: workspace roles and permission names
 - Cross-module impact: feature modules check permissions through shared RBAC, not member-management internals

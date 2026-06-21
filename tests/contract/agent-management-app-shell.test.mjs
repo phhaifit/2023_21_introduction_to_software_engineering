@@ -3,21 +3,21 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { agentManagementMockInput } from "../../frontend/src/features/agent-management/agent-management-mock-data.ts";
-import { createAgentManagementViewModel } from "../../frontend/src/features/agent-management/agent-management-view.ts";
+import { agentManagementMockInput } from "@vcp/frontend/features/agent-management/agent-management-mock-data.ts";
+import { createAgentManagementViewModel } from "@vcp/frontend/features/agent-management/agent-management-view.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
 const requiredShellFiles = [
-  "index.html",
-  "vite.config.ts",
+  "apps/frontend/index.html",
+  "apps/frontend/vite.config.ts",
   "tsconfig.json",
-  "frontend/src/main.tsx",
-  "frontend/src/App.tsx",
-  "frontend/src/features/agent-management/agent-management-api-client.ts",
-  "frontend/src/features/agent-management/agent-management-page.tsx",
-  "frontend/src/features/agent-management/agent-management-mock-data.ts",
-  "backend/src/local-agent-management-server.ts"
+  "apps/frontend/src/main.tsx",
+  "apps/frontend/src/App.tsx",
+  "apps/frontend/src/features/agent-management/agent-management-api-client.ts",
+  "apps/frontend/src/features/agent-management/agent-management-page.tsx",
+  "apps/frontend/src/features/agent-management/agent-management-mock-data.ts",
+  "apps/backend/src/local-agent-management-server.ts"
 ];
 
 for (const file of requiredShellFiles) {
@@ -26,40 +26,47 @@ for (const file of requiredShellFiles) {
 
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 assert.match(packageJson.scripts.dev, /concurrently/);
-assert.equal(packageJson.scripts["dev:api"], "node backend/src/local-agent-management-server.ts");
-assert.equal(packageJson.scripts["dev:web"], "vite --host 127.0.0.1");
-assert.equal(packageJson.scripts.build, "vite build");
-assert.equal(packageJson.dependencies.react.startsWith("^18."), true);
-assert.equal(packageJson.dependencies["react-dom"].startsWith("^18."), true);
-assert.ok(packageJson.devDependencies.vite, "Vite must be available for the app shell");
+assert.equal(packageJson.scripts["dev:api"], "npm run dev --workspace=@vcp/backend");
+assert.equal(packageJson.scripts["dev:web"], "npm run dev --workspace=@vcp/frontend");
+assert.equal(packageJson.scripts.build, "npm run build --workspace=@vcp/frontend");
+assert.deepEqual(packageJson.workspaces, ["packages/*", "apps/*"]);
 
-const indexHtml = readFileSync(join(root, "index.html"), "utf8");
+const frontendPackageJson = JSON.parse(
+  readFileSync(join(root, "apps/frontend/package.json"), "utf8")
+);
+assert.equal(frontendPackageJson.dependencies.react.startsWith("^18."), true);
+assert.equal(frontendPackageJson.dependencies["react-dom"].startsWith("^18."), true);
+assert.ok(frontendPackageJson.devDependencies.vite, "Vite must be available for the app shell");
+assert.equal(frontendPackageJson.dependencies["@vcp/backend"], undefined);
+assert.equal(frontendPackageJson.dependencies["@vcp/database"], undefined);
+
+const indexHtml = readFileSync(join(root, "apps/frontend/index.html"), "utf8");
 assert.match(indexHtml, /<div id="root"><\/div>/);
-assert.match(indexHtml, /\/frontend\/src\/main\.tsx/);
+assert.match(indexHtml, /\/src\/main\.tsx/);
 
-const appSource = readFileSync(join(root, "frontend/src/App.tsx"), "utf8");
+const appSource = readFileSync(join(root, "apps/frontend/src/App.tsx"), "utf8");
 assert.match(appSource, /AgentManagementPage/);
 assert.match(appSource, /Agent Management/);
 assert.match(appSource, /DEMO_WORKSPACE_ID/);
 
 const pageSource = readFileSync(
-  join(root, "frontend/src/features/agent-management/agent-management-page.tsx"),
+  join(root, "apps/frontend/src/features/agent-management/agent-management-page.tsx"),
   "utf8"
 );
 assert.match(pageSource, /createAgentManagementViewModel/);
 assert.match(pageSource, /listAgents/);
 assert.doesNotMatch(pageSource, /agentManagementMockInput/);
-assert.doesNotMatch(pageSource, /backend\/src/);
+assert.doesNotMatch(pageSource, /apps\/backend/);
 
-const viteConfig = readFileSync(join(root, "vite.config.ts"), "utf8");
+const viteConfig = readFileSync(join(root, "apps/frontend/vite.config.ts"), "utf8");
 assert.match(viteConfig, /"\/api"/);
 assert.match(viteConfig, /127\.0\.0\.1:3001/);
 
 const viewSource = readFileSync(
-  join(root, "frontend/src/features/agent-management/agent-management-view.ts"),
+  join(root, "apps/frontend/src/features/agent-management/agent-management-view.ts"),
   "utf8"
 );
-assert.doesNotMatch(viewSource, /backend\/src/);
+assert.doesNotMatch(viewSource, /apps\/backend/);
 
 const mockStatuses = agentManagementMockInput.agents.map((agent) => agent.status);
 assert.ok(mockStatuses.includes("enabled"), "mock data must include an enabled agent");

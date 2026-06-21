@@ -1,0 +1,25 @@
+{
+  "name": "@vcp/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/local-agent-management-server.ts",
+    "./local-agent-management-server.ts": "./src/local-agent-management-server.ts",
+    "./modules/*": "./src/modules/*",
+    "./shared/*": "./src/shared/*"
+  },
+  "scripts": {
+    "dev": "node src/local-agent-management-server.ts"
+  },
+  "dependencies": {
+    "@vcp/database": "0.1.0",
+    "@vcp/shared": "0.1.0",
+    "express": "^5.2.1",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/pg": "^8.20.0"
+  }
+}

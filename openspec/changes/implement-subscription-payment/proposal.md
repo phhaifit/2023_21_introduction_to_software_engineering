@@ -20,8 +20,8 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/subscription-payment`
-- Frontend feature: `frontend/src/features/subscription-payment`
-- Worker job: `workers/src/jobs/payment-webhook`
+- Backend module: `apps/backend/src/modules/subscription-payment`
+- Frontend feature: `apps/frontend/src/features/subscription-payment`
+- Worker job: `apps/workers/src/jobs/payment-webhook`
 - Shared contracts: subscription plans, lifecycle statuses, API responses, and domain events
 - External boundary: mock/sandbox payment adapter only for V1

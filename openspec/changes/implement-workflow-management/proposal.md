@@ -20,7 +20,7 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/workflow-management`
-- Frontend feature: `frontend/src/features/workflow-management`
+- Backend module: `apps/backend/src/modules/workflow-management`
+- Frontend feature: `apps/frontend/src/features/workflow-management`
 - Shared contracts: workflow IDs, workflow statuses, API responses, and domain events
 - Related modules: agent management supplies agent references; task orchestration executes workflows through public contracts

@@ -20,8 +20,8 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/workspace-management`
-- Frontend feature: `frontend/src/features/workspace-management`
-- Worker job: `workers/src/jobs/openclaw-provisioning`
+- Backend module: `apps/backend/src/modules/workspace-management`
+- Frontend feature: `apps/frontend/src/features/workspace-management`
+- Worker job: `apps/workers/src/jobs/openclaw-provisioning`
 - Shared infrastructure: OpenClaw runtime adapter, events, database, logging
 - Related modules consume workspace context but do not import workspace internals

@@ -25,35 +25,49 @@ Web Client
       -> OpenClaw runtime/container engine
 ```
 
+## Workspace Layout
+
+The repository is an NPM Workspaces monorepo:
+
+| Workspace | Package | Responsibility |
+| --- | --- | --- |
+| `apps/frontend` | `@vcp/frontend` | React + Vite application |
+| `apps/backend` | `@vcp/backend` | Express API development server and backend modules |
+| `apps/workers` | `@vcp/workers` | Background job entry points |
+| `packages/shared` | `@vcp/shared` | Shared contracts, IDs, roles, statuses, events, and API shapes |
+| `packages/database` | `@vcp/database` | Prisma schema, migrations, generated client access, and database exports |
+
+Root scripts remain the team entrypoint. Use `npm run dev`, `npm test`, `npm run build`, and `npm run prisma -- <command>` from the repository root.
+
 ## Module Boundaries
 
 Each capability owns one backend module and one frontend feature folder:
 
 | Capability | Backend | Frontend |
 | --- | --- | --- |
-| Authentication | `backend/src/modules/authentication` | `frontend/src/features/authentication` |
-| Subscription & Payment | `backend/src/modules/subscription-payment` | `frontend/src/features/subscription-payment` |
-| Workspace Management | `backend/src/modules/workspace-management` | `frontend/src/features/workspace-management` |
-| Workspace User Management | `backend/src/modules/workspace-user-management` | `frontend/src/features/workspace-user-management` |
-| Agent Management | `backend/src/modules/agent-management` | `frontend/src/features/agent-management` |
-| Tools & Integration | `backend/src/modules/tools-integration` | `frontend/src/features/tools-integration` |
-| Workflow Management | `backend/src/modules/workflow-management` | `frontend/src/features/workflow-management` |
-| Task & Orchestration | `backend/src/modules/task-orchestration` | `frontend/src/features/task-orchestration` |
-| Knowledge Base / RAG | `backend/src/modules/knowledge-base-rag` | `frontend/src/features/knowledge-base-rag` |
+| Authentication | `apps/backend/src/modules/authentication` | `apps/frontend/src/features/authentication` |
+| Subscription & Payment | `apps/backend/src/modules/subscription-payment` | `apps/frontend/src/features/subscription-payment` |
+| Workspace Management | `apps/backend/src/modules/workspace-management` | `apps/frontend/src/features/workspace-management` |
+| Workspace User Management | `apps/backend/src/modules/workspace-user-management` | `apps/frontend/src/features/workspace-user-management` |
+| Agent Management | `apps/backend/src/modules/agent-management` | `apps/frontend/src/features/agent-management` |
+| Tools & Integration | `apps/backend/src/modules/tools-integration` | `apps/frontend/src/features/tools-integration` |
+| Workflow Management | `apps/backend/src/modules/workflow-management` | `apps/frontend/src/features/workflow-management` |
+| Task & Orchestration | `apps/backend/src/modules/task-orchestration` | `apps/frontend/src/features/task-orchestration` |
+| Knowledge Base / RAG | `apps/backend/src/modules/knowledge-base-rag` | `apps/frontend/src/features/knowledge-base-rag` |
 
 ## Dependency Rule
 
 Capability modules may depend on:
 
-- `shared/contracts`
-- `backend/src/shared/*`
+- `@vcp/shared`
+- `apps/backend/src/shared/*`
 - their own module files
 
 Capability modules must not depend on another module's private repositories, services, or UI internals.
 
 ## Shared Contracts
 
-Shared contracts are defined in `shared/contracts`.
+Shared contracts are defined in `packages/shared/src/contracts` and imported through `@vcp/shared`.
 
 They include:
 
@@ -71,12 +85,23 @@ Run this after changing contracts:
 npm run test:contracts
 ```
 
+## Database Boundary
+
+Prisma schema and migrations live in `packages/database/prisma`. Backend and worker code must use `@vcp/database` exports instead of importing Prisma files through relative paths.
+
+Run Prisma from the root so npm delegates to the database workspace:
+
+```bash
+npm run prisma -- validate
+npm run prisma -- migrate deploy
+```
+
 ## OpenClaw Boundary
 
 OpenClaw runtime operations must go through:
 
 ```text
-backend/src/shared/openclaw/runtime-adapter.ts
+apps/backend/src/shared/openclaw/runtime-adapter.ts
 ```
 
 Feature modules should request runtime work through the workspace module or worker jobs rather than calling Docker/OpenClaw directly.

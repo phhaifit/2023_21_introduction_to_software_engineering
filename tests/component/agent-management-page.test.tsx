@@ -6,9 +6,9 @@ import {
   AgentApiClientError,
   type AgentListItem,
   type AgentManagementApiClient
-} from "../../frontend/src/features/agent-management/agent-management-api-client.ts";
-import { AgentManagementPage } from "../../frontend/src/features/agent-management/agent-management-page.tsx";
-import type { EntityId } from "../../shared/contracts/ids.ts";
+} from "@vcp/frontend/features/agent-management/agent-management-api-client.ts";
+import { AgentManagementPage } from "@vcp/frontend/features/agent-management/agent-management-page.tsx";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 afterEach(cleanup);
 

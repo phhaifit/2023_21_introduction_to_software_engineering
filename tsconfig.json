@@ -7,11 +7,24 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
+    "paths": {
+      "@vcp/backend/*": ["apps/backend/src/*"],
+      "@vcp/database": ["packages/database/src/index.ts"],
+      "@vcp/frontend/*": ["apps/frontend/src/*"],
+      "@vcp/shared": ["packages/shared/src/contracts/index.ts"],
+      "@vcp/shared/*": ["packages/shared/src/*"],
+      "@vcp/workers/*": ["apps/workers/src/*"]
+    },
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
     "types": ["vite/client"],
     "useDefineForClassFields": true
   },
-  "include": ["frontend/src", "shared/contracts", "vite.config.ts"]
+  "include": [
+    "apps/frontend/src",
+    "apps/frontend/vite.config.ts",
+    "packages/shared/src",
+    "packages/database/src"
+  ]
 }

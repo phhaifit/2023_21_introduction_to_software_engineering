@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   createAgentManagementViewModel,
   renderAgentManagementView
-} from "../../frontend/src/features/agent-management/agent-management-view.ts";
+} from "@vcp/frontend/features/agent-management/agent-management-view.ts";
 
 const enabledAgent = {
   agentId: "agent-enabled",
