@@ -124,14 +124,14 @@ OpenSpec change đề xuất: `agent-management-e2e-handoff`
 
 ## Quy Tắc Làm Việc
 
-- [ ] Mỗi phase tạo một OpenSpec change riêng
-- [ ] Mỗi change có `proposal.md`, `design.md`, `spec.md`, `tasks.md`
-- [ ] Không bắt đầu code khi chưa đọc change artifacts
-- [ ] Khi hoàn thành task thì tick checkbox ngay
-- [ ] Mỗi behavior mới phải có test tương ứng
-- [ ] Không sửa private module khác nếu không có change rõ ràng
-- [ ] Nếu cần shared contract mới, cập nhật OpenSpec trước
-- [ ] Trước PR luôn chạy:
+- [x] Mỗi phase tạo một OpenSpec change riêng
+- [x] Mỗi change có `proposal.md`, `design.md`, `spec.md`, `tasks.md`
+- [x] Không bắt đầu code khi chưa đọc change artifacts
+- [x] Khi hoàn thành task thì tick checkbox ngay
+- [x] Mỗi behavior mới phải có test tương ứng
+- [x] Không sửa private module khác nếu không có change rõ ràng
+- [x] Nếu cần shared contract mới, cập nhật OpenSpec trước
+- [x] Trước PR luôn chạy:
   - `npm test`
   - `openspec validate "<change-name>"`
   - `openspec validate --all --strict`
