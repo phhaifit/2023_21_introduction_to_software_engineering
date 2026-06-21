@@ -26,6 +26,30 @@ function createUseCases(repository = new InMemoryAgentRepository()) {
 async function withAgentApi(useCases, callback) {
   const app = express();
   app.use(express.json());
+  app.use((req, res, next) => {
+    const role = req.headers["x-test-role"] || "admin";
+    const authenticated = req.headers["x-test-auth"] !== "false";
+    const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    const workspaceId = match ? match[1] : "workspace-a";
+
+    if (!authenticated) {
+      req.context = { requestId: req.headers["x-request-id"] || "test-request" };
+    } else {
+      req.context = {
+        requestId: req.headers["x-request-id"] || "test-request",
+        user: {
+          userId: "test-user",
+          email: "test@example.com"
+        },
+        workspace: {
+          workspaceId,
+          memberId: "test-member",
+          role
+        }
+      };
+    }
+    next();
+  });
   app.use(
     "/api/workspaces/:workspaceId/agents",
     createAgentManagementRouter({ useCases })
@@ -370,6 +394,57 @@ function makeAgent(overrides = {}) {
       listed.body.data.some((agent) => agent.agentId === "agent-enabled"),
       false
     );
+  });
+}
+
+{
+  const { useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    // Test 401 Unauthorized
+    const unauthResponse = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents", {
+      headers: { "x-test-auth": "false" }
+    });
+    assert.equal(unauthResponse.status, 401);
+    assert.equal(unauthResponse.body.ok, false);
+    assert.equal(unauthResponse.body.error.code, "auth.unauthorized");
+
+    // Test 403 Forbidden for Viewer on mutations
+    const forbiddenResponse = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents", {
+      method: "POST",
+      headers: { "x-test-role": "viewer" },
+      body: {
+        name: "Test",
+        role: "Test",
+        model: "test",
+        instructions: "test"
+      }
+    });
+    assert.equal(forbiddenResponse.status, 403);
+    assert.equal(forbiddenResponse.body.ok, false);
+    assert.equal(forbiddenResponse.body.error.code, "auth.forbidden");
+
+    // Test 200 OK for Viewer on reads
+    const readResponse = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents", {
+      headers: { "x-test-role": "viewer" }
+    });
+    assert.equal(readResponse.status, 200);
+    assert.equal(readResponse.body.ok, true);
+
+    // Test 200 OK for Editor on mutations
+    const editorResponse = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      headers: { "x-test-role": "editor" },
+      body: {
+        name: "Test Editor",
+        role: "Test",
+        model: "test",
+        instructions: "test"
+      }
+    });
+    assert.equal(editorResponse.status, 200);
+    assert.equal(editorResponse.body.ok, true);
+    assert.equal(editorResponse.body.data.name, "Test Editor");
   });
 }
 

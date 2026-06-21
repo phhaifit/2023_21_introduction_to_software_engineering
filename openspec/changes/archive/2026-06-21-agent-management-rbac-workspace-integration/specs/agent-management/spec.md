@@ -1,15 +1,4 @@
-## Purpose
-
-Define workspace-scoped virtual employee lifecycle management, configuration, lifecycle control, and public agent summary behavior.
-
-## Requirements
-
-### Requirement: Agent Listing
-The system SHALL show workspace agents with key operating information.
-
-#### Scenario: Agent list viewed
-- **WHEN** an authorized user opens the agent list for a workspace
-- **THEN** the system returns agents with name, status, role, model, creation time, and update time
+## MODIFIED Requirements
 
 ### Requirement: Agent Creation
 The system SHALL allow authorized users to create an agent in a workspace.
@@ -47,12 +36,7 @@ The system SHALL allow authorized users to delete or mark an agent as deleted.
 - **WHEN** an authorized user with `agents:manage` permission deletes an agent
 - **THEN** the system removes the agent from active lists and prevents new workflows or tasks from selecting it
 
-### Requirement: Agent Public Summary
-The system SHALL expose public agent summaries for other modules.
-
-#### Scenario: Module requests agent summary
-- **WHEN** workflow or task orchestration needs selectable agent data
-- **THEN** the system provides only public summary fields through an approved contract
+## ADDED Requirements
 
 ### Requirement: Workspace Isolation
 The system SHALL enforce strict workspace isolation for all agent data.

@@ -62,6 +62,34 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const app = express();
   app.use(express.json());
+
+  // Fake Auth Middleware for local development
+  app.use((req, res, next) => {
+    const role = (req.headers["x-mock-role"] as any) || "admin";
+    const anonymous = req.headers["x-mock-user"] === "anonymous";
+    const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
+
+    if (anonymous) {
+      (req as any).context = { requestId: req.headers["x-request-id"] || randomUUID() };
+    } else {
+      (req as any).context = {
+        requestId: req.headers["x-request-id"] || randomUUID(),
+        user: {
+          userId: "local-dev-user",
+          email: "dev@local.test",
+          displayName: "Local Developer"
+        },
+        workspace: {
+          workspaceId,
+          memberId: "local-member",
+          role
+        }
+      };
+    }
+    next();
+  });
+
   app.use(
     "/api/workspaces/:workspaceId/agents",
     createAgentManagementRouter({ useCases })

@@ -2,8 +2,8 @@ import {
   roleHasPermission,
   type Permission,
   type WorkspaceRole
-} from "../../../../shared/contracts";
-import type { RequestContext } from "../auth/request-context";
+} from "../../../../shared/contracts/index.ts";
+import type { RequestContext } from "../auth/request-context.ts";
 
 export type AuthorizationDecision = {
   allowed: boolean;

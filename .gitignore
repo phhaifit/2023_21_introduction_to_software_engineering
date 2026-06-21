@@ -27,3 +27,10 @@ pnpm-debug.log*
 # IDE
 .idea/
 .vscode/
+
+# Local data
+agent-skills/
+
+# Postman Local Sync
+/postman/
+/.postman/

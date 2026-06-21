@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "Virtual Company Platform",
+    "description": "Bộ API tổng thể cho toàn bộ dự án Virtual Company Platform. Sử dụng Collection Variables để cấu hình quyền (RBAC) chung cho toàn hệ thống.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3001/api",
+      "type": "string"
+    },
+    {
+      "key": "workspaceId",
+      "value": "demo-workspace-001",
+      "type": "string"
+    },
+    {
+      "key": "mockRole",
+      "value": "admin",
+      "type": "string",
+      "description": "Quyền giả lập. Đổi thành 'viewer' để test quyền chỉ đọc."
+    },
+    {
+      "key": "mockUser",
+      "value": "active",
+      "type": "string",
+      "description": "Đổi thành 'anonymous' để test lỗi 401 Unauthorized."
+    }
+  ],
+  "item": [
+    {
+      "name": "Agent Management",
+      "description": "Các API quản lý vòng đời và cấu hình của Agent (Feature hiện tại đang phát triển)",
+      "item": [
+        {
+          "name": "List Agents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents"]
+            }
+          }
+        },
+        {
+          "name": "Get Agent Configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents/agent-research/configuration",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents", "agent-research", "configuration"]
+            }
+          }
+        },
+        {
+          "name": "Create Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA Agent\",\n  \"role\": \"Tester\",\n  \"model\": \"gpt-4.1-mini\",\n  \"instructions\": \"Tìm lỗi hệ thống\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents"]
+            }
+          }
+        },
+        {
+          "name": "Update Agent",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Senior Market Researcher\",\n  \"model\": \"gpt-4.1\",\n  \"instructions\": \"Hướng dẫn mới cho Agent\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents/agent-research",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents", "agent-research"]
+            }
+          }
+        },
+        {
+          "name": "Disable Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents/agent-research/disable",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents", "agent-research", "disable"]
+            }
+          }
+        },
+        {
+          "name": "Enable Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents/agent-support/enable",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents", "agent-support", "enable"]
+            }
+          }
+        },
+        {
+          "name": "Delete Agent",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-mock-role",
+                "value": "{{mockRole}}",
+                "type": "text"
+              },
+              {
+                "key": "x-mock-user",
+                "value": "{{mockUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workspaces/{{workspaceId}}/agents/agent-support",
+              "host": ["{{baseUrl}}"],
+              "path": ["workspaces", "{{workspaceId}}", "agents", "agent-support"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
