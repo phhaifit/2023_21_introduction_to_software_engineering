@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "npm run test:contracts && npm run test:agent-management",
-    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-app-shell.test.mjs && node tests/contract/agent-management-api.test.mjs && node tests/contract/agent-management-local-runtime.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs && node tests/contract/agent-management-prisma-mapper.test.mjs && node tests/contract/agent-management-persistence.test.mjs && npm run test:agent-management:components",
+    "test:agent-management": "node tests/contract/agent-management-domain.test.mjs && node tests/contract/agent-management-lifecycle.test.mjs && node tests/contract/agent-management-frontend.test.mjs && node tests/contract/agent-management-app-shell.test.mjs && node tests/contract/agent-management-api.test.mjs && node tests/contract/agent-management-local-runtime.test.mjs && node tests/contract/agent-management-skill-configuration.test.mjs && node tests/contract/agent-management-skill-writer.test.mjs && node tests/contract/agent-management-skill-file-system.test.mjs && node tests/contract/agent-management-prisma-mapper.test.mjs && node tests/contract/agent-management-persistence.test.mjs && npm run test:agent-management:components",
     "test:agent-management:components": "vitest run --config vitest.config.ts",
     "test:contracts": "node tests/contract/shared-contracts.test.mjs",
     "validate:openspec": "openspec validate --all --strict"

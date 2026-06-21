@@ -4,6 +4,7 @@ import type { AgentStatus } from "../../../../../shared/contracts/statuses.ts";
 import { createAgent, isAgentSelectable, toAgentPublicSummary, type Agent } from "../domain/agent.ts";
 import type { AgentRepository } from "./agent-repository.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
+import type { AgentSkillWriter } from "./agent-skill-writer.ts";
 
 export type AgentListItem = AgentPublicSummary & {
   createdAt: string;
@@ -44,6 +45,7 @@ export type UpdateAgentInput = {
 
 export type AgentLifecycleDependencies = {
   repository: AgentRepository;
+  skillWriter?: AgentSkillWriter;
   now: () => string;
   generateAgentId: () => EntityId<"agentId">;
 };
@@ -188,11 +190,18 @@ export class AgentLifecycleUseCases {
 
   private async saveMutation(agent: Agent): Promise<AgentMutationResult> {
     const saved = await this.dependencies.repository.save(agent);
+    const skillConfiguration = generateAgentSkillConfiguration(saved);
+
+    try {
+      await this.dependencies.skillWriter?.writeSkillConfiguration(saved, skillConfiguration);
+    } catch (err) {
+      console.error(`Failed to write skill configuration for agent ${saved.agentId}:`, err);
+    }
 
     return {
       agent: saved,
       publicSummary: toAgentPublicSummary(saved),
-      skillConfiguration: generateAgentSkillConfiguration(saved)
+      skillConfiguration
     };
   }
 
