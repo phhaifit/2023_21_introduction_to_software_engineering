@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { toDomain, toPrismaCreate } from "../../backend/src/modules/agent-management/infrastructure/prisma-agent-mapper.ts";
+import { toDomain, toPrismaCreate } from "@vcp/backend/modules/agent-management/infrastructure/prisma-agent-mapper.ts";
 
 const prismaRecord = {
   agentId: "agent-1",

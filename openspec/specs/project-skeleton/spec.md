@@ -5,11 +5,11 @@ Define the repository skeleton and shared infrastructure placeholders required b
 ## Requirements
 
 ### Requirement: Repository Skeleton
-The foundation SHALL scaffold top-level `frontend`, `backend`, `workers`, `shared`, and `tests` areas.
+The foundation SHALL scaffold NPM workspace areas under `apps/` and `packages/`, plus root-level tests.
 
 #### Scenario: Repository layout exists
 - **WHEN** a team member opens the repository after the foundation phase
-- **THEN** the expected top-level project areas exist and contain README guidance
+- **THEN** `apps/frontend`, `apps/backend`, `apps/workers`, `packages/shared`, `packages/database`, and `tests` exist and contain README or package guidance where applicable
 
 ### Requirement: Backend Module Skeleton
 The foundation SHALL create backend module folders for the nine future product capabilities.

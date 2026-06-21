@@ -1,0 +1,14 @@
+{
+  "name": "@vcp/workers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/jobs/job-runner.ts",
+    "./jobs/*": "./src/jobs/*"
+  },
+  "dependencies": {
+    "@vcp/database": "0.1.0",
+    "@vcp/shared": "0.1.0"
+  }
+}

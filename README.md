@@ -30,13 +30,53 @@ Mục tiêu của dự án là xây dựng một nền tảng mô phỏng công 
 
 ## Phát triển & Kiểm thử (Development & Testing)
 
+### Cấu trúc Workspaces
+
+Dự án dùng NPM Workspaces:
+
+- `apps/frontend`: React + Vite app (`@vcp/frontend`)
+- `apps/backend`: Express API development server (`@vcp/backend`)
+- `apps/workers`: background job entry points (`@vcp/workers`)
+- `packages/shared`: shared contracts (`@vcp/shared`)
+- `packages/database`: Prisma schema, migrations, and database exports (`@vcp/database`)
+
 ### Cài đặt
 1. Cài đặt các thư viện: `npm install`
 2. Cài đặt trình duyệt cho Playwright E2E: `npx playwright install`
 
 ### Chạy hệ thống (Local)
-1. Khởi động server (Backend API + Frontend Vite): `npm run dev`
-2. Mở trình duyệt truy cập ứng dụng tại `http://127.0.0.1:5173`
+1. Nếu muốn dùng PostgreSQL thật, đặt `DATABASE_URL` trước khi chạy app:
+   ```bash
+   export DATABASE_URL="postgresql://YOUR_POSTGRES_USER@localhost:5432/virtual_company_dev?schema=public"
+   npm run prisma -- migrate deploy
+   ```
+2. Khởi động server (Backend API + Frontend Vite): `npm run dev`
+3. Mở trình duyệt truy cập ứng dụng tại `http://127.0.0.1:5173`
+
+Nếu Vite báo port khác như `5174`, thường là do một dev server cũ vẫn đang chiếm `5173`.
+Kiểm tra và dừng process cũ:
+
+```bash
+lsof -nP -iTCP:3001 -sTCP:LISTEN
+lsof -nP -iTCP:5173 -sTCP:LISTEN
+```
+
+### Prisma/PostgreSQL
+
+Prisma commands phải chạy qua database workspace từ root:
+
+```bash
+npm run prisma -- validate
+npm run prisma -- migrate deploy
+```
+
+`DATABASE_URL` dùng cho Prisma có thể chứa `?schema=public`. Với `psql`, bỏ query parameter này:
+
+```bash
+export PSQL_DATABASE_URL="postgresql://YOUR_POSTGRES_USER@localhost:5432/virtual_company_dev"
+psql "$PSQL_DATABASE_URL" -c "\dt"
+psql "$PSQL_DATABASE_URL" -c "select * from agents;"
+```
 
 ### Chạy Tests
 - **Unit, Contract & Integration Tests:** `npm test`
@@ -45,7 +85,7 @@ Mục tiêu của dự án là xây dựng một nền tảng mô phỏng công 
 ### Hướng dẫn Manual Test cho Agent Management
 1. Chạy `npm run dev` để start server.
 2. Truy cập ứng dụng, trang Agent Management sẽ tải danh sách agents.
-3. Có sẵn 2 demo agents: `Research Agent` và `Support Agent`.
+3. Nếu không đặt `DATABASE_URL`, có sẵn 2 demo agents: `Research Agent` và `Support Agent`. Nếu dùng PostgreSQL thật, danh sách phản ánh dữ liệu trong database.
 4. Nhấn **"New agent"** để thêm một nhân viên ảo mới.
 5. Sử dụng nút **"Edit"** để cập nhật `Role`, `Model`, hoặc `Instructions`.
 6. Sử dụng nút **"Disable"**, **"Enable"**, hoặc **"Delete"** để thử nghiệm lifecycle của agent.

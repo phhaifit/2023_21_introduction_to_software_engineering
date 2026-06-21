@@ -4,10 +4,10 @@ import { createServer } from "node:http";
 
 import express from "express";
 
-import { AgentLifecycleUseCases } from "../../backend/src/modules/agent-management/application/agent-lifecycle-use-cases.ts";
-import { createAgent } from "../../backend/src/modules/agent-management/domain/agent.ts";
-import { createAgentManagementRouter } from "../../backend/src/modules/agent-management/api/agent-management-router.ts";
-import { InMemoryAgentRepository } from "../../backend/src/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
+import { AgentLifecycleUseCases } from "@vcp/backend/modules/agent-management/application/agent-lifecycle-use-cases.ts";
+import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.ts";
+import { createAgentManagementRouter } from "@vcp/backend/modules/agent-management/api/agent-management-router.ts";
+import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
 function createUseCases(repository = new InMemoryAgentRepository()) {
   let idSequence = 0;

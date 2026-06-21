@@ -1,6 +1,6 @@
 ## Context
 
-The foundation provides `backend/src/modules/authentication`, `frontend/src/features/authentication`, shared API response contracts, request context placeholders, and RBAC placeholders. Authentication is the first protected platform boundary and must produce a consistent user/session context for all workspace-scoped modules.
+The foundation provides `apps/backend/src/modules/authentication`, `apps/frontend/src/features/authentication`, shared API response contracts, request context placeholders, and RBAC placeholders. Authentication is the first protected platform boundary and must produce a consistent user/session context for all workspace-scoped modules.
 
 ## Goals / Non-Goals
 

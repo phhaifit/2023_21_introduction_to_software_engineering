@@ -13,14 +13,13 @@ if (!process.env.DATABASE_URL) {
   process.exit(0);
 }
 
-const { PrismaClient } = await import("@prisma/client");
-const { PrismaPg } = await import("@prisma/adapter-pg");
+const { PrismaClient, PrismaPg } = await import("@vcp/database");
 const pg = await import("pg");
 const { PrismaAgentRepository } = await import(
-  "../../backend/src/modules/agent-management/infrastructure/prisma-agent-repository.ts"
+  "@vcp/backend/modules/agent-management/infrastructure/prisma-agent-repository.ts"
 );
 const { createAgent } = await import(
-  "../../backend/src/modules/agent-management/domain/agent.ts"
+  "@vcp/backend/modules/agent-management/domain/agent.ts"
 );
 
 const Pool = pg.default ? pg.default.Pool : pg.Pool;

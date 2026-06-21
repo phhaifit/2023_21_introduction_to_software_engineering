@@ -12,9 +12,10 @@ Use this checklist before requesting review.
 
 ## Module Boundary
 
-- [ ] Code stays inside the assigned backend/frontend module unless shared work is intentional
+- [ ] Code stays inside the assigned `apps/backend` module and `apps/frontend` feature unless shared work is intentional
 - [ ] No private imports from another capability module
 - [ ] Shared contracts changed only when necessary and reviewed
+- [ ] Database access goes through `@vcp/database`, not relative Prisma imports
 
 ## Tests
 
@@ -27,8 +28,10 @@ Use this checklist before requesting review.
 Run before PR:
 
 ```bash
-npm run test:contracts
-openspec validate "design-virtual-company-platform-architecture"
+npm test
+openspec validate "<change-name>"
+openspec validate --all --strict
+git diff --check
 ```
 
 Add any feature-specific commands to the PR description.

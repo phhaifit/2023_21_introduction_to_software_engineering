@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
-import { generateAgentSkillConfiguration } from "../../backend/src/modules/agent-management/application/agent-skill-configuration.ts";
-import { createAgent } from "../../backend/src/modules/agent-management/domain/agent.ts";
+import { generateAgentSkillConfiguration } from "@vcp/backend/modules/agent-management/application/agent-skill-configuration.ts";
+import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.ts";
 
 const agent = createAgent({
   agentId: "agent-skill",

@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AgentApiClientError,
   createAgentManagementApiClient
-} from "../../frontend/src/features/agent-management/agent-management-api-client.ts";
-import type { EntityId } from "../../shared/contracts/ids.ts";
+} from "@vcp/frontend/features/agent-management/agent-management-api-client.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 const workspaceId = "workspace-a" as EntityId<"workspaceId">;
 const agentId = "agent-a" as EntityId<"agentId">;

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer } from "node:http";
 
-import { createLocalAgentManagementRuntime } from "../../backend/src/local-agent-management-server.ts";
-import { DEMO_WORKSPACE_ID } from "../../shared/demo-workspace.ts";
+import { createLocalAgentManagementRuntime } from "@vcp/backend/local-agent-management-server.ts";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
 const runtime = await createLocalAgentManagementRuntime();
 const server = createServer(runtime.app);

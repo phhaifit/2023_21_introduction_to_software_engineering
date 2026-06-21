@@ -7,6 +7,9 @@ export default defineConfig({
     environment: "jsdom",
     include: ["tests/component/**/*.test.{ts,tsx}"],
     setupFiles: ["tests/component/setup.ts"],
+    deps: {
+      moduleDirectories: ["node_modules", "apps/frontend/node_modules"]
+    },
     restoreMocks: true
   }
 });

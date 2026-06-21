@@ -97,13 +97,17 @@ The system SHALL communicate mutation progress and failures while preserving rec
 - **WHEN** a mutation returns a non-validation error or the network request fails
 - **THEN** the page displays a general error, preserves form values when applicable, and keeps the last successfully loaded list
 
-### Requirement: Local In-Memory Browser Integration
-The system SHALL provide a local development composition that runs the React page and Agent Management API together with one in-memory repository.
+### Requirement: Local Browser Integration
+The system SHALL provide a local development composition that runs the React page and Agent Management API together.
 
 #### Scenario: Local application started
 - **WHEN** a developer runs the documented root development command
 - **THEN** the browser can load agents and perform create, edit, enable, disable, and delete operations through the proxied API
 
-#### Scenario: Local API restarted
-- **WHEN** the local API process restarts
+#### Scenario: Local API restarted without database
+- **WHEN** the local API process restarts without `DATABASE_URL`
 - **THEN** Agent Management data resets to the documented seed state
+
+#### Scenario: Local API started with database
+- **WHEN** the local API starts with `DATABASE_URL`
+- **THEN** Agent Management data is loaded through the database repository instead of the in-memory seed repository

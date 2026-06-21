@@ -61,7 +61,7 @@ openspec list
 openspec status --change "<your-module-change>"
 openspec validate "<your-module-change>"
 openspec validate --all --strict
-npm run test:contracts
+npm test
 ```
 
 For feature work, replace `<your-module-change>` with your assigned module-specific change name.
@@ -86,7 +86,7 @@ Use `tasks.md` as the team checklist.
 
 ## Contract Change Rule
 
-Changing anything in `shared/contracts` affects multiple modules.
+Changing anything in `packages/shared/src/contracts` or the `@vcp/shared` public exports affects multiple modules.
 
 Before changing contracts:
 
@@ -99,10 +99,30 @@ Before changing contracts:
 
 You may import:
 
-- `shared/contracts`
-- `backend/src/shared/*`
+- `@vcp/shared`
+- `@vcp/database` from backend or worker code only
+- `apps/backend/src/shared/*`
 - files inside your own module
 
 You should not import another module's internal service/repository/UI files.
 
 If you need another module's data, use an API, DTO, domain event, or shared contract.
+
+## Workspace Commands
+
+Run these from the repository root:
+
+```bash
+npm install
+npm run dev
+npm test
+npm run build
+npm run prisma -- validate
+```
+
+Feature-specific scripts can still be delegated explicitly through npm workspaces, for example:
+
+```bash
+npm run dev --workspace=@vcp/frontend
+npm run dev --workspace=@vcp/backend
+```

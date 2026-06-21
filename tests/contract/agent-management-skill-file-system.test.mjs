@@ -3,9 +3,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { FileSystemAgentSkillWriter } from "../../backend/src/modules/agent-management/infrastructure/file-system-agent-skill-writer.ts";
-import { generateAgentSkillConfiguration } from "../../backend/src/modules/agent-management/application/agent-skill-configuration.ts";
-import { createAgent } from "../../backend/src/modules/agent-management/domain/agent.ts";
+import { FileSystemAgentSkillWriter } from "@vcp/backend/modules/agent-management/infrastructure/file-system-agent-skill-writer.ts";
+import { generateAgentSkillConfiguration } from "@vcp/backend/modules/agent-management/application/agent-skill-configuration.ts";
+import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.ts";
 
 const tempBase = await mkdtemp(join(tmpdir(), "agent-skills-test-"));
 const writer = new FileSystemAgentSkillWriter(tempBase);

@@ -20,8 +20,8 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/tools-integration`
-- Frontend feature: `frontend/src/features/tools-integration`
+- Backend module: `apps/backend/src/modules/tools-integration`
+- Frontend feature: `apps/frontend/src/features/tools-integration`
 - Shared infrastructure: logging redaction, secret handling boundary, events
 - External boundary: Telegram adapter first; other channels remain future adapters
 - Related modules: agent management and task orchestration consume assigned tool contracts

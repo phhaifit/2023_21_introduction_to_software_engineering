@@ -5,11 +5,11 @@ Define the browser-runnable Agent Management app shell and its local API-backed 
 ## Requirements
 
 ### Requirement: React Vite App Shell
-The system SHALL provide a React + Vite frontend app shell that can run locally with the Agent Management in-memory API.
+The system SHALL provide a React + Vite frontend app shell that can run locally with the Agent Management API.
 
 #### Scenario: Frontend and API start
 - **WHEN** a developer runs the documented root development command
-- **THEN** the browser can load the React application and reach Agent Management routes through the local API proxy without database services
+- **THEN** the browser can load the React application and reach Agent Management routes through the local API proxy
 
 ### Requirement: Agent Management Page
 The system SHALL provide an Agent Management page mounted inside the frontend app shell.

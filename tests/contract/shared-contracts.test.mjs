@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const schemaPath = join(root, "shared/contracts/schema.json");
+const schemaPath = join(root, "packages/shared/src/contracts/schema.json");
 const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
 
 const expectedCapabilities = [
@@ -55,11 +55,11 @@ assert.equal(
 
 for (const capability of expectedCapabilities) {
   assert.ok(
-    existsSync(join(root, "backend/src/modules", capability, "README.md")),
+    existsSync(join(root, "apps/backend/src/modules", capability, "README.md")),
     `backend module boundary missing for ${capability}`
   );
   assert.ok(
-    existsSync(join(root, "frontend/src/features", capability, "README.md")),
+    existsSync(join(root, "apps/frontend/src/features", capability, "README.md")),
     `frontend feature boundary missing for ${capability}`
   );
 }

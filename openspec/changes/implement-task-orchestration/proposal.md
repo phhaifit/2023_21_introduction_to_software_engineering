@@ -20,8 +20,8 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/task-orchestration`
-- Frontend feature: `frontend/src/features/task-orchestration`
-- Worker job: `workers/src/jobs/task-execution`
+- Backend module: `apps/backend/src/modules/task-orchestration`
+- Frontend feature: `apps/frontend/src/features/task-orchestration`
+- Worker job: `apps/workers/src/jobs/task-execution`
 - Shared infrastructure: events, queue runner, logging, OpenClaw runtime adapter boundary
 - Related modules: agent, workflow, tools, and knowledge-base modules are consumed through public contracts

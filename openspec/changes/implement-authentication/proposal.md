@@ -20,7 +20,7 @@ No existing capability requirements change in this proposal.
 
 ## Impact
 
-- Backend module: `backend/src/modules/authentication`
-- Frontend feature: `frontend/src/features/authentication`
-- Shared infrastructure: `backend/src/shared/auth`, `backend/src/shared/rbac`
-- Shared contracts: API response/error conventions from `shared/contracts`
+- Backend module: `apps/backend/src/modules/authentication`
+- Frontend feature: `apps/frontend/src/features/authentication`
+- Shared infrastructure: `apps/backend/src/shared/auth`, `apps/backend/src/shared/rbac`
+- Shared contracts: API response/error conventions from `packages/shared/src/contracts`
