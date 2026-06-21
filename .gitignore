@@ -37,3 +37,6 @@ agent-skills/
 
 playwright-report/
 test-results/
+
+# Personal docs
+.local-docs/
