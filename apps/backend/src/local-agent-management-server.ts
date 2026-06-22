@@ -13,29 +13,63 @@ import { InMemoryAgentRepository } from "./modules/agent-management/infrastructu
 import { FileSystemAgentSkillWriter } from "./modules/agent-management/infrastructure/file-system-agent-skill-writer.ts";
 import { NoOpAgentSkillWriter } from "./modules/agent-management/infrastructure/no-op-agent-skill-writer.ts";
 
-export const LOCAL_AGENT_API_HOST = "127.0.0.1";
-export const LOCAL_AGENT_API_PORT = 3001;
+// New imports for Subscription & Payment
+import { createSubscriptionRouter } from "./modules/subscription-payment/api/subscription-router.ts";
+import { CheckoutUseCases } from "./modules/subscription-payment/application/checkout-use-cases.ts";
+import { PrismaSubscriptionRepository } from "./modules/subscription-payment/infrastructure/prisma-subscription-repository.ts";
+import { InMemorySubscriptionRepository } from "./modules/subscription-payment/infrastructure/in-memory-subscription-repository.ts";
+import { MockPaymentAdapter } from "./modules/subscription-payment/infrastructure/mock-payment-adapter.ts";
+import { InMemoryEventBus } from "./shared/events/event-bus.ts";
+
+const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
+const parsedBackendUrl = new URL(backendUrlStr);
+
+export const LOCAL_AGENT_API_HOST = parsedBackendUrl.hostname;
+export const LOCAL_AGENT_API_PORT = parseInt(parsedBackendUrl.port, 10) || 3001;
+
 
 export type LocalAgentManagementRuntime = {
   app: Express;
   repository: AgentRepository;
   useCases: AgentLifecycleUseCases;
+  subscriptionRepository: any;
+  checkoutUseCases: CheckoutUseCases;
 };
 
-async function createRepository(): Promise<AgentRepository> {
+let cachedPrisma: any = null;
+
+async function getPrismaClient(): Promise<any> {
+  if (cachedPrisma) return cachedPrisma;
   if (process.env.DATABASE_URL) {
     const { PrismaClient, PrismaPg } = await import("@vcp/database");
     const pg = await import("pg");
-    const { PrismaAgentRepository } = await import(
-      "./modules/agent-management/infrastructure/prisma-agent-repository.ts"
-    );
     const Pool = pg.default ? pg.default.Pool : pg.Pool;
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaPg(pool);
-    return new PrismaAgentRepository(new PrismaClient({ adapter }));
+    cachedPrisma = new PrismaClient({ adapter });
+    return cachedPrisma;
+  }
+  return null;
+}
+
+async function createRepository(): Promise<AgentRepository> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    const { PrismaAgentRepository } = await import(
+      "./modules/agent-management/infrastructure/prisma-agent-repository.ts"
+    );
+    return new PrismaAgentRepository(prisma);
   }
 
   return new InMemoryAgentRepository();
+}
+
+async function createSubscriptionRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    return new PrismaSubscriptionRepository(prisma);
+  }
+  return new InMemorySubscriptionRepository();
 }
 
 function createSkillWriter(): AgentSkillWriter {
@@ -47,12 +81,28 @@ function createSkillWriter(): AgentSkillWriter {
 
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
   const repository = await createRepository();
+  const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
+  
+  const eventBus = new InMemoryEventBus();
+
   const useCases = new AgentLifecycleUseCases({
     repository,
     skillWriter,
     now: () => new Date().toISOString(),
     generateAgentId: () => randomUUID()
+  });
+
+  const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
+
+  const checkoutUseCases = new CheckoutUseCases({
+    repository: subscriptionRepository,
+    paymentAdapter: new MockPaymentAdapter(frontendUrl),
+    eventBus,
+    now: () => new Date().toISOString(),
+    generateSubscriptionId: () => randomUUID() as any,
+    generateTransactionId: () => randomUUID() as any,
+    generateEventId: () => randomUUID() as any
   });
 
   if (repository instanceof InMemoryAgentRepository) {
@@ -94,7 +144,12 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createAgentManagementRouter({ useCases })
   );
 
-  return { app, repository, useCases };
+  app.use(
+    "/api/subscriptions",
+    createSubscriptionRouter({ useCases: checkoutUseCases })
+  );
+
+  return { app, repository, useCases, subscriptionRepository, checkoutUseCases };
 }
 
 async function seedDemoAgents(repository: AgentRepository): Promise<void> {
@@ -130,6 +185,6 @@ const entryPath = process.argv[1];
 if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
   const { app } = await createLocalAgentManagementRuntime();
   app.listen(LOCAL_AGENT_API_PORT, LOCAL_AGENT_API_HOST, () => {
-    console.log(`Agent API: http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`);
+    console.log(`Agent & Billing API: http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`);
   });
 }

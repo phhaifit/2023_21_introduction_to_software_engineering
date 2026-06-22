@@ -20,3 +20,32 @@ model Agent {
   @@index([workspaceId])
   @@map("agents")
 }
+
+model Subscription {
+  subscriptionId String  @id
+  userId         String
+  workspaceId    String?
+  plan           String
+  status         String
+  expiresAt      String
+  createdAt      String
+  updatedAt      String
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@map("subscriptions")
+}
+
+model Transaction {
+  transactionId  String @id
+  subscriptionId String
+  amount         Float
+  currency       String @default("USD")
+  status         String
+  createdAt      String
+  updatedAt      String
+
+  @@index([subscriptionId])
+  @@map("transactions")
+}
+
