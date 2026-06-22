@@ -5,7 +5,7 @@ import { Sidebar } from "./components/layout/Sidebar.tsx";
 import { AgentManagementPage } from "./features/agent-management/agent-management-page.tsx";
 import { KnowledgeBaseRagPage } from "./features/knowledge-base-rag/knowledge-base-rag-page.tsx";
 import { SubscriptionPaymentPage } from "./features/subscription-payment/subscription-payment-page.tsx";
-import { ExecutionsPage } from "./features/task-orchestration/ExecutionsPage.tsx";
+import { TaskOrchestrationPage } from "./features/task-orchestration/task-orchestration-page.tsx";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
@@ -24,7 +24,7 @@ export function App() {
       case "workflow-editor":
         return <WorkflowEditorPage />;
       case "executions":
-        return <ExecutionsPage />;
+        return <TaskOrchestrationPage />;
       case "agents":
         return (
           <section aria-label="Agent Management">
