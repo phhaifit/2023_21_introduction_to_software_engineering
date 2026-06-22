@@ -42,8 +42,11 @@ export function DashboardPage() {
               <button className="text-action" type="button">Xem tất cả</button>
             </div>
             {recentWorkflows.map((workflow) => (
-              <div className="placeholder-row" key={workflow.id}>
-                <span>{workflow.name}</span>
+              <div className="workflow-list-item" key={workflow.id}>
+                <div className="workflow-info">
+                  <span className="workflow-name">{workflow.name}</span>
+                  <span className="workflow-meta">Cập nhật: {workflow.lastUpdated}</span>
+                </div>
                 <StatusBadge status={workflow.status} />
               </div>
             ))}

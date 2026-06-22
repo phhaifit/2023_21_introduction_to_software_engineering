@@ -126,8 +126,8 @@ textarea {
   font-weight: 400;
 }
 
-h1 { margin: 0; font-size: 1.5rem; color: #1e293b; font-weight: 700; }
-h2 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+h1 { margin: 0; font-size: 1.5rem; color: #1e293b; font-weight: 700; letter-spacing: -0.02em; }
+h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #0f172a; letter-spacing: -0.01em; }
 
 .primary-action,
 .text-action,
@@ -245,7 +245,8 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
   border-radius: 8px;
   background: #f8fafc;
   color: var(--text);
-  font-weight: 800;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-align: left;
 }
 
@@ -378,4 +379,30 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
 
 .confirm-btn-danger:hover:not(:disabled) {
   background: #991b1b;
+}
+
+.workflow-list-item {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.workflow-list-item:first-of-type { border-top: none; }
+.workflow-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.workflow-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.workflow-meta {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
 }
