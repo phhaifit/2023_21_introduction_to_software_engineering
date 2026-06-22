@@ -16,7 +16,7 @@ type KnowledgeBaseRagView = {
   eyebrow: string;
   title: string;
   description: string;
-  placeholderItems: string[];
+  summaryItems: string[];
 };
 
 const knowledgeBaseViews: KnowledgeBaseRagView[] = [
@@ -27,11 +27,11 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
     eyebrow: "Document list management",
     title: "Documents",
     description:
-      "This placeholder will become the document list view for uploaded and synchronized knowledge files.",
-    placeholderItems: [
-      "Show uploaded and synchronized documents.",
-      "Display metadata such as source, type, size, and updated date.",
-      "Surface ingestion status without implementing the table in this issue."
+      "View uploaded and synchronized knowledge files prepared for workspace agents.",
+    summaryItems: [
+      "Browse internal and synchronized workspace documents.",
+      "Review source, file type, size, and last updated metadata.",
+      "Monitor document readiness and ingestion status."
     ]
   },
   {
@@ -41,11 +41,11 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
     eyebrow: "Document upload",
     title: "Upload Documents",
     description:
-      "This placeholder will become the upload flow for adding internal files to the workspace knowledge base.",
-    placeholderItems: [
-      "Provide a drag-and-drop upload area in a later issue.",
-      "Show selected files and validation feedback in a later issue.",
-      "Keep upload logic out of issue #36."
+      "Add internal files to the workspace knowledge base for future processing and retrieval.",
+    summaryItems: [
+      "Upload supported knowledge files from the workspace.",
+      "Review selected files before adding them to the knowledge base.",
+      "Prepare documents for ingestion and indexing."
     ]
   },
   {
@@ -54,12 +54,11 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
     shortLabel: "Sources",
     eyebrow: "External knowledge sources",
     title: "Data Sources",
-    description:
-      "This placeholder will become the management view for external sources such as Google Drive, Notion, and Confluence.",
-    placeholderItems: [
-      "Show connected and not connected source cards later.",
-      "Expose manual sync actions later.",
-      "Keep OAuth and API integration out of issue #36."
+    description: "Manage external knowledge sources connected to the workspace.",
+    summaryItems: [
+      "Review available sources such as Google Drive, Notion, and Confluence.",
+      "Check connection status for each external source.",
+      "Prepare source content for synchronization."
     ]
   },
   {
@@ -69,11 +68,11 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
     eyebrow: "Sync scope selection",
     title: "Synchronization Scope",
     description:
-      "This placeholder will become the screen for selecting folders, pages, or spaces to synchronize.",
-    placeholderItems: [
-      "Show a hierarchical scope selector later.",
-      "Display selected folders/pages summary later.",
-      "Keep checkbox tree logic out of issue #36."
+      "Select which external folders, pages, or spaces should be included in synchronization.",
+    summaryItems: [
+      "Choose the content areas that belong in the workspace knowledge base.",
+      "Review selected synchronization scope before syncing.",
+      "Keep external knowledge sources organized by workspace needs."
     ]
   },
   {
@@ -83,11 +82,11 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
     eyebrow: "Ingestion and sync monitoring",
     title: "Processing Status",
     description:
-      "This placeholder will become the monitoring screen for ingestion and synchronization jobs.",
-    placeholderItems: [
-      "Show ingestion and synchronization job status later.",
-      "Display progress and failure messages later.",
-      "Keep processing tables and mock jobs out of issue #36."
+      "Monitor document ingestion and synchronization activity across the knowledge base.",
+    summaryItems: [
+      "Track processing status for uploaded and synchronized content.",
+      "Review progress, completion, and failure states.",
+      "Identify knowledge items that need attention."
     ]
   }
 ];
@@ -142,15 +141,13 @@ export function KnowledgeBaseRagPage() {
       <main className="knowledge-base-rag-main">
         <header className="knowledge-base-rag-header">
           <div>
-            <p className="knowledge-base-rag-kicker">Phase 4 Prototype</p>
+            <p className="knowledge-base-rag-kicker">Workspace Knowledge</p>
             <h1>Knowledge Base / RAG Management</h1>
             <p>
               Manage internal documents and synchronized knowledge sources before they
               are used by RAG-enabled agents.
             </p>
           </div>
-
-          <div className="knowledge-base-rag-issue-badge">Issue #36</div>
         </header>
 
         <section className="knowledge-base-rag-content-card">
@@ -159,27 +156,19 @@ export function KnowledgeBaseRagPage() {
               <p>{activeView.eyebrow}</p>
               <h2>{activeView.title}</h2>
             </div>
-            <span>Placeholder view</span>
           </div>
 
           <p className="knowledge-base-rag-content-description">
             {activeView.description}
           </p>
 
-          <div className="knowledge-base-rag-placeholder-grid">
-            {activeView.placeholderItems.map((item) => (
-              <div className="knowledge-base-rag-placeholder-item" key={item}>
+          <div className="knowledge-base-rag-summary-grid">
+            {activeView.summaryItems.map((item) => (
+              <div className="knowledge-base-rag-summary-item" key={item}>
                 <span aria-hidden="true" />
                 <p>{item}</p>
               </div>
             ))}
-          </div>
-
-          <div className="knowledge-base-rag-scope-note">
-            <strong>Issue #36 scope:</strong> base layout, local navigation, active
-            state, and placeholder content only. Detailed upload, validation, data
-            source, synchronization, and processing logic will be implemented in later
-            issues.
           </div>
         </section>
       </main>
