@@ -23,3 +23,9 @@ export const PLAN_ENTITLEMENTS: Record<SubscriptionPlan, ResourceEntitlement> = 
     maxDocuments: 1000
   }
 };
+
+export const PLAN_PRICES: Record<SubscriptionPlan, number> = {
+  standard: 10,
+  premium: 30
+};
+
