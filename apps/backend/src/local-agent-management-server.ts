@@ -21,8 +21,12 @@ import { InMemorySubscriptionRepository } from "./modules/subscription-payment/i
 import { MockPaymentAdapter } from "./modules/subscription-payment/infrastructure/mock-payment-adapter.ts";
 import { InMemoryEventBus } from "./shared/events/event-bus.ts";
 
-export const LOCAL_AGENT_API_HOST = "127.0.0.1";
-export const LOCAL_AGENT_API_PORT = 3001;
+const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
+const parsedBackendUrl = new URL(backendUrlStr);
+
+export const LOCAL_AGENT_API_HOST = parsedBackendUrl.hostname;
+export const LOCAL_AGENT_API_PORT = parseInt(parsedBackendUrl.port, 10) || 3001;
+
 
 export type LocalAgentManagementRuntime = {
   app: Express;
