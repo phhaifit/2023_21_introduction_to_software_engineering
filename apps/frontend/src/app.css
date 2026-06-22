@@ -17,6 +17,8 @@
   --success-soft: #dcfce7;
   --warning: #a16207;
   --warning-soft: #fef3c7;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
@@ -232,6 +234,8 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
 .running { background: var(--warning-soft); color: var(--warning); }
 .completed { background: var(--success-soft); color: var(--success); }
 .draft { background: #eef2f8; color: #475467; }
+.failed { background: var(--danger-soft); color: var(--danger); }
+.published { background: var(--accent-soft); color: var(--accent); }
 
 .quick-action {
   display: block;
@@ -298,4 +302,80 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
   .stat-card strong { font-size: 28px; }
   .placeholder-row { align-items: flex-start; flex-direction: column; gap: 8px; padding: 14px 0; }
   .empty-state { min-height: 320px; padding: 34px 20px; }
+}
+
+/* Search Bar Component */
+.search-bar-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  color: var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Confirm Button Component */
+.confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.confirm-btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.confirm-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.confirm-btn-secondary {
+  background: #ffffff;
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.confirm-btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: var(--muted);
+}
+
+.confirm-btn-danger {
+  background: var(--danger);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.15);
+}
+
+.confirm-btn-danger:hover:not(:disabled) {
+  background: #991b1b;
 }

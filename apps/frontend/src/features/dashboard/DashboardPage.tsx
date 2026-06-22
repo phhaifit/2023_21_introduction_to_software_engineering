@@ -5,7 +5,7 @@ import { mockWorkflows } from "../../data/workflows";
 export function DashboardPage() {
   const total = mockWorkflows.length;
   const running = mockWorkflows.filter((w) => w.status === "Running").length;
-  const completed = mockWorkflows.filter((w) => w.status === "Completed").length;
+  const completed = mockWorkflows.filter((w) => w.status === "Completed" || w.status === "Published").length;
   const failed = mockWorkflows.filter((w) => w.status === "Failed").length;
 
   const recentWorkflows = mockWorkflows.slice(0, 3);
@@ -14,31 +14,47 @@ export function DashboardPage() {
     <div>
       <section>
         <div className="stats-grid">
-          <StatCard label="Total Workflows" value={total.toString()} />
-          <StatCard label="Running" value={running.toString()} />
-          <StatCard label="Completed" value={completed.toString()} />
-          <StatCard label="Failed" value={failed.toString()} />
+          <StatCard 
+            title="Tổng số Workflows" 
+            value={total.toString()} 
+            description="Tất cả quy trình trên hệ thống" 
+          />
+          <StatCard 
+            title="Đang chạy" 
+            value={running.toString()} 
+            description="Hoạt động ổn định hiện tại" 
+          />
+          <StatCard 
+            title="Hoàn thành" 
+            value={completed.toString()} 
+            description="Đã thực thi thành công" 
+          />
+          <StatCard 
+            title="Cảnh báo / Lỗi" 
+            value={failed.toString()} 
+            description="Cần kiểm tra ngay lập tức" 
+          />
         </div>
         <div className="content-grid">
           <article className="panel">
             <div className="panel-heading">
-              <h2>Recent Workflows</h2>
-              <button className="text-action" type="button">View all</button>
+              <h2>Workflows hoạt động gần đây</h2>
+              <button className="text-action" type="button">Xem tất cả</button>
             </div>
             {recentWorkflows.map((workflow) => (
               <div className="placeholder-row" key={workflow.id}>
                 <span>{workflow.name}</span>
-                <StatusBadge status={workflow.status as "Running" | "Completed" | "Draft" | "Failed"} />
+                <StatusBadge status={workflow.status} />
               </div>
             ))}
           </article>
           <article className="panel">
             <div className="panel-heading">
-              <h2>Quick Actions</h2>
+              <h2>Thao tác nhanh</h2>
             </div>
-            <button className="quick-action" type="button">Create workflow</button>
-            <button className="quick-action" type="button">View workflows</button>
-            <button className="quick-action" type="button">Monitor executions</button>
+            <button className="quick-action" type="button">Tạo mới Workflow</button>
+            <button className="quick-action" type="button">Xem danh sách Workflows</button>
+            <button className="quick-action" type="button">Theo dõi Lịch sử chạy</button>
           </article>
         </div>
       </section>
