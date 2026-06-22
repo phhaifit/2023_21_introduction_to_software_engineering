@@ -31,6 +31,34 @@ textarea {
   padding: 32px 24px;
 }
 
+.app-module-switch {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: -8px;
+}
+
+.app-module-switch button {
+  border: 1px solid #d7deea;
+  background: #ffffff;
+  color: #44546a;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.app-module-switch button:hover {
+  background: #f5f8ff;
+  color: #12315f;
+}
+
+.app-module-switch button.active {
+  background: #2c6bed;
+  border-color: #2c6bed;
+  color: #ffffff;
+}
+
 .app-shell__header {
   display: grid;
   gap: 8px;
