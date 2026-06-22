@@ -9,6 +9,13 @@ export type SubscriptionRouterDependencies = {
   jobQueue?: JobQueue;
 };
 
+class AuthenticationError extends Error {
+  constructor(message: string = "User is not authenticated") {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}
+
 export function createSubscriptionRouter(
   dependencies: SubscriptionRouterDependencies
 ): Router {
@@ -20,7 +27,7 @@ export function createSubscriptionRouter(
 
   const enforceAuth = (context: any) => {
     if (!context.user) {
-      throw new Error("User is not authenticated");
+      throw new AuthenticationError();
     }
   };
 
@@ -34,13 +41,17 @@ export function createSubscriptionRouter(
       });
     } catch (error: any) {
       console.error("Subscription API error:", error);
+      const isAuth = error instanceof AuthenticationError;
       const isValidation = error instanceof CheckoutValidationError;
       const isNotFound = error instanceof CheckoutNotFoundError;
 
-      res.status(isValidation ? 400 : isNotFound ? 404 : 500).json({
+      const statusCode = isAuth ? 401 : isValidation ? 400 : isNotFound ? 404 : 500;
+      const errorCode = isAuth ? "auth.unauthorized" : isValidation ? "validation.failed" : isNotFound ? "resource.not_found" : "system.error";
+
+      res.status(statusCode).json({
         success: false,
         error: {
-          code: isValidation ? "validation.failed" : isNotFound ? "resource.not_found" : "system.error",
+          code: errorCode,
           message: error.message || "An unexpected error occurred."
         }
       });
