@@ -52,7 +52,7 @@
 
   `feat(task-orchestration): add base workspace layout`
 
-* [ ] 2. [PA5] Task & Orchestration – Mock Data and Shared Types
+* [X] 2. [PA5] Task & Orchestration – Mock Data and Shared Types
 
   Scope:
 
