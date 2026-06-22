@@ -15,7 +15,7 @@
 
 ## Core Setup
 
-* [ ] 1. [PA5] Task & Orchestration – Base Workspace Layout
+* [X] 1. [PA5] Task & Orchestration – Base Workspace Layout
 
   Scope:
 
