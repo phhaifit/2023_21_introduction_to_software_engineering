@@ -89,9 +89,11 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateAgentId: () => randomUUID()
   });
 
+  const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
+
   const checkoutUseCases = new CheckoutUseCases({
     repository: subscriptionRepository,
-    paymentAdapter: new MockPaymentAdapter(`http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`),
+    paymentAdapter: new MockPaymentAdapter(frontendUrl),
     eventBus,
     now: () => new Date().toISOString(),
     generateSubscriptionId: () => randomUUID() as any,
