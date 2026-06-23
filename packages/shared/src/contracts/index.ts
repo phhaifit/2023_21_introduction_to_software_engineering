@@ -7,4 +7,5 @@ export * from "./plans.ts";
 export * from "./roles.ts";
 export * from "./statuses.ts";
 export * from "./subscription-payment.ts";
+export * from "./workflow.ts";
 export * from "./task-orchestration.ts";

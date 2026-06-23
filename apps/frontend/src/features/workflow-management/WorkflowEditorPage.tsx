@@ -4,10 +4,13 @@ import { SectionCard } from "../../components/shared/SectionCard";
 
 export function WorkflowEditorPage() {
   const [formData, setFormData] = useState({
+    workflowId: "new-wf-123",
+    workspaceId: "ws-1",
     name: "",
     description: "",
     status: "Draft",
-    triggerType: "manual"
+    triggerType: "manual",
+    triggerConfig: {}
   });
 
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
