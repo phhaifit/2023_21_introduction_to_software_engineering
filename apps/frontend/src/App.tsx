@@ -5,7 +5,6 @@ import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx"
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { ExecutionsPage } from "./features/task-orchestration/ExecutionsPage.tsx";
 import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
-// Agent Management
 import { AgentManagementPage } from "./features/agent-management/agent-management-page.tsx";
 import { SubscriptionPaymentPage } from "./features/subscription-payment/subscription-payment-page.tsx";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
