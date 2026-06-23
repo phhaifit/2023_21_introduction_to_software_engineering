@@ -40,6 +40,10 @@ The root `package.json` MUST provide unified scripts to run development servers 
 - **WHEN** a developer runs `npm run dev` at the root
 - **THEN** the Vite frontend server and Express backend server start concurrently
 
+#### Scenario: Frontend modules resolve during local development
+- **WHEN** a developer opens the Vite frontend after running `npm run dev`
+- **THEN** the app resolves Dashboard and Workflow Management frontend imports without a missing-module overlay
+
 ### Requirement: Workspace-aware verification
 The repository MUST keep root-level verification commands after the workspace migration.
 
@@ -54,3 +58,7 @@ The repository MUST keep root-level verification commands after the workspace mi
 #### Scenario: Running OpenSpec validation
 - **WHEN** a developer runs OpenSpec validation from the root
 - **THEN** validation still resolves the repository-local OpenSpec configuration and change artifacts
+
+#### Scenario: Frontend verification catches missing feature imports
+- **WHEN** Dashboard or Workflow Management frontend code references workflow demo data
+- **THEN** root tests and the root build command fail if the referenced workflow data module cannot be resolved
