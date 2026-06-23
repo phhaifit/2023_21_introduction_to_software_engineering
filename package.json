@@ -18,6 +18,7 @@
     "test:agent-management:components": "npm run test:components --workspace=@vcp/frontend",
     "test:contracts": "node tests/contract/shared-contracts.test.mjs && npm run test:contracts:types",
     "test:contracts:types": "tsc --project tsconfig.contracts.json",
+    "test:contracts": "node tests/contract/shared-contracts.test.mjs && node tests/contract/platform-data-model-boundaries.test.mjs",
     "test:e2e": "playwright test",
     "prisma": "npm run prisma --workspace=@vcp/database --",
     "validate:openspec": "openspec validate --all --strict"
