@@ -9,7 +9,7 @@
 - [ ] 2.1 Implement workflow list and detail use cases
 - [ ] 2.2 Implement workflow creation with ordered agent steps
 - [ ] 2.3 Implement workflow editing for name, status, and steps
-- [ ] 2.4 Validate referenced agents through public agent summaries before activation or execution
+- [x] 2.4 Validate referenced agents through public agent summaries before activation or execution
 - [ ] 2.5 Implement workflow execution request creation for task orchestration
 
 ## 3. Frontend Experience
