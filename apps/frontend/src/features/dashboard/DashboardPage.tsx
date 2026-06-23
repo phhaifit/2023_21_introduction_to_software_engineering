@@ -4,9 +4,9 @@ import { mockWorkflows } from "../../data/workflows";
 
 export function DashboardPage() {
   const total = mockWorkflows.length;
-  const running = mockWorkflows.filter((w) => w.status === "Running").length;
-  const completed = mockWorkflows.filter((w) => w.status === "Completed" || w.status === "Published").length;
-  const failed = mockWorkflows.filter((w) => w.status === "Failed").length;
+  const running = mockWorkflows.filter((w) => w.lastExecutionStatus === "Running").length;
+  const completed = mockWorkflows.filter((w) => w.lastExecutionStatus === "Success" || w.status === "Published").length;
+  const failed = mockWorkflows.filter((w) => w.lastExecutionStatus === "Failed").length;
 
   const recentWorkflows = mockWorkflows.slice(0, 3);
 
@@ -42,12 +42,12 @@ export function DashboardPage() {
               <button className="text-action" type="button">Xem tất cả</button>
             </div>
             {recentWorkflows.map((workflow) => (
-              <div className="workflow-list-item" key={workflow.id}>
+              <div className="workflow-list-item" key={workflow.workflowId}>
                 <div className="workflow-info">
                   <span className="workflow-name">{workflow.name}</span>
-                  <span className="workflow-meta">Cập nhật: {workflow.lastUpdated}</span>
+                  <span className="workflow-meta">Cập nhật: {workflow.updatedAt}</span>
                 </div>
-                <StatusBadge status={workflow.status} />
+                <StatusBadge status={workflow.lastExecutionStatus || workflow.status} />
               </div>
             ))}
           </article>

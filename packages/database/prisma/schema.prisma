@@ -110,6 +110,21 @@ model Transaction {
   @@map("transactions")
 }
 
+model Workflow {
+  workflowId    String   @id
+  workspaceId   String
+  name          String
+  description   String?
+  status        String   @default("Draft")
+  triggerType   String   @default("manual")
+  triggerConfig Json?
+  createdAt     String
+  updatedAt     String
+
+  steps         WorkflowStep[]
+  executions    WorkflowExecution[]
+
+  @@index([workspaceId])
 model Tool {
   toolId      String @id
   workspaceId String
@@ -171,6 +186,54 @@ model Workflow {
 }
 
 model WorkflowStep {
+  stepId        String   @id
+  workflowId    String
+  name          String
+  type          String
+  order         Int
+  config        Json
+  createdAt     String
+  updatedAt     String
+
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
+  logs          WorkflowStepLog[]
+
+  @@index([workflowId])
+  @@map("workflow_steps")
+}
+
+model WorkflowExecution {
+  executionId   String   @id
+  workflowId    String
+  status        String
+  triggeredBy   String
+  startedAt     String
+  completedAt   String?
+
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
+  stepLogs      WorkflowStepLog[]
+
+  @@index([workflowId])
+  @@map("workflow_executions")
+}
+
+model WorkflowStepLog {
+  logId         String   @id
+  executionId   String
+  stepId        String
+  status        String
+  inputData     Json?
+  outputData    Json?
+  errorMsg      String?
+  startedAt     String
+  completedAt   String?
+
+  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  step          WorkflowStep      @relation(fields: [stepId], references: [stepId], onDelete: Cascade)
+
+  @@index([executionId])
+  @@index([stepId])
+  @@map("workflow_step_logs")
   workflowStepId String @id
   workspaceId     String
   workflowId      String

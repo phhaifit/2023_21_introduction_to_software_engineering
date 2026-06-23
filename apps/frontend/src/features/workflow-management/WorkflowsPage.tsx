@@ -50,11 +50,11 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
               </tr>
             ) : (
               filtered.map(w => (
-                <tr key={w.id}>
+                <tr key={w.workflowId}>
                   <td style={{ fontWeight: 600 }}>{w.name}</td>
-                  <td><StatusBadge status={w.status} /></td>
+                  <td><StatusBadge status={w.lastExecutionStatus || w.status} /></td>
                   <td>{w.stepCount} bước</td>
-                  <td>{w.lastUpdated}</td>
+                  <td>{w.updatedAt}</td>
                   <td style={{ textAlign: 'right' }}>
                     <button className="text-action" onClick={() => {}}>Chi tiết</button>
                   </td>
