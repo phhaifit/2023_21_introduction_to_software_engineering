@@ -1,11 +1,12 @@
+import { EmptyState } from "../../components/shared/EmptyState";
+
 export function WorkflowEditorPage() {
   return (
     <div>
-      <article className="empty-state">
-        <span className="empty-label">Create / Edit Workflow</span>
-        <h2>Editor workspace shell</h2>
-        <p>Form fields, step table, agent assignment, and validation panel will be added in later sub-issues.</p>
-      </article>
+      <EmptyState 
+        title="Editor workspace shell" 
+        description="Form fields, step table, agent assignment, and validation panel will be added in later sub-issues." 
+      />
     </div>
   );
 }

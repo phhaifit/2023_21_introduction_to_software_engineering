@@ -2,9 +2,11 @@ import type { PageKey } from "../../types/navigation";
 
 const items: Array<{ key: PageKey; label: string; index: string }> = [
   { key: "workflows", label: "Workflows", index: "01" },
-  { key: "agents", label: "Nhân viên ảo", index: "02" },
-  { key: "billing", label: "Thanh toán", index: "03" },
-  { key: "settings", label: "Settings", index: "04" },
+  { key: "executions", label: "Công việc", index: "02" },
+  { key: "agents", label: "Nhân viên ảo", index: "03" },
+  { key: "knowledge-base-rag", label: "Knowledge Base / RAG", index: "04" },
+  { key: "billing", label: "Thanh toán", index: "05" },
+  { key: "settings", label: "Settings", index: "06" },
 ];
 
 type SidebarProps = {
