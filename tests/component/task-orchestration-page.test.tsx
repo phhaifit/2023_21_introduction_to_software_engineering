@@ -27,7 +27,7 @@ describe("TaskOrchestrationPage base workspace", () => {
       name: "What should your virtual team work on?"
     })).toBeVisible();
     expect(screen.getByRole("list", { name: "Suggested prompts" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Task composer placeholder" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Task composer area" })).toBeVisible();
 
     expect(screen.queryByText(/Task ID/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Work ID/i)).not.toBeInTheDocument();
@@ -45,17 +45,45 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.queryByRole("heading", {
       name: "What should your virtual team work on?"
     })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Request")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 
-  it("keeps composer and routing controls clearly disabled", () => {
+  it("renders the real composer while keeping routing unavailable", () => {
     render(<TaskOrchestrationPage />);
 
     expect(screen.getByLabelText("Routing")).toBeDisabled();
-    expect(screen.getByLabelText("Request")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
-    expect(screen.getByText(
-      "Task submission and routing will be enabled in later sub-issues."
-    )).toBeVisible();
+    expect(screen.getByLabelText("Request")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeEnabled();
+    expect(screen.getByText("Routing setup coming soon")).toBeVisible();
+  });
+
+  it("uses deterministic suggestions and resets the draft after accepted submit", async () => {
+    const user = userEvent.setup();
+    render(<TaskOrchestrationPage />);
+
+    await user.click(screen.getByRole("button", { name: "Send request" }));
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByLabelText("Request")).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    );
+
+    const suggestions = screen.getByRole("list", { name: "Suggested prompts" });
+    const suggestion = within(suggestions).getAllByRole("button")[0];
+    await user.click(suggestion);
+
+    const prompt = screen.getByLabelText("Request");
+    expect(prompt).not.toHaveValue("");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(prompt).not.toHaveAttribute("aria-invalid");
+
+    await user.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(prompt).toHaveValue("");
+    expect(screen.queryByText(/Task ID/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Work ID/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pending/i)).not.toBeInTheDocument();
   });
 
   it("opens the workspace through the executions navigation entry", async () => {
