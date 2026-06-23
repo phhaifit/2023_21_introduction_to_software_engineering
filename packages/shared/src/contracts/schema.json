@@ -114,7 +114,24 @@
   "api": {
     "successShape": ["ok", "data", "meta"],
     "errorShape": ["ok", "error", "meta"],
+    "metaShape": ["requestId", "timestamp"],
+    "paginationShape": [
+      "page",
+      "pageSize",
+      "totalItems",
+      "totalPages",
+      "hasNextPage",
+      "hasPreviousPage"
+    ],
+    "validationIssueShape": ["path", "message", "code"],
+    "authenticationErrorCodes": [
+      "auth.unauthorized",
+      "auth.invalid_credentials",
+      "auth.session_expired"
+    ],
+    "authorizationErrorCodes": ["auth.forbidden"],
     "errorCodes": [
+      "auth.unauthorized",
       "auth.invalid_credentials",
       "auth.session_expired",
       "auth.forbidden",
@@ -129,6 +146,60 @@
       "task.execution_failed",
       "knowledge.access_denied",
       "system.unexpected_error"
+    ]
+  },
+  "contractConventions": {
+    "sharedContractScope": [
+      "ids",
+      "roles",
+      "statuses",
+      "plans",
+      "events",
+      "api",
+      "publicSummaries",
+      "crossModuleRequests"
+    ],
+    "requestBodyForbiddenFields": [
+      "workspaceId",
+      "submittedByUserId",
+      "userId",
+      "createdAt",
+      "updatedAt",
+      "status",
+      "taskId",
+      "workId"
+    ],
+    "secretFieldNameFragments": [
+      "secret",
+      "password",
+      "token",
+      "credential",
+      "privateKey",
+      "hash",
+      "apiKey"
+    ],
+    "forbiddenSharedContractImports": [
+      "@vcp/backend",
+      "@vcp/database",
+      "@vcp/workers",
+      "apps/backend",
+      "apps/frontend",
+      "apps/workers",
+      "packages/database",
+      "@prisma",
+      "PrismaClient",
+      "express",
+      "react"
+    ],
+    "forbiddenFrontendCrossModuleImports": [
+      "@vcp/backend",
+      "@vcp/database",
+      "@vcp/workers",
+      "apps/backend",
+      "apps/workers",
+      "packages/database",
+      "@prisma",
+      "PrismaClient"
     ]
   },
   "taskOrchestration": {
