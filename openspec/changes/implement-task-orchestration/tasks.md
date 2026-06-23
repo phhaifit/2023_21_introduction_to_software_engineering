@@ -89,7 +89,7 @@
 
   `feat(task-orchestration): add mock data and domain types`
 
-* [ ] 3. [PA5] Task & Orchestration – Shared Status and Timeline Components
+* [X] 3. [PA5] Task & Orchestration – Shared Status and Timeline Components
 
   Scope:
 
