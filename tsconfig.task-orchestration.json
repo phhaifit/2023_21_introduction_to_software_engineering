@@ -17,6 +17,8 @@
     "target": "ES2022"
   },
   "include": [
-    "apps/backend/src/modules/task-orchestration/domain/**/*.ts"
+    "apps/backend/src/modules/task-orchestration/domain/**/*.ts",
+    "apps/backend/src/modules/task-orchestration/application/**/*.ts",
+    "tests/contract/task-orchestration-application-boundaries-types.test.ts"
   ]
 }
