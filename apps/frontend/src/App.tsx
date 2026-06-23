@@ -26,7 +26,11 @@ export function App() {
       case "executions":
         return <ExecutionsPage />;
       case "agents":
-        return <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />;
+        return (
+          <section aria-label="Agent Management">
+            <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />
+          </section>
+        );
       case "knowledge-base-rag":
         return <KnowledgeBaseRagPage />;
       case "billing":
