@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
 import "./knowledge-base-rag-view.css";
 
 type KnowledgeBaseRagViewId =
@@ -150,27 +151,31 @@ export function KnowledgeBaseRagPage() {
           </div>
         </header>
 
-        <section className="knowledge-base-rag-content-card">
-          <div className="knowledge-base-rag-content-header">
-            <div>
-              <p>{activeView.eyebrow}</p>
-              <h2>{activeView.title}</h2>
-            </div>
-          </div>
-
-          <p className="knowledge-base-rag-content-description">
-            {activeView.description}
-          </p>
-
-          <div className="knowledge-base-rag-summary-grid">
-            {activeView.summaryItems.map((item) => (
-              <div className="knowledge-base-rag-summary-item" key={item}>
-                <span aria-hidden="true" />
-                <p>{item}</p>
+        {activeView.id === "documents" ? (
+          <KnowledgeBaseDocumentsScreen />
+        ) : (
+          <section className="knowledge-base-rag-content-card">
+            <div className="knowledge-base-rag-content-header">
+              <div>
+                <p>{activeView.eyebrow}</p>
+                <h2>{activeView.title}</h2>
               </div>
-            ))}
-          </div>
-        </section>
+            </div>
+
+            <p className="knowledge-base-rag-content-description">
+              {activeView.description}
+            </p>
+
+            <div className="knowledge-base-rag-summary-grid">
+              {activeView.summaryItems.map((item) => (
+                <div className="knowledge-base-rag-summary-item" key={item}>
+                  <span aria-hidden="true" />
+                  <p>{item}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </section>
   );
