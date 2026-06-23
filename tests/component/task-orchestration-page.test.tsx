@@ -10,6 +10,14 @@ vi.mock("@vcp/frontend/features/subscription-payment/subscription-payment-page.t
   SubscriptionPaymentPage: () => <section>Billing placeholder</section>
 }));
 
+vi.mock("@vcp/frontend/features/dashboard/DashboardPage.tsx", () => ({
+  DashboardPage: () => <section>Dashboard placeholder</section>
+}));
+
+vi.mock("@vcp/frontend/features/workflow-management/WorkflowsPage.tsx", () => ({
+  WorkflowsPage: () => <section>Workflows placeholder</section>
+}));
+
 import { App } from "@vcp/frontend/App.tsx";
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -49,13 +57,14 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 
-  it("renders the real composer while keeping routing unavailable", () => {
+  it("renders the real controlled routing selector and composer", () => {
     render(<TaskOrchestrationPage />);
 
-    expect(screen.getByLabelText("Routing")).toBeDisabled();
+    expect(screen.getByRole("group", { name: "Routing mode" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
     expect(screen.getByLabelText("Request")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send request" })).toBeEnabled();
-    expect(screen.getByText("Routing setup coming soon")).toBeVisible();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("uses deterministic suggestions and resets the draft after accepted submit", async () => {
@@ -81,9 +90,11 @@ describe("TaskOrchestrationPage base workspace", () => {
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
     expect(prompt).toHaveValue("");
+    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
     expect(screen.queryByText(/Task ID/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Work ID/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Pending/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/processing log/i)).not.toBeInTheDocument();
   });
 
   it("opens the workspace through the executions navigation entry", async () => {
