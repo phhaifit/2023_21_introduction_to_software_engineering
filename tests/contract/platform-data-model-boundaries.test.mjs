@@ -6,14 +6,19 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const schemaPath = join(root, "packages/database/prisma/schema.prisma");
 const exportsPath = join(root, "packages/database/src/index.ts");
-const migrationPath = join(
+const foundationMigrationPath = join(
   root,
   "packages/database/prisma/migrations/0002_establish_platform_data_model_boundaries/migration.sql"
+);
+const hardeningMigrationPath = join(
+  root,
+  "packages/database/prisma/migrations/0003_harden_platform_data_integrity/migration.sql"
 );
 
 const schema = readFileSync(schemaPath, "utf8");
 const databaseExports = readFileSync(exportsPath, "utf8");
-const migration = readFileSync(migrationPath, "utf8");
+const foundationMigration = readFileSync(foundationMigrationPath, "utf8");
+const hardeningMigration = readFileSync(hardeningMigrationPath, "utf8");
 
 function parseModels(source) {
   const models = new Map();
@@ -23,6 +28,7 @@ function parseModels(source) {
     const [, modelName, body] = match;
     const fields = new Map();
     const indexes = [];
+    const uniques = [];
 
     for (const rawLine of body.split("\n")) {
       const line = rawLine.trim();
@@ -43,6 +49,19 @@ function parseModels(source) {
         continue;
       }
 
+      if (line.startsWith("@@unique")) {
+        const fieldMatch = line.match(/\[\s*([^\]]+)\s*\]/);
+        if (fieldMatch) {
+          uniques.push(
+            fieldMatch[1]
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean)
+          );
+        }
+        continue;
+      }
+
       if (line.startsWith("@@")) {
         continue;
       }
@@ -51,7 +70,7 @@ function parseModels(source) {
       fields.set(fieldName, { type: fieldType, line });
     }
 
-    models.set(modelName, { body, fields, indexes });
+    models.set(modelName, { body, fields, indexes, uniques });
   }
 
   return models;
@@ -82,6 +101,13 @@ function requireIndexContaining(modelName, model, fieldName) {
   assert.ok(
     model.indexes.some((index) => index.includes(fieldName)),
     `${modelName} missing lookup index containing ${fieldName}`
+  );
+}
+
+function requireUnique(modelName, model, expectedFields) {
+  assert.ok(
+    model.uniques.some((unique) => unique.join(",") === expectedFields.join(",")),
+    `${modelName} missing unique constraint on ${expectedFields.join(", ")}`
   );
 }
 
@@ -375,6 +401,17 @@ const expectedPrimaryIds = {
   KnowledgeAccessGrant: "knowledgeAccessGrantId",
   Job: "jobId"
 };
+const expectedUniqueConstraints = {
+  WorkspaceMember: ["workspaceId", "userId"],
+  Invitation: ["workspaceId", "email", "status"],
+  Agent: ["workspaceId", "name"],
+  ToolConnection: ["workspaceId", "toolId"],
+  AgentToolAssignment: ["workspaceId", "agentId", "toolId"],
+  WorkflowStep: ["workflowId", "stepOrder"],
+  TaskRun: ["jobId"],
+  KnowledgeAccessGrant: ["workspaceId", "documentId", "agentId"]
+};
+const moduleValidatedStatusFields = new Set(["Subscription.status", "Transaction.status"]);
 
 for (const [modelName, expectation] of Object.entries(expectedModels)) {
   const model = requireModel(models, modelName);
@@ -407,6 +444,31 @@ for (const [modelName, expectation] of Object.entries(expectedModels)) {
     requireIndexContaining(modelName, model, "status");
   }
 
+  if (model.fields.has("status")) {
+    const statusField = model.fields.get("status");
+    assert.equal(statusField.type, "String", `${modelName}.status must remain string-backed`);
+    assert.ok(
+      statusField.line.includes("@default") || moduleValidatedStatusFields.has(`${modelName}.status`),
+      `${modelName}.status must have a default or be validated by module logic`
+    );
+  }
+
+  for (const timestampFieldName of [
+    "createdAt",
+    "updatedAt",
+    "startedAt",
+    "completedAt",
+    "expiresAt"
+  ]) {
+    if (model.fields.has(timestampFieldName)) {
+      assert.match(
+        model.fields.get(timestampFieldName).type,
+        /^String\??$/,
+        `${modelName}.${timestampFieldName} must remain compatible with string timestamp mappers`
+      );
+    }
+  }
+
   if (expectation.exported) {
     assert.match(
       databaseExports,
@@ -414,6 +476,10 @@ for (const [modelName, expectation] of Object.entries(expectedModels)) {
       `${modelName} type must be exported from @vcp/database`
     );
   }
+}
+
+for (const [modelName, uniqueFields] of Object.entries(expectedUniqueConstraints)) {
+  requireUnique(modelName, requireModel(models, modelName), uniqueFields);
 }
 
 for (const modelName of ["Agent", "Subscription", "Transaction"]) {
@@ -424,7 +490,8 @@ for (const modelName of ["Agent", "Subscription", "Transaction"]) {
   );
 }
 
-assert.ok(existsSync(migrationPath), "platform data model migration must exist");
+assert.ok(existsSync(foundationMigrationPath), "platform data model migration must exist");
+assert.ok(existsSync(hardeningMigrationPath), "platform integrity hardening migration must exist");
 
 for (const tableName of [
   "users",
@@ -445,9 +512,39 @@ for (const tableName of [
   "knowledge_access_grants",
   "jobs"
 ]) {
-  assert.match(migration, new RegExp(`CREATE TABLE "${tableName}"`), `missing table ${tableName}`);
+  assert.match(
+    foundationMigration,
+    new RegExp(`CREATE TABLE "${tableName}"`),
+    `missing table ${tableName}`
+  );
 }
 
-assert.doesNotMatch(migration, /ON DELETE CASCADE/i, "migration must avoid broad cascade deletes");
+for (const uniqueIndexName of [
+  "workspace_members_workspaceId_userId_key",
+  "invitations_workspaceId_email_status_key",
+  "agents_workspaceId_name_key",
+  "tool_connections_workspaceId_toolId_key",
+  "agent_tool_assignments_workspaceId_agentId_toolId_key",
+  "workflow_steps_workflowId_stepOrder_key",
+  "task_runs_jobId_key",
+  "knowledge_access_grants_workspaceId_documentId_agentId_key"
+]) {
+  assert.match(
+    hardeningMigration,
+    new RegExp(`CREATE UNIQUE INDEX "${uniqueIndexName}"`),
+    `missing unique index ${uniqueIndexName}`
+  );
+}
+
+for (const migrationSql of [foundationMigration, hardeningMigration]) {
+  assert.doesNotMatch(
+    migrationSql,
+    /ON DELETE CASCADE/i,
+    "migrations must avoid broad cascade deletes"
+  );
+}
+
+assert.doesNotMatch(hardeningMigration, /DROP TABLE/i, "hardening migration must not drop tables");
+assert.doesNotMatch(hardeningMigration, /DROP COLUMN/i, "hardening migration must not drop columns");
 
 console.log("platform data model boundary checks passed");
