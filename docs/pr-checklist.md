@@ -2,6 +2,8 @@
 
 Use this checklist before requesting review.
 
+For module implementation work, complete the full per-module checklist in `docs/team-module-implementation-guide.md` before opening the PR.
+
 ## OpenSpec
 
 - [ ] PR references the relevant OpenSpec change
@@ -9,6 +11,7 @@ Use this checklist before requesting review.
 - [ ] The implemented behavior matches the relevant capability spec
 - [ ] Any behavior change is reflected in the spec
 - [ ] Any architecture change is reflected in `design.md`
+- [ ] The per-module checklist from `docs/team-module-implementation-guide.md` has been reviewed
 
 ## Module Boundary
 

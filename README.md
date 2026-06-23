@@ -1,92 +1,105 @@
 # Virtual Company Platform
 
-Virtual Company Platform là nền tảng ảo hóa công ty dựa trên OpenClaw. Dự án hướng đến việc giúp người dùng tạo một workspace đại diện cho công ty, cấu hình các nhân viên ảo, gán công cụ làm việc, xây dựng quy trình phối hợp và điều phối tác vụ trong một môi trường số.
+Virtual Company Platform là nền tảng ảo hóa công ty dựa trên OpenClaw. Dự án tổ chức frontend, backend, worker, shared contracts và database schema trong một NPM Workspaces monorepo để nhiều thành viên có thể phát triển module song song nhưng vẫn giữ ranh giới kiến trúc rõ ràng.
 
-## Tổng Quan
+## Project Overview
 
-Mỗi workspace trong hệ thống tương ứng với một môi trường làm việc riêng, nơi người dùng có thể quản lý thành viên, phân quyền, tạo agent, kết nối công cụ bên ngoài, xây dựng workflow và cung cấp dữ liệu nội bộ cho agent thông qua Knowledge Base/RAG.
+Dự án dùng mô hình modular monolith theo vertical slices. Mỗi product capability có backend module, frontend feature folder và OpenSpec change riêng. Các phần dùng chung như identity, role, status, API envelope, domain event, Prisma schema boundary và worker boundary được quản lý ở tầng foundation.
 
-Nền tảng tập trung vào các khả năng chính:
+OpenSpec là source of truth cho planning và implementation. Không implement module behavior chỉ dựa trên README hoặc chat context.
 
-- Xác thực người dùng và quản lý phiên làm việc.
-- Tạo, xem, cấu hình và xóa workspace dựa trên OpenClaw.
-- Quản lý thành viên và phân quyền trong từng workspace.
-- Tạo và cấu hình nhân viên ảo theo vai trò, model và instruction.
-- Quản lý công cụ, tích hợp nhanh và phân quyền sử dụng công cụ cho agent.
-- Xây dựng workflow phối hợp nhiều agent.
-- Giao việc, điều phối task và tổng hợp kết quả từ agent hoặc workflow.
-- Quản lý subscription, thanh toán và nâng cấp gói dịch vụ.
-- Quản lý tri thức nội bộ bằng document upload, data sync và vector search.
+## Workspace Layout
 
-## Định Hướng Kiến Trúc
+| Workspace | Package | Responsibility |
+| --- | --- | --- |
+| `apps/frontend` | `@vcp/frontend` | React + Vite application |
+| `apps/backend` | `@vcp/backend` | Express API development server and backend modules |
+| `apps/workers` | `@vcp/workers` | Background job entry points |
+| `packages/shared` | `@vcp/shared` | Shared contracts, IDs, roles, statuses, events, and API shapes |
+| `packages/database` | `@vcp/database` | Prisma schema, migrations, generated client access, and database exports |
 
-Dự án được thiết kế theo mô hình modular monolith. Backend được chia theo từng capability để các thành viên có thể phát triển song song, trong khi vẫn dùng chung các contract nền tảng như định danh, vai trò, trạng thái, API response và domain event.
+## Setup
 
-Các tác vụ chậm hoặc cần retry như cấp phát OpenClaw, xử lý thanh toán, ingest tài liệu và thực thi task dài sẽ được đưa qua worker thay vì xử lý trực tiếp trong HTTP request.
+Install dependencies:
 
-## Mục Tiêu Dự Án
+```bash
+npm install
+```
 
-Mục tiêu của dự án là xây dựng một nền tảng mô phỏng công ty ảo có khả năng mở rộng theo module, đủ rõ ràng về kiến trúc để nhóm 9 thành viên có thể triển khai độc lập từng phần, đồng thời vẫn đảm bảo các module tích hợp được với nhau thông qua shared contracts và ranh giới trách nhiệm đã thống nhất.
+Install Playwright browsers when E2E tests are needed:
 
-## Phát triển & Kiểm thử (Development & Testing)
+```bash
+npx playwright install
+```
 
-### Cấu trúc Workspaces
+## Local Development
 
-Dự án dùng NPM Workspaces:
+Run the local backend and frontend from the repository root:
 
-- `apps/frontend`: React + Vite app (`@vcp/frontend`)
-- `apps/backend`: Express API development server (`@vcp/backend`)
-- `apps/workers`: background job entry points (`@vcp/workers`)
-- `packages/shared`: shared contracts (`@vcp/shared`)
-- `packages/database`: Prisma schema, migrations, and database exports (`@vcp/database`)
+```bash
+npm run dev
+```
 
-### Cài đặt
-1. Cài đặt các thư viện: `npm install`
-2. Cài đặt trình duyệt cho Playwright E2E: `npx playwright install`
+Default local URLs:
 
-### Chạy hệ thống (Local)
-1. Nếu muốn dùng PostgreSQL thật, đặt `DATABASE_URL` trước khi chạy app:
-   ```bash
-   export DATABASE_URL="postgresql://YOUR_POSTGRES_USER@localhost:5432/virtual_company_dev?schema=public"
-   npm run prisma -- migrate deploy
-   ```
-2. Khởi động server (Backend API + Frontend Vite): `npm run dev`
-3. Mở trình duyệt truy cập ứng dụng tại `http://127.0.0.1:5173`
+- Frontend: `http://127.0.0.1:5173`
+- Backend API: `http://127.0.0.1:3001`
 
-Nếu Vite báo port khác như `5174`, thường là do một dev server cũ vẫn đang chiếm `5173`.
-Kiểm tra và dừng process cũ:
+If a port is already in use, check existing processes:
 
 ```bash
 lsof -nP -iTCP:3001 -sTCP:LISTEN
 lsof -nP -iTCP:5173 -sTCP:LISTEN
 ```
 
-### Prisma/PostgreSQL
+## Database
 
-Prisma commands phải chạy qua database workspace từ root:
+Prisma commands must run from the repository root through the database workspace:
 
 ```bash
 npm run prisma -- validate
 npm run prisma -- migrate deploy
 ```
 
-`DATABASE_URL` dùng cho Prisma có thể chứa `?schema=public`. Với `psql`, bỏ query parameter này:
+`DATABASE_URL` for Prisma may include `?schema=public`. For `psql`, use a URL without that query parameter.
+
+## Verification
+
+Run the main verification commands from the repository root:
 
 ```bash
-export PSQL_DATABASE_URL="postgresql://YOUR_POSTGRES_USER@localhost:5432/virtual_company_dev"
-psql "$PSQL_DATABASE_URL" -c "\dt"
-psql "$PSQL_DATABASE_URL" -c "select * from agents;"
+npm test
+npm run build
+openspec validate --all --strict
+git diff --check
 ```
 
-### Chạy Tests
-- **Unit, Contract & Integration Tests:** `npm test`
-- **End-to-End (E2E) Tests:** `npm run test:e2e`
+Additional commands:
 
-### Hướng dẫn Manual Test cho Agent Management
-1. Chạy `npm run dev` để start server.
-2. Truy cập ứng dụng, trang Agent Management sẽ tải danh sách agents.
-3. Nếu không đặt `DATABASE_URL`, có sẵn 2 demo agents: `Research Agent` và `Support Agent`. Nếu dùng PostgreSQL thật, danh sách phản ánh dữ liệu trong database.
-4. Nhấn **"New agent"** để thêm một nhân viên ảo mới.
-5. Sử dụng nút **"Edit"** để cập nhật `Role`, `Model`, hoặc `Instructions`.
-6. Sử dụng nút **"Disable"**, **"Enable"**, hoặc **"Delete"** để thử nghiệm lifecycle của agent.
-7. Thử gửi form trống hoặc thiếu thông tin để kiểm tra validation.
+```bash
+npm run test:contracts
+npm run test:e2e
+```
+
+## Documentation
+
+- [Requirements](docs/requirements.md)
+- [Architecture](docs/architecture.md)
+- [Module ownership](docs/module-ownership.md)
+- [Team module implementation guide](docs/team-module-implementation-guide.md)
+- [OpenSpec team guide](docs/openspec-team-guide.md)
+- [API route matrix](docs/api/module-api-contracts.md)
+- [Pull request checklist](docs/pr-checklist.md)
+
+## OpenSpec
+
+Use these commands to inspect and validate active changes:
+
+```bash
+openspec list
+openspec status --change "<change-name>"
+openspec validate "<change-name>" --strict
+openspec validate --all --strict
+```
+
+Before coding a module, read the assigned OpenSpec change and follow the team module implementation guide.

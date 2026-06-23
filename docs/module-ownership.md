@@ -6,6 +6,8 @@ Replace `Member N` with the real team member name before implementation starts.
 
 The architecture foundation is complete and archived. Each member should now work from the active per-module OpenSpec change assigned below.
 
+Before coding, each member must follow `docs/team-module-implementation-guide.md` to confirm read order, allowed files, API route rows, shared contract impact, Prisma impact, domain event impact, tests, and PR handoff notes.
+
 | Member | Capability | Backend Folder | Frontend Folder | Active OpenSpec Change |
 | --- | --- | --- | --- | --- |
 | Member 1 | Authentication | `apps/backend/src/modules/authentication` | `apps/frontend/src/features/authentication` | `implement-authentication` |
@@ -55,3 +57,5 @@ Each member's PR must state:
 - tasks completed
 - tests run
 - contracts changed, if any
+
+Use `docs/team-module-implementation-guide.md` for the full per-module checklist before requesting review.
