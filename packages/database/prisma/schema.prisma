@@ -6,6 +6,61 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  userId    String @id
+  email     String @unique
+  status    String @default("active")
+  createdAt String
+  updatedAt String
+
+  @@index([status])
+  @@map("users")
+}
+
+model Workspace {
+  workspaceId String @id
+  userId      String
+  name        String
+  status      String @default("pending")
+  createdAt   String
+  updatedAt   String
+
+  @@index([userId])
+  @@index([status])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  memberId    String @id
+  workspaceId String
+  userId      String
+  role        String
+  status      String @default("active")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([workspaceId, status])
+  @@map("workspace_members")
+}
+
+model Invitation {
+  invitationId    String @id
+  workspaceId     String
+  email           String
+  role            String
+  status          String @default("pending")
+  invitedByUserId String
+  createdAt       String
+  updatedAt       String
+
+  @@index([workspaceId])
+  @@index([invitedByUserId])
+  @@index([workspaceId, status])
+  @@map("invitations")
+}
+
 model Agent {
   agentId      String @id
   workspaceId  String
@@ -18,6 +73,7 @@ model Agent {
   updatedAt    String
 
   @@index([workspaceId])
+  @@index([workspaceId, status])
   @@map("agents")
 }
 
@@ -33,6 +89,7 @@ model Subscription {
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([status])
   @@map("subscriptions")
 }
 
@@ -46,6 +103,7 @@ model Transaction {
   updatedAt      String
 
   @@index([subscriptionId])
+  @@index([status])
   @@map("transactions")
 }
 
@@ -64,6 +122,61 @@ model Workflow {
   executions    WorkflowExecution[]
 
   @@index([workspaceId])
+model Tool {
+  toolId      String @id
+  workspaceId String
+  name        String
+  provider    String
+  type        String
+  status      String @default("available")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@map("tools")
+}
+
+model ToolConnection {
+  toolConnectionId String @id
+  workspaceId      String
+  toolId           String
+  status           String @default("connected")
+  createdAt        String
+  updatedAt        String
+
+  @@index([workspaceId])
+  @@index([toolId])
+  @@index([workspaceId, status])
+  @@map("tool_connections")
+}
+
+model AgentToolAssignment {
+  assignmentId String @id
+  workspaceId  String
+  agentId      String
+  toolId       String
+  status       String @default("active")
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@index([agentId])
+  @@index([toolId])
+  @@index([workspaceId, status])
+  @@map("agent_tool_assignments")
+}
+
+model Workflow {
+  workflowId  String @id
+  workspaceId String
+  name        String
+  status      String @default("draft")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
   @@map("workflows")
 }
 
@@ -116,4 +229,113 @@ model WorkflowStepLog {
   @@index([executionId])
   @@index([stepId])
   @@map("workflow_step_logs")
+  workflowStepId String @id
+  workspaceId     String
+  workflowId      String
+  agentId         String
+  stepOrder       Int
+  createdAt       String
+  updatedAt       String
+
+  @@index([workspaceId])
+  @@index([workflowId])
+  @@index([agentId])
+  @@map("workflow_steps")
+}
+
+model Task {
+  taskId            String  @id
+  workspaceId       String
+  submittedByUserId String
+  routingMode       String
+  agentId           String?
+  workflowId        String?
+  status            String  @default("queued")
+  createdAt         String
+  updatedAt         String
+
+  @@index([workspaceId])
+  @@index([submittedByUserId])
+  @@index([agentId])
+  @@index([workflowId])
+  @@index([workspaceId, status])
+  @@map("tasks")
+}
+
+model TaskRun {
+  taskRunId   String  @id
+  workspaceId String
+  taskId      String
+  jobId       String?
+  status      String  @default("queued")
+  startedAt   String?
+  completedAt String?
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([taskId])
+  @@index([jobId])
+  @@index([workspaceId, status])
+  @@map("task_runs")
+}
+
+model Document {
+  documentId       String @id
+  workspaceId      String
+  uploadedByUserId String
+  fileName         String
+  status           String @default("pending")
+  createdAt        String
+  updatedAt        String
+
+  @@index([workspaceId])
+  @@index([uploadedByUserId])
+  @@index([workspaceId, status])
+  @@map("documents")
+}
+
+model KnowledgeIndex {
+  knowledgeIndexId String @id
+  workspaceId       String
+  documentId        String
+  status            String @default("pending")
+  createdAt         String
+  updatedAt         String
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([workspaceId, status])
+  @@map("knowledge_indexes")
+}
+
+model KnowledgeAccessGrant {
+  knowledgeAccessGrantId String @id
+  workspaceId             String
+  documentId              String
+  agentId                 String
+  status                  String @default("active")
+  createdAt               String
+  updatedAt               String
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([agentId])
+  @@index([workspaceId, status])
+  @@map("knowledge_access_grants")
+}
+
+model Job {
+  jobId       String  @id
+  workspaceId String?
+  userId      String?
+  type        String
+  status      String  @default("queued")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@map("jobs")
 }
