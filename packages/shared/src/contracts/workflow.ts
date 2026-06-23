@@ -1,6 +1,5 @@
 import type { EntityId } from "./ids.ts";
-
-export type WorkflowStatus = "Draft" | "Published" | "Archived";
+import type { WorkflowStatus } from "./statuses.ts";
 export type WorkflowTriggerType = "manual" | "schedule" | "webhook";
 export type WorkflowExecutionStatus = "Pending" | "Running" | "Success" | "Failed" | "Canceled";
 
