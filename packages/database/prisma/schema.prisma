@@ -122,6 +122,9 @@ model Workflow {
   executions    WorkflowExecution[]
 
   @@index([workspaceId])
+  @@map("workflows")
+}
+
 model Tool {
   toolId      String @id
   workspaceId String
@@ -335,7 +338,195 @@ model Job {
   updatedAt   String
 
   @@index([workspaceId])
+toolId           String
+  status           String @default("connected")
+  createdAt        String
+  updatedAt        String
+
+  @@index([workspaceId])
+  @@index([toolId])
+  @@index([workspaceId, status])
+  @@map("tool_connections")
+}
+
+model AgentToolAssignment {
+  assignmentId String @id
+  workspaceId  String
+  agentId      String
+  toolId       String
+  status       String @default("active")
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@index([agentId])
+  @@index([toolId])
+  @@index([workspaceId, status])
+  @@map("agent_tool_assignments")
+}
+
+model Workflow {
+  workflowId  String @id
+  workspaceId String
+  name        String
+  status      String @default("draft")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@map("workflows")
+}
+
+model Task {
+  taskId            String  @id
+  workspaceId       String
+  submittedByUserId String
+  routingMode       String
+  agentId           String?
+  workflowId        String?
+  status            String  @default("queued")
+  createdAt         String
+  updatedAt         String
+
+  @@index([workspaceId])
+  @@index([submittedByUserId])
+  @@index([agentId])
+  @@index([workflowId])
+  @@index([workspaceId, status])
+  @@map("tasks")
+}
+
+model TaskRun {
+  taskRunId   String  @id
+  workspaceId String
+  taskId      String
+  jobId       String?
+  status      String  @default("queued")
+  startedAt   String?
+  completedAt String?
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([taskId])
+  @@index([jobId])
+  @@index([workspaceId, status])
+  @@map("task_runs")
+}
+
+model Document {
+  documentId       String @id
+  workspaceId      String
+  uploadedByUserId String
+  fileName         String
+  status           String @default("pending")
+  createdAt        String
+  updatedAt        String
+
+  @@index([workspaceId])
+  @@index([uploadedByUserId])
+  @@index([workspaceId, status])
+  @@map("documents")
+}
+
+model KnowledgeIndex {
+  knowledgeIndexId String @id
+  workspaceId       String
+  documentId        String
+  status            String @default("pending")
+  createdAt         String
+  updatedAt         String
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([workspaceId, status])
+  @@map("knowledge_indexes")
+}
+
+model KnowledgeAccessGrant {
+  knowledgeAccessGrantId String @id
+  workspaceId             String
+  documentId              String
+  agentId                 String
+  status                  String @default("active")
+  createdAt               String
+  updatedAt               String
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([agentId])
+  @@index([workspaceId, status])
+  @@map("knowledge_access_grants")
+}
+
+model Job {
+  jobId       String  @id
+  workspaceId String?
+  userId      String?
+  type        String
+  status      String  @default("queued")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
   @@index([userId])
   @@index([status])
   @@map("jobs")
+}
+
+model WorkflowStep {
+  workflowStepId String   @id
+  workspaceId    String
+  workflowId     String
+  agentId        String
+  stepOrder      Int
+  createdAt      String
+  updatedAt      String
+
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
+  logs          WorkflowStepLog[]
+
+  @@index([workspaceId])
+  @@index([workflowId])
+  @@index([agentId])
+  @@map("workflow_steps")
+}
+
+model WorkflowExecution {
+  executionId   String   @id
+  workspaceId   String
+  workflowId    String
+  status        String   @default("Pending")
+  triggeredBy   String
+  startedAt     String
+  completedAt   String?
+
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
+  logs          WorkflowStepLog[]
+
+  @@index([workspaceId])
+  @@index([workflowId])
+  @@map("workflow_executions")
+}
+
+model WorkflowStepLog {
+  logId           String   @id
+  workspaceId     String
+  executionId     String
+  workflowStepId  String
+  status          String
+  inputData       Json?
+  outputData      Json?
+  errorMsg        String?
+  startedAt       String
+  completedAt     String?
+
+  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId])
+  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId])
+
+  @@index([workspaceId])
+  @@index([executionId])
+  @@index([workflowStepId])
+  @@map("workflow_step_logs")
 }
