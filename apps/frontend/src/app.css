@@ -302,6 +302,7 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #0f172a; letter-spa
   .stats-grid { grid-template-columns: 1fr; }
   .stat-card strong { font-size: 28px; }
   .placeholder-row { align-items: flex-start; flex-direction: column; gap: 8px; padding: 14px 0; }
+  .workflow-list-item { align-items: flex-start; flex-direction: column; gap: 10px; padding: 16px 0; }
   .empty-state { min-height: 320px; padding: 34px 20px; }
 }
 
