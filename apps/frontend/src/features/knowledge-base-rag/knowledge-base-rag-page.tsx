@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
+import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
 
 type KnowledgeBaseRagViewId =
@@ -151,9 +152,9 @@ export function KnowledgeBaseRagPage() {
           </div>
         </header>
 
-        {activeView.id === "documents" ? (
-          <KnowledgeBaseDocumentsScreen />
-        ) : (
+        {activeView.id === "documents" && <KnowledgeBaseDocumentsScreen />}
+        {activeView.id === "upload-documents" && <KnowledgeBaseUploadScreen />}
+        {activeView.id !== "documents" && activeView.id !== "upload-documents" && (
           <section className="knowledge-base-rag-content-card">
             <div className="knowledge-base-rag-content-header">
               <div>
