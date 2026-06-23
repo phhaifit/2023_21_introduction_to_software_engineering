@@ -197,10 +197,61 @@
 
   `feat(task-orchestration): add routing selector`
 
+* [ ] 5A. [PA5] Task & Orchestration – Module Foundation
+
+  Scope:
+
+  * Document the Task and TaskWork ownership boundary and referenced entities.
+  * Define workspace and submitter identity from authenticated request context.
+  * Define authoritative routing invariants and same-workspace target validation.
+  * Define the one-to-many Task-to-TaskWork domain model and initial statuses.
+  * Define the authoritative shared production status enum and the PA5 presentation-only mapping boundary.
+  * Define Work ID as the TaskWork primary key, attempt numbering from 1, and new-row retry semantics.
+  * Define future Prisma model ownership, scalar cross-module references, naming, IDs, timestamps, indexes, and deletion behavior.
+  * Define `POST /api/workspaces/:workspaceId/tasks`, its public transport contract, and the internal authenticated create-task command.
+  * Define which IDs, routing/API DTOs, statuses, and event contracts belong in `@vcp/shared`.
+  * Keep domain entities, commands, repositories, Prisma records, lifecycle guards, logs, and failure internals private.
+  * Document the current event envelope and the proposed reviewed version 1 extension.
+  * Define the Task and TaskWork event matrix and distinguish attempt events from terminal Task events.
+  * Define repository, routing-catalog, event-publisher, and application-service boundaries.
+  * Define contract and architecture tests.
+  * Do not implement Prisma models, handlers, repositories, services, workers, or domain events.
+
+  Acceptance:
+
+  * Workspace ID and submitter user ID cannot be supplied by the create-task body.
+  * Route workspace ID must match authenticated workspace context.
+  * Auto, Specific Agent, and Predefined Workflow invariants are exact and mutually exclusive.
+  * Agent and Workflow are scalar references, not module-owned Prisma relations.
+  * Task owns one or more TaskWork attempts; initial creation creates one queued attempt.
+  * Initial creation uses attempt number 1; retries create new Work IDs and TaskWork rows for the same Task.
+  * Shared production status and PA5 presentation status remain distinct and have an exact mapping.
+  * Public API and shared contracts do not expose Prisma models.
+  * Current and proposed event-envelope capabilities are not conflated.
+  * Repository and service boundaries require tenant scope.
+  * Architecture and contract test expectations are documented.
+  * Task 6 is explicitly blocked until this foundation is complete.
+
+  Verification:
+
+  * Run `openspec validate "implement-task-orchestration" --strict`.
+  * Run `openspec validate --all --strict`.
+  * Run documentation formatting checks when available.
+  * Run `git diff --check`.
+
+  Suggested branch:
+
+  `feature/task-orchestration/module-foundation`
+
+  Suggested commit:
+
+  `docs(task-orchestration): define module foundation`
+
 * [ ] 6. [PA5] Task & Orchestration – Task Creation Mock Flow
 
   Scope:
 
+  * Begin only after Task 5A is complete.
   * Connect composer input and routing selection to the task factory.
   * Create Task ID and Work ID for accepted submissions.
   * Add the authoritative task store, reducer, or equivalent state boundary.

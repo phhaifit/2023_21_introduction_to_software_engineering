@@ -80,6 +80,213 @@ The mock service simulates the responsibilities of the production TaskProcessor,
 | Output Aggregator         | Partial-output and final-result builder |
 | Streaming Transport       | Configurable local timer simulation     |
 
+## 5A. Production Module Foundation
+
+Task 5A establishes the production-facing boundary that Task 6 and later work
+must preserve even while PA5 remains frontend-first.
+
+### Ownership and Aggregate Design
+
+The module owns `Task` and `TaskWork`. A Task records submitted intent and the
+requested routing policy. A TaskWork records one execution attempt and the
+authoritative resolved route. Task has one or more TaskWork records; initial
+creation creates exactly one attempt, while the one-to-many design preserves
+history for future retries without overwriting the original attempt.
+
+Workspace, User, Agent, and Workflow are referenced aggregates owned by other
+modules. This module must not create their tables or import their private
+repositories. Agent and workflow references are typed scalar IDs rather than
+Prisma relations.
+
+### Tenant and Submitter Identity
+
+The public endpoint is `POST /api/workspaces/:workspaceId/tasks`. The path
+parameter is a locator and must match `RequestContext.workspace.workspaceId`.
+The authoritative `workspaceId` and `submittedByUserId` are copied from the
+authenticated request context into the internal `CreateTaskCommand`.
+
+Authentication and membership middleware produce `RequestContext`. The API
+adapter validates workspace equality. Missing authentication returns HTTP 401.
+Missing membership, permission failure, or route/context mismatch returns HTTP
+403. Successful creation returns HTTP 201. The request body cannot supply
+workspace, submitter, IDs, status, resolved routing, or timestamps. No records
+or events are created when authorization or workspace equality fails.
+
+### Authoritative Routing Invariants
+
+| Mode | Requested agent | Requested workflow |
+| --- | --- | --- |
+| `auto` | absent | absent |
+| `specific-agent` | present and selectable in the same workspace | absent |
+| `predefined-workflow` | absent | present and executable in the same workspace |
+
+The client requests a policy; the application layer validates it. The routing
+resolver records resolved agent/workflow IDs on TaskWork and does not rewrite
+the Task's requested route.
+
+### Status and Identity Model
+
+The authoritative production model is `TaskStatus` from `@vcp/shared`:
+`queued`, `running`, `requires_action`, `succeeded`, `failed`, and `cancelled`.
+Both Task and TaskWork use this enum and start as `queued`.
+
+| Production | PA5 presentation |
+| --- | --- |
+| `queued` | `pending` |
+| `running` | `in-progress` |
+| `requires_action` | Not produced by the PA5 prototype |
+| `succeeded` | `completed` |
+| `failed` | `failed` |
+| `cancelled` | `canceled` |
+
+Mapping belongs only at the frontend API-adapter/view-model boundary, not in
+the domain, Prisma mapper, or shared production contract. The current frontend
+type named `TaskStatus` must be renamed to `TaskPresentationStatus` in a later
+implementation phase. PR F0 does not perform that source-code rename. Two
+incompatible public types named `TaskStatus` must not remain authoritative.
+
+Task uses `taskId`; TaskWork uses a distinct `workId`. Both are
+application-generated string identifiers. The future shared ID catalog must
+add `workId`.
+
+TaskWork uses `workId String @id`; Work ID is both its public identity and
+Prisma primary key. It has no separate internal `id` and no duplicate Work ID
+column. `attemptNumber` starts at 1. Initial creation creates exactly one
+TaskWork at attempt 1. Every retry creates a new row and Work ID while retaining
+the same Task row. `(taskId, attemptNumber)` is unique. Retry allocation and
+concurrency control remain later implementation concerns.
+
+### API and Internal Command
+
+The public request is a prompt plus a discriminated routing union:
+
+```ts
+type CreateTaskRequest = {
+  prompt: string;
+  routing:
+    | { mode: "auto" }
+    | { mode: "specific-agent"; agentId: EntityId<"agentId"> }
+    | { mode: "predefined-workflow"; workflowId: EntityId<"workflowId"> };
+};
+```
+
+The HTTP 201 response uses `ApiSuccess` and exposes Task ID, Work ID, queued
+status, requested routing summary, and creation timestamp. It never exposes a
+Prisma model.
+
+```ts
+type CreateTaskCommand = {
+  workspaceId: EntityId<"workspaceId">;
+  submittedByUserId: EntityId<"userId">;
+  prompt: string;
+  routing: CreateTaskRequest["routing"];
+};
+```
+
+Only the API adapter combines transport data with authenticated context to
+create the command.
+
+### Shared and Private Types
+
+Shared contracts are limited to `workId`, production Task status, routing mode
+and request union, create-task request/response DTOs, and the proposed versioned
+event contracts. Domain entities, commands, repository records, Prisma mappers,
+transition guards, resolved routing, logs, timeline state, and failure details
+remain module-private.
+
+`EntityId<"workspaceId">`, `EntityId<"userId">`, `EntityId<"agentId">`,
+`EntityId<"workflowId">`, and `EntityId<"taskId">` already come from
+`@vcp/shared`. Task & Orchestration imports and consumes them and must not
+redefine or re-export another module's identity ownership. `workId` does not
+currently exist. `EntityId<"workId">` is a proposed reviewed shared-contract
+extension for a later contract PR; PR F0 does not implement it and the approved
+design does not use an untyped raw-string fallback.
+
+The existing shared contract is insufficient because it lacks Work identity,
+public routing contracts, create-task DTOs, and event versioning. A later
+implementation must update the active specification, run contract tests, and
+obtain another module owner's review before changing `@vcp/shared`.
+
+### Prisma Plan
+
+Future models are `Task` and `TaskWork`, mapped to `tasks` and `task_works`.
+They use string IDs. Both records carry required `workspaceId`.
+
+```prisma
+model TaskWork {
+  workId        String @id
+  taskId        String
+  attemptNumber Int
+
+  @@unique([taskId, attemptNumber])
+}
+```
+
+The current Prisma schema persists timestamps in `String` fields containing
+application-supplied ISO-8601 values. Domain, API, and event contracts represent
+timestamps as ISO-8601 strings; the repository does not currently use Prisma
+`DateTime` or JavaScript `Date` domain fields.
+
+TaskWork may have an owned Prisma relation to Task with restrictive deletion.
+Agent and workflow IDs remain scalar. Required indexes are
+`(workspaceId, createdAt)`, `(workspaceId, status)`, `taskId`, and
+`(workspaceId, workId)`.
+
+The foundation defines no task deletion API or soft-delete marker. Execution
+history is retained until a separate retention or erasure specification exists.
+
+### Event Catalog
+
+The current shared event envelope is:
+
+```ts
+{
+  name,
+  eventId,
+  occurredAt,
+  payload
+}
+```
+
+`task.submitted` is the canonical submission event.
+
+Task events propose a top-level `version: 1` field. This is not part of the
+current `BaseDomainEvent` contract and requires a reviewed shared-contract
+extension and contract-test update before implementation.
+
+| Event | Aggregate | Trigger | Required references |
+| --- | --- | --- | --- |
+| `task.submitted` | Task | Task and initial TaskWork are created | `taskId`, initial `workId` |
+| `task.routing_resolved` | TaskWork | Routing for one execution attempt is resolved | `taskId`, `workId` |
+| `task.started` | TaskWork | One attempt starts | `taskId`, `workId` |
+| `task.completed` | Task terminal event | One attempt completes the Task successfully | `taskId`, completed `workId` |
+| `task.failed` | Task terminal event | The Task becomes terminally failed | `taskId`, terminal `workId` |
+| `task.cancelled` | Task terminal event | The Task is cancelled | `taskId`, active or latest `workId` |
+
+A failed attempt alone must not automatically emit terminal `task.failed`.
+Retry-attempt events and aggregate Task terminal events are not interchangeable.
+Events are published after successful persistence. Prompts, result bodies,
+logs, and stack traces are not event payloads.
+
+### Service and Repository Boundaries
+
+Private ports are `TaskRepository`, `TaskWorkRepository`,
+`AgentRoutingCatalog`, `WorkflowRoutingCatalog`, and `TaskEventPublisher`.
+Application services are `CreateTaskService`, `TaskRoutingService`, and the
+later `TaskExecutionService`. Every persistence lookup or mutation is scoped by
+workspace ID.
+
+### Foundation Testing and Task 6 Gate
+
+Architecture and contract tests must cover ownership text, tenant derivation,
+routing-union invariants, workspace-scoped repository signatures, Prisma
+ownership/index rules, absence of Prisma types in public contracts, proposed
+event versions, and the Task 6 dependency.
+
+Task 6 cannot begin until Task 5A is complete. Its mock factory/store must align
+with the routing union, Task/Work identity separation, initial queued/Pending
+mapping, and authoritative lifecycle boundary.
+
 ## 6. Proposed Module Structure
 
 The exact paths must follow the existing repository conventions.
