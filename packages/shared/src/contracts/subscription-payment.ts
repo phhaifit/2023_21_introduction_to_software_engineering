@@ -1,10 +1,11 @@
+import type { EntityId } from "./ids.ts";
 import type { SubscriptionPlan } from "./plans.ts";
 import type { SubscriptionStatus } from "./statuses.ts";
 
 export type SubscriptionPublicSummary = {
-  subscriptionId: string;
-  userId: string;
-  workspaceId: string | null;
+  subscriptionId: EntityId<"subscriptionId">;
+  userId: EntityId<"userId">;
+  workspaceId: EntityId<"workspaceId"> | null;
   plan: SubscriptionPlan;
   status: SubscriptionStatus;
   expiresAt: string;
@@ -13,8 +14,8 @@ export type SubscriptionPublicSummary = {
 };
 
 export type TransactionPublicSummary = {
-  transactionId: string;
-  subscriptionId: string;
+  transactionId: EntityId<"transactionId">;
+  subscriptionId: EntityId<"subscriptionId">;
   amount: number;
   currency: string;
   status: string; // "pending" | "success" | "failed"
