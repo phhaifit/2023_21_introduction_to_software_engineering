@@ -167,6 +167,130 @@
   padding: 14px;
 }
 
+.task-log-list {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.task-log-list__items {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-log-list__item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-inline-start: 4px solid #64748b;
+  border-radius: 10px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px 14px;
+}
+
+.task-log-list__item--success {
+  border-inline-start-color: #059669;
+}
+
+.task-log-list__item--warning {
+  border-inline-start-color: #d97706;
+}
+
+.task-log-list__item--error {
+  border-inline-start-color: #dc2626;
+}
+
+.task-log-list__header {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-log-list__level {
+  border-radius: 999px;
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+
+.task-log-list__level--info {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.task-log-list__level--success {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.task-log-list__level--warning {
+  background: #fef3c7;
+  color: #a16207;
+}
+
+.task-log-list__level--error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.task-log-list__timestamp,
+.task-log-list__message,
+.task-log-list__metadata dd {
+  overflow-wrap: anywhere;
+}
+
+.task-log-list__timestamp {
+  color: #64748b;
+  font-size: 0.75rem;
+  min-width: 0;
+  text-align: end;
+}
+
+.task-log-list__message {
+  color: #0f172a;
+  line-height: 1.5;
+  margin: 10px 0;
+}
+
+.task-log-list__metadata {
+  color: #64748b;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.task-log-list__metadata div {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.task-log-list__metadata dt {
+  font-weight: 800;
+}
+
+.task-log-list__metadata dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.task-log-list__empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #64748b;
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: 14px;
+}
+
 @media (max-width: 480px) {
   .processing-timeline__summary {
     align-items: stretch;
@@ -176,5 +300,13 @@
 
   .processing-timeline__status {
     align-self: flex-start;
+  }
+
+  .task-log-list__header {
+    flex-direction: column;
+  }
+
+  .task-log-list__timestamp {
+    text-align: start;
   }
 }
