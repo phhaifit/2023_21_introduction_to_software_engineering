@@ -1,7 +1,15 @@
 import { useState } from "react";
 
+import { RoutingSelector } from "./components/routing-selector";
 import { TaskComposer } from "./components/task-composer";
-import { DEMO_PROMPTS } from "./mocks/task-orchestration-mocks";
+import {
+  createTaskOrchestrationSeedData,
+  DEMO_PROMPTS
+} from "./mocks/task-orchestration-mocks";
+import {
+  ROUTING_MODES,
+  type RoutingMode
+} from "./model/task-types";
 
 import "./task-orchestration-page.css";
 
@@ -15,10 +23,15 @@ const suggestedPrompts = [
   DEMO_PROMPTS.researchAndSynthesis
 ] as const;
 
+const routingOptions = createTaskOrchestrationSeedData();
+
 export function TaskOrchestrationPage({
   isLoading = false
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
+  const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>();
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>();
 
   function handleAcceptedSubmission() {
     setPrompt("");
@@ -87,12 +100,17 @@ export function TaskOrchestrationPage({
         </section>
 
         <section className="task-composer" aria-label="Task composer area">
-          <div className="task-composer__routing">
-            <label htmlFor="task-routing-preview">Routing</label>
-            <select id="task-routing-preview" disabled>
-              <option>Routing setup coming soon</option>
-            </select>
-          </div>
+          <RoutingSelector
+            mode={routingMode}
+            selectedAgentId={selectedAgentId}
+            selectedWorkflowId={selectedWorkflowId}
+            agents={routingOptions.agents}
+            workflows={routingOptions.workflows}
+            isDisabled={isLoading}
+            onModeChange={setRoutingMode}
+            onAgentChange={setSelectedAgentId}
+            onWorkflowChange={setSelectedWorkflowId}
+          />
           <TaskComposer
             prompt={prompt}
             isDisabled={isLoading}
