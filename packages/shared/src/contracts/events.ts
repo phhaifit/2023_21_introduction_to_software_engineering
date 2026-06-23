@@ -19,6 +19,10 @@ export const DOMAIN_EVENTS = [
   "agent.updated",
   "tool.connected",
   "workflow.published",
+  "workflow.created",
+  "workflow.execution_started",
+  "workflow.execution_completed",
+  "workflow.execution_failed",
   "task.submitted",
   "task.completed",
   "knowledge.document_uploaded",
@@ -83,6 +87,26 @@ export type DomainEventPayloads = {
   "workflow.published": {
     workspaceId: EntityId<"workspaceId">;
     workflowId: EntityId<"workflowId">;
+  };
+  "workflow.created": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+  };
+  "workflow.execution_started": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+    executionId: EntityId<"executionId">;
+  };
+  "workflow.execution_completed": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+    executionId: EntityId<"executionId">;
+  };
+  "workflow.execution_failed": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+    executionId: EntityId<"executionId">;
+    errorMsg: string;
   };
   "task.submitted": {
     workspaceId: EntityId<"workspaceId">;
