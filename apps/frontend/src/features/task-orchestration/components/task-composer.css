@@ -1,0 +1,97 @@
+.task-composer__form {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.task-composer__input {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-composer__input span {
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.task-composer__input textarea {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+  line-height: 1.5;
+  min-height: 88px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.task-composer__input textarea:focus-visible {
+  border-color: #4f46e5;
+  outline: 3px solid #c7d2fe;
+  outline-offset: 1px;
+}
+
+.task-composer__input textarea[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+.task-composer__description,
+.task-composer__error,
+.task-composer__actions p {
+  font-size: 0.78rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-composer__description,
+.task-composer__actions p {
+  color: #64748b;
+}
+
+.task-composer__error {
+  color: #b91c1c;
+  min-height: 1.2em;
+}
+
+.task-composer__actions {
+  align-items: center;
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.task-composer__actions button {
+  border: 0;
+  border-radius: 8px;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 10px 14px;
+}
+
+.task-composer__actions button[type="submit"] {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+.task-composer__attachment {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+@media (max-width: 560px) {
+  .task-composer__actions {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .task-composer__actions button {
+    width: 100%;
+  }
+}
