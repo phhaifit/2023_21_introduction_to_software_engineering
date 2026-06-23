@@ -1,16 +1,35 @@
 import { useState } from "react";
 import { ConfirmButton } from "../../components/shared/ConfirmButton";
 import { SectionCard } from "../../components/shared/SectionCard";
+import { WorkflowStepsTable } from "./components/WorkflowStepsTable";
+import type { WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
+import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
+
+const MOCK_AGENTS: AgentPublicSummary[] = [
+  { agentId: "agt-1", workspaceId: "ws-1", name: "Code Assistant", role: "Software Developer", model: "gpt-4", status: "enabled" },
+  { agentId: "agt-2", workspaceId: "ws-1", name: "Reviewer", role: "Code Reviewer", model: "gpt-4", status: "disabled" },
+  { agentId: "agt-3", workspaceId: "ws-1", name: "Tester", role: "QA Engineer", model: "gpt-3.5", status: "enabled" }
+] as AgentPublicSummary[];
 
 export function WorkflowEditorPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    workflowId: string;
+    workspaceId: string;
+    name: string;
+    description: string;
+    status: string;
+    triggerType: string;
+    triggerConfig: Record<string, any>;
+    steps: WorkflowStepDto[];
+  }>({
     workflowId: "new-wf-123",
     workspaceId: "ws-1",
     name: "",
     description: "",
     status: "Draft",
     triggerType: "manual",
-    triggerConfig: {}
+    triggerConfig: {},
+    steps: []
   });
 
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
@@ -20,6 +39,66 @@ export function WorkflowEditorPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddStep = () => {
+    // Basic round-robin agent selection for mock purposes
+    const agentIndex = formData.steps.length % MOCK_AGENTS.length;
+    const newStep: WorkflowStepDto = {
+      workflowStepId: `step-${Date.now()}`,
+      workspaceId: formData.workspaceId,
+      workflowId: formData.workflowId,
+      agentId: MOCK_AGENTS[agentIndex].agentId,
+      stepOrder: formData.steps.length + 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    } as WorkflowStepDto;
+
+    setFormData(prev => ({
+      ...prev,
+      steps: [...prev.steps, newStep]
+    }));
+  };
+
+  const handleMoveStepUp = (stepId: string) => {
+    setFormData(prev => {
+      const idx = prev.steps.findIndex(s => s.workflowStepId === stepId);
+      if (idx <= 0) return prev;
+      
+      const newSteps = [...prev.steps];
+      const temp = newSteps[idx];
+      newSteps[idx] = newSteps[idx - 1];
+      newSteps[idx - 1] = temp;
+      
+      // Update stepOrder
+      newSteps.forEach((s, i) => { s.stepOrder = i + 1; });
+      return { ...prev, steps: newSteps };
+    });
+  };
+
+  const handleMoveStepDown = (stepId: string) => {
+    setFormData(prev => {
+      const idx = prev.steps.findIndex(s => s.workflowStepId === stepId);
+      if (idx === -1 || idx >= prev.steps.length - 1) return prev;
+      
+      const newSteps = [...prev.steps];
+      const temp = newSteps[idx];
+      newSteps[idx] = newSteps[idx + 1];
+      newSteps[idx + 1] = temp;
+      
+      // Update stepOrder
+      newSteps.forEach((s, i) => { s.stepOrder = i + 1; });
+      return { ...prev, steps: newSteps };
+    });
+  };
+
+  const handleRemoveStep = (stepId: string) => {
+    setFormData(prev => {
+      const newSteps = prev.steps.filter(s => s.workflowStepId !== stepId);
+      // Update stepOrder
+      newSteps.forEach((s, i) => { s.stepOrder = i + 1; });
+      return { ...prev, steps: newSteps };
+    });
   };
 
   const handleTestRun = () => {
@@ -152,11 +231,18 @@ export function WorkflowEditorPage() {
         </SectionCard>
 
         <SectionCard title="Các bước thực thi (Steps)">
-          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: '14px', background: '#f8fafc', borderRadius: '6px', border: '1px dashed var(--line)' }}>
-            Chưa có bước nào được cấu hình.<br />
-            (Tính năng kéo thả step sẽ được cập nhật)
-          </div>
-          <button className="secondary-action" style={{ width: '100%', marginTop: '12px' }}>
+          <WorkflowStepsTable
+            steps={formData.steps}
+            agents={MOCK_AGENTS}
+            onMoveUp={handleMoveStepUp}
+            onMoveDown={handleMoveStepDown}
+            onRemove={handleRemoveStep}
+          />
+          <button 
+            className="secondary-action" 
+            style={{ width: '100%', marginTop: '12px' }}
+            onClick={handleAddStep}
+          >
             + Thêm bước mới
           </button>
         </SectionCard>
