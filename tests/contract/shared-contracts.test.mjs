@@ -1,16 +1,24 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const schemaPath = join(root, "packages/shared/src/contracts/schema.json");
 const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+const contractsDir = join(root, "packages/shared/src/contracts");
+const frontendFeaturesDir = join(root, "apps/frontend/src/features");
 const idsSource = readContractSource("ids.ts");
+const apiSource = readContractSource("api.ts");
 const statusesSource = readContractSource("statuses.ts");
+const subscriptionSource = readContractSource("subscription-payment.ts");
 const taskSource = readContractSource("task-orchestration.ts");
 const publicExportsSource = readContractSource("index.ts");
-const { TASK_ROUTING_MODES } = await import("@vcp/shared");
+const {
+  AUTHENTICATION_ERROR_CODES,
+  AUTHORIZATION_ERROR_CODES,
+  TASK_ROUTING_MODES
+} = await import("@vcp/shared");
 
 const expectedCapabilities = [
   "authentication",
@@ -66,6 +74,38 @@ assert.equal(
   schema.api.errorCodes.length,
   "API error codes must be unique"
 );
+assert.deepEqual(schema.api.successShape, ["ok", "data", "meta"]);
+assert.deepEqual(schema.api.errorShape, ["ok", "error", "meta"]);
+assert.deepEqual(schema.api.metaShape, ["requestId", "timestamp"]);
+assert.deepEqual(schema.api.paginationShape, [
+  "page",
+  "pageSize",
+  "totalItems",
+  "totalPages",
+  "hasNextPage",
+  "hasPreviousPage"
+]);
+assert.deepEqual(schema.api.validationIssueShape, ["path", "message", "code"]);
+assert.ok(
+  schema.api.errorCodes.includes("auth.unauthorized"),
+  "API error codes must distinguish unauthenticated requests"
+);
+assert.deepEqual(
+  AUTHENTICATION_ERROR_CODES,
+  ["auth.unauthorized", "auth.invalid_credentials", "auth.session_expired"],
+  "authentication error codes must be exported from @vcp/shared"
+);
+assert.deepEqual(
+  AUTHORIZATION_ERROR_CODES,
+  ["auth.forbidden"],
+  "authorization error codes must be exported from @vcp/shared"
+);
+
+assert.match(apiSource, /export type ApiPaginationMeta = {[\s\S]*page: number;[\s\S]*pageSize: number;[\s\S]*totalItems: number;[\s\S]*totalPages: number;[\s\S]*hasNextPage: boolean;[\s\S]*hasPreviousPage: boolean;[\s\S]*};/);
+assert.match(apiSource, /export type ApiValidationIssue = {[\s\S]*path: string;[\s\S]*message: string;[\s\S]*code\?: string;[\s\S]*};/);
+assert.match(apiSource, /pagination\?: ApiPaginationMeta;/);
+assert.match(apiSource, /issues\?: ApiValidationIssue\[\];/);
+assert.match(apiSource, /export type ApiPaginatedSuccess<T> = ApiSuccess<T\[\]> &/);
 
 assert.deepEqual(
   schema.statuses.task,
@@ -112,8 +152,8 @@ assert.match(
   "workflow routing must require workflowId and exclude agentId"
 );
 assert.doesNotMatch(
-  taskSource,
-  /selectedAgentId\?|selectedWorkflowId\?|workspaceId|submittedByUserId/,
+  getTypeBlock(taskSource, "CreateTaskRequest"),
+  /selectedAgentId\?|selectedWorkflowId\?|workspaceId|submittedByUserId|taskId|workId|status|createdAt|updatedAt/,
   "public request contracts must not expose draft routing or authenticated identity fields"
 );
 assert.match(
@@ -135,6 +175,79 @@ assert.match(
   "task contracts must be exported from the public @vcp/shared entry point"
 );
 
+assert.match(
+  subscriptionSource,
+  /subscriptionId: EntityId<"subscriptionId">;/,
+  "Subscription public summaries must use branded subscription IDs"
+);
+assert.match(
+  subscriptionSource,
+  /userId: EntityId<"userId">;/,
+  "Subscription public summaries must use branded user IDs"
+);
+assert.match(
+  subscriptionSource,
+  /workspaceId: EntityId<"workspaceId"> \| null;/,
+  "Subscription public summaries must use branded workspace IDs when present"
+);
+assert.match(
+  subscriptionSource,
+  /transactionId: EntityId<"transactionId">;/,
+  "Transaction public summaries must use branded transaction IDs"
+);
+
+assert.ok(schema.contractConventions, "contract convention inventory must exist");
+assert.ok(
+  schema.contractConventions.sharedContractScope.includes("crossModuleRequests"),
+  "contract convention inventory must include shared request scope"
+);
+assert.deepEqual(
+  schema.contractConventions.requestBodyForbiddenFields,
+  [
+    "workspaceId",
+    "submittedByUserId",
+    "userId",
+    "createdAt",
+    "updatedAt",
+    "status",
+    "taskId",
+    "workId"
+  ]
+);
+
+for (const filePath of listSourceFiles(contractsDir)) {
+  const source = readFileSync(filePath, "utf8");
+  for (const forbiddenImport of schema.contractConventions.forbiddenSharedContractImports) {
+    assert.doesNotMatch(
+      source,
+      new RegExp(escapeRegExp(forbiddenImport)),
+      `shared contract file must not import private/infrastructure dependency ${forbiddenImport}: ${filePath}`
+    );
+  }
+}
+
+for (const filePath of listSourceFiles(frontendFeaturesDir)) {
+  const source = readFileSync(filePath, "utf8");
+  for (const forbiddenImport of schema.contractConventions.forbiddenFrontendCrossModuleImports) {
+    assert.doesNotMatch(
+      source,
+      new RegExp(escapeRegExp(forbiddenImport)),
+      `frontend feature must not import backend/database/worker dependency ${forbiddenImport}: ${filePath}`
+    );
+  }
+}
+
+for (const filePath of listSourceFiles(contractsDir)) {
+  const source = readFileSync(filePath, "utf8");
+  for (const fragment of schema.contractConventions.secretFieldNameFragments) {
+    assert.doesNotMatch(
+      source,
+      new RegExp(`\\b[A-Za-z0-9_]*${escapeRegExp(fragment)}[A-Za-z0-9_]*\\??\\s*:`, "i"),
+      `shared public DTOs must not expose sensitive field fragment '${fragment}' in ${filePath}`
+    );
+  }
+}
+
 for (const capability of expectedCapabilities) {
   assert.ok(
     existsSync(join(root, "apps/backend/src/modules", capability, "README.md")),
@@ -150,7 +263,33 @@ console.log("shared contract checks passed");
 
 function readContractSource(fileName) {
   return readFileSync(
-    join(root, "packages/shared/src/contracts", fileName),
+    join(contractsDir, fileName),
     "utf8"
   );
+}
+
+function getTypeBlock(source, typeName) {
+  const match = source.match(new RegExp(`export type ${typeName} = \\{[\\s\\S]*?\\};`));
+  assert.ok(match, `missing exported type ${typeName}`);
+  return match[0];
+}
+
+function listSourceFiles(dir) {
+  const files = [];
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry);
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) {
+      files.push(...listSourceFiles(fullPath));
+      continue;
+    }
+    if (/\.(ts|tsx)$/.test(entry)) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
