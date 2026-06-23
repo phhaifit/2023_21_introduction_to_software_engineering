@@ -23,6 +23,8 @@ The active baseline is now in:
 openspec/specs/platform-architecture/spec.md
 openspec/specs/project-skeleton/spec.md
 openspec/specs/shared-contracts/spec.md
+openspec/specs/platform-data-model-boundaries/spec.md
+openspec/specs/api-route-boundaries/spec.md
 openspec/specs/team-workflow/spec.md
 ```
 
@@ -34,10 +36,14 @@ Read these in order:
 
 1. `docs/requirements.md`
 2. `docs/architecture.md`
-3. `openspec/specs/platform-architecture/spec.md`
-4. `openspec/specs/shared-contracts/spec.md`
-5. `docs/module-ownership.md`
-6. The proposal/design/spec/tasks for your module-specific OpenSpec change, such as `implement-authentication` or `implement-agent-management`
+3. `docs/module-ownership.md`
+4. `docs/api/module-api-contracts.md`
+5. `docs/team-module-implementation-guide.md`
+6. `openspec/specs/platform-architecture/spec.md`
+7. `openspec/specs/shared-contracts/spec.md`
+8. `openspec/specs/platform-data-model-boundaries/spec.md`
+9. `openspec/specs/api-route-boundaries/spec.md`
+10. The proposal/design/spec/tasks for your module-specific OpenSpec change, such as `implement-authentication` or `implement-agent-management`
 
 ## Daily Workflow
 
@@ -45,6 +51,7 @@ Read these in order:
 Pull latest code
   -> openspec status
   -> read the foundation baseline specs
+  -> read the team module implementation guide
   -> read your module-specific change
   -> pick a task in that change's tasks.md
   -> create a branch
