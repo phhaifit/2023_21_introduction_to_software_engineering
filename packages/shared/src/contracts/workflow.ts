@@ -1,10 +1,12 @@
+import type { EntityId } from "./ids.ts";
+
 export type WorkflowStatus = "Draft" | "Published" | "Archived";
 export type WorkflowTriggerType = "manual" | "schedule" | "webhook";
 export type WorkflowExecutionStatus = "Pending" | "Running" | "Success" | "Failed" | "Canceled";
 
 export interface WorkflowDto {
-  workflowId: string;
-  workspaceId: string;
+  workflowId: EntityId<"workflowId">;
+  workspaceId: EntityId<"workspaceId">;
   name: string;
   description: string | null;
   status: WorkflowStatus;
@@ -15,29 +17,29 @@ export interface WorkflowDto {
 }
 
 export interface WorkflowStepDto {
-  workflowStepId: string;
-  workspaceId: string;
-  workflowId: string;
-  agentId: string;
+  workflowStepId: EntityId<"workflowStepId">;
+  workspaceId: EntityId<"workspaceId">;
+  workflowId: EntityId<"workflowId">;
+  agentId: EntityId<"agentId">;
   stepOrder: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface WorkflowExecutionDto {
-  executionId: string;
-  workspaceId: string;
-  workflowId: string;
+  executionId: EntityId<"executionId">;
+  workspaceId: EntityId<"workspaceId">;
+  workflowId: EntityId<"workflowId">;
   status: WorkflowExecutionStatus;
-  triggeredBy: string;
+  triggeredBy: EntityId<"userId">;
   startedAt: string;
   completedAt: string | null;
 }
 
 export interface ExecuteWorkflowRequest {
-  workflowId: string;
-  workspaceId: string;
-  triggeredBy: string;
+  workflowId: EntityId<"workflowId">;
+  workspaceId: EntityId<"workspaceId">;
+  triggeredBy: EntityId<"userId">;
   triggerType: WorkflowTriggerType;
   inputData?: Record<string, any>;
 }

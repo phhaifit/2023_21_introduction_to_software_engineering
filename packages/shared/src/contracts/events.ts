@@ -95,17 +95,17 @@ export type DomainEventPayloads = {
   "workflow.execution_started": {
     workspaceId: EntityId<"workspaceId">;
     workflowId: EntityId<"workflowId">;
-    executionId: string;
+    executionId: EntityId<"executionId">;
   };
   "workflow.execution_completed": {
     workspaceId: EntityId<"workspaceId">;
     workflowId: EntityId<"workflowId">;
-    executionId: string;
+    executionId: EntityId<"executionId">;
   };
   "workflow.execution_failed": {
     workspaceId: EntityId<"workspaceId">;
     workflowId: EntityId<"workflowId">;
-    executionId: string;
+    executionId: EntityId<"executionId">;
     errorMsg: string;
   };
   "task.submitted": {
