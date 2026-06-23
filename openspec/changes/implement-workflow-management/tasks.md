@@ -1,8 +1,8 @@
 ## 1. Workflow Domain
 
-- [ ] 1.1 Define workflow, step, status, and execution request models
+- [x] 1.1 Define workflow, step, status, and execution request models
 - [ ] 1.2 Implement workflow repository or persistence interface
-- [ ] 1.3 Implement public workflow summary and workflow definition contracts
+- [x] 1.3 Implement public workflow summary and workflow definition contracts
 
 ## 2. Workflow Definition Behavior
 
@@ -15,9 +15,9 @@
 ## 3. Frontend Experience
 
 - [ ] 3.1 Build workflow list and detail UI
-- [ ] 3.2 Build create and edit workflow forms for sequential steps
+- [x] 3.2 Build create and edit workflow forms for sequential steps
 - [ ] 3.3 Build workflow activation and execution request controls
-- [ ] 3.4 Display validation errors for missing, disabled, or invalid agent references
+- [x] 3.4 Display validation errors for missing, disabled, or invalid agent references
 
 ## 4. Verification and Handoff
 
