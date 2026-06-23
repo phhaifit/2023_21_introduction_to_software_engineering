@@ -31,8 +31,7 @@
   text-transform: uppercase;
 }
 
-.task-workspace__sidebar button,
-.task-composer button {
+.task-workspace__sidebar button {
   border: 0;
   border-radius: 8px;
   font-weight: 700;
@@ -136,12 +135,31 @@
 }
 
 .task-workspace__suggestions li {
+  min-width: 0;
+}
+
+.task-workspace__suggestions button {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   color: #475569;
+  cursor: pointer;
+  font: inherit;
+  height: 100%;
   line-height: 1.45;
+  overflow-wrap: anywhere;
   padding: 12px;
+  text-align: start;
+  width: 100%;
+}
+
+.task-workspace__suggestions button:hover {
+  border-color: #a5b4fc;
+}
+
+.task-workspace__suggestions button:focus-visible {
+  outline: 3px solid #c7d2fe;
+  outline-offset: 2px;
 }
 
 .task-workspace__loading {
@@ -179,8 +197,7 @@
   padding: 18px 28px 22px;
 }
 
-.task-composer__routing,
-.task-composer__input {
+.task-composer__routing {
   display: grid;
   gap: 6px;
 }
@@ -191,36 +208,12 @@
   font-weight: 700;
 }
 
-.task-composer select,
-.task-composer textarea {
+.task-composer select {
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   color: #475569;
   padding: 10px 12px;
-}
-
-.task-composer textarea {
-  min-height: 78px;
-  resize: none;
-}
-
-.task-composer__footer {
-  align-items: center;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-}
-
-.task-composer__footer p {
-  color: #64748b;
-  font-size: 0.78rem;
-}
-
-.task-composer button {
-  background: #6366f1;
-  color: #ffffff;
-  flex: none;
 }
 
 @media (max-width: 760px) {
@@ -249,8 +242,4 @@
     grid-template-columns: 1fr;
   }
 
-  .task-composer__footer {
-    align-items: stretch;
-    flex-direction: column;
-  }
 }

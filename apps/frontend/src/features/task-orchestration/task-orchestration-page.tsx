@@ -1,3 +1,8 @@
+import { useState } from "react";
+
+import { TaskComposer } from "./components/task-composer";
+import { DEMO_PROMPTS } from "./mocks/task-orchestration-mocks";
+
 import "./task-orchestration-page.css";
 
 type TaskOrchestrationPageProps = {
@@ -5,14 +10,20 @@ type TaskOrchestrationPageProps = {
 };
 
 const suggestedPrompts = [
-  "Prepare a weekly progress summary from sample data.",
-  "Draft a concise product announcement.",
-  "Research a topic and organize the findings."
-];
+  DEMO_PROMPTS.weeklyProgressReport,
+  DEMO_PROMPTS.specificAgentProductDescription,
+  DEMO_PROMPTS.researchAndSynthesis
+] as const;
 
 export function TaskOrchestrationPage({
   isLoading = false
 }: TaskOrchestrationPageProps) {
+  const [prompt, setPrompt] = useState("");
+
+  function handleAcceptedSubmission() {
+    setPrompt("");
+  }
+
   return (
     <section className="task-workspace" aria-labelledby="task-workspace-title">
       <aside className="task-workspace__sidebar" aria-label="Task workspace sidebar">
@@ -59,31 +70,35 @@ export function TaskOrchestrationPage({
               <h3>What should your virtual team work on?</h3>
               <p>Describe an outcome, choose a suggestion, or prepare your own request.</p>
               <ul className="task-workspace__suggestions" aria-label="Suggested prompts">
-                {suggestedPrompts.map((prompt) => <li key={prompt}>{prompt}</li>)}
+                {suggestedPrompts.map((suggestion) => (
+                  <li key={suggestion}>
+                    <button
+                      type="button"
+                      onClick={() => setPrompt(suggestion)}
+                      disabled={isLoading}
+                    >
+                      {suggestion}
+                    </button>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
         </section>
 
-        <section className="task-composer" aria-label="Task composer placeholder">
+        <section className="task-composer" aria-label="Task composer area">
           <div className="task-composer__routing">
             <label htmlFor="task-routing-preview">Routing</label>
             <select id="task-routing-preview" disabled>
               <option>Routing setup coming soon</option>
             </select>
           </div>
-          <label className="task-composer__input" htmlFor="task-prompt-preview">
-            <span>Request</span>
-            <textarea
-              id="task-prompt-preview"
-              placeholder="Describe the work you want completed..."
-              disabled
-            />
-          </label>
-          <div className="task-composer__footer">
-            <p>Task submission and routing will be enabled in later sub-issues.</p>
-            <button type="button" disabled>Send request</button>
-          </div>
+          <TaskComposer
+            prompt={prompt}
+            isDisabled={isLoading}
+            onPromptChange={setPrompt}
+            onSubmit={handleAcceptedSubmission}
+          />
         </section>
       </div>
     </section>
