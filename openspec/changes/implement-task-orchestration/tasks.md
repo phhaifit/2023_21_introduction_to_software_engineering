@@ -126,7 +126,7 @@
 
 ## Task Creation Flow
 
-* [ ] 4. [PA5] Task & Orchestration – Task Composer
+* [X] 4. [PA5] Task & Orchestration – Task Composer
 
   Scope:
 
