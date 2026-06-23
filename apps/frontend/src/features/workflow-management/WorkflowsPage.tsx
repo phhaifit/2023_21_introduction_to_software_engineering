@@ -7,12 +7,64 @@ import { ExecutionsPage } from "../task-orchestration/ExecutionsPage.tsx";
 
 type SubTab = "dashboard" | "list" | "editor" | "executions";
 
+import { mockWorkflows } from "../../data/workflows.ts";
+import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
+import { SearchBar } from "../../components/shared/SearchBar.tsx";
+
 function WorkflowsList({ onCreate }: { onCreate: () => void }) {
+  const [search, setSearch] = useState("");
+  const filtered = mockWorkflows.filter(w =>
+    w.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <EmptyState 
-      title="Workflow list shell" 
-      description="Search, summary cards, workflow table, and row actions will be implemented in the list sub-issue." 
-    />
+    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <SearchBar
+          placeholder="Tìm kiếm workflow..."
+          value={search}
+          onChange={setSearch}
+        />
+        <button onClick={onCreate} className="primary-action">
+          Tạo Workflow
+        </button>
+      </div>
+
+      <div className="data-table-wrapper">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Tên Workflow</th>
+              <th>Trạng thái</th>
+              <th>Số bước</th>
+              <th>Cập nhật lần cuối</th>
+              <th style={{ textAlign: 'right' }}>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                  Không tìm thấy workflow nào.
+                </td>
+              </tr>
+            ) : (
+              filtered.map(w => (
+                <tr key={w.id}>
+                  <td style={{ fontWeight: 600 }}>{w.name}</td>
+                  <td><StatusBadge status={w.status} /></td>
+                  <td>{w.stepCount} bước</td>
+                  <td>{w.lastUpdated}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="text-action" onClick={() => {}}>Chi tiết</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
