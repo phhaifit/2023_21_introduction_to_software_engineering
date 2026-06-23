@@ -344,6 +344,20 @@ Changes to public shared contracts require:
 
 For the PA5 prototype, module-local types and mock data should be preferred unless a shared contract is already available and appropriate.
 
+Before Task 6 begins, the change must complete a Module Foundation phase that:
+
+* Defines the Task and TaskWork ownership boundary.
+* Defines workspace and submitter identity as authenticated request-context data.
+* Defines authoritative routing invariants for Auto, Specific Agent, and Predefined Workflow.
+* Defines the future Prisma ownership and scalar cross-module references.
+* Defines the public create-task transport and internal authenticated command.
+* Separates shared public contracts from private domain and persistence types.
+* Catalogs proposed versioned task domain events while documenting the current unversioned shared envelope.
+* Defines repository, service, and cross-module lookup ports.
+* Defines contract and architecture tests that gate later implementation.
+
+The foundation is a design prerequisite only. It must not introduce Prisma models, API handlers, repositories, services, workers, or emitted domain events.
+
 ## Code Size Constraint
 
 Every implementation sub-issue and pull request must add no more than 500 lines of code.
@@ -378,6 +392,7 @@ This change is complete when all of the following are true:
 * Auto-routing can be selected.
 * A specific agent can be selected.
 * A predefined workflow can be selected.
+* The Module Foundation task is complete before Task 6 begins.
 * Every accepted task receives a unique Task ID and Work ID.
 * A submitted task initially displays Pending.
 * A Pending task can transition to In-Progress.
@@ -415,6 +430,7 @@ This implementation depends on:
 * Existing workspace scripts for test and build
 * Existing OpenSpec foundation specifications
 * The PA4 Task & Orchestration UI prototype
+* The Task & Orchestration Module Foundation architecture decisions
 
 It does not depend on external APIs or external services.
 
@@ -456,7 +472,7 @@ Estimate affected files before coding, check added code lines before opening eac
 
 The change must not be archived until:
 
-* All 16 tasks are complete.
+* All 17 tasks are complete.
 * Relevant tests pass.
 * Functional testing has been executed.
 * Test reports are complete.
