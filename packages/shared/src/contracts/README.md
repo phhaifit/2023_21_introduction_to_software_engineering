@@ -17,4 +17,5 @@ Files:
 - `statuses.ts`: lifecycle status values used across modules.
 - `events.ts`: domain event names and payload contracts.
 - `api.ts`: shared API response and error shape.
+- `task-orchestration.ts`: task routing and create-task transport contracts.
 - `schema.json`: machine-readable contract inventory checked by tests.

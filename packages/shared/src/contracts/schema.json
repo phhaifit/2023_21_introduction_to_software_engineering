@@ -19,6 +19,7 @@
     "toolId",
     "workflowId",
     "taskId",
+    "workId",
     "documentId",
     "subscriptionId",
     "transactionId",
@@ -128,6 +129,20 @@
       "task.execution_failed",
       "knowledge.access_denied",
       "system.unexpected_error"
+    ]
+  },
+  "taskOrchestration": {
+    "routingModes": [
+      "auto",
+      "specific-agent",
+      "predefined-workflow"
+    ],
+    "createTaskRequestFields": ["prompt", "routing"],
+    "createTaskResponseFields": [
+      "taskId",
+      "workId",
+      "status",
+      "createdAt"
     ]
   }
 }
