@@ -1,21 +1,23 @@
 import { StatCard } from "../../components/shared/StatCard";
 import { StatusBadge } from "../../components/shared/StatusBadge";
-
-const workflows = [
-  { name: "Customer Onboarding", status: "Running" as const },
-  { name: "Invoice Approval", status: "Completed" as const },
-  { name: "Lead Qualification", status: "Draft" as const },
-];
+import { mockWorkflows } from "../../data/workflows";
 
 export function DashboardPage() {
+  const total = mockWorkflows.length;
+  const running = mockWorkflows.filter((w) => w.status === "Running").length;
+  const completed = mockWorkflows.filter((w) => w.status === "Completed").length;
+  const failed = mockWorkflows.filter((w) => w.status === "Failed").length;
+
+  const recentWorkflows = mockWorkflows.slice(0, 3);
+
   return (
     <div>
       <section>
         <div className="stats-grid">
-          <StatCard label="Total Workflows" value="18" />
-          <StatCard label="Running" value="4" />
-          <StatCard label="Completed" value="126" />
-          <StatCard label="Failed" value="3" />
+          <StatCard label="Total Workflows" value={total.toString()} />
+          <StatCard label="Running" value={running.toString()} />
+          <StatCard label="Completed" value={completed.toString()} />
+          <StatCard label="Failed" value={failed.toString()} />
         </div>
         <div className="content-grid">
           <article className="panel">
@@ -23,10 +25,10 @@ export function DashboardPage() {
               <h2>Recent Workflows</h2>
               <button className="text-action" type="button">View all</button>
             </div>
-            {workflows.map((workflow) => (
-              <div className="placeholder-row" key={workflow.name}>
+            {recentWorkflows.map((workflow) => (
+              <div className="placeholder-row" key={workflow.id}>
                 <span>{workflow.name}</span>
-                <StatusBadge status={workflow.status} />
+                <StatusBadge status={workflow.status as "Running" | "Completed" | "Draft" | "Failed"} />
               </div>
             ))}
           </article>
