@@ -1,7 +1,7 @@
 import { useState } from "react";
-
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import { Sidebar } from "./components/layout/Sidebar.tsx";
+// Agent Management
 import { AgentManagementPage } from "./features/agent-management/agent-management-page.tsx";
 import { KnowledgeBaseRagPage } from "./features/knowledge-base-rag/knowledge-base-rag-page.tsx";
 import { SubscriptionPaymentPage } from "./features/subscription-payment/subscription-payment-page.tsx";
