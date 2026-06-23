@@ -1,44 +1,47 @@
 import { useState } from "react";
 
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import { Sidebar } from "./components/layout/Sidebar.tsx";
 import { AgentManagementPage } from "./features/agent-management/agent-management-page.tsx";
 import { KnowledgeBaseRagPage } from "./features/knowledge-base-rag/knowledge-base-rag-page.tsx";
-
-type ActiveModule = "agent-management" | "knowledge-base-rag";
+import { SubscriptionPaymentPage } from "./features/subscription-payment/subscription-payment-page.tsx";
+import { ExecutionsPage } from "./features/task-orchestration/ExecutionsPage.tsx";
+import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
+import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
+import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
+import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
+import type { PageKey } from "./types/navigation.ts";
 
 export function App() {
-  const [activeModule, setActiveModule] = useState<ActiveModule>("agent-management");
-  const isAgentManagementActive = activeModule === "agent-management";
+  const [activePage, setActivePage] = useState<PageKey>("workflows");
+
+  const renderPage = () => {
+    switch (activePage) {
+      case "dashboard":
+        return <DashboardPage />;
+      case "workflows":
+        return <WorkflowsPage />;
+      case "workflow-editor":
+        return <WorkflowEditorPage />;
+      case "executions":
+        return <ExecutionsPage />;
+      case "agents":
+        return <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />;
+      case "knowledge-base-rag":
+        return <KnowledgeBaseRagPage />;
+      case "billing":
+        return <SubscriptionPaymentPage />;
+      case "settings":
+        return <SettingsPage />;
+      default:
+        return <WorkflowsPage />;
+    }
+  };
 
   return (
-    <main className="app-shell">
-      <div className="app-module-switch" aria-label="Module switcher">
-        <button
-          type="button"
-          className={isAgentManagementActive ? "active" : ""}
-          onClick={() => setActiveModule("agent-management")}
-        >
-          Agent Management
-        </button>
-        <button
-          type="button"
-          className={activeModule === "knowledge-base-rag" ? "active" : ""}
-          onClick={() => setActiveModule("knowledge-base-rag")}
-        >
-          Knowledge Base / RAG
-        </button>
-      </div>
-
-      <header className="app-shell__header">
-        <span className="app-shell__workspace">Virtual Company Platform</span>
-        <h1>{isAgentManagementActive ? "Agent Management" : "Knowledge Base / RAG Management"}</h1>
-      </header>
-
-      {isAgentManagementActive ? (
-        <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />
-      ) : (
-        <KnowledgeBaseRagPage />
-      )}
-    </main>
+    <div className="app-shell">
+      <Sidebar activePage={activePage} onNavigate={setActivePage} />
+      <main className="main-content">{renderPage()}</main>
+    </div>
   );
 }
