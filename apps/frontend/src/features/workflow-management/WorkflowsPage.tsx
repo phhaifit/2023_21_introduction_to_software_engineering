@@ -36,7 +36,7 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
             <tr>
               <th>Tên Workflow</th>
               <th>Trạng thái</th>
-              <th>Trigger</th>
+              <th>Số bước</th>
               <th>Cập nhật lần cuối</th>
               <th style={{ textAlign: 'right' }}>Thao tác</th>
             </tr>
@@ -53,7 +53,7 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
                 <tr key={w.id}>
                   <td style={{ fontWeight: 600 }}>{w.name}</td>
                   <td><StatusBadge status={w.status} /></td>
-                  <td>{w.trigger.type === "schedule" ? "Lên lịch" : w.trigger.type === "webhook" ? "Webhook" : "Thủ công"}</td>
+                  <td>{w.stepCount} bước</td>
                   <td>{w.lastUpdated}</td>
                   <td style={{ textAlign: 'right' }}>
                     <button className="text-action" onClick={() => {}}>Chi tiết</button>
