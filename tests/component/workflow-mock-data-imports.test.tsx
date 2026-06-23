@@ -29,7 +29,7 @@ describe("workflow mock data imports", () => {
 
     const table = screen.getByRole("table");
     expect(within(table).getByText(mockWorkflows[0].name)).toBeVisible();
-    expect(within(table).getByText(mockWorkflows[0].lastUpdated)).toBeVisible();
+    expect(within(table).getByText(mockWorkflows[0].updatedAt)).toBeVisible();
   });
 
   it("renders an empty workflow search state without import failures", async () => {
