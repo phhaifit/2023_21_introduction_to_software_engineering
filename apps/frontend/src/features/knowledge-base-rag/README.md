@@ -40,6 +40,11 @@ Likely future files:
 - `knowledge-base-rag-mock-data.ts`
 - `knowledge-base-rag-view.ts`
 
+Shared UI files:
+
+- `knowledge-base-rag-components.tsx` contains shared presentational components.
+- `knowledge-base-rag-components.css` contains component-specific styles.
+
 Implementation rules:
 
 - Keep code inside this feature folder unless explicitly requested.
