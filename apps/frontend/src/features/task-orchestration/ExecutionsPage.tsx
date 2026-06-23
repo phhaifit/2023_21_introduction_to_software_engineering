@@ -7,8 +7,25 @@ export function ExecutionsPage() {
   const [search, setSearch] = useState("");
   const filtered = mockExecutions.filter(run =>
     run.workflowName.toLowerCase().includes(search.toLowerCase()) ||
-    run.runId.toLowerCase().includes(search.toLowerCase())
+    run.executionId.toLowerCase().includes(search.toLowerCase())
   );
+
+  const formatDuration = (startedAt: string, completedAt: string | null) => {
+    if (!completedAt) return "Đang chạy...";
+    const start = new Date(startedAt).getTime();
+    const end = new Date(completedAt).getTime();
+    const diffInSeconds = Math.floor((end - start) / 1000);
+    const minutes = Math.floor(diffInSeconds / 60);
+    const seconds = diffInSeconds % 60;
+    return `${minutes}m ${seconds}s`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString("vi-VN", {
+      year: "numeric", month: "2-digit", day: "2-digit", 
+      hour: "2-digit", minute: "2-digit"
+    });
+  };
 
   return (
     <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -41,12 +58,12 @@ export function ExecutionsPage() {
               </tr>
             ) : (
               filtered.map(run => (
-                <tr key={run.runId}>
-                  <td style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{run.runId}</td>
+                <tr key={run.executionId}>
+                  <td style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{run.executionId}</td>
                   <td style={{ fontWeight: 600 }}>{run.workflowName}</td>
-                  <td><StatusBadge status={run.status} /></td>
-                  <td>{run.duration}</td>
-                  <td>{run.startedAt}</td>
+                  <td><StatusBadge status={run.status.toLowerCase() as any} /></td>
+                  <td>{formatDuration(run.startedAt, run.completedAt)}</td>
+                  <td>{formatDate(run.startedAt)}</td>
                   <td style={{ textAlign: 'right' }}>
                     <button className="text-action" onClick={() => {}}>Xem Log</button>
                   </td>
