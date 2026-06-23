@@ -1,14 +1,15 @@
 import { useState } from "react";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import { Sidebar } from "./components/layout/Sidebar.tsx";
-import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
-import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
-import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
-import { ExecutionsPage } from "./features/task-orchestration/ExecutionsPage.tsx";
-import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 // Agent Management
 import { AgentManagementPage } from "./features/agent-management/agent-management-page.tsx";
+import { KnowledgeBaseRagPage } from "./features/knowledge-base-rag/knowledge-base-rag-page.tsx";
 import { SubscriptionPaymentPage } from "./features/subscription-payment/subscription-payment-page.tsx";
-import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import { ExecutionsPage } from "./features/task-orchestration/ExecutionsPage.tsx";
+import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
+import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
+import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
+import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import type { PageKey } from "./types/navigation.ts";
 
 export function App() {
@@ -16,10 +17,18 @@ export function App() {
 
   const renderPage = () => {
     switch (activePage) {
+      case "dashboard":
+        return <DashboardPage />;
       case "workflows":
         return <WorkflowsPage />;
+      case "workflow-editor":
+        return <WorkflowEditorPage />;
+      case "executions":
+        return <ExecutionsPage />;
       case "agents":
         return <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />;
+      case "knowledge-base-rag":
+        return <KnowledgeBaseRagPage />;
       case "billing":
         return <SubscriptionPaymentPage />;
       case "settings":
@@ -32,9 +41,7 @@ export function App() {
   return (
     <div className="app-shell">
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
-      <main className="main-content">
-        {renderPage()}
-      </main>
+      <main className="main-content">{renderPage()}</main>
     </div>
   );
 }
