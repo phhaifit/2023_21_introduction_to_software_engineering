@@ -42,6 +42,7 @@ model WorkspaceMember {
   @@index([workspaceId])
   @@index([userId])
   @@index([workspaceId, status])
+  @@unique([workspaceId, userId])
   @@map("workspace_members")
 }
 
@@ -58,6 +59,7 @@ model Invitation {
   @@index([workspaceId])
   @@index([invitedByUserId])
   @@index([workspaceId, status])
+  @@unique([workspaceId, email, status])
   @@map("invitations")
 }
 
@@ -74,6 +76,7 @@ model Agent {
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+  @@unique([workspaceId, name])
   @@map("agents")
 }
 
@@ -151,6 +154,7 @@ model ToolConnection {
   @@index([workspaceId])
   @@index([toolId])
   @@index([workspaceId, status])
+  @@unique([workspaceId, toolId])
   @@map("tool_connections")
 }
 
@@ -167,6 +171,7 @@ model AgentToolAssignment {
   @@index([agentId])
   @@index([toolId])
   @@index([workspaceId, status])
+  @@unique([workspaceId, agentId, toolId])
   @@map("agent_tool_assignments")
 }
 
@@ -243,6 +248,7 @@ model WorkflowStepLog {
   @@index([workspaceId])
   @@index([workflowId])
   @@index([agentId])
+  @@unique([workflowId, stepOrder])
   @@map("workflow_steps")
 }
 
@@ -280,6 +286,7 @@ model TaskRun {
   @@index([taskId])
   @@index([jobId])
   @@index([workspaceId, status])
+  @@unique([jobId])
   @@map("task_runs")
 }
 
@@ -325,6 +332,7 @@ model KnowledgeAccessGrant {
   @@index([documentId])
   @@index([agentId])
   @@index([workspaceId, status])
+  @@unique([workspaceId, documentId, agentId])
   @@map("knowledge_access_grants")
 }
 
