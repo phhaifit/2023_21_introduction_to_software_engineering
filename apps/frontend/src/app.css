@@ -285,7 +285,7 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #0f172a; letter-spa
   .app-shell { display: block; }
   .sidebar { position: sticky; top: 0; z-index: 10; width: 100%; padding: 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .brand { padding: 0 0 14px; }
-  .nav-list { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+  .nav-list { display: flex; gap: 10px; flex-wrap: wrap; padding-bottom: 2px; }
   .nav-item { width: auto; flex: 0 0 auto; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .content-grid { grid-template-columns: 1fr; }
@@ -299,8 +299,8 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #0f172a; letter-spa
   .topbar { align-items: stretch; flex-direction: column; gap: 16px; }
   h1 { font-size: 26px; }
   .primary-action { width: 100%; }
-  .stats-grid { grid-template-columns: 1fr; gap: 16px; }
-  .stat-card { padding: 20px 16px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .stat-card { padding: 16px 12px; }
   .stat-card strong { font-size: 28px; }
   .page-container { padding: 16px; border-radius: 12px; gap: 20px; }
   .panel { padding: 20px 16px; }
