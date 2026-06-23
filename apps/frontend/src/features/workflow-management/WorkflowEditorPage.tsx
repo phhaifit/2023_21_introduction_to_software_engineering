@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { ConfirmButton } from "../../components/shared/ConfirmButton";
+import { SectionCard } from "../../components/shared/SectionCard";
 
 export function WorkflowEditorPage() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     status: "Draft",
+    triggerType: "manual"
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -13,59 +15,102 @@ export function WorkflowEditorPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleSave = () => {
+    console.log("Saved workflow:", formData);
+    alert("Đã lưu workflow thành công!");
+  };
+
   return (
-    <div className="panel form-panel">
-      <h2>Thông tin Workflow</h2>
-      <div className="form-group">
-        <label className="form-label" htmlFor="name">Tên Workflow</label>
-        <input
-          id="name"
-          name="name"
-          type="text"
-          className="form-input"
-          placeholder="Nhập tên workflow..."
-          value={formData.name}
-          onChange={handleChange}
-        />
+    <div className="editor-layout">
+      {/* Cột trái: Thông tin chính */}
+      <div className="editor-main">
+        <SectionCard title="Thông tin chung" description="Cấu hình thông tin cơ bản cho workflow.">
+          <div className="form-group">
+            <label className="form-label" htmlFor="name">Tên Workflow</label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              className="form-input"
+              placeholder="Ví dụ: Data Pipeline Alpha..."
+              value={formData.name}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginTop: '16px' }}>
+            <label className="form-label" htmlFor="description">Mô tả chi tiết</label>
+            <textarea
+              id="description"
+              name="description"
+              className="form-input"
+              placeholder="Giải thích mục đích của workflow này..."
+              rows={4}
+              value={formData.description}
+              onChange={handleChange}
+            />
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Cấu hình Trigger" description="Xác định cách thức workflow này được kích hoạt.">
+          <div className="form-group">
+            <label className="form-label" htmlFor="triggerType">Loại Trigger</label>
+            <select
+              id="triggerType"
+              name="triggerType"
+              className="form-input"
+              value={formData.triggerType}
+              onChange={handleChange}
+            >
+              <option value="manual">Kích hoạt thủ công (Manual)</option>
+              <option value="schedule">Theo lịch trình (Schedule)</option>
+              <option value="webhook">Qua Webhook (API)</option>
+            </select>
+          </div>
+        </SectionCard>
       </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="description">Mô tả</label>
-        <textarea
-          id="description"
-          name="description"
-          className="form-input"
-          placeholder="Nhập mô tả workflow..."
-          rows={4}
-          value={formData.description}
-          onChange={handleChange}
-        />
-      </div>
+      {/* Cột phải: Cài đặt bổ sung & Nút hành động */}
+      <div className="editor-sidebar">
+        <SectionCard title="Trạng thái & Phát hành">
+          <div className="form-group">
+            <label className="form-label" htmlFor="status">Trạng thái hiện tại</label>
+            <select
+              id="status"
+              name="status"
+              className="form-input"
+              value={formData.status}
+              onChange={handleChange}
+            >
+              <option value="Draft">Bản nháp (Draft)</option>
+              <option value="Published">Đã xuất bản (Published)</option>
+            </select>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '12px', lineHeight: '1.5' }}>
+            Lưu ý: Chỉ các workflow ở trạng thái "Đã xuất bản" mới có thể được kích hoạt tự động qua Trigger.
+          </p>
+        </SectionCard>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="status">Trạng thái</label>
-        <select
-          id="status"
-          name="status"
-          className="form-input"
-          value={formData.status}
-          onChange={handleChange}
-        >
-          <option value="Draft">Bản nháp (Draft)</option>
-          <option value="Published">Đã xuất bản (Published)</option>
-        </select>
-      </div>
+        <SectionCard title="Các bước thực thi (Steps)">
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: '14px', background: '#f8fafc', borderRadius: '6px', border: '1px dashed var(--line)' }}>
+            Chưa có bước nào được cấu hình.<br />
+            (Tính năng kéo thả step sẽ được cập nhật)
+          </div>
+          <button className="secondary-action" style={{ width: '100%', marginTop: '12px' }}>
+            + Thêm bước mới
+          </button>
+        </SectionCard>
 
-      <div className="form-actions">
-        <button className="secondary-action">Hủy bỏ</button>
-        <ConfirmButton
-          onConfirm={async () => {
-            console.log("Saved", formData);
-          }}
-          label="Lưu thay đổi"
-          confirmTitle="Xác nhận lưu"
-          confirmMessage={`Bạn có chắc chắn muốn lưu workflow "${formData.name || 'chưa đặt tên'}" không?`}
-        />
+        <div className="panel" style={{ padding: '16px' }}>
+          <div className="form-actions" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', flexDirection: 'column' }}>
+            <ConfirmButton onClick={handleSave} variant="primary">
+              Lưu cấu hình Workflow
+            </ConfirmButton>
+            <button className="secondary-action" style={{ textAlign: 'center' }}>
+              Hủy bỏ thay đổi
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

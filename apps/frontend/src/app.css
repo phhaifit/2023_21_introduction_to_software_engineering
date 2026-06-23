@@ -503,3 +503,26 @@ h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: #0f172a; letter-spa
 .secondary-action:hover {
   background: #f1f5f9;
 }
+
+/* Editor Layout */
+.editor-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .editor-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.editor-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.editor-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
