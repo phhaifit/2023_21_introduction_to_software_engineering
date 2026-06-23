@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "types": []
+  },
+  "include": [],
+  "files": [
+    "tests/contract/task-orchestration-contract-types.test.ts"
+  ]
+}

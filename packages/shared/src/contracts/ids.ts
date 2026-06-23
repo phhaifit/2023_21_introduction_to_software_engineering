@@ -6,6 +6,7 @@ export const ENTITY_ID_KINDS = [
   "toolId",
   "workflowId",
   "taskId",
+  "workId",
   "documentId",
   "subscriptionId",
   "transactionId",
