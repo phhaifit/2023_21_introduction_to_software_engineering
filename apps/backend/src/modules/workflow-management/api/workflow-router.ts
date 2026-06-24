@@ -161,6 +161,55 @@ export function createWorkflowManagementRouter(
     });
   });
 
+  router.get("/:workflowId/execute/stream", async (request, response) => {
+    const context = getRequestContext(request);
+    try {
+      enforcePermission(context, "workflows:manage");
+      
+      const workflow = await dependencies.useCases.getWorkflow(
+        context.workspace!.workspaceId,
+        request.params.workflowId as EntityId<"workflowId">
+      );
+
+      if (!workflow) {
+        response.status(404).end();
+        return;
+      }
+
+      response.setHeader("Content-Type", "text/event-stream");
+      response.setHeader("Cache-Control", "no-cache");
+      response.setHeader("Connection", "keep-alive");
+      response.flushHeaders();
+
+      let stepIndex = 0;
+      const steps = workflow.steps || [];
+      const totalSteps = steps.length;
+
+      response.write(`data: ${JSON.stringify({ type: "workflow_started", totalSteps })}\n\n`);
+
+      const interval = setInterval(() => {
+        if (stepIndex < totalSteps) {
+          const step = steps[stepIndex];
+          response.write(`data: ${JSON.stringify({ type: "step_completed", stepOrder: step.stepOrder, agentId: step.agentId })}\n\n`);
+          stepIndex++;
+        } else {
+          response.write(`data: ${JSON.stringify({ type: "workflow_completed" })}\n\n`);
+          clearInterval(interval);
+          response.end();
+        }
+      }, 1500);
+
+      request.on("close", () => {
+        clearInterval(interval);
+      });
+
+    } catch (err: any) {
+      if (!response.headersSent) {
+        response.status(401).end();
+      }
+    }
+  });
+
   router.delete("/:workflowId", async (request, response) => {
     await handleWorkflowApiRequest(request, response, async () => {
       const context = getRequestContext(request);

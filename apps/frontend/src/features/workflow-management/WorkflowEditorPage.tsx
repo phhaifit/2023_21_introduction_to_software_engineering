@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ConfirmButton } from "../../components/shared/ConfirmButton";
 import { SectionCard } from "../../components/shared/SectionCard";
 import { WorkflowStepsTable } from "./components/WorkflowStepsTable";
@@ -14,7 +14,7 @@ const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agent-writer", workspaceId: DEMO_WORKSPACE_ID, name: "Writer Agent", role: "Content Writer", model: "gpt-3.5", status: "enabled" }
 ] as AgentPublicSummary[];
 
-export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSuccess }: { apiClient?: WorkflowManagementApiClient; onExecutionSuccess?: () => void }) {
+export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, onExecutionSuccess, onCancel }: { apiClient?: WorkflowManagementApiClient; workflowId?: string | null; onExecutionSuccess?: () => void; onCancel?: () => void }) {
   const [formData, setFormData] = useState<{
     workflowId: string;
     workspaceId: string;
@@ -29,7 +29,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
     workspaceId: DEMO_WORKSPACE_ID,
     name: "",
     description: "",
-    status: "Draft",
+    status: "draft",
     triggerType: "manual",
     triggerConfig: {},
     steps: []
@@ -38,20 +38,44 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [executionError, setExecutionError] = useState<string | null>(null);
+  
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(MOCK_AGENTS[0].agentId);
+
+  const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
+
+  useEffect(() => {
+    if (workflowId) {
+      apiClient.getWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">)
+        .then((data: any) => {
+          const wf = data.workflow ? data.workflow : data;
+          setFormData({
+            workflowId: wf.workflowId,
+            workspaceId: wf.workspaceId,
+            name: wf.name || "",
+            description: "",
+            status: wf.status || "draft",
+            triggerType: wf.triggerType || "manual",
+            triggerConfig: {},
+            steps: data.steps || []
+          });
+        })
+        .catch(err => {
+          console.error("Failed to load workflow", err);
+        });
+    }
+  }, [workflowId, apiClient]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddStep = () => {
-    // Basic round-robin agent selection for mock purposes
-    const agentIndex = formData.steps.length % MOCK_AGENTS.length;
+  const handleConfirmAddStep = () => {
     const newStep: WorkflowStepDto = {
       workflowStepId: `step-${Date.now()}`,
       workspaceId: formData.workspaceId,
       workflowId: formData.workflowId,
-      agentId: MOCK_AGENTS[agentIndex].agentId,
+      agentId: selectedAgentId,
       stepOrder: formData.steps.length + 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -104,7 +128,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
     });
   };
 
-  const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
+
 
   const handleExecute = async () => {
     setExecutionStatus("running");
@@ -120,7 +144,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
     } catch (err: any) {
       console.error("Failed to execute workflow:", err);
       setExecutionStatus("failed");
-      setExecutionError(err.message || "Không thể thực thi workflow. Vui lòng kiểm tra (Ví dụ: chưa lưu bước, agent bị vô hiệu hóa).");
+      setExecutionError(err.message || "Không thể thực thi workflow. Workflow cần ở trạng thái 'Đang hoạt động' và có ít nhất 1 bước.");
     }
   };
 
@@ -137,11 +161,11 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
       };
       
       let newWorkflowId = formData.workflowId;
-      if (formData.workflowId === "new-wf-123") {
+      if (formData.workflowId === "new-wf-123" || !workflowId) {
         const result: any = await apiClient.createWorkflow(DEMO_WORKSPACE_ID, payload);
         newWorkflowId = result.workflow ? result.workflow.workflowId : result.workflowId;
         setFormData(prev => ({ ...prev, workflowId: newWorkflowId }));
-        if (formData.status !== "draft" && formData.status !== "Draft") {
+        if (formData.status !== "draft") {
           await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, newWorkflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
         }
       } else {
@@ -242,6 +266,35 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
             </div>
           )}
         </SectionCard>
+        
+        <SectionCard title="Các bước thực thi (Steps)">
+          <WorkflowStepsTable
+            steps={formData.steps}
+            agents={MOCK_AGENTS}
+            onMoveUp={handleMoveStepUp}
+            onMoveDown={handleMoveStepDown}
+            onRemove={handleRemoveStep}
+          />
+          
+          <div style={{ marginTop: '16px', padding: '16px', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-subtle)' }}>
+            <div style={{ marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>Thêm bước mới:</div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <select 
+                className="form-input" 
+                style={{ flex: 1, margin: 0 }} 
+                value={selectedAgentId} 
+                onChange={(e) => setSelectedAgentId(e.target.value)}
+              >
+                {MOCK_AGENTS.map(agent => (
+                  <option key={agent.agentId} value={agent.agentId}>
+                    {agent.name} ({agent.role}) {agent.status === 'disabled' ? ' - [BỊ KHÓA]' : ''}
+                  </option>
+                ))}
+              </select>
+              <button className="primary-action" style={{ padding: '8px 24px', whiteSpace: 'nowrap' }} onClick={handleConfirmAddStep}>+ Thêm Agent</button>
+            </div>
+          </div>
+        </SectionCard>
       </div>
 
       {/* Cột phải: Cài đặt bổ sung & Nút hành động */}
@@ -256,47 +309,32 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
               value={formData.status}
               onChange={handleChange}
             >
-              <option value="Draft">Bản nháp (Draft)</option>
-              <option value="Published">Đã xuất bản (Published)</option>
+              <option value="draft">Bản nháp (Draft)</option>
+              <option value="active">Đang hoạt động (Active)</option>
+              <option value="archived">Lưu trữ (Archived)</option>
             </select>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '12px', lineHeight: '1.5' }}>
-            Lưu ý: Chỉ các workflow ở trạng thái "Đã xuất bản" mới có thể được kích hoạt tự động qua Trigger.
+            Lưu ý: Bạn phải lưu Workflow ở trạng thái "Đang hoạt động" mới có thể bấm Chạy (Execute).
           </p>
-        </SectionCard>
-
-        <SectionCard title="Các bước thực thi (Steps)">
-          <WorkflowStepsTable
-            steps={formData.steps}
-            agents={MOCK_AGENTS}
-            onMoveUp={handleMoveStepUp}
-            onMoveDown={handleMoveStepDown}
-            onRemove={handleRemoveStep}
-          />
-          <button 
-            className="secondary-action" 
-            style={{ width: '100%', marginTop: '12px' }}
-            onClick={handleAddStep}
-          >
-            + Thêm bước mới
-          </button>
         </SectionCard>
 
         <div className="panel" style={{ padding: '16px' }}>
           <div className="form-actions" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', flexDirection: 'column' }}>
-            <button
-              className="primary-action"
-              onClick={handleExecute}
-              style={{ background: '#10b981', borderColor: '#10b981' }}
-              disabled={executionStatus === "running"}
-            >
-              {executionStatus === "running" ? "Đang gửi yêu cầu..." : "▶ Chạy Workflow (Execute)"}
-            </button>
             <ConfirmButton onClick={handleSave} variant="primary">
               Lưu cấu hình Workflow
             </ConfirmButton>
-            <button className="secondary-action" style={{ textAlign: 'center' }}>
-              Hủy bỏ thay đổi
+            <button
+              className="primary-action"
+              onClick={handleExecute}
+              style={{ background: formData.status === "active" ? '#10b981' : '#e5e7eb', borderColor: formData.status === "active" ? '#10b981' : '#e5e7eb', color: formData.status === "active" ? 'white' : '#9ca3af', cursor: formData.status === "active" ? 'pointer' : 'not-allowed' }}
+              disabled={executionStatus === "running" || formData.status !== "active"}
+              title={formData.status !== "active" ? "Lưu workflow thành 'Đang hoạt động' để chạy" : ""}
+            >
+              {executionStatus === "running" ? "Đang gửi yêu cầu..." : "▶ Chạy Workflow (Execute)"}
+            </button>
+            <button className="secondary-action" onClick={onCancel}>
+              Quay lại danh sách
             </button>
           </div>
 
