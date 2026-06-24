@@ -24,7 +24,7 @@ import { InMemoryEventBus } from "./shared/events/event-bus.ts";
 import { createWorkflowManagementRouter } from "./modules/workflow-management/api/workflow-router.ts";
 import { WorkflowUseCases } from "./modules/workflow-management/application/workflow-use-cases.ts";
 import { PrismaWorkflowRepository } from "./modules/workflow-management/infrastructure/prisma-workflow-repository.ts";
-import { InMemoryWorkflowRepository } from "./modules/workflow-management/infrastructure/workflow-repository.ts";
+import { InMemoryWorkflowRepository } from "./modules/workflow-management/infrastructure/in-memory-workflow-repository.ts";
 
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
