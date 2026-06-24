@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ConfirmButton } from "../../components/shared/ConfirmButton";
 import { SectionCard } from "../../components/shared/SectionCard";
 import { WorkflowStepsTable } from "./components/WorkflowStepsTable";
 import type { WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
+import { createWorkflowManagementApiClient, type CreateWorkflowCommand, type WorkflowManagementApiClient } from "./api/workflow-api-client.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agt-1", workspaceId: "ws-1", name: "Code Assistant", role: "Software Developer", model: "gpt-4", status: "enabled" },
@@ -11,7 +13,7 @@ const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agt-3", workspaceId: "ws-1", name: "Tester", role: "QA Engineer", model: "gpt-3.5", status: "enabled" }
 ] as AgentPublicSummary[];
 
-export function WorkflowEditorPage() {
+export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient?: WorkflowManagementApiClient }) {
   const [formData, setFormData] = useState<{
     workflowId: string;
     workspaceId: string;
@@ -115,9 +117,27 @@ export function WorkflowEditorPage() {
     }, 2500);
   };
 
-  const handleSave = () => {
-    console.log("Saved workflow:", formData);
-    alert("Đã lưu workflow thành công!");
+  const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
+
+  const handleSave = async () => {
+    try {
+      const payload: CreateWorkflowCommand = {
+        name: formData.name,
+        description: formData.description,
+        triggerType: formData.triggerType as "manual" | "schedule" | "webhook",
+        steps: formData.steps.map(s => ({
+          agentId: s.agentId,
+          stepOrder: s.stepOrder
+        }))
+      };
+      
+      await apiClient.createWorkflow("ws_1" as EntityId<"workspaceId">, payload);
+      alert("Đã lưu workflow thành công!");
+      // Option: could redirect or clear form here
+    } catch (err) {
+      console.error("Failed to save workflow:", err);
+      alert("Không thể lưu workflow. Vui lòng kiểm tra lại cấu hình (VD: Agent bị disable).");
+    }
   };
 
   return (
