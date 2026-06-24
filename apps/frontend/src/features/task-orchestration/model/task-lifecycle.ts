@@ -69,7 +69,6 @@ export function transitionTaskStatus(
     task: {
       ...task,
       requestedRouting: { ...task.requestedRouting },
-      timeline: task.timeline.map((step) => ({ ...step })),
       status: nextStatus
     }
   };

@@ -88,9 +88,8 @@ export interface CreatedTaskRecord {
   requestedRouting: TaskRoutingSelection;
   status: ProductionTaskStatus;
   createdAt: string;
-  timeline: ProcessingStep[];
-  /** Processing lifecycle snapshot — present after processing starts. */
-  processingSnapshot?: import("./task-processing").ProcessingSnapshot;
+  /** Authoritative processing lifecycle snapshot — present from task creation. */
+  processingSnapshot: import("./task-processing").ProcessingSnapshot;
 }
 
 export interface MockAgent {
