@@ -1,6 +1,23 @@
 import type { EntityId } from "@vcp/shared";
 
 /**
+ * Application port for generating event identities.
+ *
+ * This port is injected as a dependency to enable testability and avoid
+ * global random state in domain/application code.
+ *
+ * Implementation deferred to future phase.
+ */
+export interface TaskEventIdentityGenerator {
+  /**
+   * Generate the next event identifier.
+   *
+   * @returns Typed event identifier as EntityId<"eventId">
+   */
+  nextEventId(): EntityId<"eventId">;
+}
+
+/**
  * Application port for generating deterministic task and work identities.
  *
  * This port is injected as a dependency to enable testability and avoid
