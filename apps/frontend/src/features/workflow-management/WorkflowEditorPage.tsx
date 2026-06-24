@@ -117,7 +117,7 @@ export function WorkflowEditorPage() {
     }, 2500);
   };
 
-  const apiClient = useMemo(() => createWorkflowManagementApiClient({ baseUrl: "http://localhost:3000" }), []);
+  const apiClient = useMemo(() => createWorkflowManagementApiClient(), []);
 
   const handleSave = async () => {
     try {

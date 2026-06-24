@@ -21,7 +21,7 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const apiClient = useMemo(() => createWorkflowManagementApiClient({ baseUrl: "http://localhost:3000" }), []);
+  const apiClient = useMemo(() => createWorkflowManagementApiClient(), []);
 
   useEffect(() => {
     let mounted = true;
