@@ -14,37 +14,35 @@ import { SearchBar } from "../../components/shared/SearchBar.tsx";
 import { useEffect, useMemo } from "react";
 import { createWorkflowManagementApiClient, type WorkflowManagementApiClient, type WorkflowPublicSummary } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
-function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: () => void; apiClient?: WorkflowManagementApiClient }) {
+function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiClient }: { onCreate: () => void; onExecutionSuccess?: () => void; apiClient?: WorkflowManagementApiClient }) {
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [executingId, setExecutingId] = useState<string | null>(null);
 
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
 
+  const loadWorkflows = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.listWorkflows(DEMO_WORKSPACE_ID);
+      setWorkflows(data);
+      setError(null);
+    } catch (err) {
+      setError("Failed to load workflows. Please check your backend connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-    async function loadWorkflows() {
-      try {
-        setLoading(true);
-        // Using "ws_1" as the hardcoded workspaceId for now
-        const data = await apiClient.listWorkflows("ws_1" as EntityId<"workspaceId">);
-        if (mounted) {
-          setWorkflows(data);
-          setError(null);
-        }
-      } catch (err) {
-        if (mounted) {
-          setError("Failed to load workflows. Please check your backend connection.");
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
+    if (mounted) {
+      loadWorkflows();
     }
-    loadWorkflows();
     return () => {
       mounted = false;
     };
@@ -53,6 +51,32 @@ function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: (
   const filtered = workflows.filter(w =>
     w.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleRun = async (workflowId: string) => {
+    try {
+      setExecutingId(workflowId);
+      await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
+      alert("Đã gửi yêu cầu chạy Workflow thành công!");
+      if (onExecutionSuccess) {
+        onExecutionSuccess();
+      }
+    } catch (err: any) {
+      alert("Lỗi khi chạy Workflow: " + (err.message || "Unknown error"));
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  const handleDelete = async (workflowId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa workflow này không?")) return;
+    try {
+      await apiClient.deleteWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
+      alert("Xóa thành công!");
+      loadWorkflows();
+    } catch (err: any) {
+      alert("Lỗi khi xóa Workflow: " + (err.message || "Unknown error"));
+    }
+  };
 
   return (
     <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -105,7 +129,16 @@ function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: (
                   <td>{w.stepCount} bước</td>
                   <td>{new Date(w.updatedAt).toLocaleDateString("vi-VN")}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="text-action" onClick={() => {}}>Chi tiết</button>
+                    <button 
+                      className="text-action" 
+                      style={{ marginRight: '8px', color: '#10b981' }}
+                      onClick={() => handleRun(w.workflowId)}
+                      disabled={executingId === w.workflowId || w.status !== "active"}
+                    >
+                      {executingId === w.workflowId ? "Đang gửi..." : "▶ Chạy"}
+                    </button>
+                    <button className="text-action" style={{ marginRight: '8px' }} onClick={() => {}}>Chi tiết</button>
+                    <button className="text-action" style={{ color: '#ef4444' }} onClick={() => handleDelete(w.workflowId)}>Xóa</button>
                   </td>
                 </tr>
               ))
@@ -125,9 +158,9 @@ export function WorkflowsPage({ apiClient }: { apiClient?: WorkflowManagementApi
       case "dashboard":
         return <DashboardPage />;
       case "list":
-        return <WorkflowsList onCreate={() => setActiveTab("editor")} apiClient={apiClient} />;
+        return <WorkflowsList onCreate={() => setActiveTab("editor")} onExecutionSuccess={() => setActiveTab("executions")} apiClient={apiClient} />;
       case "editor":
-        return <WorkflowEditorPage apiClient={apiClient} />;
+        return <WorkflowEditorPage apiClient={apiClient} onExecutionSuccess={() => setActiveTab("executions")} />;
       case "executions":
         return <ExecutionsPage />;
       default:

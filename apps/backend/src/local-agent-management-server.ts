@@ -114,13 +114,24 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
-  const workflowUseCases = new WorkflowUseCases({
-    repository: workflowRepository,
-    agentRepository: repository,
-    now: () => new Date().toISOString(),
-    generateWorkflowId: () => randomUUID() as any,
-    generateWorkflowStepId: () => randomUUID() as any
-  });
+  
+  const mockExecutionHandoff = {
+    async handoffExecution(request: any) {
+      console.log("[Handoff] Mock Workflow Execution Handoff triggered:");
+      console.log(JSON.stringify(request, null, 2));
+    }
+  };
+
+  const agentProvider = async (workspaceId: any, agentIds: any[]) => {
+    const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+    return all.filter((a: any) => agentIds.includes(a.agentId));
+  };
+
+  const workflowUseCases = new WorkflowUseCases(
+    workflowRepository,
+    agentProvider,
+    mockExecutionHandoff
+  );
 
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);
@@ -198,6 +209,18 @@ async function seedDemoAgents(repository: AgentRepository): Promise<void> {
       status: "disabled",
       createdAt: "2026-06-19T09:15:00.000Z",
       updatedAt: "2026-06-20T07:45:00.000Z"
+    })
+  );
+  await repository.save(
+    createAgent({
+      agentId: "agent-writer",
+      workspaceId: DEMO_WORKSPACE_ID,
+      name: "Writer Agent",
+      role: "Content Writer",
+      model: "gpt-3.5",
+      instructions: "Draft content based on research briefs.",
+      createdAt: "2026-06-20T10:00:00.000Z",
+      updatedAt: "2026-06-20T10:00:00.000Z"
     })
   );
 }

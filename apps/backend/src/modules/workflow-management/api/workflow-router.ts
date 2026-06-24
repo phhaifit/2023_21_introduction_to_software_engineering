@@ -125,6 +125,62 @@ export function createWorkflowManagementRouter(
     });
   });
 
+  router.post("/:workflowId/execute", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      const payload = request.body || {};
+
+      try {
+        await dependencies.useCases.executeWorkflow({
+          workspaceId: context.workspace!.workspaceId,
+          workflowId: request.params.workflowId as EntityId<"workflowId">,
+          triggeredBy: context.user!.userId,
+          inputData: payload.inputData
+        });
+
+        // 202 Accepted because execution is handed off asynchronously
+        response.status(202).json({
+          ok: true,
+          data: { status: "handed-off" }
+        });
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        if (err.message === "Cannot execute inactive workflow" || err.message === "Cannot execute workflow with no steps") {
+          return sendWorkflowApiFailure(request, response, {
+            statusCode: 400,
+            code: "validation_error",
+            message: err.message
+          });
+        }
+        throw err;
+      }
+    });
+  });
+
+  router.delete("/:workflowId", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      try {
+        await dependencies.useCases.deleteWorkflow(
+          context.workspace!.workspaceId,
+          request.params.workflowId as EntityId<"workflowId">
+        );
+        response.status(204).send();
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        throw err;
+      }
+    });
+  });
+
   return router;
 }
 

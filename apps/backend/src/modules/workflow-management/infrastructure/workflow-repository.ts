@@ -8,4 +8,5 @@ export interface WorkflowRepository {
     workspaceId: EntityId<"workspaceId">,
     options?: { limit?: number; offset?: number }
   ): Promise<{ items: Workflow[]; total: number }>;
+  delete(workspaceId: EntityId<"workspaceId">, workflowId: EntityId<"workflowId">): Promise<boolean>;
 }
