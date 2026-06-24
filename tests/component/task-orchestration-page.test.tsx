@@ -67,7 +67,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("uses deterministic suggestions and resets the draft after accepted submit", async () => {
+  it("uses deterministic suggestions and renders Pending after accepted submit", async () => {
     const user = userEvent.setup();
     render(<TaskOrchestrationPage />);
 
@@ -91,9 +91,9 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(prompt).toHaveValue("");
     expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
-    expect(screen.queryByText(/Task ID/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Work ID/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Pending/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Task ID/i)).toBeVisible();
+    expect(screen.getByText(/Work ID/i)).toBeVisible();
+    expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
     expect(screen.queryByText(/processing log/i)).not.toBeInTheDocument();
   });
 
