@@ -14,3 +14,10 @@ export class EmailAlreadyUsedError extends Error {
     this.name = "EmailAlreadyUsedError";
   }
 }
+
+export class InvalidCredentialsError extends Error {
+  constructor() {
+    super("Invalid email or password");
+    this.name = "InvalidCredentialsError";
+  }
+}
