@@ -11,9 +11,46 @@ import { mockWorkflows } from "../../data/workflows.ts";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
 
+import { useEffect, useMemo } from "react";
+import { createWorkflowManagementApiClient, type WorkflowPublicSummary } from "./api/workflow-api-client.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+
 function WorkflowsList({ onCreate }: { onCreate: () => void }) {
   const [search, setSearch] = useState("");
-  const filtered = mockWorkflows.filter(w =>
+  const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const apiClient = useMemo(() => createWorkflowManagementApiClient({ baseUrl: "http://localhost:3000" }), []);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadWorkflows() {
+      try {
+        setLoading(true);
+        // Using "ws_1" as the hardcoded workspaceId for now
+        const data = await apiClient.listWorkflows("ws_1" as EntityId<"workspaceId">);
+        if (mounted) {
+          setWorkflows(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError("Failed to load workflows. Please check your backend connection.");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+    loadWorkflows();
+    return () => {
+      mounted = false;
+    };
+  }, [apiClient]);
+
+  const filtered = workflows.filter(w =>
     w.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -30,6 +67,12 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
         </button>
       </div>
 
+      {error && (
+        <div style={{ padding: '16px', background: 'var(--bg-red-subtle)', color: 'var(--red)', borderRadius: '8px' }}>
+          {error}
+        </div>
+      )}
+
       <div className="data-table-wrapper">
         <table className="data-table">
           <thead>
@@ -42,7 +85,13 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                  Đang tải danh sách...
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
                   Không tìm thấy workflow nào.
@@ -52,9 +101,9 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
               filtered.map(w => (
                 <tr key={w.workflowId}>
                   <td style={{ fontWeight: 600 }}>{w.name}</td>
-                  <td><StatusBadge status={w.lastExecutionStatus || w.status} /></td>
+                  <td><StatusBadge status={w.status} /></td>
                   <td>{w.stepCount} bước</td>
-                  <td>{w.updatedAt}</td>
+                  <td>{new Date(w.updatedAt).toLocaleDateString("vi-VN")}</td>
                   <td style={{ textAlign: 'right' }}>
                     <button className="text-action" onClick={() => {}}>Chi tiết</button>
                   </td>
