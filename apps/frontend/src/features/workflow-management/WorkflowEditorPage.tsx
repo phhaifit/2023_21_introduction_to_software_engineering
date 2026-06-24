@@ -4,7 +4,7 @@ import { SectionCard } from "../../components/shared/SectionCard";
 import { WorkflowStepsTable } from "./components/WorkflowStepsTable";
 import type { WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
-import { createWorkflowManagementApiClient, type CreateWorkflowCommand } from "./api/workflow-api-client.ts";
+import { createWorkflowManagementApiClient, type CreateWorkflowCommand, type WorkflowManagementApiClient } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 const MOCK_AGENTS: AgentPublicSummary[] = [
@@ -13,7 +13,7 @@ const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agt-3", workspaceId: "ws-1", name: "Tester", role: "QA Engineer", model: "gpt-3.5", status: "enabled" }
 ] as AgentPublicSummary[];
 
-export function WorkflowEditorPage() {
+export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient?: WorkflowManagementApiClient }) {
   const [formData, setFormData] = useState<{
     workflowId: string;
     workspaceId: string;
@@ -117,7 +117,7 @@ export function WorkflowEditorPage() {
     }, 2500);
   };
 
-  const apiClient = useMemo(() => createWorkflowManagementApiClient(), []);
+  const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
 
   const handleSave = async () => {
     try {

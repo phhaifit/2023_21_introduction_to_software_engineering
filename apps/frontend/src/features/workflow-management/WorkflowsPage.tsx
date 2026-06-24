@@ -12,16 +12,16 @@ import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
 
 import { useEffect, useMemo } from "react";
-import { createWorkflowManagementApiClient, type WorkflowPublicSummary } from "./api/workflow-api-client.ts";
+import { createWorkflowManagementApiClient, type WorkflowManagementApiClient, type WorkflowPublicSummary } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
-function WorkflowsList({ onCreate }: { onCreate: () => void }) {
+function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: () => void; apiClient?: WorkflowManagementApiClient }) {
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const apiClient = useMemo(() => createWorkflowManagementApiClient(), []);
+  const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
 
   useEffect(() => {
     let mounted = true;
@@ -117,7 +117,7 @@ function WorkflowsList({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-export function WorkflowsPage() {
+export function WorkflowsPage({ apiClient }: { apiClient?: WorkflowManagementApiClient }) {
   const [activeTab, setActiveTab] = useState<SubTab>("dashboard");
 
   const renderContent = () => {
@@ -125,9 +125,9 @@ export function WorkflowsPage() {
       case "dashboard":
         return <DashboardPage />;
       case "list":
-        return <WorkflowsList onCreate={() => setActiveTab("editor")} />;
+        return <WorkflowsList onCreate={() => setActiveTab("editor")} apiClient={apiClient} />;
       case "editor":
-        return <WorkflowEditorPage />;
+        return <WorkflowEditorPage apiClient={apiClient} />;
       case "executions":
         return <ExecutionsPage />;
       default:
