@@ -1,5 +1,6 @@
 export const ENTITY_ID_KINDS = [
   "userId",
+  "sessionId",
   "workspaceId",
   "memberId",
   "agentId",
