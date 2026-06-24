@@ -38,6 +38,7 @@ assert.deepEqual(Object.keys(schema.plans).sort(), ["premium", "standard"]);
 
 assert.deepEqual(schema.idKinds, [
   "userId",
+  "sessionId",
   "workspaceId",
   "memberId",
   "agentId",
