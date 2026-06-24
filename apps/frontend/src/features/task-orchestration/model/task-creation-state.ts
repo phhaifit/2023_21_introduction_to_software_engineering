@@ -15,7 +15,6 @@ import {
 import type { TaskLog } from "./task-types";
 import type {
   CreatedTaskRecord,
-  ProcessingStep,
   RoutingMode
 } from "./task-types";
 import {
@@ -75,7 +74,7 @@ export type TaskCreationAction =
       log: TaskLog;
     };
 
-export const INITIAL_PROCESSING_STEPS: readonly ProcessingStep[] = [
+export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
   { id: "validate-input", label: "Validate input", status: "waiting" },
   { id: "analyze-request", label: "Analyze request", status: "waiting" },
   { id: "select-routing", label: "Select agent or workflow", status: "waiting" },
@@ -139,9 +138,9 @@ export function taskCreationReducer(
       const transitionResult = transitionTaskStatus(task, "running");
       if (!transitionResult.ok) return state;
       // Guard duplicate start
-      if (task.processingSnapshot?.startedAt !== undefined) return state;
-      const baseSnapshot = createInitialProcessingSnapshot(task.timeline);
-      const processingResult = startProcessing(baseSnapshot, action.startedAt);
+      if (task.processingSnapshot.startedAt !== undefined) return state;
+      // Use the existing snapshot as base (already initialized on creation)
+      const processingResult = startProcessing(task.processingSnapshot, action.startedAt);
       if (!processingResult.ok) return state;
       const updatedTask: CreatedTaskRecord = {
         ...transitionResult.task,
@@ -237,7 +236,7 @@ export function createTaskRecord(
     requestedRouting: copyRoutingSelection(request.routing),
     status: response.status,
     createdAt: response.createdAt,
-    timeline: INITIAL_PROCESSING_STEPS.map((step) => ({ ...step }))
+    processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS)
   };
 }
 

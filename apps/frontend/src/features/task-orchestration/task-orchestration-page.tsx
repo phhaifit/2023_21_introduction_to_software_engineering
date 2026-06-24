@@ -169,7 +169,7 @@ export function TaskOrchestrationPage({
 
               <ProcessingTimeline
                 ariaLabel="Initial processing timeline"
-                steps={activeTask.timeline}
+                steps={activeTask.processingSnapshot.steps}
               />
             </article>
           ) : (
