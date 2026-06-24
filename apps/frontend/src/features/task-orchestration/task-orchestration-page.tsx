@@ -1,13 +1,15 @@
-import { useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import type { TaskRoutingSelection } from "@vcp/shared";
 
 import { ProcessingTimeline } from "./components/processing-timeline";
 import { RoutingSelector } from "./components/routing-selector";
 import { TaskComposer } from "./components/task-composer";
+import { TaskLogList } from "./components/task-log-list";
 import { TaskStatusBadge } from "./components/task-status-badge";
 import {
   createTaskOrchestrationSeedData,
-  DEMO_PROMPTS
+  DEMO_PROMPTS,
+  DEMO_TIMINGS
 } from "./mocks/task-orchestration-mocks";
 import {
   createMockTaskCreationClient,
@@ -19,7 +21,18 @@ import {
   initialTaskCreationState,
   taskCreationReducer
 } from "./model/task-creation-state";
-import { toTaskPresentationStatus } from "./model/task-lifecycle";
+import { isTerminalTaskStatus, toTaskPresentationStatus } from "./model/task-lifecycle";
+import {
+  createTaskProcessingController,
+  TaskFinalStepBoundaryError,
+  type TaskProcessingController,
+  type TaskProcessingScheduleHandle
+} from "./model/task-processing-controller";
+import {
+  createBrowserTaskProcessingRuntime,
+  type TaskProcessingRuntime
+} from "./model/task-processing-runtime";
+import { ORDERED_STEP_IDS } from "./model/task-processing";
 import {
   ROUTING_MODES,
   type RoutingMode
@@ -37,6 +50,11 @@ type TaskOrchestrationPageProps = {
   isLoading?: boolean;
   taskCreationClient?: TaskCreationClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
+  processingRuntime?: TaskProcessingRuntime;
+  processingDelays?: Readonly<{
+    pendingMs: number;
+    stepMs: number;
+  }>;
 };
 
 const suggestedPrompts = [
@@ -46,11 +64,14 @@ const suggestedPrompts = [
 ] as const;
 
 const routingOptions = createTaskOrchestrationSeedData();
+const FINAL_STEP_ID = ORDERED_STEP_IDS[ORDERED_STEP_IDS.length - 1];
 
 export function TaskOrchestrationPage({
   isLoading = false,
   taskCreationClient,
-  onCancelTaskRequested
+  onCancelTaskRequested,
+  processingRuntime,
+  processingDelays
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
@@ -63,10 +84,105 @@ export function TaskOrchestrationPage({
   const taskClientRef = useRef(
     taskCreationClient ?? createMockTaskCreationClient()
   );
+  const dispatchRef = useRef(dispatchTaskAction);
+  dispatchRef.current = dispatchTaskAction;
+
+  const runtimeRef = useRef(processingRuntime ?? createBrowserTaskProcessingRuntime());
+  const delaysRef = useRef(processingDelays ?? DEMO_TIMINGS);
+  const controllerRef = useRef<TaskProcessingController | null>(null);
+  const progressionHandleRef = useRef<TaskProcessingScheduleHandle | null>(null);
+
+  if (!controllerRef.current) {
+    controllerRef.current = createTaskProcessingController({
+      scheduler: runtimeRef.current.scheduler,
+      clock: runtimeRef.current.clock,
+      logIdentitySource: runtimeRef.current.logIdentitySource,
+      actionSink: {
+        dispatch: (action) => dispatchRef.current(action)
+      },
+      pendingDelayMs: delaysRef.current.pendingMs
+    });
+  }
+
   const activeTask = getActiveTask(taskState);
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
     : null;
+
+  useEffect(() => {
+    return () => {
+      progressionHandleRef.current?.cancel();
+      progressionHandleRef.current = null;
+      controllerRef.current?.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const taskId = activeTask?.taskId;
+
+    return () => {
+      progressionHandleRef.current?.cancel();
+      progressionHandleRef.current = null;
+      if (taskId) {
+        controllerRef.current?.stop(taskId);
+      }
+    };
+  }, [activeTask?.taskId]);
+
+  useEffect(() => {
+    const controller = controllerRef.current;
+    const runtime = runtimeRef.current;
+    const delays = delaysRef.current;
+    const task = activeTask;
+
+    progressionHandleRef.current?.cancel();
+    progressionHandleRef.current = null;
+
+    if (!controller || !task) {
+      return;
+    }
+
+    const { taskId, status } = task;
+
+    if (isTerminalTaskStatus(status)) {
+      controller.stop(taskId);
+      return;
+    }
+
+    if (status === "queued") {
+      controller.scheduleStart(taskId);
+      return;
+    }
+
+    if (status !== "running") {
+      return;
+    }
+
+    const activeStep = task.processingSnapshot.steps.find(
+      (step) => step.status === "active"
+    );
+
+    if (!activeStep || activeStep.id === FINAL_STEP_ID) {
+      return;
+    }
+
+    progressionHandleRef.current = runtime.scheduler.schedule(delays.stepMs, () => {
+      progressionHandleRef.current = null;
+      try {
+        controller.advance(taskId);
+      } catch (error) {
+        if (!(error instanceof TaskFinalStepBoundaryError)) {
+          throw error;
+        }
+      }
+    });
+  }, [
+    activeTask?.taskId,
+    activeTask?.status,
+    activeTask?.processingSnapshot.steps,
+    activeTask?.processingSnapshot.logs.length
+  ]);
+
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
   async function handleAcceptedSubmission() {
@@ -106,6 +222,14 @@ export function TaskOrchestrationPage({
       });
     }
   }
+
+  const timelineAriaLabel =
+    activeTask?.status === "running"
+      ? "Processing timeline"
+      : "Initial processing timeline";
+
+  const taskArticleLabel =
+    activeTask?.status === "running" ? "In-progress task" : "Pending task";
 
   return (
     <section className="task-workspace" aria-labelledby="task-workspace-title">
@@ -147,8 +271,13 @@ export function TaskOrchestrationPage({
               </div>
             </div>
           ) : activeTask && activeTaskPresentationStatus ? (
-            <article className="task-workspace__pending" aria-label="Pending task">
-              <header className="task-workspace__pending-header">
+            <article
+              className={`task-workspace__task-view${
+                activeTask.status === "running" ? " task-workspace__task-view--in-progress" : ""
+              }`}
+              aria-label={taskArticleLabel}
+            >
+              <header className="task-workspace__task-header">
                 <div>
                   <p className="task-workspace__eyebrow">Submitted request</p>
                   <h3>{activeTask.prompt}</h3>
@@ -166,8 +295,10 @@ export function TaskOrchestrationPage({
                   <dd>{activeTask.taskId}</dd>
                 </div>
                 <div>
-                  <dt>Created</dt>
-                  <dd>{activeTask.createdAt}</dd>
+                  <dt>{activeTask.processingSnapshot.startedAt ? "Started" : "Created"}</dt>
+                  <dd>
+                    {activeTask.processingSnapshot.startedAt ?? activeTask.createdAt}
+                  </dd>
                 </div>
               </dl>
 
@@ -176,9 +307,16 @@ export function TaskOrchestrationPage({
               </p>
 
               <ProcessingTimeline
-                ariaLabel="Initial processing timeline"
+                ariaLabel={timelineAriaLabel}
                 steps={activeTask.processingSnapshot.steps}
               />
+
+              {activeTask.status === "running" ? (
+                <TaskLogList
+                  logs={activeTask.processingSnapshot.logs}
+                  ariaLabel="Orchestration processing logs"
+                />
+              ) : null}
 
               {activeTask.status === "queued" ? (
                 <div className="task-workspace__pending-actions">
