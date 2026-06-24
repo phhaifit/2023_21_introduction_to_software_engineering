@@ -286,7 +286,7 @@
 
   `feat(task-orchestration): implement mock task creation`
 
-* [ ] 7. [PA5] Task & Orchestration – Pending Task State
+* [x] 7. [PA5] Task & Orchestration – Pending Task State
 
   Scope:
 
