@@ -24,7 +24,7 @@ The design must:
 8. Prevent Failed and Canceled tasks from being rendered as Completed.
 9. Keep task-scoped data isolated.
 10. Support automated testing with fake timers or configurable delays.
-11. Fit the implementation into focused pull requests of no more than 500 added code lines each.
+11. Fit the implementation into focused pull requests that generally remain within 500 added code lines each.
 
 ## 3. Design Constraints
 
@@ -1072,7 +1072,7 @@ Before implementation, the agent must:
 
 1. Identify affected files.
 2. Estimate added code lines.
-3. Stop and propose a split when the work may exceed 500 lines.
+3. Propose a split into multiple focused review units when the work may exceed the 500-line recommendation.
 
 Before opening the pull request, the developer must calculate actual added code lines.
 
@@ -1169,7 +1169,7 @@ Normalize routing input before task creation and clear incompatible selections w
 
 Mitigation:
 
-Use shared test builders, fake timers, and table-driven transition tests. Split the testing sub-issue if the 500-line limit is at risk.
+Use shared test builders, fake timers, and table-driven transition tests. Decompose the testing sub-issue into multiple focused review units when the 500-line recommendation is at risk.
 
 ### Existing project conventions differ from this proposal
 

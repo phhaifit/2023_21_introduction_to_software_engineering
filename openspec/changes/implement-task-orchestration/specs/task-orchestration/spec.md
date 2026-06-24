@@ -850,19 +850,24 @@ Each required feature group SHALL contain at least 5 test cases.
 
 ### Requirement: Pull Request Code Size
 
-Every implementation sub-issue and pull request SHALL add no more than 500 lines of code.
+The module SHALL apply the following code-size review guideline. Implementation and automated test code SHOULD generally remain within 500 added lines per reviewable pull request or sub-issue. Larger changes SHOULD be decomposed into multiple focused review units. Exceeding this guideline is not, by itself, a functional acceptance failure when the scope is justified, the work is reviewable, and all required verification passes.
 
-A sub-issue that may exceed the limit SHALL be split before implementation.
+Code-line accounting SHALL include implementation and automated test code.
 
-#### Scenario: Implementation remains within limit
+A sub-issue that may exceed the recommendation SHOULD be decomposed into multiple focused review units.
+
+The guideline MUST NOT be interpreted as a requirement to remove useful tests or reduce coverage merely to satisfy a line count.
+
+#### Scenario: Implementation follows the review guideline
 
 * **GIVEN** a sub-issue implementation is ready for review
 * **WHEN** added code lines are counted
-* **THEN** the count SHALL be 500 lines or fewer
+* **THEN** the count SHOULD generally remain within 500 lines per reviewable pull request or sub-issue
+* **OR** the work SHOULD be decomposed into multiple focused review units
 
-#### Scenario: Planned work may exceed limit
+#### Scenario: Planned work may exceed the recommendation
 
-* **GIVEN** the developer or coding agent estimates that a sub-issue may exceed 500 added code lines
+* **GIVEN** the developer or coding agent estimates that a sub-issue may exceed the 500-line recommendation
 * **WHEN** implementation planning is reviewed
-* **THEN** the sub-issue SHALL be split before coding
-* **AND** unrelated major concerns SHALL NOT be combined in the same pull request
+* **THEN** the sub-issue SHOULD be decomposed into multiple focused review units before or during coding
+* **AND** unrelated major concerns MUST NOT be combined in the same pull request
