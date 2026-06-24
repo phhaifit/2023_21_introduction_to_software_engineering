@@ -72,15 +72,22 @@ Task 6 begins.
 * **WHEN** the foundation architecture is reviewed
 * **THEN** Task and TaskWork SHALL use the shared production TaskStatus enum
 * **AND** Task and TaskWork SHALL start with production status `queued`
-* **AND** Work ID SHALL be the TaskWork primary key without a separate internal ID
+* **AND** TaskWork SHALL remain the domain execution-attempt model
+* **AND** TaskRun SHALL remain the backward-compatible Prisma persistence representation
+* **AND** the physical `task_runs` table SHALL be preserved
+* **AND** `TaskRun.taskRunId` SHALL map to domain `TaskWork.workId`
+* **AND** `TaskRun.jobId` SHALL remain worker-handoff persistence metadata
+* **AND** no duplicate Prisma `TaskWork` model or `task_works` table SHALL be introduced
+* **AND** the future repository adapter SHALL own TaskWork-to-TaskRun mapping
 * **AND** the initial TaskWork SHALL use attempt number 1
 * **AND** each retry SHALL create a new TaskWork and Work ID for the same Task
 * **AND** attempt number SHALL be unique within a Task
 * **AND** models SHALL use string application IDs
 * **AND** Prisma timestamp fields SHALL be strings containing application-supplied ISO-8601 values
-* **AND** both models SHALL contain required workspace ID
+* **AND** Task and TaskRun persistence records SHALL contain required workspace ID
 * **AND** tenant, status, creation-time, Task ID, Work ID, and attempt uniqueness indexes SHALL be specified
-* **AND** only TaskWork-to-Task SHALL be an owned Prisma relation
+* **AND** TaskRun-to-Task ownership SHALL be strengthened additively with workspace-safe tenant checks
+* **AND** this compatibility decision SHALL NOT change public shared contracts
 * **AND** no deletion API or soft-delete field SHALL be introduced by this foundation
 
 ---
