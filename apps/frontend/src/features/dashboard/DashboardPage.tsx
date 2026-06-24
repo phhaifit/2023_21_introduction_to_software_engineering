@@ -51,14 +51,7 @@ export function DashboardPage() {
               </div>
             ))}
           </article>
-          <article className="panel">
-            <div className="panel-heading">
-              <h2>Thao tác nhanh</h2>
-            </div>
-            <button className="quick-action" type="button">Tạo mới Workflow</button>
-            <button className="quick-action" type="button">Xem danh sách Workflows</button>
-            <button className="quick-action" type="button">Theo dõi Lịch sử chạy</button>
-          </article>
+
         </div>
       </section>
     </div>
