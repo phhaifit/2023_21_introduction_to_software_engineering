@@ -12,6 +12,12 @@ import {
   createInitialProcessingSnapshot,
   startProcessing
 } from "./task-processing";
+import {
+  appendStreamingFragment,
+  createInitialStreamingSnapshot,
+  exhaustStreaming,
+  startStreaming
+} from "./task-streaming";
 import type { TaskLog } from "./task-types";
 import type {
   CreatedTaskRecord,
@@ -72,6 +78,27 @@ export type TaskCreationAction =
       type: "processing-log-appended";
       taskId: EntityId<"taskId">;
       log: TaskLog;
+    }
+  | {
+      /** Begins partial-result streaming for a running task. */
+      type: "streaming-started";
+      taskId: EntityId<"taskId">;
+      startedAt: string;
+    }
+  | {
+      /** Appends one streaming fragment to the partial-result snapshot. */
+      type: "streaming-fragment-appended";
+      taskId: EntityId<"taskId">;
+      fragmentId: string;
+      sequence: number;
+      text: string;
+      appendedAt: string;
+    }
+  | {
+      /** Marks partial-result streaming as exhausted. */
+      type: "streaming-exhausted";
+      taskId: EntityId<"taskId">;
+      exhaustedAt: string;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -199,6 +226,62 @@ export function taskCreationReducer(
         )
       };
     }
+    case "streaming-started": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = startStreaming(task.streamingSnapshot, action.startedAt);
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, streamingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "streaming-fragment-appended": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = appendStreamingFragment(task.streamingSnapshot, {
+        id: action.fragmentId,
+        sequence: action.sequence,
+        text: action.text,
+        appendedAt: action.appendedAt
+      });
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, streamingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "streaming-exhausted": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = exhaustStreaming(
+        task.streamingSnapshot,
+        action.exhaustedAt
+      );
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, streamingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
   }
 }
 
@@ -236,7 +319,8 @@ export function createTaskRecord(
     requestedRouting: copyRoutingSelection(request.routing),
     status: response.status,
     createdAt: response.createdAt,
-    processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS)
+    processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
+    streamingSnapshot: createInitialStreamingSnapshot()
   };
 }
 

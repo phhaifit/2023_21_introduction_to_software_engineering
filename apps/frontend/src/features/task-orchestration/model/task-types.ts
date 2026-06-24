@@ -90,6 +90,8 @@ export interface CreatedTaskRecord {
   createdAt: string;
   /** Authoritative processing lifecycle snapshot — present from task creation. */
   processingSnapshot: import("./task-processing").ProcessingSnapshot;
+  /** Authoritative partial-result streaming snapshot — present from task creation. */
+  streamingSnapshot: import("./task-streaming").TaskStreamingSnapshot;
 }
 
 export interface MockAgent {
