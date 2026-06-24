@@ -1,9 +1,10 @@
 /**
  * task-pending-state.test.tsx
  *
- * Permanent focused tests for Task 7B — Pending Task State UI Completion.
+ * Permanent focused tests for Task 7B — Pending Task State UI Completion
+ * and Task 7 Fix — Pending Cancellation Entry Point.
  *
- * Coverage:
+ * Coverage (Task 7B):
  *  1.  Successful creation renders Pending.
  *  2.  Canonical status remains queued.
  *  3.  Task ID and Work ID are rendered.
@@ -24,13 +25,31 @@
  * 18.  Presentation components do not mutate canonical status.
  * 19.  No backend, Prisma, or private-module import exists.
  * 20.  Existing Task 6 and Task 7A tests remain passing (verified via CI).
+ *
+ * Coverage (Cancellation Entry Point Fix):
+ * 21.  Pending Task renders the Cancel task button.
+ * 22.  Cancel task button has accessible role and name.
+ * 23.  Clicking Cancel task calls the semantic callback exactly once.
+ * 24.  The callback receives the correct Task ID.
+ * 25.  Canonical Pending presentation remains after clicking Cancel task.
+ * 26.  No Canceled or In-Progress state appears after clicking.
+ * 27.  No confirmation dialog appears.
+ * 28.  Initial timeline remains unchanged after clicking Cancel task.
+ * 29.  All processing steps remain Waiting after clicking Cancel task.
+ * 30.  Task ID remains visible after clicking Cancel task.
+ * 31.  Work ID remains visible after clicking Cancel task.
+ * 32.  Prompt remains visible after clicking Cancel task.
+ * 33.  Routing summary remains visible after clicking Cancel task.
+ * 34.  No cancellation execution is performed.
+ * 35.  Presentation code does not directly assign lifecycle status.
+ * 36.  No new backend, Prisma, or private-module dependency introduced.
  */
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -509,4 +528,374 @@ describe("19. no forbidden imports in frontend Task & Orchestration files", () =
       expect(source).not.toMatch(/modules\/workflow-management/);
     }
   );
+});
+
+// ---------------------------------------------------------------------------
+// 21. Pending Task renders the Cancel task button
+// ---------------------------------------------------------------------------
+describe("21. Pending Task renders the Cancel task button", () => {
+  it("renders a Cancel task button in the Pending article", async () => {
+    const client = new SpyPendingClient();
+    render(<TaskOrchestrationPage taskCreationClient={client} />);
+
+    await submitPrompt("Cancel me.");
+
+    expect(screen.getByRole("button", { name: "Cancel task" })).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 22. Cancel task button has accessible role and name
+// ---------------------------------------------------------------------------
+describe("22. Cancel task button has accessible role and name", () => {
+  it("has role=button and accessible name 'Cancel task'", async () => {
+    const client = new SpyPendingClient();
+    render(<TaskOrchestrationPage taskCreationClient={client} />);
+
+    await submitPrompt("Accessible cancel.");
+
+    const btn = screen.getByRole("button", { name: "Cancel task" });
+    expect(btn).toBeVisible();
+    expect(btn).toHaveAttribute("type", "button");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 23. Clicking Cancel task calls the semantic callback exactly once
+// ---------------------------------------------------------------------------
+describe("23. clicking Cancel task calls the callback exactly once", () => {
+  it("invokes onCancelTaskRequested once per click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    const onCancel = vi.fn();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={onCancel}
+      />
+    );
+
+    await submitPrompt("One click.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call the callback when no prop is provided", async () => {
+    const client = new SpyPendingClient();
+    // No onCancelTaskRequested prop — must not throw
+    render(<TaskOrchestrationPage taskCreationClient={client} />);
+
+    await submitPrompt("Safe click.");
+    const btn = screen.getByRole("button", { name: "Cancel task" });
+    await userEvent.click(btn);
+
+    // No assertion needed — test passes if no error was thrown
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 24. The callback receives the correct Task ID
+// ---------------------------------------------------------------------------
+describe("24. callback receives correct Task ID", () => {
+  it("passes TASK-000001 to onCancelTaskRequested", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    const onCancel = vi.fn();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={onCancel}
+      />
+    );
+
+    await submitPrompt("Task id check.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(onCancel).toHaveBeenCalledWith("TASK-000001");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 25. Canonical Pending presentation remains after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("25. Pending status preserved after clicking Cancel task", () => {
+  it("status badge still shows Pending after Cancel task click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    const onCancel = vi.fn();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={onCancel}
+      />
+    );
+
+    await submitPrompt("Still pending.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 26. No Canceled or In-Progress state appears after clicking
+// ---------------------------------------------------------------------------
+describe("26. no Canceled or In-Progress state after Cancel task click", () => {
+  it("does not render Canceled or In-Progress badge after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    const onCancel = vi.fn();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={onCancel}
+      />
+    );
+
+    await submitPrompt("No canceled state.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.queryByLabelText("Task status: Canceled")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Task status: In Progress")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 27. No confirmation dialog appears
+// ---------------------------------------------------------------------------
+describe("27. no confirmation dialog appears", () => {
+  it("does not show any dialog element after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("No dialog.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("page does not call window.confirm", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("No window confirm.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 28. Initial timeline remains unchanged after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("28. timeline unchanged after Cancel task click", () => {
+  it("timeline still has six items after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("Timeline stable.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    expect(within(timeline).getAllByRole("listitem")).toHaveLength(6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 29. All processing steps remain Waiting after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("29. all steps remain Waiting after Cancel task click", () => {
+  it("all six step status indicators still show Waiting after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("Steps still waiting.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);
+    expect(within(timeline).queryAllByText("Active")).toHaveLength(0);
+    expect(within(timeline).queryAllByText("Completed")).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 30. Task ID remains visible after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("30. Task ID remains visible after Cancel task click", () => {
+  it("TASK-000001 still visible in the Pending view after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("ID stable.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.getByText("TASK-000001")).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 31. Work ID remains visible after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("31. Work ID remains visible after Cancel task click", () => {
+  it("WORK-000001 still visible in the Pending view after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("Work ID stable.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.getByText("WORK-000001")).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 32. Prompt remains visible after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("32. prompt remains visible after Cancel task click", () => {
+  it("submitted prompt text still visible after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    const prompt = "Prompt must remain.";
+    await submitPrompt(prompt);
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.getByText(prompt)).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 33. Routing summary remains visible after clicking Cancel task
+// ---------------------------------------------------------------------------
+describe("33. routing summary remains visible after Cancel task click", () => {
+  it("routing summary still visible after click", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("Routing stable.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 34. No cancellation execution is performed
+// ---------------------------------------------------------------------------
+describe("34. no cancellation execution is performed", () => {
+  it("the task client createTask is called only once — not again on cancel", async () => {
+    const user = userEvent.setup();
+    const client = new SpyPendingClient();
+    render(
+      <TaskOrchestrationPage
+        taskCreationClient={client}
+        onCancelTaskRequested={vi.fn()}
+      />
+    );
+
+    await submitPrompt("No extra calls.");
+    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+
+    // Client was called once for task creation only
+    expect(client.callCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 35. Presentation code does not directly assign lifecycle status
+// ---------------------------------------------------------------------------
+describe("35. presentation code does not directly assign lifecycle status", () => {
+  it("page source does not assign canonical status directly", () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
+      ),
+      "utf8"
+    );
+
+    // No direct status assignment
+    expect(source).not.toMatch(/\.status\s*=\s*["'`]queued/);
+    expect(source).not.toMatch(/\.status\s*=\s*["'`]cancelled/);
+    expect(source).not.toMatch(/\.status\s*=\s*["'`]running/);
+    // No cancellation reducer action dispatched
+    expect(source).not.toMatch(/type:\s*["'`]task-canceled/);
+    expect(source).not.toMatch(/type:\s*["'`]processing-canceled/);
+    // No window.confirm
+    expect(source).not.toMatch(/window\.confirm/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 36. No new backend, Prisma, or private-module dependency introduced
+// ---------------------------------------------------------------------------
+describe("36. no new forbidden dependency in page after cancellation fix", () => {
+  it("page still has no backend, database, Prisma, or private-module import", () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
+      ),
+      "utf8"
+    );
+
+    expect(source).not.toMatch(/@vcp\/backend/);
+    expect(source).not.toMatch(/@vcp\/database/);
+    expect(source).not.toMatch(/Prisma/);
+    expect(source).not.toMatch(/modules\/agent-management/);
+    expect(source).not.toMatch(/modules\/workflow-management/);
+  });
 });

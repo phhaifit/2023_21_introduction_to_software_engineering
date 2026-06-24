@@ -27,9 +27,16 @@ import {
 
 import "./task-orchestration-page.css";
 
+import type { CreatedTaskRecord } from "./model/task-types";
+
+type TaskCancellationRequestHandler = (
+  taskId: CreatedTaskRecord["taskId"]
+) => void;
+
 type TaskOrchestrationPageProps = {
   isLoading?: boolean;
   taskCreationClient?: TaskCreationClient;
+  onCancelTaskRequested?: TaskCancellationRequestHandler;
 };
 
 const suggestedPrompts = [
@@ -42,7 +49,8 @@ const routingOptions = createTaskOrchestrationSeedData();
 
 export function TaskOrchestrationPage({
   isLoading = false,
-  taskCreationClient
+  taskCreationClient,
+  onCancelTaskRequested
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
@@ -171,6 +179,18 @@ export function TaskOrchestrationPage({
                 ariaLabel="Initial processing timeline"
                 steps={activeTask.processingSnapshot.steps}
               />
+
+              {activeTask.status === "queued" ? (
+                <div className="task-workspace__pending-actions">
+                  <button
+                    type="button"
+                    className="task-workspace__cancel-btn"
+                    onClick={() => onCancelTaskRequested?.(activeTask.taskId)}
+                  >
+                    Cancel task
+                  </button>
+                </div>
+              ) : null}
             </article>
           ) : (
             <div className="task-workspace__empty">

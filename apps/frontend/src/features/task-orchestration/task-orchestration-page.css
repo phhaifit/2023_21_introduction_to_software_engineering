@@ -264,6 +264,34 @@
   color: #be123c;
 }
 
+.task-workspace__pending-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.task-workspace__cancel-btn {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #be123c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 8px 16px;
+}
+
+.task-workspace__cancel-btn:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.task-workspace__cancel-btn:focus-visible {
+  outline: 3px solid #fecdd3;
+  outline-offset: 2px;
+}
+
 .task-composer__routing {
   display: grid;
   gap: 6px;
