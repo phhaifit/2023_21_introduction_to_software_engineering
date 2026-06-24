@@ -146,14 +146,19 @@ implementation phase. PR F0 does not perform that source-code rename. Two
 incompatible public types named `TaskStatus` must not remain authoritative.
 
 Task uses `taskId`; TaskWork uses a distinct `workId`. Both are
-application-generated string identifiers. The future shared ID catalog must
-add `workId`.
+application-generated string identifiers. `workId` is already part of the
+public shared identity catalog, and this compatibility decision does not change
+public shared contracts.
 
-TaskWork uses `workId String @id`; Work ID is both its public identity and
-Prisma primary key. It has no separate internal `id` and no duplicate Work ID
-column. `attemptNumber` starts at 1. Initial creation creates exactly one
-TaskWork at attempt 1. Every retry creates a new row and Work ID while retaining
-the same Task row. `(taskId, attemptNumber)` is unique. Retry allocation and
+TaskWork uses `workId` as its domain identity. The existing Prisma persistence
+compatibility model remains `TaskRun`, mapped to the physical `task_runs`
+table. `TaskRun.taskRunId` represents the persistence identity that a future
+repository adapter maps to domain `TaskWork.workId`. `TaskRun.jobId` remains
+worker-handoff persistence metadata. `attemptNumber` starts at 1. Initial
+creation creates exactly one TaskWork attempt. Every retry creates a new
+execution-attempt row and Work ID while retaining the same Task row.
+`(taskId, attemptNumber)` is unique once the additive F3A persistence migration
+adds the required attempt column and constraint. Retry allocation and
 concurrency control remain later implementation concerns.
 
 ### API and Internal Command
@@ -195,42 +200,53 @@ transition guards, resolved routing, logs, timeline state, and failure details
 remain module-private.
 
 `EntityId<"workspaceId">`, `EntityId<"userId">`, `EntityId<"agentId">`,
-`EntityId<"workflowId">`, and `EntityId<"taskId">` already come from
-`@vcp/shared`. Task & Orchestration imports and consumes them and must not
-redefine or re-export another module's identity ownership. `workId` does not
-currently exist. `EntityId<"workId">` is a proposed reviewed shared-contract
-extension for a later contract PR; PR F0 does not implement it and the approved
-design does not use an untyped raw-string fallback.
+`EntityId<"workflowId">`, `EntityId<"taskId">`, and `EntityId<"workId">`
+already come from `@vcp/shared`. Task & Orchestration imports and consumes
+these identities and must not redefine or re-export another module's identity
+ownership.
 
-The existing shared contract is insufficient because it lacks Work identity,
-public routing contracts, create-task DTOs, and event versioning. A later
-implementation must update the active specification, run contract tests, and
-obtain another module owner's review before changing `@vcp/shared`.
+This F3R compatibility decision does not change public shared contracts. A
+later shared-contract change is required only if the module needs new public
+DTO fields or event-envelope capabilities beyond the existing `workId`, routing
+mode, request, response, and production status contracts.
 
-### Prisma Plan
+### Prisma Compatibility Plan
 
-Future models are `Task` and `TaskWork`, mapped to `tasks` and `task_works`.
-They use string IDs. Both records carry required `workspaceId`.
+TaskWork is the domain execution-attempt model. The backward-compatible Prisma
+persistence representation remains `TaskRun`, and the physical table remains
+`task_runs`. F3A must not create a duplicate `TaskWork` Prisma model or a
+separate `task_works` table, and it must not rename or destructively replace
+the existing `TaskRun` model, `taskRunId` column, or `task_runs` table.
 
-```prisma
-model TaskWork {
-  workId        String @id
-  taskId        String
-  attemptNumber Int
+The future repository adapter owns the mapping between domain and persistence:
 
-  @@unique([taskId, attemptNumber])
-}
+```text
+TaskWork.workId          <-> TaskRun.taskRunId
+TaskWork.taskId          <-> TaskRun.taskId
+TaskWork.workspaceId     <-> TaskRun.workspaceId
+TaskWork.status          <-> TaskRun.status
+TaskWork.startedAt       <-> TaskRun.startedAt
+TaskWork.finishedAt      <-> TaskRun.completedAt
 ```
+
+F3A may add missing TaskWork persistence fields to `TaskRun` additively, such
+as `attemptNumber`, resolved routing scalar columns, result/error metadata,
+`queuedAt`, and other approved lifecycle timestamps. `TaskRun.jobId` remains
+worker-handoff persistence metadata and is not part of the domain TaskWork
+contract.
 
 The current Prisma schema persists timestamps in `String` fields containing
 application-supplied ISO-8601 values. Domain, API, and event contracts represent
 timestamps as ISO-8601 strings; the repository does not currently use Prisma
 `DateTime` or JavaScript `Date` domain fields.
 
-TaskWork may have an owned Prisma relation to Task with restrictive deletion.
-Agent and workflow IDs remain scalar. Required indexes are
-`(workspaceId, createdAt)`, `(workspaceId, status)`, `taskId`, and
-`(workspaceId, workId)`.
+TaskRun-to-Task ownership must be strengthened additively in F3A. The preferred
+direction is a workspace-safe relation from `TaskRun(workspaceId, taskId)` to
+`Task(workspaceId, taskId)` with restrictive deletion, plus required lookup and
+attempt uniqueness indexes. Agent and workflow IDs remain scalar. Required
+lookup paths include `(workspaceId, createdAt)`, `(workspaceId, status)`,
+`taskId`, and `(workspaceId, taskRunId)` as the persistence equivalent of
+domain `(workspaceId, workId)`.
 
 The foundation defines no task deletion API or soft-delete marker. Execution
 history is retained until a separate retention or erasure specification exists.
