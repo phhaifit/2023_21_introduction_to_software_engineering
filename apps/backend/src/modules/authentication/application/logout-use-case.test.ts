@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { createSession } from "../domain/session.ts";
 import { BcryptPasswordHasher } from "../infrastructure/bcrypt-password-hasher.ts";
 import { InMemorySessionRepository } from "../infrastructure/in-memory-session-repository.ts";
@@ -58,7 +57,7 @@ describe("LogoutUseCase", () => {
       deps.tokenHasher.hash(loginResult.session.token),
     );
 
-    assert.equal(sessionAfterLogout, null);
+    expect(sessionAfterLogout).toBe(null);
   });
 
   it("throws SessionNotFoundError for a token that never existed", async () => {
@@ -68,10 +67,9 @@ describe("LogoutUseCase", () => {
       deps.tokenHasher,
     );
 
-    await assert.rejects(
-      logoutUseCase.execute({ rawToken: "never-existed-token" }),
-      SessionNotFoundError,
-    );
+    await expect(
+      logoutUseCase.execute({ rawToken: "never-existed-token" })
+    ).rejects.toThrow(SessionNotFoundError);
   });
 
   it("throws SessionNotFoundError when the same token is logged out twice", async () => {
@@ -103,10 +101,9 @@ describe("LogoutUseCase", () => {
 
     await logoutUseCase.execute({ rawToken: loginResult.session.token });
 
-    await assert.rejects(
-      logoutUseCase.execute({ rawToken: loginResult.session.token }),
-      SessionNotFoundError,
-    );
+    await expect(
+      logoutUseCase.execute({ rawToken: loginResult.session.token })
+    ).rejects.toThrow(SessionNotFoundError);
   });
 
   it("throws SessionNotFoundError for an expired session", async () => {
@@ -128,9 +125,8 @@ describe("LogoutUseCase", () => {
       }),
     );
 
-    await assert.rejects(
-      logoutUseCase.execute({ rawToken }),
-      SessionNotFoundError,
-    );
+    await expect(
+      logoutUseCase.execute({ rawToken })
+    ).rejects.toThrow(SessionNotFoundError);
   });
 });

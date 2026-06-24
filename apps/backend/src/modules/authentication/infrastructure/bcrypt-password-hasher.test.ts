@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { BcryptPasswordHasher } from "./bcrypt-password-hasher.ts";
 
 describe("BcryptPasswordHasher", () => {
@@ -11,26 +10,26 @@ describe("BcryptPasswordHasher", () => {
     const firstHash = await hasher.hash(password);
     const secondHash = await hasher.hash(password);
 
-    assert.notEqual(firstHash, secondHash);
+    expect(firstHash).not.toBe(secondHash);
   });
 
   it("verifies a password against its hash", async () => {
     const hasher = new BcryptPasswordHasher(4);
     const hashed = await hasher.hash(password);
 
-    assert.equal(await hasher.verify(password, hashed), true);
+    expect(await hasher.verify(password, hashed)).toBe(true);
   });
 
   it("returns false for a wrong password", async () => {
     const hasher = new BcryptPasswordHasher(4);
     const hashed = await hasher.hash(password);
 
-    assert.equal(await hasher.verify("wrong", hashed), false);
+    expect(await hasher.verify("wrong", hashed)).toBe(false);
   });
 
   it("returns false for an invalid bcrypt hash without throwing", async () => {
     const hasher = new BcryptPasswordHasher(4);
 
-    assert.equal(await hasher.verify(password, "not-a-valid-bcrypt-hash"), false);
+    expect(await hasher.verify(password, "not-a-valid-bcrypt-hash")).toBe(false);
   });
 });

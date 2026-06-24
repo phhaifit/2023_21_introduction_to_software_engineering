@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { InvalidCredentialsError } from "../domain/errors.ts";
 import { BcryptPasswordHasher } from "../infrastructure/bcrypt-password-hasher.ts";
 import { InMemorySessionRepository } from "../infrastructure/in-memory-session-repository.ts";
@@ -47,13 +46,13 @@ describe("LoginUseCase", () => {
       password: "correct horse battery staple",
     });
 
-    assert.equal(result.user.email, "alice@example.com");
-    assert.equal(result.user.displayName, "Alice");
-    assert.equal(result.user.status, "active");
-    assert.equal("passwordHash" in result.user, false);
-    assert.equal(typeof result.session.token, "string");
-    assert.ok(result.session.token.length > 0);
-    assert.match(result.session.expiresAt, /^\d{4}-\d{2}-\d{2}T/);
+    expect(result.user.email).toBe("alice@example.com");
+    expect(result.user.displayName).toBe("Alice");
+    expect(result.user.status).toBe("active");
+    expect("passwordHash" in result.user).toBe(false);
+    expect(typeof result.session.token).toBe("string");
+    expect(result.session.token.length).toBeGreaterThan(0);
+    expect(result.session.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("throws InvalidCredentialsError for a wrong password", async () => {
@@ -74,13 +73,12 @@ describe("LoginUseCase", () => {
       password: "correct horse battery staple",
     });
 
-    await assert.rejects(
+    await expect(
       loginUseCase.execute({
         email: "alice@example.com",
         password: "wrong password",
-      }),
-      InvalidCredentialsError,
-    );
+      })
+    ).rejects.toThrow(InvalidCredentialsError);
   });
 
   it("throws InvalidCredentialsError when the user does not exist", async () => {
@@ -92,13 +90,12 @@ describe("LoginUseCase", () => {
       deps.tokenHasher,
     );
 
-    await assert.rejects(
+    await expect(
       loginUseCase.execute({
         email: "missing@example.com",
         password: "correct horse battery staple",
-      }),
-      InvalidCredentialsError,
-    );
+      })
+    ).rejects.toThrow(InvalidCredentialsError);
   });
 
   it("uses the same invalid-credentials message for not-found and wrong-password", async () => {
@@ -122,31 +119,29 @@ describe("LoginUseCase", () => {
     let wrongPasswordMessage = "";
     let missingUserMessage = "";
 
-    await assert.rejects(
+    await expect(
       loginUseCase.execute({
         email: "alice@example.com",
         password: "wrong password",
-      }),
-      (error: unknown) => {
-        assert.ok(error instanceof InvalidCredentialsError);
-        wrongPasswordMessage = error.message;
-        return true;
-      },
-    );
+      })
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(InvalidCredentialsError);
+      wrongPasswordMessage = (error as InvalidCredentialsError).message;
+      return true;
+    });
 
-    await assert.rejects(
+    await expect(
       loginUseCase.execute({
         email: "missing@example.com",
         password: "correct horse battery staple",
-      }),
-      (error: unknown) => {
-        assert.ok(error instanceof InvalidCredentialsError);
-        missingUserMessage = error.message;
-        return true;
-      },
-    );
+      })
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(InvalidCredentialsError);
+      missingUserMessage = (error as InvalidCredentialsError).message;
+      return true;
+    });
 
-    assert.equal(missingUserMessage, wrongPasswordMessage);
+    expect(missingUserMessage).toBe(wrongPasswordMessage);
   });
 
   it("supports case-insensitive email login", async () => {
@@ -172,7 +167,7 @@ describe("LoginUseCase", () => {
       password: "correct horse battery staple",
     });
 
-    assert.equal(result.user.email, "foo@bar.com");
+    expect(result.user.email).toBe("foo@bar.com");
   });
 
   it("stores session by token hash, not raw token", async () => {
@@ -205,8 +200,8 @@ describe("LoginUseCase", () => {
       deps.tokenHasher.hash(result.session.token),
     );
 
-    assert.equal(byRawToken, null);
-    assert.ok(byHashedToken);
+    expect(byRawToken).toBe(null);
+    expect(byHashedToken).toBeTruthy();
   });
 
   it("returns different raw tokens for two logins of the same user", async () => {
@@ -236,6 +231,6 @@ describe("LoginUseCase", () => {
       password: "correct horse battery staple",
     });
 
-    assert.notEqual(first.session.token, second.session.token);
+    expect(first.session.token).not.toBe(second.session.token);
   });
 });
