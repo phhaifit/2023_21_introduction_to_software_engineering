@@ -21,6 +21,11 @@ import { InMemorySubscriptionRepository } from "./modules/subscription-payment/i
 import { MockPaymentAdapter } from "./modules/subscription-payment/infrastructure/mock-payment-adapter.ts";
 import { InMemoryEventBus } from "./shared/events/event-bus.ts";
 
+import { createWorkflowManagementRouter } from "./modules/workflow-management/api/workflow-router.ts";
+import { WorkflowUseCases } from "./modules/workflow-management/application/workflow-use-cases.ts";
+import { PrismaWorkflowRepository } from "./modules/workflow-management/infrastructure/prisma-workflow-repository.ts";
+import { InMemoryWorkflowRepository } from "./modules/workflow-management/infrastructure/in-memory-workflow-repository.ts";
+
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
 
@@ -34,6 +39,8 @@ export type LocalAgentManagementRuntime = {
   useCases: AgentLifecycleUseCases;
   subscriptionRepository: any;
   checkoutUseCases: CheckoutUseCases;
+  workflowRepository: any;
+  workflowUseCases: any;
 };
 
 let cachedPrisma: any = null;
@@ -105,6 +112,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateEventId: () => randomUUID() as any
   });
 
+  const prisma = await getPrismaClient();
+  const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
+  const workflowUseCases = new WorkflowUseCases({
+    repository: workflowRepository,
+    agentRepository: repository,
+    now: () => new Date().toISOString(),
+    generateWorkflowId: () => randomUUID() as any,
+    generateWorkflowStepId: () => randomUUID() as any
+  });
+
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);
   }
@@ -149,7 +166,12 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createSubscriptionRouter({ useCases: checkoutUseCases })
   );
 
-  return { app, repository, useCases, subscriptionRepository, checkoutUseCases };
+  app.use(
+    "/api/workspaces/:workspaceId/workflows",
+    createWorkflowManagementRouter({ useCases: workflowUseCases })
+  );
+
+  return { app, repository, useCases, subscriptionRepository, checkoutUseCases, workflowRepository, workflowUseCases };
 }
 
 async function seedDemoAgents(repository: AgentRepository): Promise<void> {
