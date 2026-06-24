@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PrismaClient } from "@vcp/database";
+import { PrismaClient, PrismaPg } from "@vcp/database";
+import pg from "pg";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { createUser } from "../domain/user.ts";
 import { createSession } from "../domain/session.ts";
@@ -9,14 +10,21 @@ import { PrismaSessionRepository } from "./prisma-session-repository.ts";
 const hasDatabase = !!process.env.DATABASE_URL;
 
 describe.skipIf(!hasDatabase)("PrismaSessionRepository", () => {
-  const prisma = new PrismaClient();
-  const userRepository = new PrismaUserRepository(prisma);
-  const sessionRepository = new PrismaSessionRepository(prisma);
+  let prisma: PrismaClient;
+  let userRepository: PrismaUserRepository;
+  let sessionRepository: PrismaSessionRepository;
 
   const TEST_USER_ID = "usr-ses-test-1" as EntityId<"userId">;
   const FUTURE = "2099-01-01T00:00:00.000Z";
 
   beforeAll(async () => {
+    const Pool = pg.Pool;
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaPg(pool);
+    prisma = new PrismaClient({ adapter });
+    userRepository = new PrismaUserRepository(prisma);
+    sessionRepository = new PrismaSessionRepository(prisma);
+
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();
 
@@ -32,7 +40,7 @@ describe.skipIf(!hasDatabase)("PrismaSessionRepository", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) await prisma.$disconnect();
   });
 
   it("creates a session and finds it by tokenHash", async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PrismaClient } from "@vcp/database";
+import { PrismaClient, PrismaPg } from "@vcp/database";
+import pg from "pg";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { DuplicateUserEmailError } from "../application/user-repository.ts";
 import { createUser } from "../domain/user.ts";
@@ -8,16 +9,22 @@ import { PrismaUserRepository } from "./prisma-user-repository.ts";
 const hasDatabase = !!process.env.DATABASE_URL;
 
 describe.skipIf(!hasDatabase)("PrismaUserRepository", () => {
-  const prisma = new PrismaClient();
-  const repository = new PrismaUserRepository(prisma);
+  let prisma: PrismaClient;
+  let repository: PrismaUserRepository;
 
   beforeAll(async () => {
+    const Pool = pg.Pool;
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaPg(pool);
+    prisma = new PrismaClient({ adapter });
+    repository = new PrismaUserRepository(prisma);
+
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) await prisma.$disconnect();
   });
 
   it("creates a user and finds it by id", async () => {
