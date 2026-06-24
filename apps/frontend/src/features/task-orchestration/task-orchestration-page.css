@@ -197,6 +197,7 @@
   padding: 18px 28px 22px;
 }
 
+.task-workspace__task-view,
 .task-workspace__pending {
   align-self: stretch;
   display: grid;
@@ -205,6 +206,11 @@
   width: 100%;
 }
 
+.task-workspace__task-view--in-progress {
+  gap: 20px;
+}
+
+.task-workspace__task-header,
 .task-workspace__pending-header {
   align-items: start;
   display: flex;
@@ -212,6 +218,7 @@
   justify-content: space-between;
 }
 
+.task-workspace__task-header h3,
 .task-workspace__pending-header h3 {
   color: #0f172a;
   font-size: 1.08rem;
@@ -337,11 +344,13 @@
     grid-template-columns: 1fr;
   }
 
+  .task-workspace__task-header,
   .task-workspace__pending-header,
   .task-workspace__task-meta {
     grid-template-columns: 1fr;
   }
 
+  .task-workspace__task-header,
   .task-workspace__pending-header {
     display: grid;
   }
