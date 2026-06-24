@@ -5,11 +5,24 @@ import type {
   TaskRoutingSelection
 } from "@vcp/shared";
 
+import {
+  appendProcessingLog,
+  activateNextStep,
+  completeActiveStep,
+  createInitialProcessingSnapshot,
+  startProcessing
+} from "./task-processing";
+import type { TaskLog } from "./task-types";
 import type {
   CreatedTaskRecord,
   ProcessingStep,
   RoutingMode
 } from "./task-types";
+import {
+  canTransitionTaskStatus,
+  isTerminalTaskStatus,
+  transitionTaskStatus
+} from "./task-lifecycle";
 
 export interface TaskCreationDraft {
   prompt: string;
@@ -34,6 +47,32 @@ export type TaskCreationAction =
       type: "task-created";
       request: CreateTaskRequest;
       response: CreateTaskResponse;
+    }
+  | {
+      /** Transitions the canonical status from queued → running and
+       *  initialises the processing snapshot. */
+      type: "processing-started";
+      taskId: EntityId<"taskId">;
+      startedAt: string;
+    }
+  | {
+      /** Marks a waiting step as active in the processing snapshot. */
+      type: "processing-step-activated";
+      taskId: EntityId<"taskId">;
+      stepId: string;
+    }
+  | {
+      /** Marks the currently active step as completed. */
+      type: "processing-step-completed";
+      taskId: EntityId<"taskId">;
+      stepId: string;
+      completedAt: string;
+    }
+  | {
+      /** Appends a log entry to the processing snapshot. */
+      type: "processing-log-appended";
+      taskId: EntityId<"taskId">;
+      log: TaskLog;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly ProcessingStep[] = [
@@ -89,6 +128,76 @@ export function taskCreationReducer(
         isSubmitting: false,
         validationError: undefined,
         submissionError: undefined
+      };
+    }
+    case "processing-started": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      // Reject terminal-state start
+      if (isTerminalTaskStatus(task.status)) return state;
+      // Enforce queued → running lifecycle transition
+      const transitionResult = transitionTaskStatus(task, "running");
+      if (!transitionResult.ok) return state;
+      // Guard duplicate start
+      if (task.processingSnapshot?.startedAt !== undefined) return state;
+      const baseSnapshot = createInitialProcessingSnapshot(task.timeline);
+      const processingResult = startProcessing(baseSnapshot, action.startedAt);
+      if (!processingResult.ok) return state;
+      const updatedTask: CreatedTaskRecord = {
+        ...transitionResult.task,
+        processingSnapshot: processingResult.snapshot
+      };
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId ? updatedTask : t
+        )
+      };
+    }
+    case "processing-step-activated": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      const result = activateNextStep(task.processingSnapshot, action.stepId);
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "processing-step-completed": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      const result = completeActiveStep(
+        task.processingSnapshot,
+        action.stepId,
+        action.completedAt
+      );
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "processing-log-appended": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      const result = appendProcessingLog(task.processingSnapshot, action.log);
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
       };
     }
   }
