@@ -1,5 +1,5 @@
 export { PrismaPg } from "@prisma/adapter-pg";
-export { PrismaClient } from "@prisma/client";
+export { PrismaClient } from "../generated/client/client.ts";
 export type {
   Agent,
   AgentToolAssignment,
@@ -8,6 +8,7 @@ export type {
   Job,
   KnowledgeAccessGrant,
   KnowledgeIndex,
+  Session,
   Subscription,
   Task,
   TaskRun,
@@ -19,4 +20,4 @@ export type {
   WorkflowStep,
   Workspace,
   WorkspaceMember
-} from "@prisma/client";
+} from "../generated/client/client.ts";
