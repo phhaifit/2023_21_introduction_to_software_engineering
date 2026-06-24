@@ -1,11 +1,25 @@
-import { useState } from "react";
+import { useReducer, useRef, useState } from "react";
+import type { TaskRoutingSelection } from "@vcp/shared";
 
+import { ProcessingTimeline } from "./components/processing-timeline";
 import { RoutingSelector } from "./components/routing-selector";
 import { TaskComposer } from "./components/task-composer";
+import { TaskStatusBadge } from "./components/task-status-badge";
 import {
   createTaskOrchestrationSeedData,
   DEMO_PROMPTS
 } from "./mocks/task-orchestration-mocks";
+import {
+  createMockTaskCreationClient,
+  type TaskCreationClient
+} from "./model/task-creation-client";
+import {
+  buildCreateTaskRequest,
+  getActiveTask,
+  initialTaskCreationState,
+  taskCreationReducer
+} from "./model/task-creation-state";
+import { toTaskPresentationStatus } from "./model/task-lifecycle";
 import {
   ROUTING_MODES,
   type RoutingMode
@@ -15,6 +29,7 @@ import "./task-orchestration-page.css";
 
 type TaskOrchestrationPageProps = {
   isLoading?: boolean;
+  taskCreationClient?: TaskCreationClient;
 };
 
 const suggestedPrompts = [
@@ -26,15 +41,62 @@ const suggestedPrompts = [
 const routingOptions = createTaskOrchestrationSeedData();
 
 export function TaskOrchestrationPage({
-  isLoading = false
+  isLoading = false,
+  taskCreationClient
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>();
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>();
+  const [taskState, dispatchTaskAction] = useReducer(
+    taskCreationReducer,
+    initialTaskCreationState
+  );
+  const taskClientRef = useRef(
+    taskCreationClient ?? createMockTaskCreationClient()
+  );
+  const activeTask = getActiveTask(taskState);
+  const activeTaskPresentationStatus = activeTask
+    ? toTaskPresentationStatus(activeTask.status)
+    : null;
+  const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
-  function handleAcceptedSubmission() {
-    setPrompt("");
+  async function handleAcceptedSubmission() {
+    if (taskState.isSubmitting) {
+      return;
+    }
+
+    const requestResult = buildCreateTaskRequest({
+      prompt,
+      routingMode,
+      selectedAgentId,
+      selectedWorkflowId
+    });
+
+    if (!requestResult.ok) {
+      dispatchTaskAction({
+        type: "submit-rejected",
+        message: requestResult.message
+      });
+      return;
+    }
+
+    dispatchTaskAction({ type: "submit-started" });
+
+    try {
+      const response = await taskClientRef.current.createTask(requestResult.request);
+      dispatchTaskAction({
+        type: "task-created",
+        request: requestResult.request,
+        response
+      });
+      setPrompt("");
+    } catch {
+      dispatchTaskAction({
+        type: "submission-failed",
+        message: "Task could not be created. Keep your draft and try again."
+      });
+    }
   }
 
   return (
@@ -76,6 +138,40 @@ export function TaskOrchestrationPage({
                 <p>Loading local conversation controls and suggestions.</p>
               </div>
             </div>
+          ) : activeTask && activeTaskPresentationStatus ? (
+            <article className="task-workspace__pending" aria-label="Pending task">
+              <header className="task-workspace__pending-header">
+                <div>
+                  <p className="task-workspace__eyebrow">Submitted request</p>
+                  <h3>{activeTask.prompt}</h3>
+                </div>
+                <TaskStatusBadge status={activeTaskPresentationStatus} />
+              </header>
+
+              <dl className="task-workspace__task-meta" aria-label="Task identifiers">
+                <div>
+                  <dt>Work ID</dt>
+                  <dd>{activeTask.workId}</dd>
+                </div>
+                <div>
+                  <dt>Task ID</dt>
+                  <dd>{activeTask.taskId}</dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>{activeTask.createdAt}</dd>
+                </div>
+              </dl>
+
+              <p className="task-workspace__routing-summary">
+                {formatRoutingSummary(activeTask.requestedRouting)}
+              </p>
+
+              <ProcessingTimeline
+                ariaLabel="Initial processing timeline"
+                steps={activeTask.timeline}
+              />
+            </article>
           ) : (
             <div className="task-workspace__empty">
               <span className="task-workspace__empty-mark" aria-hidden="true">✦</span>
@@ -106,14 +202,25 @@ export function TaskOrchestrationPage({
             selectedWorkflowId={selectedWorkflowId}
             agents={routingOptions.agents}
             workflows={routingOptions.workflows}
-            isDisabled={isLoading}
+            isDisabled={interactionIsDisabled}
             onModeChange={setRoutingMode}
             onAgentChange={setSelectedAgentId}
             onWorkflowChange={setSelectedWorkflowId}
           />
+          {taskState.validationError ? (
+            <p className="task-workspace__feedback" role="alert">
+              {taskState.validationError}
+            </p>
+          ) : null}
+          {taskState.submissionError ? (
+            <p className="task-workspace__feedback" role="alert">
+              {taskState.submissionError}
+            </p>
+          ) : null}
           <TaskComposer
             prompt={prompt}
             isDisabled={isLoading}
+            isSubmitting={taskState.isSubmitting}
             onPromptChange={setPrompt}
             onSubmit={handleAcceptedSubmission}
           />
@@ -121,4 +228,16 @@ export function TaskOrchestrationPage({
       </div>
     </section>
   );
+}
+
+function formatRoutingSummary(routing: TaskRoutingSelection): string {
+  if (routing.mode === "specific-agent") {
+    return `Routing: Specific agent ${routing.agentId}`;
+  }
+
+  if (routing.mode === "predefined-workflow") {
+    return `Routing: Predefined workflow ${routing.workflowId}`;
+  }
+
+  return "Routing: Auto-routing";
 }
