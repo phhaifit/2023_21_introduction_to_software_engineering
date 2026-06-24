@@ -135,7 +135,7 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
                       onClick={() => handleRun(w.workflowId)}
                       disabled={executingId === w.workflowId || w.status !== "active"}
                     >
-                      {executingId === w.workflowId ? "Đang gửi..." : "Chạy"}
+                      {executingId === w.workflowId ? "Đang gửi..." : "▶ Chạy"}
                     </button>
                     <button className="text-action" style={{ marginRight: '8px' }} onClick={() => {}}>Chi tiết</button>
                     <button className="text-action" style={{ color: '#ef4444' }} onClick={() => handleDelete(w.workflowId)}>Xóa</button>
