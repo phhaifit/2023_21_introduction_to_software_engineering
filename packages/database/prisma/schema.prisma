@@ -234,6 +234,7 @@ model Task {
   taskId            String  @id
   workspaceId       String
   submittedByUserId String
+  prompt            String
   routingMode       String
   agentId           String?
   workflowId        String?
@@ -241,6 +242,9 @@ model Task {
   createdAt         String
   updatedAt         String
 
+  runs TaskRun[]
+
+  @@unique([workspaceId, taskId])
   @@index([workspaceId])
   @@index([submittedByUserId])
   @@index([agentId])
@@ -250,21 +254,32 @@ model Task {
 }
 
 model TaskRun {
-  taskRunId   String  @id
-  workspaceId String
-  taskId      String
-  jobId       String?
-  status      String  @default("queued")
-  startedAt   String?
-  completedAt String?
-  createdAt   String
-  updatedAt   String
+  taskRunId          String  @id
+  workspaceId        String
+  taskId             String
+  jobId              String?
+  status             String  @default("queued")
+  attemptNumber      Int
+  resolvedAgentId    String?
+  resolvedWorkflowId String?
+  result             Json?
+  errorCode          String?
+  errorMessage       String?
+  queuedAt           String
+  startedAt          String?
+  completedAt        String?
+  createdAt          String
+  updatedAt          String
 
+  task Task @relation(fields: [workspaceId, taskId], references: [workspaceId, taskId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([taskId, attemptNumber])
+  @@unique([jobId])
   @@index([workspaceId])
   @@index([taskId])
   @@index([jobId])
   @@index([workspaceId, status])
-  @@unique([jobId])
+  @@index([workspaceId, taskId])
   @@map("task_runs")
 }
 
