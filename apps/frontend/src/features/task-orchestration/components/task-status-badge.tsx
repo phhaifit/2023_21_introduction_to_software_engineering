@@ -1,8 +1,8 @@
-import type { TaskStatus } from "../model/task-types";
+import type { TaskPresentationStatus } from "../model/task-types";
 
 import "./task-orchestration-components.css";
 
-const TASK_STATUS_LABELS: Readonly<Record<TaskStatus, string>> = {
+const TASK_STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
   pending: "Pending",
   "in-progress": "In Progress",
   completed: "Completed",
@@ -11,7 +11,7 @@ const TASK_STATUS_LABELS: Readonly<Record<TaskStatus, string>> = {
 };
 
 interface TaskStatusBadgeProps {
-  status: TaskStatus;
+  status: TaskPresentationStatus;
 }
 
 export function TaskStatusBadge({ status }: TaskStatusBadgeProps) {

@@ -1,3 +1,11 @@
+import {
+  TASK_ROUTING_MODES,
+  type EntityId,
+  type TaskRoutingMode,
+  type TaskRoutingSelection,
+  type TaskStatus as ProductionTaskStatus
+} from "@vcp/shared";
+
 export const TASK_STATUSES = [
   "pending",
   "in-progress",
@@ -6,15 +14,11 @@ export const TASK_STATUSES = [
   "canceled"
 ] as const;
 
-export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type TaskPresentationStatus = (typeof TASK_STATUSES)[number];
 
-export const ROUTING_MODES = [
-  "auto",
-  "specific-agent",
-  "predefined-workflow"
-] as const;
+export const ROUTING_MODES = TASK_ROUTING_MODES;
 
-export type RoutingMode = (typeof ROUTING_MODES)[number];
+export type RoutingMode = TaskRoutingMode;
 
 export const PROCESSING_STEP_STATUSES = [
   "waiting",
@@ -53,15 +57,15 @@ export interface TaskError {
 }
 
 export interface TaskIdentity {
-  taskId: string;
-  workId: string;
+  taskId: EntityId<"taskId">;
+  workId: EntityId<"workId">;
 }
 
 export interface Task {
-  taskId: string;
-  workId: string;
+  taskId: EntityId<"taskId">;
+  workId: EntityId<"workId">;
   prompt: string;
-  status: TaskStatus;
+  status: TaskPresentationStatus;
   routingMode: RoutingMode;
   selectedAgentId?: string;
   selectedWorkflowId?: string;
@@ -75,6 +79,16 @@ export interface Task {
   partialResult: string;
   finalResult?: string;
   error?: TaskError;
+}
+
+export interface CreatedTaskRecord {
+  taskId: EntityId<"taskId">;
+  workId: EntityId<"workId">;
+  prompt: string;
+  requestedRouting: TaskRoutingSelection;
+  status: ProductionTaskStatus;
+  createdAt: string;
+  timeline: ProcessingStep[];
 }
 
 export interface MockAgent {

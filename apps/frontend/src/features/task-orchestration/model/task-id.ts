@@ -1,3 +1,5 @@
+import type { EntityId } from "@vcp/shared";
+
 import type { TaskIdentity } from "./task-types";
 
 let taskIdentitySequence = 0;
@@ -7,8 +9,8 @@ export function createTaskIdentity(): TaskIdentity {
   const sequence = taskIdentitySequence.toString().padStart(6, "0");
 
   return {
-    taskId: `TASK-${sequence}`,
-    workId: `WORK-${sequence}`
+    taskId: `TASK-${sequence}` as EntityId<"taskId">,
+    workId: `WORK-${sequence}` as EntityId<"workId">
   };
 }
 
