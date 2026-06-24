@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { PageHeader } from "../../components/layout/PageHeader.tsx";
 import { EmptyState } from "../../components/shared/EmptyState.tsx";
 import { DashboardPage } from "../dashboard/DashboardPage.tsx";
@@ -16,12 +17,66 @@ import { createWorkflowManagementApiClient, type WorkflowManagementApiClient, ty
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
-function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiClient }: { onCreate: () => void; onExecutionSuccess?: () => void; apiClient?: WorkflowManagementApiClient }) {
+function StreamingProgressModal({ workflowName, onClose, eventSourceUrl }: { workflowName: string, onClose: () => void, eventSourceUrl: string }) {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const es = new EventSource(eventSourceUrl);
+
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "workflow_started") {
+        setLogs(prev => [...prev, `[Bắt đầu] Workflow có ${data.totalSteps} bước.`]);
+      } else if (data.type === "step_completed") {
+        setLogs(prev => [...prev, `[Hoàn thành] Bước ${data.stepOrder} (Agent: ${data.agentId}).`]);
+        // Mock progress
+        setProgress(prev => Math.min(prev + 30, 90)); 
+      } else if (data.type === "workflow_completed") {
+        setLogs(prev => [...prev, `[Kết thúc] Workflow đã chạy xong.`]);
+        setProgress(100);
+        es.close();
+      }
+    };
+
+    es.onerror = () => {
+      setLogs(prev => [...prev, `[Lỗi] Kết nối luồng bị gián đoạn. Workflow có thể chưa sẵn sàng hoặc rỗng.`]);
+      es.close();
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [eventSourceUrl]);
+
+  return createPortal(
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000 }}>
+      <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '8px', width: '600px', maxWidth: '90%' }}>
+        <h3>Đang chạy: {workflowName}</h3>
+        <div style={{ margin: '16px 0', background: 'var(--bg-subtle)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+           <div style={{ width: `${progress}%`, background: 'var(--primary)', height: '100%', transition: 'width 0.3s' }} />
+        </div>
+        <div style={{ background: '#1e293b', color: '#10b981', padding: '16px', borderRadius: '8px', minHeight: '150px', maxHeight: '300px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '13px' }}>
+          {logs.map((l, i) => <div key={i} style={{ marginBottom: '4px' }}>{l}</div>)}
+          {progress < 100 && <div style={{ color: '#94a3b8', fontStyle: 'italic', marginTop: '8px' }}>Đang đợi tiến trình...</div>}
+        </div>
+        <div style={{ marginTop: '16px', textAlign: 'right' }}>
+          <button onClick={onClose} className="secondary-action">Đóng</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function WorkflowsList({ onCreate, onEdit, onExecutionSuccess, apiClient: providedApiClient }: { onCreate: () => void; onEdit: (id: string) => void; onExecutionSuccess?: () => void; apiClient?: WorkflowManagementApiClient }) {
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [executingId, setExecutingId] = useState<string | null>(null);
+  const [streamingUrl, setStreamingUrl] = useState<string | null>(null);
+  const [streamingWorkflowName, setStreamingWorkflowName] = useState<string | null>(null);
 
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
 
@@ -52,18 +107,18 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
     w.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleRun = async (workflowId: string) => {
-    try {
-      setExecutingId(workflowId);
-      await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
-      alert("Đã gửi yêu cầu chạy Workflow thành công!");
-      if (onExecutionSuccess) {
-        onExecutionSuccess();
-      }
-    } catch (err: any) {
-      alert("Lỗi khi chạy Workflow: " + (err.message || "Unknown error"));
-    } finally {
-      setExecutingId(null);
+  const handleRun = async (workflowId: string, workflowName: string) => {
+    setExecutingId(workflowId);
+    setStreamingUrl(apiClient.getExecutionStreamUrl(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">));
+    setStreamingWorkflowName(workflowName);
+  };
+
+  const handleStreamingClose = () => {
+    setExecutingId(null);
+    setStreamingUrl(null);
+    setStreamingWorkflowName(null);
+    if (onExecutionSuccess) {
+      onExecutionSuccess();
     }
   };
 
@@ -131,13 +186,14 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
                   <td style={{ textAlign: 'right' }}>
                     <button 
                       className="text-action" 
-                      style={{ marginRight: '8px', color: '#10b981' }}
-                      onClick={() => handleRun(w.workflowId)}
+                      style={{ marginRight: '8px', color: w.status === "active" ? '#10b981' : '#9ca3af', opacity: w.status === "active" ? 1 : 0.5, cursor: w.status === "active" ? 'pointer' : 'not-allowed' }}
+                      title={w.status !== "active" ? "Chỉ Workflow ở trạng thái Active mới có thể chạy" : ""}
+                      onClick={() => handleRun(w.workflowId, w.name)}
                       disabled={executingId === w.workflowId || w.status !== "active"}
                     >
                       {executingId === w.workflowId ? "Đang gửi..." : "▶ Chạy"}
                     </button>
-                    <button className="text-action" style={{ marginRight: '8px' }} onClick={() => {}}>Chi tiết</button>
+                    <button className="text-action" style={{ marginRight: '8px' }} onClick={() => onEdit(w.workflowId)}>Chi tiết / Sửa</button>
                     <button className="text-action" style={{ color: '#ef4444' }} onClick={() => handleDelete(w.workflowId)}>Xóa</button>
                   </td>
                 </tr>
@@ -146,21 +202,30 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
           </tbody>
         </table>
       </div>
+
+      {streamingUrl && streamingWorkflowName && (
+        <StreamingProgressModal 
+          workflowName={streamingWorkflowName} 
+          eventSourceUrl={streamingUrl} 
+          onClose={handleStreamingClose} 
+        />
+      )}
     </div>
   );
 }
 
 export function WorkflowsPage({ apiClient }: { apiClient?: WorkflowManagementApiClient }) {
   const [activeTab, setActiveTab] = useState<SubTab>("dashboard");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
         return <DashboardPage />;
       case "list":
-        return <WorkflowsList onCreate={() => setActiveTab("editor")} onExecutionSuccess={() => setActiveTab("executions")} apiClient={apiClient} />;
+        return <WorkflowsList onCreate={() => { setEditingId(null); setActiveTab("editor"); }} onEdit={(id) => { setEditingId(id); setActiveTab("editor"); }} onExecutionSuccess={() => setActiveTab("executions")} apiClient={apiClient} />;
       case "editor":
-        return <WorkflowEditorPage apiClient={apiClient} onExecutionSuccess={() => setActiveTab("executions")} />;
+        return <WorkflowEditorPage apiClient={apiClient} workflowId={editingId} onExecutionSuccess={() => setActiveTab("executions")} onCancel={() => setActiveTab("list")} />;
       case "executions":
         return <ExecutionsPage />;
       default:

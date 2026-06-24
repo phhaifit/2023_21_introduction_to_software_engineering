@@ -74,6 +74,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       workspaceId: record.workspaceId as EntityId<"workspaceId">,
       name: record.name,
       status: record.status as WorkflowStatus,
+      triggerType: "manual",
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       steps: record.steps.map(
@@ -117,6 +118,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       workspaceId: record.workspaceId as EntityId<"workspaceId">,
       name: record.name,
       status: record.status as WorkflowStatus,
+      triggerType: "manual",
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       steps: record.steps.map(
@@ -133,5 +135,25 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     }));
 
     return { total, items };
+  }
+
+  async delete(
+    workspaceId: EntityId<"workspaceId">,
+    workflowId: EntityId<"workflowId">
+  ): Promise<boolean> {
+    const existing = await this.prisma.workflow.findUnique({
+      where: { workflowId },
+    });
+
+    if (!existing || existing.workspaceId !== workspaceId) {
+      return false;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workflowStep.deleteMany({ where: { workflowId } });
+      await tx.workflow.delete({ where: { workflowId } });
+    });
+
+    return true;
   }
 }
