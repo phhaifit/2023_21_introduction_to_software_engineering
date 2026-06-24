@@ -8,12 +8,12 @@ import { TaskStatusBadge } from
 import type {
   ProcessingStep,
   ProcessingStepStatus,
-  TaskStatus
+  TaskPresentationStatus
 } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 
 afterEach(cleanup);
 
-const TASK_STATUS_CASES: ReadonlyArray<readonly [TaskStatus, string]> = [
+const TASK_STATUS_CASES: ReadonlyArray<readonly [TaskPresentationStatus, string]> = [
   ["pending", "Pending"],
   ["in-progress", "In Progress"],
   ["completed", "Completed"],
