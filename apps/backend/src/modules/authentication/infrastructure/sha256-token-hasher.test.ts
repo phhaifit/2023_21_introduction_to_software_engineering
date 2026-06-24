@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { Sha256TokenHasher } from "./sha256-token-hasher.ts";
 
 describe("Sha256TokenHasher", () => {
@@ -10,7 +9,7 @@ describe("Sha256TokenHasher", () => {
     const first = hasher.hash(input);
     const second = hasher.hash(input);
 
-    assert.equal(first, second);
+    expect(first).toBe(second);
   });
 
   it("returns different hashes for different inputs", () => {
@@ -19,6 +18,6 @@ describe("Sha256TokenHasher", () => {
     const first = hasher.hash("token-a");
     const second = hasher.hash("token-b");
 
-    assert.notEqual(first, second);
+    expect(first).not.toBe(second);
   });
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { createSession } from "../domain/session.ts";
 import { InMemorySessionRepository } from "./in-memory-session-repository.ts";
@@ -20,10 +19,10 @@ describe("InMemorySessionRepository", () => {
     const revoked = await repository.revoke(session.sessionId, "2026-06-24T00:40:00.000Z");
     const afterRevoke = await repository.findByTokenHash("hash-1", "2026-06-24T00:45:00.000Z");
 
-    assert.deepEqual(created, session);
-    assert.deepEqual(active, session);
-    assert.equal(revoked?.revokedAt, "2026-06-24T00:40:00.000Z");
-    assert.equal(afterRevoke, null);
+    expect(created).toEqual(session);
+    expect(active).toEqual(session);
+    expect(revoked?.revokedAt).toBe("2026-06-24T00:40:00.000Z");
+    expect(afterRevoke).toBe(null);
   });
 
   it("returns null for expired sessions", async () => {
@@ -39,7 +38,7 @@ describe("InMemorySessionRepository", () => {
       })
     );
 
-    assert.equal(await repository.findByTokenHash("hash-1", "2026-06-24T00:06:00.000Z"), null);
+    expect(await repository.findByTokenHash("hash-1", "2026-06-24T00:06:00.000Z")).toBe(null);
   });
 
   it("revokes all active sessions for a user without affecting others", async () => {
@@ -78,13 +77,10 @@ describe("InMemorySessionRepository", () => {
       "2026-06-24T00:30:00.000Z"
     );
 
-    assert.equal(revokedCount, 2);
-    assert.equal(await repository.findByTokenHash("hash-1", "2026-06-24T00:31:00.000Z"), null);
-    assert.equal(await repository.findByTokenHash("hash-2", "2026-06-24T00:31:00.000Z"), null);
-    assert.notEqual(
-      await repository.findByTokenHash("hash-3", "2026-06-24T00:31:00.000Z"),
-      null
-    );
+    expect(revokedCount).toBe(2);
+    expect(await repository.findByTokenHash("hash-1", "2026-06-24T00:31:00.000Z")).toBe(null);
+    expect(await repository.findByTokenHash("hash-2", "2026-06-24T00:31:00.000Z")).toBe(null);
+    expect(await repository.findByTokenHash("hash-3", "2026-06-24T00:31:00.000Z")).not.toBe(null);
   });
 
   it("returns clones instead of mutable internal references", async () => {
@@ -102,6 +98,6 @@ describe("InMemorySessionRepository", () => {
     created.revokedAt = "2026-06-24T00:10:00.000Z";
     const fetched = await repository.findByTokenHash("hash-1", "2026-06-24T00:20:00.000Z");
 
-    assert.equal(fetched?.revokedAt, undefined);
+    expect(fetched?.revokedAt).toBe(undefined);
   });
 });

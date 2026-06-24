@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { DuplicateUserEmailError } from "../application/user-repository.ts";
 import { createUser } from "../domain/user.ts";
@@ -21,9 +20,9 @@ describe("InMemoryUserRepository", () => {
     const byId = await repository.findById(user.userId);
     const byEmail = await repository.findByEmail("alice@example.com");
 
-    assert.deepEqual(created, user);
-    assert.deepEqual(byId, user);
-    assert.deepEqual(byEmail, user);
+    expect(created).toEqual(user);
+    expect(byId).toEqual(user);
+    expect(byEmail).toEqual(user);
   });
 
   it("rejects duplicate emails even when casing and whitespace differ", async () => {
@@ -39,7 +38,7 @@ describe("InMemoryUserRepository", () => {
       })
     );
 
-    await assert.rejects(
+    await expect(
       repository.create(
         createUser({
           userId: "usr-2" as EntityId<"userId">,
@@ -48,16 +47,15 @@ describe("InMemoryUserRepository", () => {
           createdAt: "2026-06-24T00:05:00.000Z",
           updatedAt: "2026-06-24T00:05:00.000Z"
         })
-      ),
-      DuplicateUserEmailError
-    );
+      )
+    ).rejects.toThrow(DuplicateUserEmailError);
   });
 
   it("returns null when a user id or email is missing", async () => {
     const repository = new InMemoryUserRepository();
 
-    assert.equal(await repository.findById("usr-missing" as EntityId<"userId">), null);
-    assert.equal(await repository.findByEmail("missing@example.com"), null);
+    expect(await repository.findById("usr-missing" as EntityId<"userId">)).toBe(null);
+    expect(await repository.findByEmail("missing@example.com")).toBe(null);
   });
 
   it("returns clones instead of mutable internal references", async () => {
@@ -76,6 +74,6 @@ describe("InMemoryUserRepository", () => {
     created.displayName = "Mutated";
     const fetched = await repository.findById(created.userId);
 
-    assert.equal(fetched?.displayName, "Alice");
+    expect(fetched?.displayName).toBe("Alice");
   });
 });

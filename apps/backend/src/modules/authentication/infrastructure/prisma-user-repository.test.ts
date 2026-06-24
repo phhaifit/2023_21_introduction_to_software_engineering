@@ -1,26 +1,22 @@
-import assert from "node:assert/strict";
-import { describe, it, before, after } from "node:test";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@vcp/database";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { DuplicateUserEmailError } from "../application/user-repository.ts";
 import { createUser } from "../domain/user.ts";
 import { PrismaUserRepository } from "./prisma-user-repository.ts";
 
-if (!process.env.DATABASE_URL) {
-  console.log("DATABASE_URL not set — skipping PrismaUserRepository integration tests");
-  process.exit(0);
-}
+const hasDatabase = !!process.env.DATABASE_URL;
 
-const prisma = new PrismaClient();
-const repository = new PrismaUserRepository(prisma);
+describe.skipIf(!hasDatabase)("PrismaUserRepository", () => {
+  const prisma = new PrismaClient();
+  const repository = new PrismaUserRepository(prisma);
 
-describe("PrismaUserRepository", () => {
-  before(async () => {
+  beforeAll(async () => {
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await prisma.$disconnect();
   });
 
@@ -36,30 +32,30 @@ describe("PrismaUserRepository", () => {
     const created = await repository.create(user);
     const found = await repository.findById(user.userId);
 
-    assert.equal(created.userId, user.userId);
-    assert.equal(created.email, user.email);
-    assert.equal(created.passwordHash, user.passwordHash);
-    assert.equal(created.status, "active");
-    assert.deepEqual(found, created);
+    expect(created.userId).toBe(user.userId);
+    expect(created.email).toBe(user.email);
+    expect(created.passwordHash).toBe(user.passwordHash);
+    expect(created.status).toBe("active");
+    expect(found).toEqual(created);
   });
 
   it("findByEmail is case-insensitive", async () => {
     const found = await repository.findByEmail("ALICE@EXAMPLE.COM");
 
-    assert.ok(found !== null);
-    assert.equal(found.email, "alice@example.com");
+    expect(found).not.toBe(null);
+    expect(found?.email).toBe("alice@example.com");
   });
 
   it("findById returns null for a missing user", async () => {
     const result = await repository.findById("usr-missing" as EntityId<"userId">);
 
-    assert.equal(result, null);
+    expect(result).toBe(null);
   });
 
   it("findByEmail returns null for a missing email", async () => {
     const result = await repository.findByEmail("nobody@example.com");
 
-    assert.equal(result, null);
+    expect(result).toBe(null);
   });
 
   it("create throws DuplicateUserEmailError on duplicate email", async () => {
@@ -71,9 +67,6 @@ describe("PrismaUserRepository", () => {
       updatedAt: "2026-06-24T00:05:00.000Z"
     });
 
-    await assert.rejects(
-      repository.create(duplicate),
-      DuplicateUserEmailError
-    );
+    await expect(repository.create(duplicate)).rejects.toThrow(DuplicateUserEmailError);
   });
 });

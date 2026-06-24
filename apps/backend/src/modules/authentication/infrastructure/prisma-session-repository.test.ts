@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it, before, after } from "node:test";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@vcp/database";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { createUser } from "../domain/user.ts";
@@ -7,20 +6,17 @@ import { createSession } from "../domain/session.ts";
 import { PrismaUserRepository } from "./prisma-user-repository.ts";
 import { PrismaSessionRepository } from "./prisma-session-repository.ts";
 
-if (!process.env.DATABASE_URL) {
-  console.log("DATABASE_URL not set — skipping PrismaSessionRepository integration tests");
-  process.exit(0);
-}
+const hasDatabase = !!process.env.DATABASE_URL;
 
-const prisma = new PrismaClient();
-const userRepository = new PrismaUserRepository(prisma);
-const sessionRepository = new PrismaSessionRepository(prisma);
+describe.skipIf(!hasDatabase)("PrismaSessionRepository", () => {
+  const prisma = new PrismaClient();
+  const userRepository = new PrismaUserRepository(prisma);
+  const sessionRepository = new PrismaSessionRepository(prisma);
 
-const TEST_USER_ID = "usr-ses-test-1" as EntityId<"userId">;
-const FUTURE = "2099-01-01T00:00:00.000Z";
+  const TEST_USER_ID = "usr-ses-test-1" as EntityId<"userId">;
+  const FUTURE = "2099-01-01T00:00:00.000Z";
 
-describe("PrismaSessionRepository", () => {
-  before(async () => {
+  beforeAll(async () => {
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();
 
@@ -35,7 +31,7 @@ describe("PrismaSessionRepository", () => {
     );
   });
 
-  after(async () => {
+  afterAll(async () => {
     await prisma.$disconnect();
   });
 
@@ -51,12 +47,12 @@ describe("PrismaSessionRepository", () => {
     const created = await sessionRepository.create(session);
     const found = await sessionRepository.findByTokenHash("token-hash-1", "2026-06-24T00:01:00.000Z");
 
-    assert.equal(created.sessionId, session.sessionId);
-    assert.equal(created.userId, session.userId);
-    assert.equal(created.tokenHash, session.tokenHash);
-    assert.equal(created.revokedAt, undefined);
-    assert.ok(found !== null);
-    assert.equal(found.sessionId, session.sessionId);
+    expect(created.sessionId).toBe(session.sessionId);
+    expect(created.userId).toBe(session.userId);
+    expect(created.tokenHash).toBe(session.tokenHash);
+    expect(created.revokedAt).toBe(undefined);
+    expect(found).not.toBe(null);
+    expect(found?.sessionId).toBe(session.sessionId);
   });
 
   it("findByTokenHash returns null for a revoked session", async () => {
@@ -73,7 +69,7 @@ describe("PrismaSessionRepository", () => {
 
     const found = await sessionRepository.findByTokenHash("token-hash-2", "2026-06-24T00:15:00.000Z");
 
-    assert.equal(found, null);
+    expect(found).toBe(null);
   });
 
   it("findByTokenHash returns null for an expired session", async () => {
@@ -89,7 +85,7 @@ describe("PrismaSessionRepository", () => {
 
     const found = await sessionRepository.findByTokenHash("token-hash-3", "2026-06-24T00:06:00.000Z");
 
-    assert.equal(found, null);
+    expect(found).toBe(null);
   });
 
   it("revoke sets revokedAt on the session", async () => {
@@ -104,8 +100,8 @@ describe("PrismaSessionRepository", () => {
     await sessionRepository.create(session);
     const revoked = await sessionRepository.revoke(session.sessionId, "2026-06-24T00:20:00.000Z");
 
-    assert.ok(revoked !== null);
-    assert.equal(revoked.revokedAt, "2026-06-24T00:20:00.000Z");
+    expect(revoked).not.toBe(null);
+    expect(revoked?.revokedAt).toBe("2026-06-24T00:20:00.000Z");
   });
 
   it("revokeAllForUser only revokes sessions for the target user", async () => {
@@ -154,14 +150,14 @@ describe("PrismaSessionRepository", () => {
       "2026-06-24T00:30:00.000Z"
     );
 
-    assert.ok(revokedCount >= 2);
+    expect(revokedCount).toBeGreaterThanOrEqual(2);
 
     const foundA = await sessionRepository.findByTokenHash("token-hash-5", "2026-06-24T00:31:00.000Z");
     const foundB = await sessionRepository.findByTokenHash("token-hash-6", "2026-06-24T00:31:00.000Z");
     const foundC = await sessionRepository.findByTokenHash("token-hash-7", "2026-06-24T00:31:00.000Z");
 
-    assert.equal(foundA, null);
-    assert.equal(foundB, null);
-    assert.ok(foundC !== null);
+    expect(foundA).toBe(null);
+    expect(foundB).toBe(null);
+    expect(foundC).not.toBe(null);
   });
 });
