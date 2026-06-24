@@ -25,28 +25,24 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
 
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
 
+  const loadWorkflows = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.listWorkflows(DEMO_WORKSPACE_ID);
+      setWorkflows(data);
+      setError(null);
+    } catch (err) {
+      setError("Failed to load workflows. Please check your backend connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-    async function loadWorkflows() {
-      try {
-        setLoading(true);
-        // Using DEMO_WORKSPACE_ID as the hardcoded workspaceId for now
-        const data = await apiClient.listWorkflows(DEMO_WORKSPACE_ID);
-        if (mounted) {
-          setWorkflows(data);
-          setError(null);
-        }
-      } catch (err) {
-        if (mounted) {
-          setError("Failed to load workflows. Please check your backend connection.");
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
+    if (mounted) {
+      loadWorkflows();
     }
-    loadWorkflows();
     return () => {
       mounted = false;
     };
@@ -59,7 +55,7 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
   const handleRun = async (workflowId: string) => {
     try {
       setExecutingId(workflowId);
-      await apiClient.executeWorkflow("ws_1" as EntityId<"workspaceId">, workflowId as EntityId<"workflowId">);
+      await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
       alert("Đã gửi yêu cầu chạy Workflow thành công!");
       if (onExecutionSuccess) {
         onExecutionSuccess();
@@ -68,6 +64,17 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
       alert("Lỗi khi chạy Workflow: " + (err.message || "Unknown error"));
     } finally {
       setExecutingId(null);
+    }
+  };
+
+  const handleDelete = async (workflowId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa workflow này không?")) return;
+    try {
+      await apiClient.deleteWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
+      alert("Xóa thành công!");
+      loadWorkflows();
+    } catch (err: any) {
+      alert("Lỗi khi xóa Workflow: " + (err.message || "Unknown error"));
     }
   };
 
@@ -130,7 +137,8 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
                     >
                       {executingId === w.workflowId ? "Đang gửi..." : "▶ Chạy"}
                     </button>
-                    <button className="text-action" onClick={() => {}}>Chi tiết</button>
+                    <button className="text-action" style={{ marginRight: '8px' }} onClick={() => {}}>Chi tiết</button>
+                    <button className="text-action" style={{ color: '#ef4444' }} onClick={() => handleDelete(w.workflowId)}>Xóa</button>
                   </td>
                 </tr>
               ))

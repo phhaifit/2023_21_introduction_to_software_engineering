@@ -161,6 +161,26 @@ export function createWorkflowManagementRouter(
     });
   });
 
+  router.delete("/:workflowId", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      try {
+        await dependencies.useCases.deleteWorkflow(
+          context.workspace!.workspaceId,
+          request.params.workflowId as EntityId<"workflowId">
+        );
+        response.status(204).send();
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        throw err;
+      }
+    });
+  });
+
   return router;
 }
 

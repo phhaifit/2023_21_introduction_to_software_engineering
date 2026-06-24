@@ -156,4 +156,11 @@ export class WorkflowUseCases {
 
     await this.executionHandoff.handoffExecution(request);
   }
+
+  async deleteWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: EntityId<"workflowId">): Promise<void> {
+    const success = await this.repository.delete(workspaceId, workflowId);
+    if (!success) {
+      throw new Error("Workflow not found");
+    }
+  }
 }

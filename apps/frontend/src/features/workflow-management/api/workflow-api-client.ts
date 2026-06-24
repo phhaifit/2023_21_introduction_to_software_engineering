@@ -40,6 +40,10 @@ export type WorkflowManagementApiClient = {
     workflowId: EntityId<"workflowId">,
     inputData?: Record<string, any>
   ): Promise<void>;
+  deleteWorkflow(
+    workspaceId: EntityId<"workspaceId">,
+    workflowId: EntityId<"workflowId">
+  ): Promise<void>;
 };
 
 export type WorkflowApiClientErrorKind = "api" | "network" | "malformed-response";
@@ -158,6 +162,10 @@ export function createWorkflowManagementApiClient(input: {
       request<void>(`${workflowPath(workspaceId, workflowId)}/execute`, {
         method: "POST",
         body: JSON.stringify({ inputData })
+      }),
+    deleteWorkflow: (workspaceId, workflowId) =>
+      request<void>(workflowPath(workspaceId, workflowId), {
+        method: "DELETE"
       })
   };
 }
