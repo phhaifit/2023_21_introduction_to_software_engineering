@@ -138,11 +138,11 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
       
       let newWorkflowId = formData.workflowId;
       if (formData.workflowId === "new-wf-123") {
-        const result = await apiClient.createWorkflow(DEMO_WORKSPACE_ID, payload);
-        newWorkflowId = result.workflowId;
-        setFormData(prev => ({ ...prev, workflowId: result.workflowId }));
+        const result: any = await apiClient.createWorkflow(DEMO_WORKSPACE_ID, payload);
+        newWorkflowId = result.workflow ? result.workflow.workflowId : result.workflowId;
+        setFormData(prev => ({ ...prev, workflowId: newWorkflowId }));
         if (formData.status !== "draft" && formData.status !== "Draft") {
-          await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, result.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
+          await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, newWorkflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
         }
       } else {
         await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
