@@ -21,3 +21,10 @@ export class InvalidCredentialsError extends Error {
     this.name = "InvalidCredentialsError";
   }
 }
+
+export class SessionNotFoundError extends Error {
+  constructor() {
+    super("Session not found");
+    this.name = "SessionNotFoundError";
+  }
+}
