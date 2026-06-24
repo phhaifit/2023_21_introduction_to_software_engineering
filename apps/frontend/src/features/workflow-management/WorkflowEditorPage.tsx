@@ -6,11 +6,12 @@ import type { WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
 import { createWorkflowManagementApiClient, type CreateWorkflowCommand, type WorkflowManagementApiClient } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
 const MOCK_AGENTS: AgentPublicSummary[] = [
-  { agentId: "agt-1", workspaceId: "ws-1", name: "Code Assistant", role: "Software Developer", model: "gpt-4", status: "enabled" },
-  { agentId: "agt-2", workspaceId: "ws-1", name: "Reviewer", role: "Code Reviewer", model: "gpt-4", status: "disabled" },
-  { agentId: "agt-3", workspaceId: "ws-1", name: "Tester", role: "QA Engineer", model: "gpt-3.5", status: "enabled" }
+  { agentId: "agent-research", workspaceId: DEMO_WORKSPACE_ID, name: "Research Agent", role: "Market researcher", model: "gpt-4.1-mini", status: "enabled" },
+  { agentId: "agent-support", workspaceId: DEMO_WORKSPACE_ID, name: "Support Agent", role: "Customer support", model: "gpt-4.1-mini", status: "disabled" },
+  { agentId: "agent-writer", workspaceId: DEMO_WORKSPACE_ID, name: "Writer Agent", role: "Content Writer", model: "gpt-3.5", status: "enabled" }
 ] as AgentPublicSummary[];
 
 export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSuccess }: { apiClient?: WorkflowManagementApiClient; onExecutionSuccess?: () => void }) {
@@ -25,7 +26,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
     steps: WorkflowStepDto[];
   }>({
     workflowId: "new-wf-123",
-    workspaceId: "ws-1",
+    workspaceId: DEMO_WORKSPACE_ID,
     name: "",
     description: "",
     status: "Draft",
@@ -110,7 +111,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
     setExecutionError(null);
 
     try {
-      await apiClient.executeWorkflow("ws_1" as EntityId<"workspaceId">, formData.workflowId as EntityId<"workflowId">);
+      await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">);
       setExecutionStatus("success");
       alert("Đã yêu cầu thực thi Workflow thành công! (Handoff to Task Orchestration)");
       if (onExecutionSuccess) {
@@ -137,17 +138,20 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSu
       
       let newWorkflowId = formData.workflowId;
       if (formData.workflowId === "new-wf-123") {
-        const result = await apiClient.createWorkflow("ws_1" as EntityId<"workspaceId">, payload);
+        const result = await apiClient.createWorkflow(DEMO_WORKSPACE_ID, payload);
         newWorkflowId = result.workflowId;
         setFormData(prev => ({ ...prev, workflowId: result.workflowId }));
+        if (formData.status !== "draft" && formData.status !== "Draft") {
+          await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, result.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
+        }
       } else {
-        await apiClient.updateWorkflow("ws_1" as EntityId<"workspaceId">, formData.workflowId as EntityId<"workflowId">, payload);
+        await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
       }
       
       alert("Đã lưu workflow thành công! Bạn có thể Chạy Workflow ngay bây giờ.");
     } catch (err: any) {
       console.error("Failed to save workflow:", err);
-      alert(err.message || "Không thể lưu workflow. Vui lòng kiểm tra lại cấu hình.");
+      alert(err.message || "Không thể lưu workflow. V vui lòng kiểm tra lại cấu hình.");
     }
   };
 

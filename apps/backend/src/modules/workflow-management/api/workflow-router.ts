@@ -150,7 +150,11 @@ export function createWorkflowManagementRouter(
           throw new WorkflowNotFoundError();
         }
         if (err.message === "Cannot execute inactive workflow" || err.message === "Cannot execute workflow with no steps") {
-          throw new WorkflowValidationError([err.message]);
+          return sendWorkflowApiFailure(request, response, {
+            statusCode: 400,
+            code: "validation_error",
+            message: err.message
+          });
         }
         throw err;
       }

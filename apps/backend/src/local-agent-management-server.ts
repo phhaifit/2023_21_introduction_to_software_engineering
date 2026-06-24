@@ -211,6 +211,18 @@ async function seedDemoAgents(repository: AgentRepository): Promise<void> {
       updatedAt: "2026-06-20T07:45:00.000Z"
     })
   );
+  await repository.save(
+    createAgent({
+      agentId: "agent-writer",
+      workspaceId: DEMO_WORKSPACE_ID,
+      name: "Writer Agent",
+      role: "Content Writer",
+      model: "gpt-3.5",
+      instructions: "Draft content based on research briefs.",
+      createdAt: "2026-06-20T10:00:00.000Z",
+      updatedAt: "2026-06-20T10:00:00.000Z"
+    })
+  );
 }
 
 const entryPath = process.argv[1];

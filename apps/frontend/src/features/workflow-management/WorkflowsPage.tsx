@@ -14,6 +14,7 @@ import { SearchBar } from "../../components/shared/SearchBar.tsx";
 import { useEffect, useMemo } from "react";
 import { createWorkflowManagementApiClient, type WorkflowManagementApiClient, type WorkflowPublicSummary } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
 function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiClient }: { onCreate: () => void; onExecutionSuccess?: () => void; apiClient?: WorkflowManagementApiClient }) {
   const [search, setSearch] = useState("");
@@ -29,8 +30,8 @@ function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiCli
     async function loadWorkflows() {
       try {
         setLoading(true);
-        // Using "ws_1" as the hardcoded workspaceId for now
-        const data = await apiClient.listWorkflows("ws_1" as EntityId<"workspaceId">);
+        // Using DEMO_WORKSPACE_ID as the hardcoded workspaceId for now
+        const data = await apiClient.listWorkflows(DEMO_WORKSPACE_ID);
         if (mounted) {
           setWorkflows(data);
           setError(null);
