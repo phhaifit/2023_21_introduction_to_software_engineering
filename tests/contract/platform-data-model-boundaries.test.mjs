@@ -117,11 +117,24 @@ const expectedModels = {
       userId: "String",
       email: "String",
       status: "String",
+      passwordHash: "String",
       createdAt: "String",
       updatedAt: "String"
     },
     statusIndexed: true,
     exported: true
+  },
+  Session: {
+    fields: {
+      sessionId: "String",
+      userId: "String",
+      tokenHash: "String",
+      createdAt: "String",
+      expiresAt: "String",
+      revokedAt: "String?"
+    },
+    userFields: ["userId"],
+    parentFields: ["expiresAt"]
   },
   Workspace: {
     fields: {
@@ -383,6 +396,7 @@ const expectedModels = {
 const models = parseModels(schema);
 const expectedPrimaryIds = {
   User: "userId",
+  Session: "sessionId",
   Workspace: "workspaceId",
   WorkspaceMember: "memberId",
   Invitation: "invitationId",
@@ -402,6 +416,7 @@ const expectedPrimaryIds = {
   Job: "jobId"
 };
 const expectedUniqueConstraints = {
+  Session: ["tokenHash"],
   WorkspaceMember: ["workspaceId", "userId"],
   Invitation: ["workspaceId", "email", "status"],
   Agent: ["workspaceId", "name"],
