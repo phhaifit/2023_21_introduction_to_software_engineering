@@ -125,6 +125,38 @@ export function createWorkflowManagementRouter(
     });
   });
 
+  router.post("/:workflowId/execute", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      const payload = request.body || {};
+
+      try {
+        await dependencies.useCases.executeWorkflow({
+          workspaceId: context.workspace!.workspaceId,
+          workflowId: request.params.workflowId as EntityId<"workflowId">,
+          triggeredBy: context.user!.userId,
+          inputData: payload.inputData
+        });
+
+        // 202 Accepted because execution is handed off asynchronously
+        response.status(202).json({
+          ok: true,
+          data: { status: "handed-off" }
+        });
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        if (err.message === "Cannot execute inactive workflow" || err.message === "Cannot execute workflow with no steps") {
+          throw new WorkflowValidationError([err.message]);
+        }
+        throw err;
+      }
+    });
+  });
+
   return router;
 }
 

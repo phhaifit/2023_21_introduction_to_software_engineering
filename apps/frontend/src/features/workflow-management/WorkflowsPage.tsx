@@ -15,11 +15,12 @@ import { useEffect, useMemo } from "react";
 import { createWorkflowManagementApiClient, type WorkflowManagementApiClient, type WorkflowPublicSummary } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
-function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: () => void; apiClient?: WorkflowManagementApiClient }) {
+function WorkflowsList({ onCreate, onExecutionSuccess, apiClient: providedApiClient }: { onCreate: () => void; onExecutionSuccess?: () => void; apiClient?: WorkflowManagementApiClient }) {
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [executingId, setExecutingId] = useState<string | null>(null);
 
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
 
@@ -53,6 +54,21 @@ function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: (
   const filtered = workflows.filter(w =>
     w.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleRun = async (workflowId: string) => {
+    try {
+      setExecutingId(workflowId);
+      await apiClient.executeWorkflow("ws_1" as EntityId<"workspaceId">, workflowId as EntityId<"workflowId">);
+      alert("Đã gửi yêu cầu chạy Workflow thành công!");
+      if (onExecutionSuccess) {
+        onExecutionSuccess();
+      }
+    } catch (err: any) {
+      alert("Lỗi khi chạy Workflow: " + (err.message || "Unknown error"));
+    } finally {
+      setExecutingId(null);
+    }
+  };
 
   return (
     <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -105,6 +121,14 @@ function WorkflowsList({ onCreate, apiClient: providedApiClient }: { onCreate: (
                   <td>{w.stepCount} bước</td>
                   <td>{new Date(w.updatedAt).toLocaleDateString("vi-VN")}</td>
                   <td style={{ textAlign: 'right' }}>
+                    <button 
+                      className="text-action" 
+                      style={{ marginRight: '8px', color: '#10b981' }}
+                      onClick={() => handleRun(w.workflowId)}
+                      disabled={executingId === w.workflowId || w.status !== "active"}
+                    >
+                      {executingId === w.workflowId ? "Đang gửi..." : "▶ Chạy"}
+                    </button>
                     <button className="text-action" onClick={() => {}}>Chi tiết</button>
                   </td>
                 </tr>
@@ -125,9 +149,9 @@ export function WorkflowsPage({ apiClient }: { apiClient?: WorkflowManagementApi
       case "dashboard":
         return <DashboardPage />;
       case "list":
-        return <WorkflowsList onCreate={() => setActiveTab("editor")} apiClient={apiClient} />;
+        return <WorkflowsList onCreate={() => setActiveTab("editor")} onExecutionSuccess={() => setActiveTab("executions")} apiClient={apiClient} />;
       case "editor":
-        return <WorkflowEditorPage apiClient={apiClient} />;
+        return <WorkflowEditorPage apiClient={apiClient} onExecutionSuccess={() => setActiveTab("executions")} />;
       case "executions":
         return <ExecutionsPage />;
       default:

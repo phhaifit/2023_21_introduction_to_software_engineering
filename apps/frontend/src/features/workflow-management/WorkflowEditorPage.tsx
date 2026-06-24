@@ -13,7 +13,7 @@ const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agt-3", workspaceId: "ws-1", name: "Tester", role: "QA Engineer", model: "gpt-3.5", status: "enabled" }
 ] as AgentPublicSummary[];
 
-export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient?: WorkflowManagementApiClient }) {
+export function WorkflowEditorPage({ apiClient: providedApiClient, onExecutionSuccess }: { apiClient?: WorkflowManagementApiClient; onExecutionSuccess?: () => void }) {
   const [formData, setFormData] = useState<{
     workflowId: string;
     workspaceId: string;
@@ -35,8 +35,8 @@ export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient
   });
 
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
-  const [testRunStatus, setTestRunStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
-  const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -103,21 +103,25 @@ export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient
     });
   };
 
-  const handleTestRun = () => {
-    setTestRunStatus("running");
-    setTestLogs(["Bắt đầu quá trình chạy thử nghiệm..."]);
-
-    setTimeout(() => {
-      setTestLogs(prev => [...prev, "Đang khởi tạo quy trình..."]);
-    }, 1000);
-
-    setTimeout(() => {
-      setTestLogs(prev => [...prev, "Thực thi tác vụ giả lập hoàn tất."]);
-      setTestRunStatus("success");
-    }, 2500);
-  };
-
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
+
+  const handleExecute = async () => {
+    setExecutionStatus("running");
+    setExecutionError(null);
+
+    try {
+      await apiClient.executeWorkflow("ws_1" as EntityId<"workspaceId">, formData.workflowId as EntityId<"workflowId">);
+      setExecutionStatus("success");
+      alert("Đã yêu cầu thực thi Workflow thành công! (Handoff to Task Orchestration)");
+      if (onExecutionSuccess) {
+        onExecutionSuccess();
+      }
+    } catch (err: any) {
+      console.error("Failed to execute workflow:", err);
+      setExecutionStatus("failed");
+      setExecutionError(err.message || "Không thể thực thi workflow. Vui lòng kiểm tra (Ví dụ: chưa lưu bước, agent bị vô hiệu hóa).");
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -131,12 +135,19 @@ export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient
         }))
       };
       
-      await apiClient.createWorkflow("ws_1" as EntityId<"workspaceId">, payload);
-      alert("Đã lưu workflow thành công!");
-      // Option: could redirect or clear form here
-    } catch (err) {
+      let newWorkflowId = formData.workflowId;
+      if (formData.workflowId === "new-wf-123") {
+        const result = await apiClient.createWorkflow("ws_1" as EntityId<"workspaceId">, payload);
+        newWorkflowId = result.workflowId;
+        setFormData(prev => ({ ...prev, workflowId: result.workflowId }));
+      } else {
+        await apiClient.updateWorkflow("ws_1" as EntityId<"workspaceId">, formData.workflowId as EntityId<"workflowId">, payload);
+      }
+      
+      alert("Đã lưu workflow thành công! Bạn có thể Chạy Workflow ngay bây giờ.");
+    } catch (err: any) {
       console.error("Failed to save workflow:", err);
-      alert("Không thể lưu workflow. Vui lòng kiểm tra lại cấu hình (VD: Agent bị disable).");
+      alert(err.message || "Không thể lưu workflow. Vui lòng kiểm tra lại cấu hình.");
     }
   };
 
@@ -271,11 +282,11 @@ export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient
           <div className="form-actions" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', flexDirection: 'column' }}>
             <button
               className="primary-action"
-              onClick={handleTestRun}
+              onClick={handleExecute}
               style={{ background: '#10b981', borderColor: '#10b981' }}
-              disabled={testRunStatus === "running"}
+              disabled={executionStatus === "running"}
             >
-              {testRunStatus === "running" ? "Đang chạy..." : "Chạy thử nghiệm (Test Run)"}
+              {executionStatus === "running" ? "Đang gửi yêu cầu..." : "▶ Chạy Workflow (Execute)"}
             </button>
             <ConfirmButton onClick={handleSave} variant="primary">
               Lưu cấu hình Workflow
@@ -285,14 +296,11 @@ export function WorkflowEditorPage({ apiClient: providedApiClient }: { apiClient
             </button>
           </div>
 
-          {testRunStatus !== "idle" && (
-            <div style={{ marginTop: '16px', padding: '12px', background: '#0f172a', color: '#10b981', borderRadius: '6px', fontSize: '13px', fontFamily: 'monospace' }}>
-              <div style={{ color: '#94a3b8', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '4px' }}>Test Run Logs</div>
-              {testLogs.map((log, idx) => (
-                <div key={idx} style={{ marginBottom: '4px' }}>&gt; {log}</div>
-              ))}
-              {testRunStatus === "running" && <div style={{ color: '#f59e0b', marginTop: '8px' }}>Đang xử lý...</div>}
-              {testRunStatus === "success" && <div style={{ color: '#10b981', marginTop: '8px', fontWeight: 'bold' }}>✓ Hoàn tất thành công</div>}
+          {executionStatus !== "idle" && (
+            <div style={{ marginTop: '16px', padding: '12px', background: executionStatus === "failed" ? '#fef2f2' : '#f0fdf4', color: executionStatus === "failed" ? '#b91c1c' : '#15803d', borderRadius: '6px', fontSize: '13px' }}>
+              {executionStatus === "running" && <div>Đang gửi yêu cầu thực thi...</div>}
+              {executionStatus === "success" && <div style={{ fontWeight: 'bold' }}>✓ Đã gửi yêu cầu chạy thành công! Vui lòng chuyển sang Lịch sử chạy để xem chi tiết.</div>}
+              {executionStatus === "failed" && <div><b>Lỗi:</b> {executionError}</div>}
             </div>
           )}
         </div>

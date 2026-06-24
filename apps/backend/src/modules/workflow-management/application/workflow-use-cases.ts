@@ -5,6 +5,11 @@ import type { WorkflowRepository } from "../infrastructure/workflow-repository.t
 import { createWorkflow, createWorkflowStep, toWorkflowSummary, toWorkflowStepDto } from "../domain/workflow.ts";
 import { validateWorkflowAgents, WorkflowValidationError } from "../domain/workflow-validation.ts";
 import type { AgentSummaryProvider } from "../domain/workflow-validation.ts";
+import type { ExecuteWorkflowRequest } from "@vcp/shared/contracts/workflow.ts";
+
+export interface WorkflowExecutionHandoff {
+  handoffExecution(request: ExecuteWorkflowRequest): Promise<void>;
+}
 
 export interface CreateWorkflowCommand {
   workspaceId: EntityId<"workspaceId">;
@@ -20,13 +25,22 @@ export interface UpdateWorkflowCommand {
   steps?: { agentId: string; stepOrder: number }[];
 }
 
+export interface ExecuteWorkflowCommand {
+  workspaceId: EntityId<"workspaceId">;
+  workflowId: EntityId<"workflowId">;
+  triggeredBy: EntityId<"userId">;
+  inputData?: Record<string, any>;
+}
+
 export class WorkflowUseCases {
   private repository: WorkflowRepository;
   private agentProvider: AgentSummaryProvider;
+  private executionHandoff: WorkflowExecutionHandoff;
 
-  constructor(repository: WorkflowRepository, agentProvider: AgentSummaryProvider) {
+  constructor(repository: WorkflowRepository, agentProvider: AgentSummaryProvider, executionHandoff: WorkflowExecutionHandoff) {
     this.repository = repository;
     this.agentProvider = agentProvider;
+    this.executionHandoff = executionHandoff;
   }
 
   async createWorkflow(command: CreateWorkflowCommand): Promise<{ workflow: WorkflowDto; steps: WorkflowStepDto[] }> {
@@ -113,5 +127,33 @@ export class WorkflowUseCases {
       total: result.total,
       items: result.items.map(toWorkflowSummary),
     };
+  }
+
+  async executeWorkflow(command: ExecuteWorkflowCommand): Promise<void> {
+    const workflow = await this.repository.findById(command.workspaceId, command.workflowId);
+    if (!workflow) {
+      throw new Error("Workflow not found");
+    }
+
+    if (workflow.status !== "active") {
+      throw new Error("Cannot execute inactive workflow");
+    }
+
+    if (!workflow.steps || workflow.steps.length === 0) {
+      throw new Error("Cannot execute workflow with no steps");
+    }
+
+    // Validate agents to ensure they exist and are active
+    await validateWorkflowAgents(command.workspaceId, workflow.steps.map(toWorkflowStepDto), this.agentProvider);
+
+    const request: ExecuteWorkflowRequest = {
+      workflowId: command.workflowId,
+      workspaceId: command.workspaceId,
+      triggeredBy: command.triggeredBy,
+      triggerType: workflow.triggerType,
+      inputData: command.inputData,
+    };
+
+    await this.executionHandoff.handoffExecution(request);
   }
 }

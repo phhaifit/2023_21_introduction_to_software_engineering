@@ -114,13 +114,24 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
-  const workflowUseCases = new WorkflowUseCases({
-    repository: workflowRepository,
-    agentRepository: repository,
-    now: () => new Date().toISOString(),
-    generateWorkflowId: () => randomUUID() as any,
-    generateWorkflowStepId: () => randomUUID() as any
-  });
+  
+  const mockExecutionHandoff = {
+    async handoffExecution(request: any) {
+      console.log("[Handoff] Mock Workflow Execution Handoff triggered:");
+      console.log(JSON.stringify(request, null, 2));
+    }
+  };
+
+  const agentProvider = async (workspaceId: any, agentIds: any[]) => {
+    const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+    return all.filter((a: any) => agentIds.includes(a.agentId));
+  };
+
+  const workflowUseCases = new WorkflowUseCases(
+    workflowRepository,
+    agentProvider,
+    mockExecutionHandoff
+  );
 
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);

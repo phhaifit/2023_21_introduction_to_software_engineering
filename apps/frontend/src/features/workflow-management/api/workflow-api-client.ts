@@ -35,6 +35,11 @@ export type WorkflowManagementApiClient = {
     workflowId: EntityId<"workflowId">,
     payload: UpdateWorkflowCommand
   ): Promise<WorkflowPublicSummary>;
+  executeWorkflow(
+    workspaceId: EntityId<"workspaceId">,
+    workflowId: EntityId<"workflowId">,
+    inputData?: Record<string, any>
+  ): Promise<void>;
 };
 
 export type WorkflowApiClientErrorKind = "api" | "network" | "malformed-response";
@@ -148,6 +153,11 @@ export function createWorkflowManagementApiClient(input: {
       request<WorkflowPublicSummary>(workflowPath(workspaceId, workflowId), {
         method: "PATCH",
         body: JSON.stringify(payload)
+      }),
+    executeWorkflow: (workspaceId, workflowId, inputData) =>
+      request<void>(`${workflowPath(workspaceId, workflowId)}/execute`, {
+        method: "POST",
+        body: JSON.stringify({ inputData })
       })
   };
 }
