@@ -247,7 +247,7 @@
 
   `docs(task-orchestration): define module foundation`
 
-* [ ] 6. [PA5] Task & Orchestration – Task Creation Mock Flow
+* [x] 6. [PA5] Task & Orchestration – Task Creation Mock Flow
 
   Scope:
 
