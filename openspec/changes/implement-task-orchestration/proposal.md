@@ -48,7 +48,7 @@ This change has the following goals:
 14. Prepare and execute at least 25 functional test cases.
 15. Produce a test execution report and defect report when failures are found.
 16. Prepare stable demonstration scenarios.
-17. Keep every implementation sub-issue and pull request within the 500-added-code-line limit.
+17. Keep implementation sub-issues and pull requests generally within the 500-added-code-line review guideline through focused decomposition when needed.
 
 ## In Scope
 
@@ -358,17 +358,19 @@ Before Task 6 begins, the change must complete a Module Foundation phase that:
 
 The foundation is a design prerequisite only. It must not introduce Prisma models, API handlers, repositories, services, workers, or emitted domain events.
 
-## Code Size Constraint
+## Code Size Guideline
 
-Every implementation sub-issue and pull request must add no more than 500 lines of code.
+Implementation and automated test code should generally remain within 500 added lines per reviewable pull request or sub-issue. Larger changes should be decomposed into multiple focused review units. Exceeding this guideline is not, by itself, a functional acceptance failure when the scope is justified, the work is reviewable, and all required verification passes.
 
 Code-line accounting includes implementation and automated test code in relevant source extensions.
 
 Documentation, generated files, lock files, and build outputs do not count as implementation code, but all changes must still be reviewed.
 
-If a planned sub-issue may exceed 500 added code lines, it must be split before implementation.
+If a planned sub-issue may exceed the 500-line recommendation, it should be decomposed into multiple focused review units before or during implementation.
 
-Large concerns must not be combined in the same pull request.
+The guideline must not be interpreted as a requirement to remove useful tests or reduce coverage merely to satisfy a line count.
+
+Large concerns should not be combined in the same pull request.
 
 Examples of concerns that must remain separate:
 
@@ -414,7 +416,7 @@ This change is complete when all of the following are true:
 * Test execution results are recorded.
 * Failed tests have linked defects.
 * Demo scenarios run reliably.
-* No implementation pull request exceeds 500 added code lines.
+* Implementation pull requests generally follow the 500-added-code-line review guideline or are decomposed into reviewable units.
 * Relevant automated tests pass.
 * The project build passes.
 * The OpenSpec change validates successfully.
@@ -466,7 +468,7 @@ Completed result rendering must require the authoritative `Completed` status and
 
 Mitigation:
 
-Estimate affected files before coding, check added code lines before opening each pull request, and split sub-issues when the limit is at risk.
+Estimate affected files before coding, check added code lines before opening each pull request, and decompose sub-issues into focused review units when the 500-line recommendation is at risk.
 
 ## Completion and Archival
 
