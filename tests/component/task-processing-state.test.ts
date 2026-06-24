@@ -172,7 +172,7 @@ describe("5. duplicate start is rejected", () => {
     const taskOnce = once.tasks.find((t) => t.taskId === TASK_ID);
     const taskTwice = twice.tasks.find((t) => t.taskId === TASK_ID);
 
-    expect(taskTwice?.processingSnapshot?.startedAt).toBe(FIXED_TS);
+    expect(taskTwice?.processingSnapshot.startedAt).toBe(FIXED_TS);
     expect(taskOnce?.status).toBe("running");
     expect(taskTwice?.status).toBe("running");
   });
@@ -229,7 +229,8 @@ describe("7. terminal Task cannot start processing", () => {
 
       const resultTask = next.tasks.find((t) => t.taskId === TASK_ID);
       expect(resultTask?.status).toBe(terminalStatus);
-      expect(resultTask?.processingSnapshot).toBeUndefined();
+      // processingSnapshot is always present; verify processing did NOT start
+      expect(resultTask?.processingSnapshot.startedAt).toBeUndefined();
     }
   );
 });
