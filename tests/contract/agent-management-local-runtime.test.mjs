@@ -18,7 +18,7 @@ try {
   const initial = await fetch(collectionUrl).then((response) => response.json());
   assert.deepEqual(
     initial.data.map((agent) => agent.agentId),
-    ["agent-support", "agent-research"]
+    ["agent-support", "agent-research", "agent-writer"]
   );
 
   const created = await fetch(collectionUrl, {
