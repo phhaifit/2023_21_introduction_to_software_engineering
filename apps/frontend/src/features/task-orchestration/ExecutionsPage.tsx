@@ -1,10 +1,45 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
-import { mockExecutions } from "../../data/executions.ts";
+import { mockExecutions, type ExecutionUIModel } from "../../data/executions.ts";
+
+function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClose: () => void }) {
+  const logs = [
+    `[INFO] Starting execution ${execution.executionId} for workflow '${execution.workflowName}'`,
+    `[INFO] Validating workflow definitions... OK`,
+    `[INFO] Orchestration engine initialized.`,
+    execution.status === "Failed" ? `[ERROR] Connection timeout to Agent Service.` : `[INFO] Step 1 executed successfully.`,
+    execution.status === "Failed" ? `[ERROR] Execution aborted.` : `[INFO] Step 2 executed successfully.`,
+    execution.status === "Success" ? `[INFO] Workflow completed successfully.` : execution.status === "Canceled" ? `[WARN] Workflow was canceled by user.` : `[INFO] Waiting for further instructions...`
+  ];
+
+  return createPortal(
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000 }}>
+      <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '8px', width: '700px', maxWidth: '90%' }}>
+        <h3 style={{ marginBottom: '8px' }}>Log chạy: {execution.workflowName}</h3>
+        <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '16px' }}>Run ID: {execution.executionId}</p>
+        
+        <div style={{ background: '#1e293b', color: '#e2e8f0', padding: '16px', borderRadius: '8px', minHeight: '200px', maxHeight: '400px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '13px' }}>
+          {logs.map((l, i) => (
+            <div key={i} style={{ marginBottom: '6px', color: l.includes('[ERROR]') ? '#ef4444' : l.includes('[WARN]') ? '#f59e0b' : l.includes('[INFO]') ? '#10b981' : 'inherit' }}>
+              {l}
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: '20px', textAlign: 'right' }}>
+          <button onClick={onClose} className="secondary-action">Đóng</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 export function ExecutionsPage() {
   const [search, setSearch] = useState("");
+  const [selectedExecution, setSelectedExecution] = useState<ExecutionUIModel | null>(null);
+
   const filtered = mockExecutions.filter(run =>
     run.workflowName.toLowerCase().includes(search.toLowerCase()) ||
     run.executionId.toLowerCase().includes(search.toLowerCase())
@@ -65,7 +100,7 @@ export function ExecutionsPage() {
                   <td>{formatDuration(run.startedAt, run.completedAt)}</td>
                   <td>{formatDate(run.startedAt)}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="text-action" onClick={() => {}}>Xem Log</button>
+                    <button className="text-action" onClick={() => setSelectedExecution(run)}>Xem Log</button>
                   </td>
                 </tr>
               ))
@@ -73,6 +108,10 @@ export function ExecutionsPage() {
           </tbody>
         </table>
       </div>
+
+      {selectedExecution && (
+        <LogsModal execution={selectedExecution} onClose={() => setSelectedExecution(null)} />
+      )}
     </div>
   );
 }

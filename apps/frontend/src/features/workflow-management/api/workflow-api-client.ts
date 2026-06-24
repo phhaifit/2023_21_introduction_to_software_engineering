@@ -44,6 +44,10 @@ export type WorkflowManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">
   ): Promise<void>;
+  getExecutionStreamUrl(
+    workspaceId: EntityId<"workspaceId">,
+    workflowId: EntityId<"workflowId">
+  ): string;
 };
 
 export type WorkflowApiClientErrorKind = "api" | "network" | "malformed-response";
@@ -166,7 +170,9 @@ export function createWorkflowManagementApiClient(input: {
     deleteWorkflow: (workspaceId, workflowId) =>
       request<void>(workflowPath(workspaceId, workflowId), {
         method: "DELETE"
-      })
+      }),
+    getExecutionStreamUrl: (workspaceId, workflowId) =>
+      `${baseUrl}${workflowPath(workspaceId, workflowId)}/execute/stream`
   };
 }
 
