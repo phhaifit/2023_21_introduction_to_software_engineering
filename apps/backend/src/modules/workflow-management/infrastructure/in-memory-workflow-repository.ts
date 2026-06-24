@@ -34,4 +34,13 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       total: items.length
     };
   }
+
+  async delete(workspaceId: EntityId<"workspaceId">, workflowId: EntityId<"workflowId">): Promise<boolean> {
+    const workflow = this.workflows.get(workflowId);
+    if (workflow && workflow.workspaceId === workspaceId) {
+      this.workflows.delete(workflowId);
+      return true;
+    }
+    return false;
+  }
 }
