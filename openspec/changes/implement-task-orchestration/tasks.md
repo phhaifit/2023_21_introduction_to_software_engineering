@@ -161,7 +161,7 @@
 
   `feat(task-orchestration): add task composer`
 
-* [ ] 5. [PA5] Task & Orchestration – Routing Selector
+* [x] 5. [PA5] Task & Orchestration – Routing Selector
 
   Scope:
 
