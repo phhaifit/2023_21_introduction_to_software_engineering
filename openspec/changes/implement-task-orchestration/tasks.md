@@ -197,7 +197,7 @@
 
   `feat(task-orchestration): add routing selector`
 
-* [ ] 5A. [PA5] Task & Orchestration – Module Foundation
+* [x] 5A. [PA5] Task & Orchestration – Module Foundation
 
   Scope:
 
@@ -247,7 +247,7 @@
 
   `docs(task-orchestration): define module foundation`
 
-* [ ] 6. [PA5] Task & Orchestration – Task Creation Mock Flow
+* [x] 6. [PA5] Task & Orchestration – Task Creation Mock Flow
 
   Scope:
 
