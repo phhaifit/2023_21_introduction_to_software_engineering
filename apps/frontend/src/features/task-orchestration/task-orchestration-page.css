@@ -277,6 +277,56 @@
   justify-content: flex-end;
 }
 
+.task-partial-result {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.task-partial-result__header {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-partial-result__eyebrow {
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.task-partial-result h4 {
+  color: #0f172a;
+  font-size: 1rem;
+  margin: 4px 0 0;
+}
+
+.task-partial-result__status {
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  color: #0369a1;
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.task-partial-result__body {
+  color: #0f172a;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .task-workspace__cancel-btn {
   background: #fff1f2;
   border: 1px solid #fecdd3;

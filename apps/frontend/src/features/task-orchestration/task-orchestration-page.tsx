@@ -5,6 +5,7 @@ import { ProcessingTimeline } from "./components/processing-timeline";
 import { RoutingSelector } from "./components/routing-selector";
 import { TaskComposer } from "./components/task-composer";
 import { TaskLogList } from "./components/task-log-list";
+import { TaskPartialResult } from "./components/task-partial-result";
 import { TaskStatusBadge } from "./components/task-status-badge";
 import {
   createTaskOrchestrationSeedData,
@@ -33,6 +34,17 @@ import {
   type TaskProcessingRuntime
 } from "./model/task-processing-runtime";
 import { ORDERED_STEP_IDS } from "./model/task-processing";
+import { selectAccumulatedPartialText } from "./model/task-streaming";
+import {
+  createTaskStreamingController,
+  type TaskStreamingController
+} from "./model/task-streaming-controller";
+import {
+  createDefaultTaskStreamingRuntime,
+  DEFAULT_TASK_STREAMING_DELAYS,
+  type TaskStreamingDelays,
+  type TaskStreamingRuntime
+} from "./model/task-streaming-runtime";
 import {
   ROUTING_MODES,
   type RoutingMode
@@ -55,6 +67,8 @@ type TaskOrchestrationPageProps = {
     pendingMs: number;
     stepMs: number;
   }>;
+  streamingRuntime?: TaskStreamingRuntime;
+  streamingDelays?: TaskStreamingDelays;
 };
 
 const suggestedPrompts = [
@@ -65,13 +79,16 @@ const suggestedPrompts = [
 
 const routingOptions = createTaskOrchestrationSeedData();
 const FINAL_STEP_ID = ORDERED_STEP_IDS[ORDERED_STEP_IDS.length - 1];
+const STREAMING_START_STEP_ID = "execute-task";
 
 export function TaskOrchestrationPage({
   isLoading = false,
   taskCreationClient,
   onCancelTaskRequested,
   processingRuntime,
-  processingDelays
+  processingDelays,
+  streamingRuntime,
+  streamingDelays
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
@@ -86,11 +103,23 @@ export function TaskOrchestrationPage({
   );
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
+  const taskStateRef = useRef(taskState);
+  taskStateRef.current = taskState;
+  const mountedRef = useRef(false);
 
   const runtimeRef = useRef(processingRuntime ?? createBrowserTaskProcessingRuntime());
   const delaysRef = useRef(processingDelays ?? DEMO_TIMINGS);
   const controllerRef = useRef<TaskProcessingController | null>(null);
   const progressionHandleRef = useRef<TaskProcessingScheduleHandle | null>(null);
+  const streamingRuntimeRef = useRef(
+    streamingRuntime ?? createDefaultTaskStreamingRuntime()
+  );
+  const streamingDelaysRef = useRef(
+    streamingDelays ?? {
+      fragmentMs: DEMO_TIMINGS.streamChunkMs ?? DEFAULT_TASK_STREAMING_DELAYS.fragmentMs
+    }
+  );
+  const streamingControllerRef = useRef<TaskStreamingController | null>(null);
 
   if (!controllerRef.current) {
     controllerRef.current = createTaskProcessingController({
@@ -104,16 +133,46 @@ export function TaskOrchestrationPage({
     });
   }
 
+  if (!streamingControllerRef.current) {
+    streamingControllerRef.current = createTaskStreamingController({
+      scheduler: streamingRuntimeRef.current.scheduler,
+      clock: streamingRuntimeRef.current.clock,
+      fragmentIdentitySource: streamingRuntimeRef.current.fragmentIdentitySource,
+      fragmentSource: streamingRuntimeRef.current.fragmentSource,
+      stateReader: {
+        findTask: (taskId) =>
+          taskStateRef.current.tasks.find((task) => task.taskId === taskId) ??
+          null
+      },
+      actionSink: {
+        dispatch: (action) => {
+          if (mountedRef.current) {
+            taskStateRef.current = taskCreationReducer(
+              taskStateRef.current,
+              action
+            );
+            dispatchRef.current(action);
+          }
+        }
+      },
+      fragmentDelayMs: streamingDelaysRef.current.fragmentMs
+    });
+  }
+
   const activeTask = getActiveTask(taskState);
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
     : null;
 
   useEffect(() => {
+    mountedRef.current = true;
+
     return () => {
+      mountedRef.current = false;
       progressionHandleRef.current?.cancel();
       progressionHandleRef.current = null;
       controllerRef.current?.dispose();
+      streamingControllerRef.current?.dispose();
     };
   }, []);
 
@@ -125,6 +184,7 @@ export function TaskOrchestrationPage({
       progressionHandleRef.current = null;
       if (taskId) {
         controllerRef.current?.stop(taskId);
+        streamingControllerRef.current?.stop(taskId);
       }
     };
   }, [activeTask?.taskId]);
@@ -183,6 +243,43 @@ export function TaskOrchestrationPage({
     activeTask?.processingSnapshot.logs.length
   ]);
 
+  useEffect(() => {
+    const task = activeTask;
+    const controller = streamingControllerRef.current;
+
+    if (!task || !controller) {
+      return;
+    }
+
+    if (isTerminalTaskStatus(task.status)) {
+      controller.stop(task.taskId);
+      return;
+    }
+
+    if (task.status !== "running") {
+      return;
+    }
+
+    if (task.streamingSnapshot.phase !== "idle") {
+      return;
+    }
+
+    const activeStep = task.processingSnapshot.steps.find(
+      (step) => step.status === "active"
+    );
+
+    if (activeStep?.id !== STREAMING_START_STEP_ID) {
+      return;
+    }
+
+    controller.start(task.taskId);
+  }, [
+    activeTask?.taskId,
+    activeTask?.status,
+    activeTask?.streamingSnapshot.phase,
+    activeTask?.processingSnapshot.steps
+  ]);
+
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
   async function handleAcceptedSubmission() {
@@ -230,6 +327,14 @@ export function TaskOrchestrationPage({
 
   const taskArticleLabel =
     activeTask?.status === "running" ? "In-progress task" : "Pending task";
+  const partialText = activeTask
+    ? selectAccumulatedPartialText(activeTask.streamingSnapshot)
+    : "";
+  const shouldShowPartialResult =
+    activeTask !== undefined &&
+    (activeTask.streamingSnapshot.phase === "streaming" ||
+      activeTask.streamingSnapshot.phase === "exhausted" ||
+      activeTask.streamingSnapshot.fragments.length > 0);
 
   return (
     <section className="task-workspace" aria-labelledby="task-workspace-title">
@@ -315,6 +420,13 @@ export function TaskOrchestrationPage({
                 <TaskLogList
                   logs={activeTask.processingSnapshot.logs}
                   ariaLabel="Orchestration processing logs"
+                />
+              ) : null}
+
+              {shouldShowPartialResult ? (
+                <TaskPartialResult
+                  partialText={partialText}
+                  phase={activeTask.streamingSnapshot.phase}
                 />
               ) : null}
 
