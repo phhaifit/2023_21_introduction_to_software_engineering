@@ -70,6 +70,12 @@ export const ModelName = {
   TaskRun: 'TaskRun',
   Document: 'Document',
   KnowledgeIndex: 'KnowledgeIndex',
+  KnowledgeDocumentChunk: 'KnowledgeDocumentChunk',
+  KnowledgeIngestionJob: 'KnowledgeIngestionJob',
+  KnowledgeDataSource: 'KnowledgeDataSource',
+  KnowledgeSyncScopeNode: 'KnowledgeSyncScopeNode',
+  KnowledgeSyncJob: 'KnowledgeSyncJob',
+  KnowledgeSyncJobEvent: 'KnowledgeSyncJobEvent',
   KnowledgeAccessGrant: 'KnowledgeAccessGrant',
   Job: 'Job'
 } as const
@@ -330,8 +336,21 @@ export const DocumentScalarFieldEnum = {
   documentId: 'documentId',
   workspaceId: 'workspaceId',
   uploadedByUserId: 'uploadedByUserId',
+  displayName: 'displayName',
   fileName: 'fileName',
+  mimeType: 'mimeType',
+  fileType: 'fileType',
+  sizeBytes: 'sizeBytes',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  storageKey: 'storageKey',
+  contentHash: 'contentHash',
   status: 'status',
+  ingestionStatus: 'ingestionStatus',
+  indexingStatus: 'indexingStatus',
+  chunkCount: 'chunkCount',
+  indexedChunkCount: 'indexedChunkCount',
+  deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -344,11 +363,124 @@ export const KnowledgeIndexScalarFieldEnum = {
   workspaceId: 'workspaceId',
   documentId: 'documentId',
   status: 'status',
+  chunkCount: 'chunkCount',
+  indexedChunkCount: 'indexedChunkCount',
+  lastIndexedAt: 'lastIndexedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type KnowledgeIndexScalarFieldEnum = (typeof KnowledgeIndexScalarFieldEnum)[keyof typeof KnowledgeIndexScalarFieldEnum]
+
+
+export const KnowledgeDocumentChunkScalarFieldEnum = {
+  chunkId: 'chunkId',
+  workspaceId: 'workspaceId',
+  documentId: 'documentId',
+  chunkIndex: 'chunkIndex',
+  contentText: 'contentText',
+  contentHash: 'contentHash',
+  tokenCount: 'tokenCount',
+  embeddingStatus: 'embeddingStatus',
+  vectorRef: 'vectorRef',
+  sourceLocator: 'sourceLocator',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeDocumentChunkScalarFieldEnum = (typeof KnowledgeDocumentChunkScalarFieldEnum)[keyof typeof KnowledgeDocumentChunkScalarFieldEnum]
+
+
+export const KnowledgeIngestionJobScalarFieldEnum = {
+  jobId: 'jobId',
+  workspaceId: 'workspaceId',
+  documentId: 'documentId',
+  status: 'status',
+  progress: 'progress',
+  queuedAt: 'queuedAt',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  failedAt: 'failedAt',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  requestedByUserId: 'requestedByUserId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeIngestionJobScalarFieldEnum = (typeof KnowledgeIngestionJobScalarFieldEnum)[keyof typeof KnowledgeIngestionJobScalarFieldEnum]
+
+
+export const KnowledgeDataSourceScalarFieldEnum = {
+  sourceId: 'sourceId',
+  workspaceId: 'workspaceId',
+  provider: 'provider',
+  displayName: 'displayName',
+  connectionStatus: 'connectionStatus',
+  lastSyncAt: 'lastSyncAt',
+  connectedByUserId: 'connectedByUserId',
+  safeMetadata: 'safeMetadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeDataSourceScalarFieldEnum = (typeof KnowledgeDataSourceScalarFieldEnum)[keyof typeof KnowledgeDataSourceScalarFieldEnum]
+
+
+export const KnowledgeSyncScopeNodeScalarFieldEnum = {
+  scopeNodeId: 'scopeNodeId',
+  workspaceId: 'workspaceId',
+  sourceId: 'sourceId',
+  parentScopeNodeId: 'parentScopeNodeId',
+  externalId: 'externalId',
+  nodeType: 'nodeType',
+  displayName: 'displayName',
+  selected: 'selected',
+  safeMetadata: 'safeMetadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeSyncScopeNodeScalarFieldEnum = (typeof KnowledgeSyncScopeNodeScalarFieldEnum)[keyof typeof KnowledgeSyncScopeNodeScalarFieldEnum]
+
+
+export const KnowledgeSyncJobScalarFieldEnum = {
+  jobId: 'jobId',
+  workspaceId: 'workspaceId',
+  sourceId: 'sourceId',
+  status: 'status',
+  requestedByUserId: 'requestedByUserId',
+  queuedAt: 'queuedAt',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  failedAt: 'failedAt',
+  totalItems: 'totalItems',
+  syncedItems: 'syncedItems',
+  failedItems: 'failedItems',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeSyncJobScalarFieldEnum = (typeof KnowledgeSyncJobScalarFieldEnum)[keyof typeof KnowledgeSyncJobScalarFieldEnum]
+
+
+export const KnowledgeSyncJobEventScalarFieldEnum = {
+  syncJobEventId: 'syncJobEventId',
+  workspaceId: 'workspaceId',
+  jobId: 'jobId',
+  eventType: 'eventType',
+  status: 'status',
+  message: 'message',
+  errorCode: 'errorCode',
+  occurredAt: 'occurredAt',
+  createdAt: 'createdAt'
+} as const
+
+export type KnowledgeSyncJobEventScalarFieldEnum = (typeof KnowledgeSyncJobEventScalarFieldEnum)[keyof typeof KnowledgeSyncJobEventScalarFieldEnum]
 
 
 export const KnowledgeAccessGrantScalarFieldEnum = {

@@ -303,14 +303,38 @@ model Document {
   documentId       String @id
   workspaceId      String
   uploadedByUserId String
+  displayName      String
   fileName         String
+  mimeType         String @default("application/octet-stream")
+  fileType         String @default("unknown")
+  sizeBytes        Int    @default(0)
+  sourceType       String @default("upload")
+  sourceId         String?
+  storageKey       String?
+  contentHash      String?
   status           String @default("pending")
+  ingestionStatus  String @default("pending")
+  indexingStatus   String @default("pending")
+  chunkCount       Int    @default(0)
+  indexedChunkCount Int   @default(0)
+  deletedAt        String?
   createdAt        String
   updatedAt        String
 
+  source         KnowledgeDataSource?     @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+  indexes        KnowledgeIndex[]
+  chunks         KnowledgeDocumentChunk[]
+  ingestionJobs  KnowledgeIngestionJob[]
+  accessGrants   KnowledgeAccessGrant[]
+
   @@index([workspaceId])
   @@index([uploadedByUserId])
+  @@index([sourceId])
+  @@index([workspaceId, sourceType])
   @@index([workspaceId, status])
+  @@index([workspaceId, ingestionStatus])
+  @@index([workspaceId, indexingStatus])
+  @@index([workspaceId, contentHash])
   @@map("documents")
 }
 
@@ -319,13 +343,162 @@ model KnowledgeIndex {
   workspaceId       String
   documentId        String
   status            String @default("pending")
+  chunkCount        Int    @default(0)
+  indexedChunkCount Int    @default(0)
+  lastIndexedAt     String?
+  errorCode         String?
+  errorMessage      String?
   createdAt         String
   updatedAt         String
+
+  document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([workspaceId])
   @@index([documentId])
   @@index([workspaceId, status])
   @@map("knowledge_indexes")
+}
+
+model KnowledgeDocumentChunk {
+  chunkId         String @id
+  workspaceId    String
+  documentId     String
+  chunkIndex     Int
+  contentText    String
+  contentHash    String?
+  tokenCount     Int?
+  embeddingStatus String @default("pending")
+  vectorRef      String?
+  sourceLocator  String?
+  createdAt      String
+  updatedAt      String
+
+  document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([documentId, chunkIndex])
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([workspaceId, embeddingStatus])
+  @@index([workspaceId, contentHash])
+  @@map("knowledge_document_chunks")
+}
+
+model KnowledgeIngestionJob {
+  jobId             String @id
+  workspaceId       String
+  documentId        String?
+  status            String @default("pending")
+  progress          Int    @default(0)
+  queuedAt          String
+  startedAt         String?
+  completedAt       String?
+  failedAt          String?
+  errorCode         String?
+  errorMessage      String?
+  requestedByUserId String?
+  createdAt         String
+  updatedAt         String
+
+  document Document? @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([requestedByUserId])
+  @@index([workspaceId, status])
+  @@map("knowledge_ingestion_jobs")
+}
+
+model KnowledgeDataSource {
+  sourceId           String @id
+  workspaceId        String
+  provider           String
+  displayName        String
+  connectionStatus   String @default("not_connected")
+  lastSyncAt         String?
+  connectedByUserId  String?
+  safeMetadata       Json?
+  createdAt          String
+  updatedAt          String
+
+  documents      Document[]
+  syncScopeNodes KnowledgeSyncScopeNode[]
+  syncJobs       KnowledgeSyncJob[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, provider])
+  @@index([workspaceId, connectionStatus])
+  @@index([connectedByUserId])
+  @@map("knowledge_data_sources")
+}
+
+model KnowledgeSyncScopeNode {
+  scopeNodeId       String @id
+  workspaceId       String
+  sourceId          String
+  parentScopeNodeId String?
+  externalId        String
+  nodeType          String
+  displayName       String
+  selected          Boolean @default(false)
+  safeMetadata      Json?
+  createdAt         String
+  updatedAt         String
+
+  dataSource KnowledgeDataSource @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([sourceId, externalId])
+  @@index([workspaceId])
+  @@index([sourceId])
+  @@index([parentScopeNodeId])
+  @@index([workspaceId, selected])
+  @@map("knowledge_sync_scope_nodes")
+}
+
+model KnowledgeSyncJob {
+  jobId             String @id
+  workspaceId       String
+  sourceId          String?
+  status            String @default("pending")
+  requestedByUserId String?
+  queuedAt          String
+  startedAt         String?
+  completedAt       String?
+  failedAt          String?
+  totalItems        Int?
+  syncedItems       Int?
+  failedItems       Int?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         String
+  updatedAt         String
+
+  dataSource KnowledgeDataSource? @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+  events     KnowledgeSyncJobEvent[]
+
+  @@index([workspaceId])
+  @@index([sourceId])
+  @@index([requestedByUserId])
+  @@index([workspaceId, status])
+  @@map("knowledge_sync_jobs")
+}
+
+model KnowledgeSyncJobEvent {
+  syncJobEventId String @id
+  workspaceId    String
+  jobId          String
+  eventType      String
+  status         String?
+  message        String?
+  errorCode      String?
+  occurredAt     String
+  createdAt      String
+
+  syncJob KnowledgeSyncJob @relation(fields: [jobId], references: [jobId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([workspaceId])
+  @@index([jobId])
+  @@index([eventType])
+  @@map("knowledge_sync_job_events")
 }
 
 model KnowledgeAccessGrant {
@@ -336,6 +509,8 @@ model KnowledgeAccessGrant {
   status                  String @default("active")
   createdAt               String
   updatedAt               String
+
+  document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([workspaceId])
   @@index([documentId])

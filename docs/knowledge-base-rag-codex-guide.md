@@ -153,6 +153,31 @@ Future tasks should use clear names for these concepts:
 - Embedding/indexing status
 - Worker ingestion handoff
 
+## DB Ownership Boundary
+
+The DB source of truth is `packages/database/prisma/schema.prisma` plus
+additive migrations under `packages/database/prisma/migrations`.
+
+For KB/RAG persistence work:
+
+- Treat `Document`, `KnowledgeIndex`, and `KnowledgeAccessGrant` as existing
+  KB/RAG-owned skeleton models.
+- Do not create a duplicate `KnowledgeDocument` Prisma model while `Document`
+  owns the document table.
+- Use KB/RAG-owned models for module-specific records:
+  `KnowledgeDocumentChunk`, `KnowledgeIngestionJob`, `KnowledgeDataSource`,
+  `KnowledgeSyncScopeNode`, `KnowledgeSyncJob`, and
+  `KnowledgeSyncJobEvent`.
+- Leave the generic `Job` table untouched unless a separate reviewed platform
+  job-boundary issue requires changing it.
+- Keep cross-module references as scalar public IDs such as `workspaceId`,
+  `agentId`, `documentId`, `sourceId`, `jobId`, and actor/user IDs.
+- Store object references as server-side keys such as `storageKey`; do not
+  store public/private object-storage URLs.
+- Never add raw credentials, OAuth refresh tokens, provider secrets, passwords,
+  raw embedding vectors, raw vector DB configuration, queue internals, or
+  provider private payloads to the DB schema.
+
 ## Backend Roadmap
 
 Future backend implementation should use this structure:
