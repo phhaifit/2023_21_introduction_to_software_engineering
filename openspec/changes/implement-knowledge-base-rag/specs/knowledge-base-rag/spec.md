@@ -55,6 +55,25 @@ The system SHALL define KB/RAG-owned persistence models before backend repositor
 - **THEN** the schema does not store raw credentials, OAuth refresh tokens, provider secrets, passwords, public or private object-storage URLs, raw embedding vectors, raw vector DB configuration, queue internals, or provider private payloads
 - **AND** cross-module references remain scalar public IDs unless a later OpenSpec-backed design explicitly introduces a relation
 
+### Requirement: Backend Repository and Application Boundary
+The system SHALL define internal KB/RAG backend domain, application, and infrastructure boundaries before HTTP API routers or worker handlers are implemented.
+
+#### Scenario: Backend module layers exist
+- **WHEN** the KB/RAG backend module is inspected
+- **THEN** it contains separate `api`, `application`, `domain`, and `infrastructure` boundaries
+- **AND** the `api` boundary contains no HTTP router implementation in this slice
+
+#### Scenario: Repository ports are workspace-scoped
+- **WHEN** future API handlers or workers need documents, chunks, ingestion jobs, data sources, sync scope nodes, sync jobs, or sync job events
+- **THEN** they use KB/RAG application repository ports with explicit `workspaceId` scoping
+- **AND** they do not import Prisma records or another module's private repositories directly
+
+#### Scenario: Infrastructure adapters preserve module boundaries
+- **WHEN** Prisma or in-memory persistence adapters are used
+- **THEN** Prisma records are mapped to internal domain models before leaving infrastructure
+- **AND** public DTO mappers exclude storage keys, content hashes, vector references, safe metadata, credentials, secrets, tokens, passwords, raw embeddings, vector configuration, private URLs, and queue payloads
+- **AND** Prisma repositories query only KB/RAG-owned persistence models
+
 ### Requirement: Data Source Sync Placeholder
 The system SHALL provide a configurable boundary for external knowledge sources.
 
