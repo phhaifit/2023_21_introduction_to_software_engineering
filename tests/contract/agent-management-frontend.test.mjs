@@ -67,7 +67,14 @@ const createForm = {
   assert.match(html, /Research Agent/);
   assert.match(html, /Researcher/);
   assert.match(html, /gpt-4\.1-mini/);
+  assert.match(html, /aria-label="Agents table"/);
+  assert.match(html, /<tr class="agent-row/);
   assert.match(html, /aria-current="true"/);
+  assert.match(html, /aria-label="Open actions for Research Agent"/);
+  assert.match(html, /role="menu" aria-label="Actions for Research Agent"/);
+  assert.match(html, />Configure</);
+  assert.match(html, /aria-label="Rename Research Agent"/);
+  assert.match(html, /aria-label="Duplicate Research Agent"/);
   assert.match(html, /data-action="disable"/);
   assert.match(html, /data-action="enable"/);
   assert.match(html, /data-action="delete"/);

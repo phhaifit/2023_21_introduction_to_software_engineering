@@ -131,8 +131,27 @@ function actionsForStatus(status: AgentStatus): readonly AgentRowAction[] {
 function renderAgentList(rows: readonly AgentRowViewModel[]): string {
   const body =
     rows.length > 0
-      ? rows.map((row) => renderAgentRow(row)).join("\n")
-      : '<p class="agent-list__empty">No active agents yet.</p>';
+      ? [
+          '<div class="agent-table-wrap">',
+          '<table class="agent-table" aria-label="Agents table">',
+          "<thead>",
+          "<tr>",
+          '<th scope="col">Agent</th>',
+          '<th scope="col">Role</th>',
+          '<th scope="col">Model</th>',
+          '<th scope="col">Status</th>',
+          '<th scope="col">Updated</th>',
+          '<th scope="col">Availability</th>',
+          '<th scope="col">Actions</th>',
+          "</tr>",
+          "</thead>",
+          "<tbody>",
+          rows.map((row) => renderAgentRow(row)).join("\n"),
+          "</tbody>",
+          "</table>",
+          "</div>"
+        ].join("\n")
+      : '<div class="agent-empty-state"><p class="empty-label">No active agents yet.</p><h3>Build your first virtual teammate</h3></div>';
 
   return [
     '<section class="agent-list" aria-labelledby="agent-list-title">',
@@ -152,26 +171,32 @@ function renderAgentRow(row: AgentRowViewModel): string {
     : "Unavailable for new work";
 
   return [
-    `<article class="agent-row agent-row--${row.statusTone}" data-agent-id="${escapeHtml(
+    `<tr class="agent-row agent-row--${row.statusTone}" data-agent-id="${escapeHtml(
       row.agentId
     )}"${selectedAttribute}>`,
-    '<div class="agent-row__summary">',
+    '<td><div class="agent-row__identity">',
     `<h3>${escapeHtml(row.name)}</h3>`,
-    `<span class="agent-row__status agent-row__status--${row.statusTone}">${escapeHtml(
+    "</div></td>",
+    `<td>${escapeHtml(row.role)}</td>`,
+    `<td>${escapeHtml(row.model)}</td>`,
+    `<td><span class="agent-row__status agent-row__status--${row.statusTone}">${escapeHtml(
       row.statusLabel
-    )}</span>`,
+    )}</span></td>`,
+    `<td>${escapeHtml(row.updatedAt)}</td>`,
+    `<td>${selectableLabel}</td>`,
+    `<td><div class="agent-row__actions" aria-label="Actions for ${escapeHtml(row.name)}">`,
+    `<button type="button" class="agent-menu-trigger" aria-label="Open actions for ${escapeHtml(
+      row.name
+    )}" aria-haspopup="true">...</button>`,
+    `<div class="agent-action-menu" role="menu" aria-label="Actions for ${escapeHtml(row.name)}">`,
+    "<button type=\"button\">Configure</button>",
+    row.actions.filter((action) => action.kind !== "delete").map((action) => renderRowAction(row.agentId, action)).join("\n"),
+    `<button type="button" disabled aria-disabled="true" aria-label="Rename ${escapeHtml(row.name)}">Rename</button>`,
+    `<button type="button" disabled aria-disabled="true" aria-label="Duplicate ${escapeHtml(row.name)}">Duplicate</button>`,
+    row.actions.filter((action) => action.kind === "delete").map((action) => renderRowAction(row.agentId, action)).join("\n"),
     "</div>",
-    '<dl class="agent-row__meta">',
-    `<div><dt>Role</dt><dd>${escapeHtml(row.role)}</dd></div>`,
-    `<div><dt>Model</dt><dd>${escapeHtml(row.model)}</dd></div>`,
-    `<div><dt>Created</dt><dd>${escapeHtml(row.createdAt)}</dd></div>`,
-    `<div><dt>Updated</dt><dd>${escapeHtml(row.updatedAt)}</dd></div>`,
-    `<div><dt>Availability</dt><dd>${selectableLabel}</dd></div>`,
-    "</dl>",
-    `<div class="agent-row__actions" aria-label="Actions for ${escapeHtml(row.name)}">`,
-    row.actions.map((action) => renderRowAction(row.agentId, action)).join("\n"),
-    "</div>",
-    "</article>"
+    "</div></td>",
+    "</tr>"
   ].join("\n");
 }
 
