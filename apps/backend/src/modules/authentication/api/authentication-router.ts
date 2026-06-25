@@ -1,13 +1,15 @@
 import { Router, type Request, type Response } from "express";
 
-import { EmailAlreadyUsedError, InvalidCredentialsError, ValidationError } from "../domain/errors.ts";
+import { EmailAlreadyUsedError, InvalidCredentialsError, SessionNotFoundError, ValidationError } from "../domain/errors.ts";
 import type { RegisterUseCase } from "../application/register-use-case.ts";
 import type { LoginUseCase } from "../application/login-use-case.ts";
+import type { LogoutUseCase } from "../application/logout-use-case.ts";
 import { sendAuthApiSuccess, sendAuthApiFailure } from "./api-response.ts";
 
 export type AuthenticationRouterDependencies = {
   registerUseCase: RegisterUseCase;
   loginUseCase: LoginUseCase;
+  logoutUseCase: LogoutUseCase;
 };
 
 export function createAuthenticationRouter(
@@ -86,6 +88,29 @@ export function createAuthenticationRouter(
           expiresAt: result.session.expiresAt,
         },
       };
+    });
+  });
+
+  router.post("/logout", async (request: Request, response: Response) => {
+    const authHeader = request.header("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      sendAuthApiFailure(request, response, "auth.unauthorized", "Missing or invalid Authorization header.");
+      return;
+    }
+
+    const rawToken = authHeader.slice("Bearer ".length);
+
+    await handleAuthApiRequest(request, response, async () => {
+      try {
+        await dependencies.logoutUseCase.execute({ rawToken });
+      } catch (error) {
+        if (error instanceof SessionNotFoundError) {
+          // Idempotent: session already gone, treat as success
+          return { success: true };
+        }
+        throw error;
+      }
+      return { success: true };
     });
   });
 

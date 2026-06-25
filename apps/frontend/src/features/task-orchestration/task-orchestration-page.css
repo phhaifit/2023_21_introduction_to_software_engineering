@@ -431,6 +431,105 @@
   padding: 10px 12px;
 }
 
+.task-workspace__detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.task-workspace__detail-actions button {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 8px 16px;
+}
+
+.task-workspace__detail-actions button:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.task-processing-detail-modal {
+  padding: 1.5rem;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  max-width: 600px;
+  width: 100%;
+}
+
+.task-processing-detail-modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.task-processing-detail-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.task-processing-detail-modal__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.task-processing-detail-modal__header button {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+
+.task-processing-detail-modal__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 0 0 1.5rem 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.task-processing-detail-modal__meta dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.task-processing-detail-modal__meta dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.task-processing-detail-modal__section-title {
+  font-size: 1rem;
+  margin: 1.5rem 0 1rem 0;
+  font-weight: 600;
+}
+
+.task-processing-detail-modal__routing {
+  margin: 0 0 1.5rem 0;
+  font-weight: 700;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: #3730a3;
+  padding: 10px 12px;
+}
+
 @media (max-width: 760px) {
   .task-workspace {
     grid-template-columns: 1fr;

@@ -56,6 +56,8 @@ import {
   type TaskCompletionController
 } from "./model/task-completion-controller";
 import { TaskCompletedResult } from "./components/task-completed-result";
+import { TaskProcessingDetailModal } from "./components/task-processing-detail-modal";
+import { buildTaskProcessingDetail } from "./model/task-processing-detail";
 import {
   ROUTING_MODES,
   type RoutingMode
@@ -113,6 +115,7 @@ export function TaskOrchestrationPage({
     taskCreationReducer,
     initialTaskCreationState
   );
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const taskClientRef = useRef(
     taskCreationClient ?? createMockTaskCreationClient()
   );
@@ -225,6 +228,8 @@ export function TaskOrchestrationPage({
 
   useEffect(() => {
     const taskId = activeTask?.taskId;
+
+    setIsDetailModalOpen(false);
 
     return () => {
       progressionHandleRef.current?.cancel();
@@ -536,6 +541,14 @@ export function TaskOrchestrationPage({
                   </button>
                 </div>
               ) : null}
+
+              {activeTask.status === "succeeded" || activeTask.status === "running" ? (
+                <div className="task-workspace__detail-actions">
+                  <button type="button" onClick={() => setIsDetailModalOpen(true)}>
+                    View processing details
+                  </button>
+                </div>
+              ) : null}
             </article>
           ) : (
             <div className="task-workspace__empty">
@@ -559,6 +572,13 @@ export function TaskOrchestrationPage({
             </div>
           )}
         </section>
+
+        {isDetailModalOpen && activeTask ? (
+          <TaskProcessingDetailModal
+            detail={buildTaskProcessingDetail(activeTask)!}
+            onClose={() => setIsDetailModalOpen(false)}
+          />
+        ) : null}
 
         <section className="task-composer" aria-label="Task composer area">
           <RoutingSelector
@@ -595,7 +615,7 @@ export function TaskOrchestrationPage({
   );
 }
 
-function formatRoutingSummary(routing: TaskRoutingSelection): string {
+export function formatRoutingSummary(routing: TaskRoutingSelection): string {
   if (routing.mode === "specific-agent") {
     return `Routing: Specific agent ${routing.agentId}`;
   }
