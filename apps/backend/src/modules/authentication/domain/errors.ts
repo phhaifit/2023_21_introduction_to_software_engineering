@@ -28,3 +28,10 @@ export class SessionNotFoundError extends Error {
     this.name = "SessionNotFoundError";
   }
 }
+
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("Session has expired");
+    this.name = "SessionExpiredError";
+  }
+}

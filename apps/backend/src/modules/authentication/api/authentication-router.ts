@@ -1,15 +1,18 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 
-import { EmailAlreadyUsedError, InvalidCredentialsError, SessionNotFoundError, ValidationError } from "../domain/errors.ts";
+import { EmailAlreadyUsedError, InvalidCredentialsError, SessionExpiredError, SessionNotFoundError, ValidationError } from "../domain/errors.ts";
 import type { RegisterUseCase } from "../application/register-use-case.ts";
 import type { LoginUseCase } from "../application/login-use-case.ts";
 import type { LogoutUseCase } from "../application/logout-use-case.ts";
+import type { AuthenticateSessionUseCase } from "../application/authenticate-session-use-case.ts";
+import type { AuthenticatedUser } from "../../../shared/auth/request-context.ts";
 import { sendAuthApiSuccess, sendAuthApiFailure } from "./api-response.ts";
 
 export type AuthenticationRouterDependencies = {
   registerUseCase: RegisterUseCase;
   loginUseCase: LoginUseCase;
   logoutUseCase: LogoutUseCase;
+  authenticateSessionUseCase: AuthenticateSessionUseCase;
 };
 
 export function createAuthenticationRouter(
@@ -114,6 +117,25 @@ export function createAuthenticationRouter(
     });
   });
 
+  // Authentication middleware - applied only to /me (router-level)
+  const authSessionMiddleware = createAuthSessionMiddleware(dependencies.authenticateSessionUseCase);
+
+  router.get("/me", authSessionMiddleware, async (request: Request, response: Response) => {
+    const context = (request as any).context as { requestId?: string; user?: AuthenticatedUser } | undefined;
+    const user = context?.user;
+
+    if (!user) {
+      sendAuthApiFailure(request, response, "auth.unauthorized", "Authentication required.");
+      return;
+    }
+
+    sendAuthApiSuccess(request, response, {
+      userId: user.userId,
+      email: user.email,
+      displayName: user.displayName,
+    });
+  });
+
   return router;
 }
 
@@ -163,4 +185,32 @@ async function handleAuthApiRequest<T>(
       "Unexpected Authentication API error."
     );
   }
+}
+
+function createAuthSessionMiddleware(
+  authenticateSessionUseCase: AuthenticateSessionUseCase
+) {
+  return async function authSessionMiddleware(
+    request: Request,
+    _response: Response,
+    next: NextFunction
+  ): Promise<void> {
+    const authHeader = request.header("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      next();
+      return;
+    }
+
+    const rawToken = authHeader.slice("Bearer ".length);
+
+    try {
+      const user = await authenticateSessionUseCase.execute({ rawToken });
+      const existing = (request as any).context ?? {};
+      (request as any).context = { ...existing, user };
+    } catch {
+      // Session not found or expired: do not block; /me handler will reject if user absent
+    }
+
+    next();
+  };
 }
