@@ -46,6 +46,17 @@ import {
   type TaskStreamingRuntime
 } from "./model/task-streaming-runtime";
 import {
+  createBrowserTaskCompletionRuntime,
+  DEFAULT_TASK_COMPLETION_DELAYS,
+  type TaskCompletionDelays,
+  type TaskCompletionRuntime
+} from "./model/task-completion-runtime";
+import {
+  createTaskCompletionController,
+  type TaskCompletionController
+} from "./model/task-completion-controller";
+import { TaskCompletedResult } from "./components/task-completed-result";
+import {
   ROUTING_MODES,
   type RoutingMode
 } from "./model/task-types";
@@ -69,6 +80,8 @@ type TaskOrchestrationPageProps = {
   }>;
   streamingRuntime?: TaskStreamingRuntime;
   streamingDelays?: TaskStreamingDelays;
+  completionRuntime?: TaskCompletionRuntime;
+  completionDelays?: TaskCompletionDelays;
 };
 
 const suggestedPrompts = [
@@ -88,7 +101,9 @@ export function TaskOrchestrationPage({
   processingRuntime,
   processingDelays,
   streamingRuntime,
-  streamingDelays
+  streamingDelays,
+  completionRuntime,
+  completionDelays
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
@@ -120,6 +135,14 @@ export function TaskOrchestrationPage({
     }
   );
   const streamingControllerRef = useRef<TaskStreamingController | null>(null);
+
+  const completionRuntimeRef = useRef(
+    completionRuntime ?? createBrowserTaskCompletionRuntime()
+  );
+  const completionDelaysRef = useRef(
+    completionDelays ?? DEFAULT_TASK_COMPLETION_DELAYS
+  );
+  const completionControllerRef = useRef<TaskCompletionController | null>(null);
 
   if (!controllerRef.current) {
     controllerRef.current = createTaskProcessingController({
@@ -159,6 +182,29 @@ export function TaskOrchestrationPage({
     });
   }
 
+  if (!completionControllerRef.current) {
+    completionControllerRef.current = createTaskCompletionController({
+      scheduler: completionRuntimeRef.current.scheduler,
+      stateReader: {
+        findTask: (taskId) =>
+          taskStateRef.current.tasks.find((task) => task.taskId === taskId) ?? null
+      },
+      resultSource: completionRuntimeRef.current.resultSource,
+      actionSink: {
+        dispatch: (action) => {
+          if (mountedRef.current) {
+            taskStateRef.current = taskCreationReducer(
+              taskStateRef.current,
+              action
+            );
+            dispatchRef.current(action);
+          }
+        }
+      },
+      completionDelayMs: completionDelaysRef.current.completionMs
+    });
+  }
+
   const activeTask = getActiveTask(taskState);
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
@@ -173,6 +219,7 @@ export function TaskOrchestrationPage({
       progressionHandleRef.current = null;
       controllerRef.current?.dispose();
       streamingControllerRef.current?.dispose();
+      completionControllerRef.current?.dispose();
     };
   }, []);
 
@@ -185,6 +232,7 @@ export function TaskOrchestrationPage({
       if (taskId) {
         controllerRef.current?.stop(taskId);
         streamingControllerRef.current?.stop(taskId);
+        completionControllerRef.current?.stop(taskId);
       }
     };
   }, [activeTask?.taskId]);
@@ -280,6 +328,45 @@ export function TaskOrchestrationPage({
     activeTask?.processingSnapshot.steps
   ]);
 
+  useEffect(() => {
+    const task = activeTask;
+    const controller = completionControllerRef.current;
+
+    if (!task || !controller) {
+      return;
+    }
+
+    if (isTerminalTaskStatus(task.status)) {
+      controller.stop(task.taskId);
+      return;
+    }
+
+    if (task.status !== "running") {
+      return;
+    }
+
+    const finalStep = task.processingSnapshot.steps.at(-1);
+    if (finalStep?.id !== FINAL_STEP_ID || finalStep.status !== "active") {
+      return;
+    }
+
+    if (task.streamingSnapshot.phase !== "exhausted") {
+      return;
+    }
+
+    if (task.finalizedResult) {
+      return;
+    }
+
+    controller.start(task.taskId);
+  }, [
+    activeTask?.taskId,
+    activeTask?.status,
+    activeTask?.processingSnapshot.steps,
+    activeTask?.streamingSnapshot.phase,
+    activeTask?.finalizedResult
+  ]);
+
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
   async function handleAcceptedSubmission() {
@@ -332,6 +419,7 @@ export function TaskOrchestrationPage({
     : "";
   const shouldShowPartialResult =
     activeTask !== undefined &&
+    activeTask.status !== "succeeded" &&
     (activeTask.streamingSnapshot.phase === "streaming" ||
       activeTask.streamingSnapshot.phase === "exhausted" ||
       activeTask.streamingSnapshot.fragments.length > 0);
@@ -427,6 +515,13 @@ export function TaskOrchestrationPage({
                 <TaskPartialResult
                   partialText={partialText}
                   phase={activeTask.streamingSnapshot.phase}
+                />
+              ) : null}
+
+              {activeTask.status === "succeeded" && activeTask.finalizedResult ? (
+                <TaskCompletedResult
+                  result={activeTask.finalizedResult}
+                  clipboardWriter={completionRuntimeRef.current.clipboard}
                 />
               ) : null}
 
