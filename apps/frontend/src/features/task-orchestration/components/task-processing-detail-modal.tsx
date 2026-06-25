@@ -3,6 +3,7 @@ import type { TaskProcessingDetail } from "../model/task-processing-detail";
 import { ProcessingTimeline } from "./processing-timeline";
 import { TaskLogList } from "./task-log-list";
 import { TaskStatusBadge } from "./task-status-badge";
+import { TaskErrorDetails } from "./task-error-details";
 
 export interface TaskProcessingDetailModalProps {
   detail: TaskProcessingDetail;
@@ -70,6 +71,13 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
         <p className="task-processing-detail-modal__routing">
           {detail.routingSummary}
         </p>
+
+        {detail.status === "failed" && detail.error ? (
+          <section aria-labelledby="modal-error-title">
+            <h3 id="modal-error-title" className="task-processing-detail-modal__section-title">Error Details</h3>
+            <TaskErrorDetails error={detail.error} />
+          </section>
+        ) : null}
 
         <section aria-labelledby="modal-timeline-title">
           <h3 id="modal-timeline-title" className="task-processing-detail-modal__section-title">Timeline</h3>
