@@ -26,6 +26,14 @@ import { WorkflowUseCases } from "./modules/workflow-management/application/work
 import { PrismaWorkflowRepository } from "./modules/workflow-management/infrastructure/prisma-workflow-repository.ts";
 import { InMemoryWorkflowRepository } from "./modules/workflow-management/infrastructure/in-memory-workflow-repository.ts";
 
+import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
+import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
+import { LoginUseCase } from "./modules/authentication/application/login-use-case.ts";
+import { InMemoryUserRepository } from "./modules/authentication/infrastructure/in-memory-user-repository.ts";
+import { InMemorySessionRepository } from "./modules/authentication/infrastructure/in-memory-session-repository.ts";
+import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
+import { Sha256TokenHasher } from "./modules/authentication/infrastructure/sha256-token-hasher.ts";
+
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
 
@@ -180,6 +188,23 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   app.use(
     "/api/workspaces/:workspaceId/workflows",
     createWorkflowManagementRouter({ useCases: workflowUseCases })
+  );
+
+  const authUserRepository = new InMemoryUserRepository();
+  const authSessionRepository = new InMemorySessionRepository();
+  const authPasswordHasher = new BcryptPasswordHasher();
+  const authTokenHasher = new Sha256TokenHasher();
+  app.use(
+    "/api/auth",
+    createAuthenticationRouter({
+      registerUseCase: new RegisterUseCase(authUserRepository, authPasswordHasher),
+      loginUseCase: new LoginUseCase(
+        authUserRepository,
+        authSessionRepository,
+        authPasswordHasher,
+        authTokenHasher
+      ),
+    })
   );
 
   return { app, repository, useCases, subscriptionRepository, checkoutUseCases, workflowRepository, workflowUseCases };
