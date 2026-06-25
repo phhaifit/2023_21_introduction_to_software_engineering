@@ -92,6 +92,26 @@ The system SHALL expose KB/RAG application use cases through workspace-scoped ba
 - **THEN** the router rejects server-owned or private fields such as `workspaceId`, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, provider secrets, tokens, passwords, raw embeddings, or vector configuration
 - **AND** data-source connection placeholders do not accept raw credentials, OAuth refresh tokens, provider tokens, or secrets
 
+### Requirement: Frontend API Client Boundary
+The system SHALL provide a typed frontend KB/RAG API client before existing UI screens are wired to live backend data.
+
+#### Scenario: Client calls finalized workspace-scoped routes
+- **WHEN** frontend code calls the KB/RAG API client
+- **THEN** the client builds only `/api/workspaces/:workspaceId/knowledge/...` URLs for documents, upload validation, upload preparation, ingestion jobs, data sources, sync scope, and sync jobs
+- **AND** it encodes `workspaceId`, `sourceId`, and query values safely
+- **AND** it does not call the older `/api/knowledge-base/...` candidate route family
+
+#### Scenario: Client parses shared API envelopes
+- **WHEN** the backend returns a KB/RAG API response
+- **THEN** the client parses shared success and paginated success envelopes into shared DTOs
+- **AND** API, network, and malformed-response failures are exposed through a typed frontend client error
+
+#### Scenario: Client remains a boundary, not UI integration
+- **WHEN** the frontend API client boundary is added
+- **THEN** existing Documents and Upload screens continue using local mock data until a scoped integration issue connects them
+- **AND** the client rejects unsafe request-body fields such as `workspaceId`, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, passwords, raw embeddings, or vector configuration before fetch
+- **AND** frontend code does not import backend modules, worker runtime, Prisma/database code, or another module's private internals
+
 ### Requirement: Application Use Cases
 The system SHALL provide KB/RAG application use cases that future API routers and workers can call without importing repositories or infrastructure directly.
 

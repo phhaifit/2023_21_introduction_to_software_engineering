@@ -26,12 +26,14 @@ The frontend currently has a PA5 prototype under
   and `knowledge-base-rag-view.ts`.
 - Documents screen in `knowledge-base-rag-documents.tsx`.
 - Upload Documents screen in `knowledge-base-rag-upload.tsx`.
+- Typed frontend API client in `knowledge-base-rag-api-client.ts`.
 - Feature-prefixed CSS split by shell, shared components, documents, and upload
   screens.
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration.
+change that integration. Documents and Upload screens still render local mock
+data; API client wiring is intentionally left for a later integration slice.
 
 The backend now has an internal module foundation under
 `apps/backend/src/modules/knowledge-base-rag`:
@@ -54,7 +56,7 @@ Runtime implementation still needs:
 - Upload parsing, object storage, embedding, vector indexing, and external
   source adapters.
 - Worker ingestion/sync runtime handoff.
-- Frontend API client alignment with shared DTOs.
+- Frontend UI integration with the KB/RAG API client.
 - Worker tests, frontend integration tests, and functional PA5 tests.
 
 The worker path `apps/workers/src/jobs/document-ingestion` currently contains
@@ -249,9 +251,10 @@ raw credentials, tokens, provider secrets, private vector DB configuration,
 embedding-provider internals, object-storage private paths, or server-owned
 mutation fields.
 
-Frontend local mock types should now be mapped toward these shared DTOs before
-new API-client work begins. Prototype-only view models may remain module-local
-when they are purely presentation-specific.
+The frontend API client now uses these shared DTOs. Frontend local mock/view
+types should be mapped toward these DTOs when the Documents and Upload screens
+are connected to live API data. Prototype-only view models may remain
+module-local when they are purely presentation-specific.
 
 ## Proposed Domain Events Roadmap
 
