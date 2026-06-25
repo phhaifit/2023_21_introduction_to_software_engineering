@@ -18,13 +18,17 @@ import {
   exhaustStreaming,
   startStreaming
 } from "./task-streaming";
+import {
+  isTaskReadyForCompletion,
+  isValidFinalizedResult,
+  type TaskFinalizedResult
+} from "./task-completion";
 import type { TaskLog } from "./task-types";
 import type {
   CreatedTaskRecord,
   RoutingMode
 } from "./task-types";
 import {
-  canTransitionTaskStatus,
   isTerminalTaskStatus,
   transitionTaskStatus
 } from "./task-lifecycle";
@@ -99,6 +103,12 @@ export type TaskCreationAction =
       type: "streaming-exhausted";
       taskId: EntityId<"taskId">;
       exhaustedAt: string;
+    }
+  | {
+      /** Atomically stores the finalized result and completes the task. */
+      type: "task-completed";
+      taskId: EntityId<"taskId">;
+      result: TaskFinalizedResult;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -183,6 +193,8 @@ export function taskCreationReducer(
     case "processing-step-activated": {
       const task = state.tasks.find((t) => t.taskId === action.taskId);
       if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
       const result = activateNextStep(task.processingSnapshot, action.stepId);
       if (!result.ok) return state;
       return {
@@ -197,6 +209,8 @@ export function taskCreationReducer(
     case "processing-step-completed": {
       const task = state.tasks.find((t) => t.taskId === action.taskId);
       if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
       const result = completeActiveStep(
         task.processingSnapshot,
         action.stepId,
@@ -215,6 +229,8 @@ export function taskCreationReducer(
     case "processing-log-appended": {
       const task = state.tasks.find((t) => t.taskId === action.taskId);
       if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
       const result = appendProcessingLog(task.processingSnapshot, action.log);
       if (!result.ok) return state;
       return {
@@ -279,6 +295,28 @@ export function taskCreationReducer(
           t.taskId === action.taskId
             ? { ...t, streamingSnapshot: result.snapshot }
             : t
+        )
+      };
+    }
+    case "task-completed": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (!isTaskReadyForCompletion(task)) return state;
+      if (!isValidFinalizedResult(action.result)) return state;
+      const transitionResult = transitionTaskStatus(task, "succeeded");
+      if (!transitionResult.ok) return state;
+
+      const updatedTask: CreatedTaskRecord = {
+        ...transitionResult.task,
+        processingSnapshot: task.processingSnapshot,
+        streamingSnapshot: task.streamingSnapshot,
+        finalizedResult: { ...action.result }
+      };
+
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId ? updatedTask : t
         )
       };
     }
