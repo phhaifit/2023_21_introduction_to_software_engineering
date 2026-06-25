@@ -177,8 +177,11 @@ model Workflow {
   workflowId  String @id
   workspaceId String
   name        String
-  status      String @default("draft")
-  createdAt   String
+  description   String?
+  status        String @default("draft")
+  triggerType   String @default("manual")
+  triggerConfig Json?
+  createdAt     String
   updatedAt   String
 
   steps         WorkflowStep[]
