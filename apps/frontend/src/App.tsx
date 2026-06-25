@@ -10,6 +10,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
+import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
 import type { PageKey } from "./types/navigation.ts";
 
 export function App() {
@@ -37,6 +38,8 @@ export function App() {
         return <SubscriptionPaymentPage />;
       case "settings":
         return <SettingsPage />;
+      case "authentication":
+        return <AuthenticationPage />;
       default:
         return <WorkflowsPage />;
     }

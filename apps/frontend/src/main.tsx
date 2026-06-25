@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { ToastProvider } from "./components/shared/Toast.tsx";
+import { AuthProvider } from "./features/authentication/authentication-context.tsx";
 import "./app.css";
 
 const rootElement = document.getElementById("root");
@@ -14,7 +15,9 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <React.StrictMode>
     <ToastProvider>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </ToastProvider>
   </React.StrictMode>
 );
