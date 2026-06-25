@@ -530,6 +530,146 @@
   padding: 10px 12px;
 }
 
+.task-cancel-confirmation-dialog {
+  padding: 1.5rem;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  max-width: 500px;
+  width: 100%;
+}
+
+.task-cancel-confirmation-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.task-cancel-confirmation-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.task-cancel-confirmation-dialog__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.task-cancel-confirmation-dialog__header button {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+
+.task-cancel-confirmation-dialog__warning {
+  margin: 0 0 1.5rem 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.task-cancel-confirmation-dialog__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.task-cancel-confirmation-dialog__meta dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.task-cancel-confirmation-dialog__meta dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.task-cancel-confirmation-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.task-cancel-confirmation-dialog__continue-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 16px;
+}
+
+.task-cancel-confirmation-dialog__continue-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.task-cancel-confirmation-dialog__confirm-btn {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #be123c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 16px;
+}
+
+.task-cancel-confirmation-dialog__confirm-btn:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.task-canceled-state {
+  background: #fffaf5;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.task-canceled-state__header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-canceled-state h4 {
+  color: #9a3412;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.task-canceled-state__time {
+  color: #c2410c;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.task-canceled-state__body p {
+  color: #9a3412;
+  line-height: 1.55;
+  margin: 0;
+}
+
 @media (max-width: 760px) {
   .task-workspace {
     grid-template-columns: 1fr;
