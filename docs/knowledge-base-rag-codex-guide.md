@@ -49,10 +49,11 @@ The backend now has an internal foundation for future runtime implementation:
 - Safe DTO mappers to shared contracts.
 - Prisma repositories using KB/RAG-owned tables through `@vcp/database`.
 - Deterministic in-memory repositories for future use-case tests.
+- A thin workspace-scoped HTTP API router that maps shared route contracts to
+  application use cases and shared API envelopes.
 
-The backend still does not have HTTP routers, route registration, real
-upload/file adapters, embedding/vector adapters, worker handlers, or frontend
-API clients.
+The backend still does not have real upload/file adapters, embedding/vector
+adapters, worker handlers, or frontend API clients.
 
 ## Required Future Workflow
 
@@ -196,6 +197,9 @@ apps/backend/src/modules/knowledge-base-rag/
 
 Current foundation files include:
 
+- `api/knowledge-base-rag-router.ts`
+- `api/knowledge-base-rag-request-parsers.ts`
+- `api/api-response.ts`
 - `application/*-repository.ts`
 - `application/*-use-cases.ts`
 - `application/knowledge-base-rag-events.ts`
@@ -210,15 +214,13 @@ Current foundation files include:
 
 Likely future files:
 
-- `api/knowledge-base-rag-router.ts`
-- `api/api-response.ts`
 - `application/ports.ts`
 - `domain/upload-validation.ts`
 - `domain/knowledge-events.ts`
 - `infrastructure/*-adapter.ts`
 
-Do not create API routers, worker handlers, frontend API clients, or adapters
-outside the selected task scope.
+Do not create worker handlers, frontend API clients, or adapters outside the
+selected task scope.
 
 ## API Contract Boundary
 
@@ -239,8 +241,10 @@ POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
 GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
-This route contract is documented and tested as a shared boundary. It still
-does not mean backend handlers exist.
+This route contract is documented, tested, and exposed by the backend API
+router. The router must remain thin: parse request context, call application
+use cases, map responses/errors, and avoid file parsing, storage, embeddings,
+vector databases, external providers, and worker runtime execution.
 
 ## Shared DTO Boundary
 

@@ -66,6 +66,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: Application use cases validate upload candidate metadata, prepare safe pending document and ingestion-job records, read document/chunk/job/source/sync state, connect data-source placeholders, update sync scope, and create queued manual sync-job records. They do not parse files, upload to object storage, enqueue runtime worker handlers, call embedding providers, call external data-source providers, or write to a vector database.
    - Constraint: Use cases receive trusted `workspaceId` and actor identity from caller context, use injected repository ports, clock, and ID generators, and return caller-safe shared DTOs.
 
+12. Expose a thin workspace-scoped HTTP API router after application use cases exist.
+   - Rationale: Backend clients need the finalized `/api/workspaces/:workspaceId/knowledge/...` route family to call KB/RAG use cases through shared API envelopes without reaching into repositories or infrastructure.
+   - Boundary: The router parses request/query payloads, derives `workspaceId` from the route, derives actor identity from request context, enforces `knowledge:manage` for mutations, maps application errors to shared API errors, and returns shared DTOs. It does not parse files, upload to object storage, call worker runtimes, call embedding/vector providers, call external source providers, or import Prisma directly.
+   - Constraint: Request bodies must not accept trusted workspace IDs, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, or secrets.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

@@ -66,11 +66,16 @@ const files = collectFiles(moduleRoot).filter((file) => file.endsWith(".ts"));
 assert.ok(files.some((file) => file.includes("/domain/")), "domain files exist");
 assert.ok(files.some((file) => file.includes("/application/")), "application files exist");
 assert.ok(files.some((file) => file.includes("/infrastructure/")), "infrastructure files exist");
-assert.equal(
-  files.some((file) => /router\.ts$/.test(file)),
-  false,
-  "backend boundary slice must not add an API router"
-);
+assert.ok(files.some((file) => /knowledge-base-rag-router\.ts$/.test(file)), "API router exists");
+
+for (const file of files.filter((file) => file.includes("/domain/") || file.includes("/application/"))) {
+  const source = readFileSync(file, "utf8");
+  assert.equal(
+    source.includes("/api/") || source.includes("Router("),
+    false,
+    `${file} must remain independent from the HTTP API router`
+  );
+}
 
 for (const file of files) {
   const source = readFileSync(file, "utf8");
@@ -311,4 +316,3 @@ function collectFiles(root) {
 
   return files;
 }
-

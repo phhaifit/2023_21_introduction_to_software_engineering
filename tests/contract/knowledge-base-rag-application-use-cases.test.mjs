@@ -70,11 +70,14 @@ for (const file of applicationFiles) {
   }
 }
 
-assert.equal(
-  collectFiles(moduleRoot).some((file) => /router\.ts$/.test(file)),
-  false,
-  "application use-case slice must not introduce an API router"
-);
+for (const file of applicationFiles) {
+  const source = readFileSync(file, "utf8");
+  assert.equal(
+    source.includes("/api/") || source.includes("Router("),
+    false,
+    `${file} must remain independent from the HTTP API router`
+  );
+}
 
 for (const expectedFile of [
   "knowledge-document-use-cases.ts",
@@ -424,4 +427,3 @@ function assertSafePublicShape(value, path = []) {
     assertSafePublicShape(child, [...path, key]);
   }
 }
-
