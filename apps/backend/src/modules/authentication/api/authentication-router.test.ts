@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, type MockedFunction } from "vitest";
 import type { Request, Response } from "express";
 
-import { EmailAlreadyUsedError, InvalidCredentialsError, SessionNotFoundError, ValidationError } from "../domain/errors.ts";
+import { EmailAlreadyUsedError, InvalidCredentialsError, SessionExpiredError, SessionNotFoundError, ValidationError } from "../domain/errors.ts";
 import type { RegisterUseCase } from "../application/register-use-case.ts";
 import type { LoginUseCase } from "../application/login-use-case.ts";
 import type { LogoutUseCase } from "../application/logout-use-case.ts";
+import type { AuthenticateSessionUseCase } from "../application/authenticate-session-use-case.ts";
 import type { UserPublicProfile } from "../domain/user-public-profile.ts";
 import type { LoginResult } from "../application/login-use-case.ts";
 import { createAuthenticationRouter } from "./authentication-router.ts";
@@ -87,6 +88,12 @@ function makeLogoutUseCase(impl: LogoutUseCase["execute"]): LogoutUseCase {
   return { execute: impl } as unknown as LogoutUseCase;
 }
 
+function makeAuthenticateSessionUseCase(
+  impl: AuthenticateSessionUseCase["execute"]
+): AuthenticateSessionUseCase {
+  return { execute: impl } as unknown as AuthenticateSessionUseCase;
+}
+
 // ---------------------------------------------------------------------------
 // POST /register
 // ---------------------------------------------------------------------------
@@ -100,6 +107,7 @@ describe("POST /register controller", () => {
       registerUseCase: makeRegisterUseCase(registerExecute),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({
@@ -135,6 +143,7 @@ describe("POST /register controller", () => {
       registerUseCase: makeRegisterUseCase(registerExecute),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({ password: "correct horse battery staple" });
@@ -156,6 +165,7 @@ describe("POST /register controller", () => {
       registerUseCase: makeRegisterUseCase(registerExecute),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({ email: "alice@example.com" });
@@ -178,6 +188,7 @@ describe("POST /register controller", () => {
       registerUseCase: makeRegisterUseCase(registerExecute),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({ email: "bad-email", password: "12345678" });
@@ -200,6 +211,7 @@ describe("POST /register controller", () => {
       registerUseCase: makeRegisterUseCase(registerExecute),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({
@@ -224,6 +236,7 @@ describe("POST /register controller", () => {
       registerUseCase: makeRegisterUseCase(registerExecute),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({
@@ -253,6 +266,7 @@ describe("POST /login controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({
@@ -288,6 +302,7 @@ describe("POST /login controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({
@@ -311,6 +326,7 @@ describe("POST /login controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({ password: "correct horse battery staple" });
@@ -332,6 +348,7 @@ describe("POST /login controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({ email: "alice@example.com" });
@@ -353,6 +370,7 @@ describe("POST /login controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({});
@@ -371,6 +389,7 @@ describe("POST /login controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(loginExecute),
       logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequest({
@@ -400,6 +419,7 @@ describe("POST /logout controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(logoutExecute),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequestWithHeader({}, { Authorization: "Bearer my-secret-token" });
@@ -421,6 +441,7 @@ describe("POST /logout controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(logoutExecute),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequestWithHeader({}, { Authorization: "Bearer already-revoked-token" });
@@ -441,6 +462,7 @@ describe("POST /logout controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(logoutExecute),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequestWithHeader({}, {});
@@ -462,6 +484,7 @@ describe("POST /logout controller", () => {
       registerUseCase: makeRegisterUseCase(vi.fn()),
       loginUseCase: makeLoginUseCase(vi.fn()),
       logoutUseCase: makeLogoutUseCase(logoutExecute),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
     });
 
     const req = makeMockRequestWithHeader({}, { Authorization: "Basic dXNlcjpwYXNz" });
@@ -475,6 +498,165 @@ describe("POST /logout controller", () => {
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe("auth.unauthorized");
     expect(logoutExecute).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /me controller
+// ---------------------------------------------------------------------------
+
+const STUB_AUTH_USER = {
+  userId: "user-123" as any,
+  email: "alice@example.com",
+  displayName: "Alice",
+};
+
+describe("GET /me controller", () => {
+  it("authenticated user in context → 200 with userId, email, displayName (no passwordHash)", async () => {
+    const authenticateExecute = vi.fn().mockResolvedValue(STUB_AUTH_USER);
+    const router = createAuthenticationRouter({
+      registerUseCase: makeRegisterUseCase(vi.fn()),
+      loginUseCase: makeLoginUseCase(vi.fn()),
+      logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(authenticateExecute),
+    });
+
+    // Simulate middleware having already resolved and set context.user
+    const req = makeMockRequestWithHeader({}, { Authorization: "Bearer valid-token" }) as any;
+    req.context = { requestId: "req-1", user: STUB_AUTH_USER };
+    const res = makeMockResponse();
+
+    const handler = extractRouteHandler(router, "GET", "/me");
+    await handler(req as Request, res as unknown as Response, vi.fn());
+
+    expect(res._statusCode).toBe(200);
+    const body = res._body as any;
+    expect(body.ok).toBe(true);
+    expect(body.data.userId).toBe("user-123");
+    expect(body.data.email).toBe("alice@example.com");
+    expect(body.data.displayName).toBe("Alice");
+    expect("passwordHash" in body.data).toBe(false);
+  });
+
+  it("no user in context → 401 auth.unauthorized", async () => {
+    const router = createAuthenticationRouter({
+      registerUseCase: makeRegisterUseCase(vi.fn()),
+      loginUseCase: makeLoginUseCase(vi.fn()),
+      logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(vi.fn()),
+    });
+
+    const req = makeMockRequestWithHeader({}, {}) as any;
+    req.context = { requestId: "req-2" }; // no user
+    const res = makeMockResponse();
+
+    const handler = extractRouteHandler(router, "GET", "/me");
+    await handler(req as Request, res as unknown as Response, vi.fn());
+
+    expect(res._statusCode).toBe(401);
+    const body = res._body as any;
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("auth.unauthorized");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auth session middleware
+// ---------------------------------------------------------------------------
+
+describe("createAuthSessionMiddleware (via router GET /me)", () => {
+  it("valid Bearer token → use case called → user merged into context", async () => {
+    const authenticateExecute = vi.fn().mockResolvedValue(STUB_AUTH_USER);
+    const router = createAuthenticationRouter({
+      registerUseCase: makeRegisterUseCase(vi.fn()),
+      loginUseCase: makeLoginUseCase(vi.fn()),
+      logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(authenticateExecute),
+    });
+
+    // Extract the middleware (second-to-last handler in /me route stack)
+    const layers: any[] = (router as any).stack;
+    const meLayer = layers.find(
+      (l: any) => l.route && l.route.path === "/me" && l.route.methods["get"]
+    );
+    const middlewareHandle = meLayer.route.stack[0].handle as (
+      req: Request,
+      res: Response,
+      next: () => void
+    ) => Promise<void>;
+
+    const req = makeMockRequestWithHeader({}, { Authorization: "Bearer my-token" }) as any;
+    req.context = { requestId: "req-3" };
+    const res = makeMockResponse();
+    const next = vi.fn();
+
+    await middlewareHandle(req as Request, res as unknown as Response, next);
+
+    expect(authenticateExecute).toHaveBeenCalledWith({ rawToken: "my-token" });
+    expect((req as any).context.user).toEqual(STUB_AUTH_USER);
+    expect((req as any).context.requestId).toBe("req-3"); // requestId preserved
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("no Authorization header → next() called without setting user", async () => {
+    const authenticateExecute = vi.fn();
+    const router = createAuthenticationRouter({
+      registerUseCase: makeRegisterUseCase(vi.fn()),
+      loginUseCase: makeLoginUseCase(vi.fn()),
+      logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(authenticateExecute),
+    });
+
+    const layers: any[] = (router as any).stack;
+    const meLayer = layers.find(
+      (l: any) => l.route && l.route.path === "/me" && l.route.methods["get"]
+    );
+    const middlewareHandle = meLayer.route.stack[0].handle as (
+      req: Request,
+      res: Response,
+      next: () => void
+    ) => Promise<void>;
+
+    const req = makeMockRequestWithHeader({}, {}) as any;
+    req.context = { requestId: "req-4" };
+    const res = makeMockResponse();
+    const next = vi.fn();
+
+    await middlewareHandle(req as Request, res as unknown as Response, next);
+
+    expect(authenticateExecute).not.toHaveBeenCalled();
+    expect((req as any).context.user).toBeUndefined();
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("use case throws SessionExpiredError → next() called without user", async () => {
+    const authenticateExecute = vi.fn().mockRejectedValue(new SessionExpiredError());
+    const router = createAuthenticationRouter({
+      registerUseCase: makeRegisterUseCase(vi.fn()),
+      loginUseCase: makeLoginUseCase(vi.fn()),
+      logoutUseCase: makeLogoutUseCase(vi.fn()),
+      authenticateSessionUseCase: makeAuthenticateSessionUseCase(authenticateExecute),
+    });
+
+    const layers: any[] = (router as any).stack;
+    const meLayer = layers.find(
+      (l: any) => l.route && l.route.path === "/me" && l.route.methods["get"]
+    );
+    const middlewareHandle = meLayer.route.stack[0].handle as (
+      req: Request,
+      res: Response,
+      next: () => void
+    ) => Promise<void>;
+
+    const req = makeMockRequestWithHeader({}, { Authorization: "Bearer expired-token" }) as any;
+    req.context = { requestId: "req-5" };
+    const res = makeMockResponse();
+    const next = vi.fn();
+
+    await middlewareHandle(req as Request, res as unknown as Response, next);
+
+    expect((req as any).context.user).toBeUndefined();
+    expect(next).toHaveBeenCalled();
   });
 });
 

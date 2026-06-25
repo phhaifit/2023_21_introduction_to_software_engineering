@@ -29,6 +29,8 @@ import { InMemoryWorkflowRepository } from "./modules/workflow-management/infras
 import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
 import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
 import { LoginUseCase } from "./modules/authentication/application/login-use-case.ts";
+import { LogoutUseCase } from "./modules/authentication/application/logout-use-case.ts";
+import { AuthenticateSessionUseCase } from "./modules/authentication/application/authenticate-session-use-case.ts";
 import { InMemoryUserRepository } from "./modules/authentication/infrastructure/in-memory-user-repository.ts";
 import { InMemorySessionRepository } from "./modules/authentication/infrastructure/in-memory-session-repository.ts";
 import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
@@ -202,6 +204,12 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         authUserRepository,
         authSessionRepository,
         authPasswordHasher,
+        authTokenHasher
+      ),
+      logoutUseCase: new LogoutUseCase(authSessionRepository, authTokenHasher),
+      authenticateSessionUseCase: new AuthenticateSessionUseCase(
+        authSessionRepository,
+        authUserRepository,
         authTokenHasher
       ),
     })
