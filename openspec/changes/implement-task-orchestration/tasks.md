@@ -522,7 +522,7 @@
 
   `feat(task-orchestration): implement task cancellation`
 
-* [ ] 13. [PA5] Task & Orchestration – Failed Task State and Error Details
+* [x] 13. [PA5] Task & Orchestration – Failed Task State and Error Details
 
   Scope:
 
