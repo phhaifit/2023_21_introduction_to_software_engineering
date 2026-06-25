@@ -1,7 +1,7 @@
 import React from "react";
 import type { WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
-
+import { GitMerge, Trash2, ArrowUp, ArrowDown, AlertTriangle, CheckCircle2 } from "lucide-react";
 export type WorkflowStepsTableProps = {
   steps: WorkflowStepDto[];
   agents: AgentPublicSummary[];
@@ -22,19 +22,21 @@ export function WorkflowStepsTable({
       <div
         style={{
           textAlign: "center",
-          padding: "40px 20px",
+          padding: "32px 20px",
           color: "var(--muted)",
-          fontSize: "14px",
           background: "var(--bg-subtle)",
-          borderRadius: "8px",
+          borderRadius: "16px",
           border: "2px dashed var(--line)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center"
         }}
       >
-        <div style={{ fontSize: "24px", marginBottom: "8px" }}>🚀</div>
-        <div style={{ fontWeight: 500, color: "var(--text)" }}>
+        <GitMerge size={48} strokeWidth={1} style={{ marginBottom: "16px", color: "var(--accent)", opacity: 0.5 }} />
+        <div style={{ fontWeight: 600, color: "var(--text)", fontSize: "16px" }}>
           Chưa có bước nào được cấu hình
         </div>
-        <div style={{ marginTop: "4px" }}>
+        <div style={{ marginTop: "8px", fontSize: "14px" }}>
           Thêm một Agent bên dưới để bắt đầu xây dựng luồng của bạn.
         </div>
       </div>
@@ -130,7 +132,7 @@ export function WorkflowStepsTable({
                       display: "flex",
                       alignItems: "center",
                       gap: "8px",
-                      marginBottom: "4px",
+                      marginBottom: "6px",
                     }}
                   >
                     <span
@@ -150,28 +152,36 @@ export function WorkflowStepsTable({
                             : "Agent đã bị vô hiệu hóa hoặc xóa"
                         }
                         style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
                           background: "#fee2e2",
                           color: "#ef4444",
                           fontSize: "11px",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          fontWeight: "bold",
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          fontWeight: "700",
                         }}
                       >
+                        <AlertTriangle size={12} />
                         Lỗi Cấu Hình
                       </span>
                     )}
                     {!hasWarning && agent?.status === "enabled" && (
                       <span
                         style={{
-                          background: "#d1fae5",
-                          color: "#059669",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          background: "#dcfce7",
+                          color: "#16a34a",
                           fontSize: "11px",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          fontWeight: "bold",
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          fontWeight: "700",
                         }}
                       >
+                        <CheckCircle2 size={12} />
                         Sẵn sàng
                       </span>
                     )}
@@ -207,50 +217,36 @@ export function WorkflowStepsTable({
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "4px",
+                    gap: "8px",
                   }}
                 >
-                  <div style={{ display: "flex", gap: "4px" }}>
+                  <div style={{ display: "flex", gap: "8px" }}>
                     <button
-                      className="secondary-action"
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: "12px",
-                        opacity: index === 0 ? 0.3 : 1,
-                      }}
+                      className="icon-button"
+                      style={{ opacity: index === 0 ? 0.3 : 1 }}
                       disabled={index === 0}
                       onClick={() => onMoveUp(step.workflowStepId)}
                       title="Chuyển lên"
                     >
-                      ↑
+                      <ArrowUp size={16} />
                     </button>
                     <button
-                      className="secondary-action"
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: "12px",
-                        opacity: index === steps.length - 1 ? 0.3 : 1,
-                      }}
+                      className="icon-button"
+                      style={{ opacity: index === steps.length - 1 ? 0.3 : 1 }}
                       disabled={index === steps.length - 1}
                       onClick={() => onMoveDown(step.workflowStepId)}
                       title="Chuyển xuống"
                     >
-                      ↓
+                      <ArrowDown size={16} />
                     </button>
                   </div>
                   <button
-                    className="secondary-action"
-                    style={{
-                      padding: "4px 8px",
-                      fontSize: "12px",
-                      color: "#ef4444",
-                      borderColor: "#fecaca",
-                      background: "#fef2f2",
-                    }}
+                    className="icon-button danger"
+                    style={{ width: "100%" }}
                     onClick={() => onRemove(step.workflowStepId)}
                     title="Xóa bước này"
                   >
-                    Xóa bỏ
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

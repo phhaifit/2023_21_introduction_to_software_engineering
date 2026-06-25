@@ -6,8 +6,10 @@ export interface Workflow {
   workflowId: EntityId<"workflowId">;
   workspaceId: EntityId<"workspaceId">;
   name: string;
+  description: string | null;
   status: WorkflowStatus;
   triggerType: "manual" | "schedule" | "webhook";
+  triggerConfig?: any;
   createdAt: string;
   updatedAt: string;
   steps: WorkflowStep[];
@@ -27,6 +29,9 @@ export function createWorkflow(
   workflowId: EntityId<"workflowId">,
   workspaceId: EntityId<"workspaceId">,
   name: string,
+  description: string | null = null,
+  triggerType: "manual" | "schedule" | "webhook" = "manual",
+  triggerConfig: any = null,
   steps: WorkflowStep[] = []
 ): Workflow {
   const now = new Date().toISOString();
@@ -34,8 +39,10 @@ export function createWorkflow(
     workflowId,
     workspaceId,
     name,
+    description,
     status: "draft" as WorkflowStatus,
-    triggerType: "manual",
+    triggerType,
+    triggerConfig,
     createdAt: now,
     updatedAt: now,
     steps,
@@ -66,10 +73,10 @@ export function toWorkflowSummary(workflow: Workflow): WorkflowDto {
     workflowId: workflow.workflowId,
     workspaceId: workflow.workspaceId,
     name: workflow.name,
-    description: null,
+    description: workflow.description,
     status: workflow.status,
     triggerType: workflow.triggerType,
-    triggerConfig: null,
+    triggerConfig: workflow.triggerConfig || null,
     createdAt: workflow.createdAt,
     updatedAt: workflow.updatedAt,
   };

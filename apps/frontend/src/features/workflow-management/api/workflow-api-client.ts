@@ -2,7 +2,7 @@ import type { ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { WorkflowDto, WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 
-export type WorkflowPublicSummary = Pick<WorkflowDto, "workflowId" | "name" | "status" | "triggerType" | "updatedAt"> & {
+export type WorkflowPublicSummary = Pick<WorkflowDto, "workflowId" | "name" | "description" | "status" | "triggerType" | "updatedAt"> & {
   stepCount: number;
 };
 

@@ -7,6 +7,7 @@ import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.
 import { createWorkflowManagementApiClient, type CreateWorkflowCommand, type WorkflowManagementApiClient } from "./api/workflow-api-client.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import { mockExecutions } from "../../data/executions.ts";
 
 const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agent-research", workspaceId: DEMO_WORKSPACE_ID, name: "Research Agent", role: "Market researcher", model: "gpt-4.1-mini", status: "enabled" },
@@ -36,6 +37,9 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
   });
 
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
+  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState("2");
+  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState("1");
+  const [scheduleTime, setScheduleTime] = useState("08:00");
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -50,14 +54,20 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
       apiClient.getWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">)
         .then((data: any) => {
           const wf = data.workflow ? data.workflow : data;
+          const config = wf.triggerConfig || {};
+          setScheduleFrequency(config.frequency || "daily");
+          setScheduleDayOfWeek(config.dayOfWeek || "2");
+          setScheduleDayOfMonth(config.dayOfMonth || "1");
+          setScheduleTime(config.time || "08:00");
+
           setFormData({
             workflowId: wf.workflowId,
             workspaceId: wf.workspaceId,
             name: wf.name || "",
-            description: "",
+            description: wf.description || "",
             status: wf.status || "draft",
             triggerType: wf.triggerType || "manual",
-            triggerConfig: {},
+            triggerConfig: config,
             steps: data.steps || []
           });
         })
@@ -139,6 +149,19 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
     try {
       await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">);
       setExecutionStatus("success");
+      
+      // Update mock executions for local UI demonstration
+      mockExecutions.unshift({
+        executionId: `exec_mock_${Date.now()}` as any,
+        workspaceId: formData.workspaceId as any,
+        workflowId: formData.workflowId as any,
+        workflowName: formData.name || "Untitled Workflow",
+        status: "Running",
+        triggeredBy: "user_1" as any,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+      });
+
       alert("Đã yêu cầu thực thi Workflow thành công! (Handoff to Task Orchestration)");
       if (onExecutionSuccess) {
         onExecutionSuccess();
@@ -159,10 +182,16 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
     setSubmitError(null);
 
     try {
-      const payload: CreateWorkflowCommand = {
+      const payload: CreateWorkflowCommand & { triggerType: string, triggerConfig: any } = {
         name: formData.name,
         description: formData.description,
         triggerType: formData.triggerType as "manual" | "schedule" | "webhook",
+        triggerConfig: formData.triggerType === "schedule" ? {
+          frequency: scheduleFrequency,
+          dayOfWeek: scheduleFrequency === "weekly" ? scheduleDayOfWeek : undefined,
+          dayOfMonth: scheduleFrequency === "monthly" ? scheduleDayOfMonth : undefined,
+          time: scheduleTime
+        } : {},
         steps: formData.steps.map(s => ({
           agentId: s.agentId,
           stepOrder: s.stepOrder
@@ -251,17 +280,68 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
 
           {formData.triggerType === "schedule" && (
             <div className="form-group" style={{ marginTop: '16px', padding: '12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid var(--line)' }}>
-              <label className="form-label" htmlFor="scheduleFrequency">Tần suất chạy</label>
-              <select
-                id="scheduleFrequency"
-                className="form-input"
-                value={scheduleFrequency}
-                onChange={e => setScheduleFrequency(e.target.value)}
-              >
-                <option value="daily">Hàng ngày (Lúc 08:00 AM)</option>
-                <option value="weekly">Hàng tuần (Thứ Hai)</option>
-                <option value="monthly">Hàng tháng (Ngày 1)</option>
-              </select>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="form-label" htmlFor="scheduleFrequency">Tần suất chạy</label>
+                  <select
+                    id="scheduleFrequency"
+                    className="form-input"
+                    value={scheduleFrequency}
+                    onChange={e => setScheduleFrequency(e.target.value)}
+                  >
+                    <option value="daily">Hàng ngày</option>
+                    <option value="weekly">Hàng tuần</option>
+                    <option value="monthly">Hàng tháng</option>
+                  </select>
+                </div>
+                {scheduleFrequency === "weekly" && (
+                  <div>
+                    <label className="form-label" htmlFor="scheduleDayOfWeek">Vào Thứ</label>
+                    <select
+                      id="scheduleDayOfWeek"
+                      className="form-input"
+                      value={scheduleDayOfWeek}
+                      onChange={e => setScheduleDayOfWeek(e.target.value)}
+                    >
+                      <option value="2">Thứ Hai</option>
+                      <option value="3">Thứ Ba</option>
+                      <option value="4">Thứ Tư</option>
+                      <option value="5">Thứ Năm</option>
+                      <option value="6">Thứ Sáu</option>
+                      <option value="7">Thứ Bảy</option>
+                      <option value="1">Chủ Nhật</option>
+                    </select>
+                  </div>
+                )}
+                {scheduleFrequency === "monthly" && (
+                  <div>
+                    <label className="form-label" htmlFor="scheduleDayOfMonth">Vào Ngày</label>
+                    <select
+                      id="scheduleDayOfMonth"
+                      className="form-input"
+                      value={scheduleDayOfMonth}
+                      onChange={e => setScheduleDayOfMonth(e.target.value)}
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                        <option key={day} value={day}>Ngày {day}</option>
+                      ))}
+                    </select>
+                    <div style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '4px' }}>
+                      (Tự động lùi về ngày cuối tháng nếu tháng đó có ít ngày hơn)
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="form-label" htmlFor="scheduleTime">Thời gian chạy</label>
+                  <input
+                    type="time"
+                    id="scheduleTime"
+                    className="form-input"
+                    value={scheduleTime}
+                    onChange={e => setScheduleTime(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -289,7 +369,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
           )}
         </SectionCard>
         
-        <SectionCard title="Các bước thực thi (Steps)">
+        <SectionCard title="Các bước thực thi">
           <WorkflowStepsTable
             steps={formData.steps}
             agents={MOCK_AGENTS}

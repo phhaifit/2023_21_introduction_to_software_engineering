@@ -9,8 +9,10 @@ import { ExecutionsPage } from "../task-orchestration/ExecutionsPage.tsx";
 type SubTab = "dashboard" | "list" | "editor" | "executions";
 
 import { mockWorkflows } from "../../data/workflows.ts";
+import { mockExecutions } from "../../data/executions.ts";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
+import { Play, Edit2, Trash2, Loader2, Workflow as WorkflowIcon } from "lucide-react";
 
 import { useEffect, useMemo } from "react";
 import {
@@ -340,6 +342,21 @@ function WorkflowsList({
   const handleStreamingClose = () => {
     setExecutingId(null);
     setStreamingUrl(null);
+    
+    // Update mock executions for local UI demonstration
+    if (streamingWorkflowName) {
+      mockExecutions.unshift({
+        executionId: `exec_mock_${Date.now()}` as any,
+        workspaceId: DEMO_WORKSPACE_ID as any,
+        workflowId: "wf_run" as any,
+        workflowName: streamingWorkflowName,
+        status: "Success",
+        triggeredBy: "user_1" as any,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      });
+    }
+
     setStreamingWorkflowName(null);
     if (onExecutionSuccess) {
       onExecutionSuccess();
@@ -413,6 +430,7 @@ function WorkflowsList({
                 {sortField === "name" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
               <th>Trạng thái</th>
+              <th>Cấu hình</th>
               <th>Số bước</th>
               <th
                 onClick={() => {
@@ -460,6 +478,7 @@ function WorkflowsList({
                   style={{ padding: "64px 0", textAlign: "center" }}
                 >
                   <EmptyState
+                    icon={<WorkflowIcon size={48} strokeWidth={1} style={{ marginBottom: "16px", opacity: 0.5, color: "var(--accent)" }} />}
                     title="Không tìm thấy Workflow"
                     description={
                       search
@@ -477,9 +496,30 @@ function WorkflowsList({
                   key={w.workflowId}
                   style={{ transition: "background-color 0.2s" }}
                 >
-                  <td style={{ fontWeight: 600 }}>{w.name}</td>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{w.name}</div>
+                    {w.description && (
+                      <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px", fontWeight: 400 }}>
+                        {w.description}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <StatusBadge status={w.status} />
+                  </td>
+                  <td>
+                    {w.triggerType === "webhook" ? (
+                      <div style={{ fontSize: "13px", color: "var(--text)" }}>Qua Webhook (API)</div>
+                    ) : w.triggerType === "schedule" ? (
+                      <div style={{ fontSize: "13px", color: "var(--text)" }}>
+                        {w.triggerConfig?.frequency === "weekly" ? `Hàng tuần (Thứ ${w.triggerConfig.dayOfWeek || 2})` : 
+                         w.triggerConfig?.frequency === "monthly" ? `Hàng tháng (Ngày ${w.triggerConfig.dayOfMonth || 1})` : 
+                         "Hàng ngày"}{" "}
+                        lúc {w.triggerConfig?.time || "08:00"}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: "13px", color: "var(--text)" }}>Thủ công (Manual)</div>
+                    )}
                   </td>
                   <td>{w.stepCount ?? 0} bước</td>
                   <td>{new Date(w.updatedAt).toLocaleDateString("vi-VN")}</td>
@@ -492,25 +532,11 @@ function WorkflowsList({
                       }}
                     >
                       <button
-                        className="secondary-action"
-                        style={{
-                          padding: "6px 12px",
-                          fontSize: "13px",
-                          background:
-                            w.status === "active" ? "#10b981" : "transparent",
-                          color: w.status === "active" ? "white" : "#9ca3af",
-                          border:
-                            w.status === "active"
-                              ? "none"
-                              : "1px solid var(--line)",
-                          opacity: w.status === "active" ? 1 : 0.5,
-                          cursor:
-                            w.status === "active" ? "pointer" : "not-allowed",
-                        }}
+                        className={`icon-button ${w.status === "active" ? "success" : ""}`}
                         title={
                           w.status !== "active"
                             ? "Chỉ Workflow ở trạng thái Active mới có thể chạy"
-                            : ""
+                            : "Chạy Workflow"
                         }
                         onClick={() => handleRun(w.workflowId, w.name)}
                         disabled={
@@ -518,28 +544,22 @@ function WorkflowsList({
                         }
                       >
                         {executingId === w.workflowId
-                          ? "⏳ Đang chạy..."
-                          : "▶ Chạy"}
+                          ? <Loader2 size={16} className="spin-animation" />
+                          : <Play size={16} />}
                       </button>
                       <button
-                        className="secondary-action"
-                        style={{ padding: "6px 12px", fontSize: "13px" }}
+                        className="icon-button"
+                        title="Chỉnh sửa Workflow"
                         onClick={() => onEdit(w.workflowId)}
                       >
-                        Sửa
+                        <Edit2 size={16} />
                       </button>
                       <button
-                        className="secondary-action"
-                        style={{
-                          padding: "6px 12px",
-                          fontSize: "13px",
-                          color: "#ef4444",
-                          borderColor: "#fecaca",
-                          background: "#fef2f2",
-                        }}
+                        className="icon-button danger"
+                        title="Xóa Workflow"
                         onClick={() => handleDelete(w.workflowId)}
                       >
-                        Xóa
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -620,12 +640,13 @@ export function WorkflowsPage({
           >
             Danh sách
           </button>
-          <button
-            onClick={() => setActiveTab("editor")}
-            className={`tab-btn ${activeTab === "editor" ? "active" : ""}`}
-          >
-            Editor
-          </button>
+          {activeTab === "editor" && (
+            <button
+              className="tab-btn active"
+            >
+              {editingId ? "Sửa Workflow" : "Tạo Workflow"}
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("executions")}
             className={`tab-btn ${activeTab === "executions" ? "active" : ""}`}
