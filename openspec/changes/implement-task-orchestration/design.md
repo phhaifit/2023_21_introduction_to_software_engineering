@@ -1058,11 +1058,6 @@ Lifecycle tests must verify:
 * No streaming after Failed
 * No processing after Completed
 
-### 27.4 Functional Test Documentation
-
-At least 25 manual or automated functional cases must be documented and executed.
-
-Automated tests do not replace the required test execution report.
 
 ## 28. Code Size and Pull Request Design
 
@@ -1092,8 +1087,6 @@ The implementation plan intentionally separates:
 * Cancellation
 * Failure
 * Tests
-* Test report
-* Demo documentation
 
 ## 29. Key Design Decisions
 
