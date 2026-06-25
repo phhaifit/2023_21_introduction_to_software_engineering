@@ -1,4 +1,10 @@
-import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
+import type {
+  AgentPublicSummary,
+  AgentSkillImportAnalysisRequest,
+  AgentSkillImportValidationResponse,
+  AgentSkillPreviewRequest,
+  AgentSkillPreviewResponse
+} from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { ApiPaginationMeta } from "@vcp/shared/contracts/api.ts";
@@ -26,6 +32,12 @@ export type AgentEditableConfiguration = {
   instructions: string;
   status: Exclude<AgentStatus, "deleted">;
   updatedAt: string;
+};
+
+export type AgentSkillMarkdownArtifact = {
+  markdown: string;
+  fileName: "skill.md";
+  agent: Agent;
 };
 
 export type CreateAgentInput = {
@@ -150,6 +162,61 @@ export class AgentLifecycleUseCases {
       instructions: agent.instructions,
       status: agent.status,
       updatedAt: agent.updatedAt
+    };
+  }
+
+  previewSkillMarkdown(input: AgentSkillPreviewRequest): AgentSkillPreviewResponse {
+    const normalized = this.validateAgentSkillDraft(input);
+
+    return {
+      markdown: generateAgentSkillConfiguration(normalized),
+      fileName: "skill.md"
+    };
+  }
+
+  async downloadAgentSkillMarkdown(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentSkillMarkdownArtifact> {
+    const agent = await this.requireAgent(workspaceId, agentId);
+
+    if (agent.status === "deleted") {
+      throw new AgentNotFoundError(agentId);
+    }
+
+    return {
+      markdown: generateAgentSkillConfiguration(agent),
+      fileName: "skill.md",
+      agent
+    };
+  }
+
+  validateSkillMarkdownImport(
+    input: AgentSkillImportAnalysisRequest
+  ): AgentSkillImportValidationResponse {
+    const markdown = typeof input.markdown === "string" ? input.markdown.trim() : "";
+    const fileName = input.fileName?.trim();
+    const issues: string[] = [];
+
+    if (!markdown) {
+      issues.push("markdown is required");
+    }
+
+    if (fileName && !/\.(md|markdown)$/i.test(fileName)) {
+      issues.push("fileName must reference a Markdown file");
+    }
+
+    if (markdown && !this.looksLikeMarkdown(markdown, fileName)) {
+      issues.push("markdown content must look like Markdown");
+    }
+
+    if (issues.length > 0) {
+      throw new AgentValidationError(issues);
+    }
+
+    return {
+      accepted: true,
+      fileName: "skill.md"
     };
   }
 
@@ -361,7 +428,13 @@ export class AgentLifecycleUseCases {
     return this.validateAgentConfiguration(input);
   }
 
-  private validateAgentConfiguration<T extends CreateAgentInput | UpdateAgentInput>(input: T): T {
+  private validateAgentSkillDraft(input: AgentSkillPreviewRequest): AgentSkillPreviewRequest {
+    return this.validateAgentConfiguration(input);
+  }
+
+  private validateAgentConfiguration<T extends { name?: string; role: string; model: string; instructions: string }>(
+    input: T
+  ): T {
     const normalized = {
       ...input,
       name: "name" in input ? input.name.trim() : undefined,
@@ -392,5 +465,13 @@ export class AgentLifecycleUseCases {
     }
 
     return normalized as T;
+  }
+
+  private looksLikeMarkdown(markdown: string, fileName: string | undefined): boolean {
+    if (fileName && /\.(md|markdown)$/i.test(fileName)) {
+      return true;
+    }
+
+    return /(^|\n)#{1,6}\s+\S/.test(markdown) || /(^|\n)(-|\*)\s+\S/.test(markdown);
   }
 }
