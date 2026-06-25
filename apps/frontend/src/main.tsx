@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./App.tsx";
 import { ToastProvider } from "./components/shared/Toast.tsx";
@@ -18,6 +19,9 @@ createRoot(rootElement).render(
       <AuthProvider>
         <App />
       </AuthProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </ToastProvider>
   </React.StrictMode>
 );

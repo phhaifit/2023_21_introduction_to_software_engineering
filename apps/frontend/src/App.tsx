@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import { Sidebar } from "./components/layout/Sidebar.tsx";
 // Agent Management
@@ -45,10 +45,29 @@ export function App() {
     }
   };
 
+
+export function App() {
   return (
     <div className="app-shell">
-      <Sidebar activePage={activePage} onNavigate={setActivePage} />
-      <main className="main-content">{renderPage()}</main>
+      <Sidebar />
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/workflow-editor" element={<WorkflowEditorPage />} />
+          <Route path="/executions" element={<TaskOrchestrationPage />} />
+          <Route path="/agents" element={
+            <section aria-label="Agent Management">
+              <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />
+            </section>
+          } />
+          <Route path="/knowledge-base-rag" element={<KnowledgeBaseRagPage />} />
+          <Route path="/billing" element={<SubscriptionPaymentPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </main>
     </div>
   );
 }
