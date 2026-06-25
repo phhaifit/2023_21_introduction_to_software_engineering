@@ -448,7 +448,7 @@ function WorkflowsList({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} style={{ padding: "24px" }}>
+                <td colSpan={6} style={{ padding: "24px" }}>
                   <div
                     className="skeleton"
                     style={{
@@ -474,7 +474,7 @@ function WorkflowsList({
             ) : sorted.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   style={{ padding: "64px 0", textAlign: "center" }}
                 >
                   <EmptyState
