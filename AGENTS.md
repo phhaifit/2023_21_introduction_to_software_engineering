@@ -1,153 +1,130 @@
 # Agent Working Rules
 
-These rules apply to this repository.
+These rules apply to the whole repository. Keep feature-specific behavior in
+OpenSpec changes and specs, not in this file.
 
-Follow them before project-specific chat context unless the user explicitly
-overrides them.
+Follow these rules before project-specific chat context unless the user
+explicitly overrides them.
 
 ## Communication
 
-* Use Vietnamese by default, but retain technical terms in their original form.
-* Use English when executing OpenSpec actions and when preparing commit, push,
-  or pull-request content.
-* Use a pragmatic, scientific, and direct response style.
-* Report concrete commands, changed files, verification results, and known gaps.
-* Do not claim that a command passed unless it was actually executed.
+- Use Vietnamese by default; keep technical terms in English when clearer.
+- Use English for OpenSpec artifact names, commit messages, branch names, and
+  pull-request content.
+- Use a pragmatic, scientific, and direct response style.
+- Report concrete commands, changed files, verification results, and known gaps.
+- Do not claim that a command passed unless it was actually executed.
 
-## Personal Files Protection
+## Protected Files
 
-* **STRICT RULE**: Never read, modify, stage, or commit any file inside
-  `.local-docs/`.
-* Apply the same rule to any other directory explicitly identified as personal.
-* Treat personal directories as invisible to repository analysis and Git
+- Never read, modify, stage, or commit any file inside `.local-docs/`.
+- Apply the same rule to any other directory explicitly identified as personal.
+- Treat personal directories as invisible to repository analysis and Git
   operations.
-* Never use broad staging commands before checking that protected files are not
+- Do not use broad staging commands before checking that protected files are not
   included.
 
 ## Source of Truth
 
-OpenSpec is the source of truth for project planning and implementation.
+- OpenSpec is the source of truth for project planning and implementation.
+- Do not implement product behavior from memory or chat context alone.
+- Before coding, read the relevant source-of-truth files:
+  1. `docs/requirements.md`
+  2. `docs/architecture.md`
+  3. `docs/module-ownership.md`
+  4. `docs/team-module-implementation-guide.md`
+  5. `docs/openspec-team-guide.md`
+  6. relevant baseline specs under `openspec/specs/`
+  7. the active change's `proposal.md`, `design.md`, `spec.md`, and `tasks.md`
+- Use `docs/team-module-implementation-guide.md`, `docs/openspec-team-guide.md`,
+  and `docs/pr-checklist.md` for detailed team workflow guidance.
 
-Do not implement product behavior from memory or chat context alone.
+## Working Workflow
 
-Before coding, read the relevant files in this order:
+- Start implementation work with:
 
-1. `docs/requirements.md`
-2. `docs/architecture.md`
-3. `openspec/specs/platform-architecture/spec.md`
-4. `openspec/specs/project-skeleton/spec.md`
-5. `openspec/specs/shared-contracts/spec.md`
-6. `openspec/specs/team-workflow/spec.md`
-7. `docs/module-ownership.md`
-8. The proposal, design, specifications, and tasks for the active OpenSpec change
+  ```bash
+  git status --short --branch
+  ```
 
-For Task & Orchestration work, the active change is:
+- If the worktree contains unrelated or unclear changes, stop and report the
+  dirty files before pulling, switching branches, or editing files.
+- For implementation work, start from the latest default integration branch
+  unless the user instructs otherwise:
 
-```text
-openspec/changes/implement-task-orchestration
-```
+  ```bash
+  git checkout master
+  git pull --ff-only origin master
+  ```
 
-The required change artifacts are:
+- Create a focused branch before editing:
 
-* `proposal.md`
-* `design.md`
-* All `spec.md` files under the change
-* `tasks.md`
+  ```text
+  feature/<module>/<change-short-name>
+  test/<module>/<change-short-name>
+  docs/<module>/<change-short-name>
+  chore/<change-short-name>
+  ```
 
-## Repository Discovery Rule
+- Implement only the selected OpenSpec task or explicitly requested scope.
+- Do not implement later tasks in `tasks.md` unless the user explicitly requests
+  them.
+- Add focused automated tests together with implemented behavior.
+- Update a `tasks.md` checkbox only after implementation and relevant
+  verification commands pass.
+- Archive a change only when all tasks are complete, main specs have been
+  synchronized, required checks pass, and the user explicitly requests or
+  approves archival.
 
-Before implementing the first task of a module or when repository conventions
-are unclear, perform a read-only discovery pass.
+## Scope Control
 
-During discovery:
+- Keep each PR focused on one OpenSpec task or one small implementation slice.
+- Do not combine unrelated modules, unrelated features, or large refactors in
+  one PR.
+- If a change becomes broad, split it by behavior, test scope, or module
+  boundary.
+- Explain any large but necessary change in the PR summary.
 
-* Do not modify files.
-* Do not install dependencies.
-* Do not create commits.
-* Do not push.
-* Inspect the real workspace, route, component, styling, state-management, and
-  test conventions.
-* Identify exact files likely to change.
-* Estimate added code lines.
-* Report module-boundary and shared-contract risks.
-* Stop after reporting the implementation plan.
+## Module Boundaries
 
-Do not create guessed folder structures when the repository already has its own
-conventions.
+A module may import:
 
-## OpenSpec Apply Change Workflow
+- `@vcp/shared`
+- `@vcp/database` from backend or worker code only
+- `apps/backend/src/shared/*`
+- files inside the same module
 
-When the user asks to apply or continue an OpenSpec change:
+A module must not import:
 
-1. Check repository state first:
+- another module's private service
+- another module's private repository
+- another module's private state store
+- another module's private UI component
+- Prisma internals by relative path
+- backend, database, or worker files from frontend code
 
-   ```bash
-   git status --short --branch
-   ```
+If another module's data is needed, use a public API, DTO, domain event,
+adapter, or shared contract.
 
-2. If the worktree contains unrelated or unclear changes, stop and report the
-   dirty files before pulling, switching branches, or editing files.
+## Shared Boundaries and Dependencies
 
-3. Start from the latest default integration branch.
+- Changing `packages/shared/src/contracts` or public `@vcp/shared` exports
+  affects multiple modules.
+- Before changing shared contracts, Prisma schema, API route boundaries, or
+  domain events:
+  1. explain why the existing boundary is insufficient
+  2. confirm the active OpenSpec task requires the change
+  3. update the relevant spec or design artifact
+  4. add or update focused tests
+  5. request review from another module owner
+- Do not add a production dependency without explicit approval.
+- Before proposing a dependency, explain the need, existing alternatives,
+  bundle/test impact, and maintenance cost.
+- Do not run dependency-upgrade commands unless explicitly requested.
 
-   The expected branch is currently:
+## Verification
 
-   ```text
-   master
-   ```
-
-   Use:
-
-   ```bash
-   git checkout master
-   git pull --ff-only origin master
-   ```
-
-   If the repository default branch is changed, use the branch reported by
-   `git remote show origin`.
-
-4. Create a feature branch before editing.
-
-   Use these branch patterns:
-
-   ```text
-   feature/<module>/<change-short-name>
-   test/<module>/<change-short-name>
-   docs/<module>/<change-short-name>
-   chore/<change-short-name>
-   ```
-
-   Task & Orchestration examples:
-
-   ```text
-   feature/task-orchestration/workspace-layout
-   feature/task-orchestration/mock-domain-model
-   feature/task-orchestration/routing-selector
-   test/task-orchestration/functional-cases
-   docs/task-orchestration/test-report
-   ```
-
-5. Read all relevant OpenSpec artifacts before coding.
-
-6. Implement only the explicitly selected OpenSpec task or sub-issue.
-
-7. Do not implement later tasks in `tasks.md` unless the user explicitly
-   requests them.
-
-8. Add focused automated tests together with implemented business behavior.
-
-   Do not defer tests for lifecycle, routing, cancellation, terminal-state,
-   or failure behavior to a later phase when that behavior is implemented now.
-
-9. Update a `tasks.md` checkbox only after:
-
-   * Implementation is complete.
-   * Relevant automated tests pass.
-   * Build passes.
-   * OpenSpec validation passes.
-   * The code-size requirement passes.
-
-10. Before completing a task, run the repository-supported equivalents of:
+Before completing implementation work, run the relevant repository commands:
 
 ```bash
 npm test
@@ -157,350 +134,92 @@ openspec validate --all --strict
 git diff --check
 ```
 
-11. Run Prisma validation only when Prisma-related files are affected:
+Run only when relevant:
 
 ```bash
 npm run prisma -- validate
+npm run test:e2e
 ```
 
-12. Archive a change only when:
+Do not hide failed commands or unresolved issues.
 
-* All tasks are complete.
-* Main specifications have been synchronized.
-* Tests pass.
-* Build passes.
-* Strict validation passes.
-* The user explicitly requests or approves archival.
+## Git Safety
 
-## Module Boundary Rules
+- Do not commit, push, or open a pull request unless explicitly requested.
+- Before staging, review:
 
-A module may import:
+  ```bash
+  git status --short
+  git diff --stat
+  git diff
+  ```
 
-* `@vcp/shared`
-* `@vcp/database` from backend or worker code only
-* `apps/backend/src/shared/*`
-* Files inside the same module
+- Stage only files that belong to the current task.
+- Never stage `.local-docs/` or another personal directory.
+- Do not use broad staging commands without reviewing what will be staged.
 
-A module must not import:
+## Commit Message Convention
 
-* Another module's internal service
-* Another module's internal repository
-* Another module's private state store
-* Another module's internal UI component
-
-When data from another module is required, use:
-
-* An API
-* A DTO
-* A domain event
-* A public shared contract
-
-## Shared Contract Rules
-
-Changing anything in:
+Use Conventional Commit format:
 
 ```text
-packages/shared/src/contracts
+<type>(<scope>): <summary>
 ```
 
-or changing public exports from:
+Allowed types:
+
+- `feat`: new product behavior
+- `fix`: bug fix
+- `test`: test-only change
+- `docs`: documentation-only change
+- `refactor`: code restructure without behavior change
+- `chore`: tooling, config, dependency, or maintenance change
+- `style`: formatting or CSS-only change with no behavior change
+
+Scope should be the capability or area changed, for example:
 
 ```text
-@vcp/shared
+agent-management
+task-orchestration
+workflow-management
+authentication
+workspace-management
+shared-contracts
+database
+openspec
+docs
+frontend
+backend
 ```
 
-affects multiple modules.
-
-Before making such a change:
-
-1. Explain why the existing contract is insufficient.
-2. Confirm that the selected OpenSpec task requires the change.
-3. Update the affected specification or design when behavior changes.
-4. Run contract tests.
-5. Request review from another module owner.
-
-Prefer module-local types for PA5 mock behavior when no shared public contract
-is required.
-
-## Task & Orchestration PA5 Scope
-
-The Task & Orchestration implementation is an interactive PA5 prototype.
-
-It may use deterministic local mock data and simulated orchestration.
-
-It must not depend on:
-
-* External AI APIs
-* External databases
-* External orchestration engines
-* Real agent services
-* Real WebSocket or Server-Sent Events infrastructure
-* Network access
-* Non-deterministic external responses
-
-Required routing modes:
-
-* Auto-routing
-* Specific agent
-* Predefined workflow
-
-Required task statuses:
-
-* Pending
-* In-Progress
-* Completed
-* Failed
-* Canceled
-
-Required mock orchestration stages:
-
-1. Validate input
-2. Analyze request
-3. Select agent or workflow
-4. Execute task
-5. Aggregate result
-6. Complete, Fail, or Cancel
-
-Required deterministic failure trigger:
+Examples:
 
 ```text
-FAIL_SIMULATION:
+feat(agent-management): redesign app shell sidebar
+fix(task-orchestration): stop streaming after cancellation
+test(agent-management): cover viewer mode restrictions
+docs(openspec): add redesign app shell proposal
+chore(frontend): add lucide icon dependency
 ```
 
-Required mock agents:
+Rules:
 
-* `AGT-CODE`
-* `AGT-REVIEW`
-* `AGT-RESEARCH`
-* `AGT-SYNTHESIS`
+- Use imperative mood: `add`, `fix`, `update`, not `added` or `adds`.
+- Keep the summary under 72 characters when practical.
+- Do not include AI/tool branding.
+- Do not mix unrelated modules in one commit.
+- Use `BREAKING CHANGE:` in the commit body only when public behavior or
+  contracts are intentionally incompatible.
 
-Required mock workflows:
+## Pull Request Summary Template
 
-* `WFL-CODE-REVIEW`
-* `WFL-RESEARCH-SYNTHESIS`
-
-## Task Lifecycle Rules
-
-`New` is a user-interface state before a task object exists.
-
-Supported persisted task statuses are:
-
-* Pending
-* In-Progress
-* Completed
-* Failed
-* Canceled
-
-Valid transitions are:
-
-* New to Pending
-* Pending to In-Progress
-* Pending to Canceled
-* In-Progress to Completed
-* In-Progress to Failed
-* In-Progress to Canceled
-
-Terminal states are:
-
-* Completed
-* Failed
-* Canceled
-
-After a task reaches a terminal state, it must not:
-
-* Continue processing
-* Start another orchestration stage
-* Append another processing log
-* Append another streaming chunk
-* Change its final result
-* Change to another lifecycle state
-
-A Failed task must never be rendered as Completed.
-
-A Canceled task must stop active timers and simulated streaming.
-
-Presentation components must not directly mutate lifecycle status.
-
-Lifecycle changes must pass through the authoritative reducer, store,
-controller, or service.
-
-## Task & Orchestration Architecture Rules
-
-Keep these responsibilities separated:
-
-* Task input validation and creation
-* Task identity generation
-* Lifecycle state control
-* Routing resolution
-* Timeline and log generation
-* Streaming simulation
-* Final result rendering
-* Cancellation control
-* Failure handling
-* UI presentation
-
-Do not place all timers, routing decisions, state transitions, and rendering
-logic in one React component.
-
-Centralize:
-
-* Task status definitions
-* Routing-mode definitions
-* Demo timing values
-* Mock agents
-* Mock workflows
-* Mock result content
-* Task transition guards
-
-Every asynchronous processing callback must verify that:
-
-* The current run has not been aborted.
-* The task has not reached a terminal state.
-* The callback still belongs to the current task run.
-
-## Demo Data Rules
-
-Demo data must be deterministic and resettable.
-
-Do not use:
-
-* `Math.random()` for workflow outcomes
-* Current network state
-* Live API responses
-* Uncontrolled real-time dependencies
-
-Reset must:
-
-* Abort active task runs
-* Clear active timers
-* Stop result streaming
-* Clear current task data
-* Restore seed agents and workflows
-* Prevent callbacks from the previous run from updating the new session
-
-## Pull Request Code Size Rule
-
-Every implementation sub-issue and pull request must add no more than 500
-lines of code.
-
-Before editing:
-
-1. Identify exact files to create or modify.
-2. Estimate added code lines.
-3. Stop and propose a split when the estimate may exceed 500 lines.
-
-Before opening a pull request:
-
-1. Calculate actual added code lines.
-2. Report the count.
-3. Confirm that the count is 500 or fewer.
-
-Do not combine large concerns in one pull request.
-
-Keep these concerns separate:
-
-* Workspace layout
-* Mock data and types
-* Shared UI components
-* Composer
-* Routing selector
-* Task creation
-* Processing timeline
-* Streaming
-* Completed result
-* Processing detail modal
-* Cancellation
-* Failure handling
-* Functional tests
-* Test execution report
-* Demo documentation
-
-Documentation, generated files, lock files, and build output are not counted as
-implementation code, but they must still be reviewed.
-
-## Dependency Rules
-
-Do not install or add a new production dependency without explicit approval.
-
-Before proposing a dependency:
-
-1. Check whether the repository already provides equivalent functionality.
-2. Explain why the dependency is necessary.
-3. Explain its impact on bundle size, tests, and maintenance.
-4. Wait for user approval.
-
-Do not run dependency-upgrade commands unless explicitly requested.
-
-## Commit And Push Workflow
-
-When the user asks to commit and push completed work:
-
-1. Review changed files before staging:
-
-   ```bash
-   git status --short
-   git diff --stat
-   git diff
-   ```
-
-2. Never stage files inside `.local-docs/` or another personal directory.
-
-3. Stage only files that belong to the current task.
-
-4. Do not use a broad staging command without reviewing its result.
-
-5. Prefer small commits grouped by work unit:
-
-   * Feature implementation
-   * Focused tests
-   * OpenSpec task update
-   * Documentation
-
-6. Use Conventional Commit messages.
-
-   Examples:
-
-   ```text
-   feat(task-orchestration): add base workspace layout
-   feat(task-orchestration): add mock domain types
-   test(task-orchestration): cover lifecycle transitions
-   docs(task-orchestration): add test execution report
-   chore(openspec): archive implement-task-orchestration
-   ```
-
-7. Do not commit or push unless the user explicitly requests it.
-
-8. When requested, push the current feature branch:
-
-   ```bash
-   git push -u origin HEAD
-   ```
-
-## Pull Request Workflow
-
-When the user asks for a pull request:
-
-1. Prepare a pull-request title and body for GitHub Web.
-2. Do not create the pull request directly unless explicitly requested.
-3. Include:
-
-   * OpenSpec change name
-   * Selected and completed task
-   * Scope
-   * Out-of-scope items
-   * Files changed
-   * Tests and commands executed
-   * Manual test notes
-   * Added code line count
-   * Known gaps and risks
-
-Use this format:
+Use this PR summary format unless the user requests a different one:
 
 ```md
 ## Summary
 
-- 
-- 
+-
+-
 
 ## OpenSpec
 
@@ -508,15 +227,19 @@ Change: `<change-name>`
 
 Completed tasks:
 
-- [x] 
+- [x]
 
 ## Scope
 
-- 
+-
 
 ## Out of Scope
 
-- 
+-
+
+## Files Changed
+
+-
 
 ## Tests
 
@@ -526,18 +249,36 @@ Completed tasks:
 - [ ] `openspec validate --all --strict`
 - [ ] `git diff --check`
 
+Additional commands, if relevant:
+
+- [ ] `npm run prisma -- validate`
+- [ ] `npm run test:e2e`
+
 ## Manual Test
 
-- 
+-
 
-## Code Size
+## Shared Boundary Impact
 
-Added code lines: `<number>`
+- Shared contracts changed: No / Yes
+- Prisma schema changed: No / Yes
+- API route boundary changed: No / Yes
+- New production dependency: No / Yes
 
-## Remaining Scenarios / Gaps
+## Known Gaps / Risks
 
-- 
+-
 ```
+
+PR rules:
+
+- Mark a test checkbox only if the command was actually run.
+- Mention failed commands and unresolved issues directly.
+- Keep PR scope tied to one OpenSpec task or one small implementation slice.
+- If a dependency is added, explain why it is needed and why existing repo tools
+  are insufficient.
+- If shared contracts, Prisma, API routes, or events change, request review from
+  another module owner.
 
 ## Completion Report
 
@@ -548,8 +289,5 @@ After implementation, report:
 3. Tests added or updated
 4. Commands executed
 5. Exact command results
-6. Added code line count
-7. Remaining risks or gaps
-8. Suggested Conventional Commit message
-
-Do not hide failed commands or unresolved issues.
+6. Remaining risks or gaps
+7. Suggested Conventional Commit message
