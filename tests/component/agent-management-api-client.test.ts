@@ -34,19 +34,45 @@ function success(data: unknown): Response {
   });
 }
 
+function paginatedSuccess(data: unknown[], pagination: unknown): Response {
+  return response({
+    ok: true,
+    data,
+    meta: { requestId: "test", timestamp: "2026-06-20T00:00:00.000Z", pagination }
+  });
+}
+
 describe("Agent Management API client", () => {
   it("lists workspace agents and parses successful data", async () => {
     const fetchImplementation = vi.fn(async () =>
-      success([{ ...summary, createdAt: "2026-06-19T00:00:00.000Z" }])
+      paginatedSuccess(
+        [{ ...summary, createdAt: "2026-06-19T00:00:00.000Z" }],
+        { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false }
+      )
     );
     const client = createAgentManagementApiClient({ fetchImplementation });
 
-    const agents = await client.listAgents(workspaceId);
+    const result = await client.listAgents(workspaceId);
 
-    expect(agents[0].agentId).toBe(agentId);
+    expect(result.items[0].agentId).toBe(agentId);
+    expect(result.pagination.totalItems).toBe(1);
     expect(fetchImplementation).toHaveBeenCalledWith(
       "/api/workspaces/workspace-a/agents",
       expect.objectContaining({ headers: expect.objectContaining({ accept: "application/json" }) })
+    );
+  });
+
+  it("lists workspace agents with query parameters", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      paginatedSuccess([], { page: 2, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: true })
+    );
+    const client = createAgentManagementApiClient({ fetchImplementation });
+
+    await client.listAgents(workspaceId, { search: "test", page: 2, pageSize: 10, sortOrder: "desc" });
+
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/agents?search=test&sortOrder=desc&page=2&pageSize=10",
+      expect.any(Object)
     );
   });
 
@@ -107,6 +133,23 @@ describe("Agent Management API client", () => {
     ]);
   });
 
+  it("calls rename and duplicate with expected methods and paths", async () => {
+    const fetchImplementation = vi.fn(async () => success(summary));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+
+    await client.renameAgent(workspaceId, agentId, "New Name");
+    await client.duplicateAgent(workspaceId, agentId);
+
+    expect(fetchImplementation.mock.calls[0]).toEqual([
+      "/api/workspaces/workspace-a/agents/agent-a/name",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "New Name" }) })
+    ]);
+    expect(fetchImplementation.mock.calls[1]).toEqual([
+      "/api/workspaces/workspace-a/agents/agent-a/duplicate",
+      expect.objectContaining({ method: "POST" })
+    ]);
+  });
+
   it("preserves API validation details", async () => {
     const fetchImplementation = vi.fn(async () =>
       response(
@@ -139,7 +182,7 @@ describe("Agent Management API client", () => {
 
   it("normalizes malformed and network failures", async () => {
     const malformedClient = createAgentManagementApiClient({
-      fetchImplementation: vi.fn(async () => response({ value: [] }))
+      fetchImplementation: vi.fn(async () => response({ ok: true, data: [] }))
     });
     const networkClient = createAgentManagementApiClient({
       fetchImplementation: vi.fn(async () => {

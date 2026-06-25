@@ -132,11 +132,13 @@ test.describe.serial('Agent Management E2E', () => {
 
     const testAgent = agentRow(page, e2eAgentName);
     
-    // Set up dialog handler
-    page.on('dialog', dialog => dialog.accept());
-
     await openActionsFor(testAgent);
     await testAgent.getByRole('button', { name: /Delete/ }).click();
+
+    // Wait for the modal and click Delete
+    const deleteModal = page.getByRole('dialog', { name: 'Delete agent' });
+    await expect(deleteModal).toBeVisible();
+    await deleteModal.getByRole('button', { name: 'Delete' }).click();
 
     // Verify agent is removed from the list
     await expect(testAgent).not.toBeVisible();

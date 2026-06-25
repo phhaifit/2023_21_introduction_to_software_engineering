@@ -2,9 +2,7 @@
 
 ## Purpose
 TBD: Provides durable storage for Agent entities using Prisma and PostgreSQL.
-
 ## Requirements
-
 ### Requirement: Agent Database Schema
 The system SHALL define a Prisma model for the Agent entity that maps all domain attributes to a relational database table.
 
@@ -43,19 +41,23 @@ The system SHALL retrieve an Agent from the database scoped by both `workspaceId
 - **THEN** the repository returns `null`
 
 ### Requirement: Persistent Agent Listing
-The system SHALL list all agents for a workspace, sorted by `createdAt` ascending, with optional status filtering.
+The system SHALL support search, sort, and pagination in the agent repository.
 
-#### Scenario: Agents listed for workspace
-- **WHEN** `listByWorkspace` is called with a `workspaceId`
-- **THEN** only agents belonging to that workspace are returned, ordered by `createdAt` ascending
+#### Scenario: Search query
+- **WHEN** the repository receives a list query with a `search` term
+- **THEN** the repository filters agents whose `name` or `role` contains the search term (case-insensitive substring match)
 
-#### Scenario: Agents filtered by status
-- **WHEN** `listByWorkspace` is called with a `statuses` filter
-- **THEN** only agents whose `status` is in the provided set are returned
+#### Scenario: Configurable sort
+- **WHEN** the repository receives a list query with `sortBy` and `sortOrder` parameters
+- **THEN** the repository orders results by the specified field and direction
 
-#### Scenario: Cross-workspace agents excluded
-- **WHEN** `listByWorkspace` is called for workspace A
-- **THEN** agents belonging to workspace B are never included in the result
+#### Scenario: Paginated results
+- **WHEN** the repository receives a list query with `page` and `pageSize` parameters
+- **THEN** the repository returns a result object containing the page of agents and total count for pagination metadata
+
+#### Scenario: Default query behavior
+- **WHEN** the repository receives a list query without search, sort, or pagination parameters
+- **THEN** the repository defaults to status filter `["enabled", "disabled"]`, sort by `createdAt` ascending, page 1 with pageSize 20
 
 ### Requirement: Persistent Agent Name Uniqueness Check
 The system SHALL check for the existence of an agent name within a workspace using case-insensitive, trimmed comparison.
@@ -82,3 +84,11 @@ The system SHALL retain all agent data across server restarts.
 #### Scenario: Server restart preserves data
 - **WHEN** an agent is saved and the server process restarts
 - **THEN** the agent is still retrievable from the repository after restart
+
+### Requirement: Count Query
+The system SHALL support counting agents matching query filters without fetching full records.
+
+#### Scenario: Count by workspace with filters
+- **WHEN** the repository receives a count query with workspace ID and optional search/status filters
+- **THEN** the repository returns the total number of matching agents as an integer
+
