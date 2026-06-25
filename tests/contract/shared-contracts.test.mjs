@@ -10,6 +10,7 @@ const contractsDir = join(root, "packages/shared/src/contracts");
 const frontendFeaturesDir = join(root, "apps/frontend/src/features");
 const idsSource = readContractSource("ids.ts");
 const apiSource = readContractSource("api.ts");
+const agentSource = readContractSource("agent-management.ts");
 const statusesSource = readContractSource("statuses.ts");
 const subscriptionSource = readContractSource("subscription-payment.ts");
 const taskSource = readContractSource("task-orchestration.ts");
@@ -176,6 +177,44 @@ assert.match(
   "task contracts must be exported from the public @vcp/shared entry point"
 );
 
+assert.deepEqual(schema.agentManagement.skillMarkdownSections, [
+  "Role",
+  "Model",
+  "Responsibilities",
+  "Operating Context",
+  "Instructions",
+  "Requested Tools",
+  "Requested Knowledge",
+  "Constraints",
+  "Escalation Rules",
+  "Example Tasks"
+]);
+for (const dtoName of schema.agentManagement.dtoExports) {
+  assert.match(
+    agentSource,
+    new RegExp(`export type ${dtoName}\\b|export const ${dtoName}\\b`),
+    `agent management shared contract must export ${dtoName}`
+  );
+}
+for (const requestDtoName of schema.agentManagement.requestDtoExports) {
+  const typeBlock = getTypeOrAliasBlock(agentSource, requestDtoName);
+  assert.doesNotMatch(
+    typeBlock,
+    /workspaceId|submittedByUserId|userId|createdAt|updatedAt|status|agentId/,
+    `${requestDtoName} must not accept trusted context or server-owned fields`
+  );
+}
+assert.doesNotMatch(
+  agentSource,
+  /apiKey|credential|secret|token|password|privateKey|rawProvider|providerError/i,
+  "agent management shared DTOs must not expose provider secrets or raw provider errors"
+);
+assert.match(
+  publicExportsSource,
+  /export \* from "\.\/agent-management\.ts";/,
+  "agent management contracts must be exported from the public @vcp/shared entry point"
+);
+
 assert.match(
   subscriptionSource,
   /subscriptionId: EntityId<"subscriptionId">;/,
@@ -273,6 +312,17 @@ function getTypeBlock(source, typeName) {
   const match = source.match(new RegExp(`export type ${typeName} = \\{[\\s\\S]*?\\};`));
   assert.ok(match, `missing exported type ${typeName}`);
   return match[0];
+}
+
+function getTypeOrAliasBlock(source, typeName) {
+  const objectMatch = source.match(new RegExp(`export type ${typeName} = \\{[\\s\\S]*?\\};`));
+  if (objectMatch) {
+    return objectMatch[0];
+  }
+
+  const aliasMatch = source.match(new RegExp(`export type ${typeName} = [^;]+;`));
+  assert.ok(aliasMatch, `missing exported type ${typeName}`);
+  return aliasMatch[0];
 }
 
 function listSourceFiles(dir) {

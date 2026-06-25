@@ -147,12 +147,102 @@ function makeAgent(overrides = {}) {
   assert.equal(result.agent.instructions, "Resolve customer tickets.");
   assert.equal(result.agent.status, "enabled");
   assert.match(result.skillConfiguration, /# Support Agent/);
-  assert.match(result.skillConfiguration, /Role: Customer Support/);
-  assert.match(result.skillConfiguration, /Model: gpt-4\.1-mini/);
+  assert.match(result.skillConfiguration, /## Role\nCustomer Support/);
+  assert.match(result.skillConfiguration, /## Model\ngpt-4\.1-mini/);
   assert.match(result.skillConfiguration, /Resolve customer tickets\./);
 
   const saved = await repository.findById(workspaceA, "agent-1");
   assert.equal(saved.name, "Support Agent");
+}
+
+{
+  const { repository, useCases } = createHarness();
+  const preview = useCases.previewSkillMarkdown({
+    name: " Draft Agent ",
+    role: " Analyst ",
+    model: " gemini-2.5-flash ",
+    instructions: " Prepare weekly updates. ",
+    responsibilities: ["Summarize business signals"],
+    requestedTools: [{ name: "Slack", reason: "Share updates" }],
+    requestedKnowledge: [{ title: "Revenue Report", reason: "Use current numbers" }]
+  });
+
+  assert.equal(preview.fileName, "skill.md");
+  assert.match(preview.markdown, /# Draft Agent/);
+  assert.match(preview.markdown, /## Responsibilities\n- Summarize business signals/);
+  assert.match(preview.markdown, /## Requested Tools\n- Slack: Share updates/);
+  const list = await repository.listByWorkspace(workspaceA);
+  assert.equal(list.total, 0);
+
+  assert.throws(
+    () =>
+      useCases.previewSkillMarkdown({
+        name: "",
+        role: "Analyst",
+        model: "gemini-2.5-flash",
+        instructions: "Prepare updates."
+      }),
+    AgentValidationError
+  );
+}
+
+{
+  const { repository, useCases } = createHarness();
+  await repository.save(makeAgent({ agentId: "agent-enabled", name: "Enabled Agent" }));
+  await repository.save(
+    makeAgent({ agentId: "agent-disabled", name: "Disabled Agent", status: "disabled" })
+  );
+  await repository.save(
+    makeAgent({ agentId: "agent-deleted", name: "Deleted Agent", status: "deleted" })
+  );
+  await repository.save(
+    makeAgent({
+      agentId: "agent-other-workspace",
+      workspaceId: workspaceB,
+      name: "Other Agent"
+    })
+  );
+
+  const enabled = await useCases.downloadAgentSkillMarkdown(workspaceA, "agent-enabled");
+  const disabled = await useCases.downloadAgentSkillMarkdown(workspaceA, "agent-disabled");
+
+  assert.equal(enabled.fileName, "skill.md");
+  assert.match(enabled.markdown, /# Enabled Agent/);
+  assert.match(disabled.markdown, /# Disabled Agent/);
+
+  await assert.rejects(
+    () => useCases.downloadAgentSkillMarkdown(workspaceA, "agent-deleted"),
+    AgentNotFoundError
+  );
+  await assert.rejects(
+    () => useCases.downloadAgentSkillMarkdown(workspaceA, "agent-other-workspace"),
+    AgentNotFoundError
+  );
+}
+
+{
+  const { useCases } = createHarness();
+
+  assert.deepEqual(
+    useCases.validateSkillMarkdownImport({
+      markdown: "# Imported Agent\n\n## Role\nSupport",
+      fileName: "skill.md"
+    }),
+    { accepted: true, fileName: "skill.md" }
+  );
+
+  assert.throws(
+    () => useCases.validateSkillMarkdownImport({ markdown: "   " }),
+    AgentValidationError
+  );
+  assert.throws(
+    () =>
+      useCases.validateSkillMarkdownImport({
+        markdown: "plain text without markdown markers",
+        fileName: "skill.txt"
+      }),
+    AgentValidationError
+  );
 }
 
 {
@@ -200,7 +290,7 @@ function makeAgent(overrides = {}) {
   assert.equal(result.agent.model, "gpt-4.1");
   assert.equal(result.agent.instructions, "Prepare weekly analysis.");
   assert.equal(result.agent.updatedAt, "2026-06-20T01:00:00.000Z");
-  assert.match(result.skillConfiguration, /Role: Analyst/);
+  assert.match(result.skillConfiguration, /## Role\nAnalyst/);
 
   const saved = await repository.findById(workspaceA, "agent-update");
   assert.equal(saved.role, "Analyst");

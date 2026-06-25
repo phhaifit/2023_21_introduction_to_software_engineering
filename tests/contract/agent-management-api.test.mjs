@@ -90,6 +90,22 @@ async function requestJson(baseUrl, path, options = {}) {
   };
 }
 
+async function requestText(baseUrl, path, options = {}) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    headers: {
+      "x-request-id": "test-request",
+      ...(options.headers ?? {})
+    }
+  });
+
+  return {
+    status: response.status,
+    headers: response.headers,
+    body: await response.text()
+  };
+}
+
 function makeAgent(overrides = {}) {
   return createAgent({
     agentId: "agent-enabled",
@@ -325,6 +341,145 @@ function makeAgent(overrides = {}) {
     assert.equal(response.status, 404);
     assert.equal(response.body.ok, false);
     assert.equal(response.body.error.code, "agent.not_available");
+  });
+}
+
+{
+  const { repository, useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const response = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents/skill-preview", {
+      method: "POST",
+      body: {
+        name: "Preview Agent",
+        role: "Researcher",
+        model: "gemini-2.5-flash",
+        instructions: "Summarize market signals.",
+        responsibilities: ["Collect evidence"],
+        requestedTools: [{ name: "Slack", reason: "Share summaries" }],
+        requestedKnowledge: [{ title: "Market Report", reason: "Ground answers" }]
+      }
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.data.fileName, "skill.md");
+    assert.match(response.body.data.markdown, /# Preview Agent/);
+    assert.match(response.body.data.markdown, /## Requested Tools\n- Slack: Share summaries/);
+
+    const list = await repository.listByWorkspace("workspace-a");
+    assert.equal(list.total, 0);
+
+    const invalid = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents/skill-preview", {
+      method: "POST",
+      body: {
+        name: "",
+        role: "Researcher",
+        model: "gemini-2.5-flash",
+        instructions: "Summarize market signals."
+      }
+    });
+
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.body.error.code, "validation.invalid_input");
+  });
+}
+
+{
+  const { repository, useCases } = createUseCases();
+  await repository.save(makeAgent());
+  await repository.save(makeAgent({ agentId: "agent-disabled", status: "disabled" }));
+  await repository.save(makeAgent({ agentId: "agent-deleted", status: "deleted" }));
+  await repository.save(
+    makeAgent({
+      agentId: "agent-other-workspace",
+      workspaceId: "workspace-b",
+      name: "Other Agent"
+    })
+  );
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const downloaded = await requestText(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-enabled/skill.md"
+    );
+
+    assert.equal(downloaded.status, 200);
+    assert.match(downloaded.headers.get("content-type"), /text\/markdown/);
+    assert.match(downloaded.headers.get("content-disposition"), /research-agent\.skill\.md/);
+    assert.match(downloaded.body, /# Research Agent/);
+    assert.match(downloaded.body, /## Instructions\nPrepare market research\./);
+
+    const disabled = await requestText(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-disabled/skill.md"
+    );
+
+    assert.equal(disabled.status, 200);
+
+    const deleted = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-deleted/skill.md"
+    );
+    assert.equal(deleted.status, 404);
+    assert.equal(deleted.body.error.code, "agent.not_available");
+
+    const crossWorkspace = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-other-workspace/skill.md"
+    );
+    assert.equal(crossWorkspace.status, 404);
+    assert.equal(crossWorkspace.body.error.code, "agent.not_available");
+  });
+}
+
+{
+  const { useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const valid = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: "# Imported Agent\n\n## Role\nSupport",
+          fileName: "skill.md"
+        }
+      }
+    );
+
+    assert.equal(valid.status, 200);
+    assert.deepEqual(valid.body.data, { accepted: true, fileName: "skill.md" });
+
+    const empty = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: ""
+        }
+      }
+    );
+
+    assert.equal(empty.status, 400);
+    assert.equal(empty.body.error.code, "validation.invalid_input");
+
+    const nonMarkdown = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: "plain text without markdown markers",
+          fileName: "agent.txt"
+        }
+      }
+    );
+
+    assert.equal(nonMarkdown.status, 400);
+    assert.equal(nonMarkdown.body.error.code, "validation.invalid_input");
   });
 }
 
