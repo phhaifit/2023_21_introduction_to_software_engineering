@@ -12,7 +12,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test:components": "cd ../.. && vitest run --config vitest.config.ts"
+    "test:components": "cd ../.. && vitest run --config vitest.config.ts tests/component"
   },
   "dependencies": {
     "@vcp/shared": "0.1.0",
