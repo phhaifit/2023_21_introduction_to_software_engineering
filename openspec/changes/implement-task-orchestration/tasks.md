@@ -401,7 +401,7 @@
 
   `feat(task-orchestration): simulate streamed task results`
 
-* [ ] 10. [PA5] Task & Orchestration – Completed Result View
+* [x] 10. [PA5] Task & Orchestration – Completed Result View
 
   Scope:
 
