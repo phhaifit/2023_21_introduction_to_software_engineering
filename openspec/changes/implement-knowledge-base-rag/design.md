@@ -71,6 +71,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: The router parses request/query payloads, derives `workspaceId` from the route, derives actor identity from request context, enforces `knowledge:manage` for mutations, maps application errors to shared API errors, and returns shared DTOs. It does not parse files, upload to object storage, call worker runtimes, call embedding/vector providers, call external source providers, or import Prisma directly.
    - Constraint: Request bodies must not accept trusted workspace IDs, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, or secrets.
 
+13. Add a frontend API client boundary before wiring UI screens.
+   - Rationale: Documents and Upload screens should connect to live data through a typed client that uses the finalized shared DTOs and route family, rather than embedding fetch logic in components or continuing to evolve mock view types as contracts.
+   - Boundary: The client builds `/api/workspaces/:workspaceId/knowledge/...` URLs, parses shared API envelopes, maps API/network/malformed response errors consistently, and rejects unsafe request-body fields before fetch. It does not replace mock data in existing screens, parse files, upload to storage, call worker runtimes, call embedding/vector providers, or introduce new dependencies.
+   - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

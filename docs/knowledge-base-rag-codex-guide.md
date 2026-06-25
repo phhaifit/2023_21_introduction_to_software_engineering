@@ -37,6 +37,11 @@ The Knowledge Base / RAG frontend currently includes:
 - Mock data and shared local view types.
 - Documents screen.
 - Upload Documents screen.
+- Typed frontend API client for the workspace-scoped KB/RAG routes.
+
+The Documents and Upload screens still use local mock data. Do not replace the
+mock data or wire the screens to API calls outside a scoped frontend
+integration issue.
 
 The backend now has an internal foundation for future runtime implementation:
 
@@ -53,7 +58,7 @@ The backend now has an internal foundation for future runtime implementation:
   application use cases and shared API envelopes.
 
 The backend still does not have real upload/file adapters, embedding/vector
-adapters, worker handlers, or frontend API clients.
+adapters, or worker handlers.
 
 ## Required Future Workflow
 
@@ -219,8 +224,7 @@ Likely future files:
 - `domain/knowledge-events.ts`
 - `infrastructure/*-adapter.ts`
 
-Do not create worker handlers, frontend API clients, or adapters outside the
-selected task scope.
+Do not create worker handlers or adapters outside the selected task scope.
 
 ## API Contract Boundary
 
@@ -348,9 +352,9 @@ npm run prisma -- validate
 
 ## Current UI Guidance
 
-The existing frontend prototype is allowed to keep local mock data until shared
-DTOs are defined. New UI-only flows should pause until the API/DTO/event
-foundation is designed. When API contracts exist, add a KB/RAG API client that
+The existing frontend prototype is allowed to keep local mock data until a
+scoped integration issue wires screens to the API. New UI-only flows should
+pause until the API/DTO/event foundation is designed. The KB/RAG API client
 follows the Agent Management and Workflow Management client pattern: typed
 fetch wrapper, shared `ApiResponse` parsing, shared `ErrorCode`, network error
 handling, and malformed-response handling.
