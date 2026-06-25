@@ -1,40 +1,18 @@
-## Purpose
-
-Define the browser-runnable Agent Management app shell and its local API-backed development behavior.
-
-## Requirements
-
-### Requirement: React Vite App Shell
-The system SHALL provide a React + Vite frontend app shell that can run locally with the Agent Management API.
-
-#### Scenario: Frontend and API start
-- **WHEN** a developer runs the documented root development command
-- **THEN** the browser can load the React application and reach Agent Management routes through the local API proxy
+## MODIFIED Requirements
 
 ### Requirement: Agent Management Page
 The system SHALL provide an Agent Management page mounted inside the frontend app shell with the Stitch-aligned dashboard presentation.
 
 #### Scenario: Agent Management page viewed
-- **WHEN** a developer opens the frontend app in a browser
+- **WHEN** a developer opens the frontend app in a browser and navigates to Agent Management
 - **THEN** the app displays the Agent Management page with a top app bar, hero banner, toolbar, agent list area, status indicators, and modal-based create/edit form access
 
 #### Scenario: Redesigned page uses local assets and CSS
 - **WHEN** the Agent Management page renders the redesigned presentation
 - **THEN** it uses repository-local React, CSS, and asset references rather than Tailwind CDN, Material Symbols CDN, or remote runtime icon fonts
 
-### Requirement: Mock Agent Data Preview
-The system SHALL keep representative mock Agent Management data as isolated test fixtures rather than the default browser data source.
-
-#### Scenario: Browser page uses backend data
-- **WHEN** the Agent Management page loads in the browser
-- **THEN** it requests workspace-scoped agents from the backend and does not render the static mock list as live data
-
-#### Scenario: Isolated UI test uses fixtures
-- **WHEN** an isolated view-model or component test needs representative agents
-- **THEN** it can use mock fixtures containing at least one enabled agent and one disabled agent without calling the backend
-
 ### Requirement: Lifecycle Controls Preview
-The system SHALL show Agent Management lifecycle controls in the browser preview.
+The system SHALL show Agent Management lifecycle controls in the redesigned browser preview.
 
 #### Scenario: Lifecycle actions visible
 - **WHEN** an agent row is displayed for a user who can manage agents
@@ -80,6 +58,8 @@ The system SHALL document how to manually verify the API-backed Agent Management
 #### Scenario: Manual test instructions followed
 - **WHEN** a developer follows the documented manual test steps
 - **THEN** they can verify API-backed list, create, edit, lifecycle controls, validation feedback, recoverable errors, loading skeleton, empty state, and viewer-mode presentation
+
+## ADDED Requirements
 
 ### Requirement: Stitch-Aligned Sidebar
 The system SHALL provide an Agent Management app shell sidebar aligned with the Stitch expanded and collapsed sidebar materials.

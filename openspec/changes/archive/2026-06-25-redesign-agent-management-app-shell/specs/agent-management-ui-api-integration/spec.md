@@ -1,19 +1,4 @@
-## Purpose
-
-Define the browser-to-API integration behavior for workspace-scoped Agent Management operations and local development.
-
-## Requirements
-
-### Requirement: Agent Management Frontend API Client
-The system SHALL provide a frontend Agent Management API client that uses the shared response envelope for workspace-scoped list, create, configuration read, update, enable, disable, and delete operations.
-
-#### Scenario: Successful response parsed
-- **WHEN** an Agent Management endpoint returns a successful `ApiResponse`
-- **THEN** the client returns the typed response data to the page
-
-#### Scenario: Failure response parsed
-- **WHEN** an Agent Management endpoint returns a failed `ApiResponse`
-- **THEN** the client exposes the error code, message, and validation details without treating the response as successful data
+## MODIFIED Requirements
 
 ### Requirement: API-Backed Agent List
 The system SHALL load the active agent list from the backend for the workspace supplied by the app boundary and render it through the redesigned Agent Management list presentation.
@@ -56,17 +41,6 @@ The system SHALL load editable agent configuration before submitting an update f
 - **WHEN** the configuration request returns `agent.not_available`
 - **THEN** the page displays a general edit error and does not submit stale or empty instructions
 
-### Requirement: Agent Configuration Read Endpoint
-The system SHALL provide a workspace-scoped endpoint for reading the editable configuration of one active agent.
-
-#### Scenario: Active agent configuration returned
-- **WHEN** a client sends `GET /api/workspaces/:workspaceId/agents/:agentId/configuration` for an active agent in that workspace
-- **THEN** the response returns name, role, model, instructions, status, and update metadata without generated skill configuration
-
-#### Scenario: Cross-workspace configuration rejected
-- **WHEN** a client requests configuration for an agent belonging to another workspace
-- **THEN** the response uses `agent.not_available` and exposes no agent configuration
-
 ### Requirement: API-Backed Lifecycle Controls
 The system SHALL connect redesigned enable, disable, and delete controls to their workspace Agent Management API operations.
 
@@ -91,26 +65,13 @@ The system SHALL communicate mutation progress and failures in the redesigned pr
 
 #### Scenario: Mutation in progress
 - **WHEN** a create, update, enable, disable, or delete request is pending
-- **THEN** the relevant controls are disabled and duplicate requests are prevented
+- **THEN** the relevant redesigned controls are disabled and duplicate requests are prevented
 
 #### Scenario: Mutation fails unexpectedly
 - **WHEN** a mutation returns a non-validation error or the network request fails
 - **THEN** the page displays a general error, preserves form values when applicable, and keeps the last successfully loaded list
 
-### Requirement: Local Browser Integration
-The system SHALL provide a local development composition that runs the React page and Agent Management API together.
-
-#### Scenario: Local application started
-- **WHEN** a developer runs the documented root development command
-- **THEN** the browser can load agents and perform create, edit, enable, disable, and delete operations through the proxied API
-
-#### Scenario: Local API restarted without database
-- **WHEN** the local API process restarts without `DATABASE_URL`
-- **THEN** Agent Management data resets to the documented seed state
-
-#### Scenario: Local API started with database
-- **WHEN** the local API starts with `DATABASE_URL`
-- **THEN** Agent Management data is loaded through the database repository instead of the in-memory seed repository
+## ADDED Requirements
 
 ### Requirement: Viewer Mode API Safety
 The system SHALL avoid frontend mutation API calls from the Agent Management viewer presentation.

@@ -14,6 +14,8 @@ const requiredShellFiles = [
   "tsconfig.json",
   "apps/frontend/src/main.tsx",
   "apps/frontend/src/App.tsx",
+  "apps/frontend/src/assets/agent-management/agents-hero.png",
+  "apps/frontend/src/components/layout/Sidebar.tsx",
   "apps/frontend/src/features/agent-management/agent-management-api-client.ts",
   "apps/frontend/src/features/agent-management/agent-management-page.tsx",
   "apps/frontend/src/features/agent-management/agent-management-mock-data.ts",
@@ -36,6 +38,7 @@ const frontendPackageJson = JSON.parse(
 );
 assert.equal(frontendPackageJson.dependencies.react.startsWith("^18."), true);
 assert.equal(frontendPackageJson.dependencies["react-dom"].startsWith("^18."), true);
+assert.equal(frontendPackageJson.dependencies["lucide-react"].startsWith("^"), true);
 assert.ok(frontendPackageJson.devDependencies.vite, "Vite must be available for the app shell");
 assert.equal(frontendPackageJson.dependencies["@vcp/backend"], undefined);
 assert.equal(frontendPackageJson.dependencies["@vcp/database"], undefined);
@@ -43,11 +46,20 @@ assert.equal(frontendPackageJson.dependencies["@vcp/database"], undefined);
 const indexHtml = readFileSync(join(root, "apps/frontend/index.html"), "utf8");
 assert.match(indexHtml, /<div id="root"><\/div>/);
 assert.match(indexHtml, /\/src\/main\.tsx/);
+assert.doesNotMatch(indexHtml, /fonts\.googleapis/);
+assert.doesNotMatch(indexHtml, /Material Symbols/);
+assert.doesNotMatch(indexHtml, /tailwindcss/);
 
 const appSource = readFileSync(join(root, "apps/frontend/src/App.tsx"), "utf8");
 assert.match(appSource, /AgentManagementPage/);
 assert.match(appSource, /Agent Management/);
 assert.match(appSource, /DEMO_WORKSPACE_ID/);
+
+const sidebarSource = readFileSync(join(root, "apps/frontend/src/components/layout/Sidebar.tsx"), "utf8");
+assert.match(sidebarSource, /from "lucide-react"/);
+assert.match(sidebarSource, /aria-label=\{toggleLabel\}/);
+assert.match(sidebarSource, /sidebar--collapsed/);
+assert.match(sidebarSource, /Ask for help/);
 
 const pageSource = readFileSync(
   join(root, "apps/frontend/src/features/agent-management/agent-management-page.tsx"),
@@ -55,8 +67,12 @@ const pageSource = readFileSync(
 );
 assert.match(pageSource, /createAgentManagementViewModel/);
 assert.match(pageSource, /listAgents/);
+assert.match(pageSource, /agentsHeroUrl/);
+assert.match(pageSource, /accessMode = "manager"/);
 assert.doesNotMatch(pageSource, /agentManagementMockInput/);
 assert.doesNotMatch(pageSource, /apps\/backend/);
+assert.doesNotMatch(pageSource, /Material Symbols/);
+assert.doesNotMatch(pageSource, /tailwindcss/);
 
 const viteConfig = readFileSync(join(root, "apps/frontend/vite.config.ts"), "utf8");
 assert.match(viteConfig, /"\/api"/);

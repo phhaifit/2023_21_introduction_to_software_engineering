@@ -54,6 +54,11 @@ function renderPage(client = createClient()) {
   return client;
 }
 
+async function openCreateModal(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "New Agent" }));
+  return screen.getByRole("dialog", { name: "Create agent" });
+}
+
 async function fillCreateForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Name"), "Planning Agent");
   await user.type(screen.getByLabelText("Role"), "Planner");
@@ -61,12 +66,7 @@ async function fillCreateForm(user: ReturnType<typeof userEvent.setup>) {
 }
 
 function agentRow(name: string): HTMLElement {
-  const heading = screen.getByRole("heading", { name, level: 3 });
-  const row = heading.closest("article");
-  if (!row) {
-    throw new Error(`Missing row for ${name}`);
-  }
-  return row;
+  return screen.getByRole("row", { name: new RegExp(name) });
 }
 
 describe("AgentManagementPage API integration", () => {
@@ -86,10 +86,13 @@ describe("AgentManagementPage API integration", () => {
   });
 
   it("renders the API empty state without mock agents", async () => {
+    const user = userEvent.setup();
     renderPage(createClient({ listAgents: vi.fn(async () => []) }));
 
     expect(await screen.findByText("No active agents yet.")).toBeTruthy();
     expect(screen.queryByText("Research Agent")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Create first agent" }));
+    expect(screen.getByRole("dialog", { name: "Create agent" })).toBeTruthy();
   });
 
   it("shows an initial error and retries the list request", async () => {
@@ -123,6 +126,7 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
+    await openCreateModal(user);
     await fillCreateForm(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
@@ -133,7 +137,7 @@ describe("AgentManagementPage API integration", () => {
       model: "gpt-4.1-mini",
       instructions: "Create execution plans."
     });
-    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
   });
 
   it("maps validation errors and preserves create values", async () => {
@@ -151,6 +155,7 @@ describe("AgentManagementPage API integration", () => {
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
+    await openCreateModal(user);
     await user.type(screen.getByLabelText("Name"), "Planning Agent");
     await user.type(screen.getByLabelText("Instructions"), "Create plans.");
 
@@ -170,6 +175,7 @@ describe("AgentManagementPage API integration", () => {
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
+    await openCreateModal(user);
     await fillCreateForm(user);
 
     const submit = screen.getByRole("button", { name: "Create agent" });
@@ -183,14 +189,30 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("Planning Agent");
   });
 
+  it("closes the create modal without creating an agent", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await user.type(screen.getByLabelText("Name"), "Draft Agent");
+    await user.click(screen.getByRole("button", { name: "Close agent form" }));
+
+    expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
+    expect(client.createAgent).not.toHaveBeenCalled();
+    expect(screen.getByText("Research Agent")).toBeTruthy();
+  });
+
   it("loads editable configuration before enabling save", async () => {
     const client = createClient();
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Edit" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
 
+    expect(screen.getByRole("dialog", { name: "Configure agent" })).toBeTruthy();
     expect(await screen.findByDisplayValue("Prepare market research.")).toBeTruthy();
     expect(screen.getByLabelText("Name")).toHaveAttribute("readonly");
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
@@ -211,7 +233,7 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Edit" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
 
     expect(await screen.findByText("Agent is not available in this workspace.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
@@ -228,7 +250,7 @@ describe("AgentManagementPage API integration", () => {
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Edit" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
     await screen.findByDisplayValue("Prepare market research.");
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Analyst");
@@ -238,6 +260,7 @@ describe("AgentManagementPage API integration", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(within(agentRow("Research Agent")).getByText("Analyst")).toBeTruthy());
+    expect(screen.queryByRole("dialog", { name: "Configure agent" })).toBeNull();
     expect(client.updateAgent).toHaveBeenCalledWith(workspaceId, enabledAgent.agentId, {
       role: "Analyst",
       model: "gpt-4.1",
@@ -254,7 +277,7 @@ describe("AgentManagementPage API integration", () => {
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Edit" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
     await screen.findByDisplayValue("Prepare market research.");
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Analyst");
@@ -268,6 +291,23 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.getByLabelText("Role")).toHaveValue("Analyst");
   });
 
+  it("closes the configure modal without updating an agent", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
+    await screen.findByDisplayValue("Prepare market research.");
+    await user.clear(screen.getByLabelText("Role"));
+    await user.type(screen.getByLabelText("Role"), "Draft analyst");
+    await user.click(screen.getByRole("button", { name: "Close agent form" }));
+
+    expect(screen.queryByRole("dialog", { name: "Configure agent" })).toBeNull();
+    expect(client.updateAgent).not.toHaveBeenCalled();
+    expect(within(agentRow("Research Agent")).getByText("Researcher")).toBeTruthy();
+  });
+
   it("disables and enables agents while refreshing available actions", async () => {
     const listAgents = vi
       .fn()
@@ -279,10 +319,10 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Disable" }));
-    expect(await within(agentRow("Research Agent")).findByRole("button", { name: "Enable" })).toBeTruthy();
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Enable" }));
-    expect(await within(agentRow("Research Agent")).findByRole("button", { name: "Disable" })).toBeTruthy();
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Disable/ }));
+    expect(await within(agentRow("Research Agent")).findByRole("button", { name: /Enable/ })).toBeTruthy();
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Enable/ }));
+    expect(await within(agentRow("Research Agent")).findByRole("button", { name: /Disable/ })).toBeTruthy();
 
     expect(client.disableAgent).toHaveBeenCalledTimes(1);
     expect(client.enableAgent).toHaveBeenCalledTimes(1);
@@ -299,11 +339,11 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Delete" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Delete/ }));
     expect(client.deleteAgent).not.toHaveBeenCalled();
     expect(screen.getByText("Research Agent")).toBeTruthy();
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Delete" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Delete/ }));
     expect(await screen.findByText("No active agents yet.")).toBeTruthy();
     expect(client.deleteAgent).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledTimes(2);
@@ -319,13 +359,47 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Disable" }));
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Disable" }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Disable/ }));
+    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Disable/ }));
     expect(client.disableAgent).toHaveBeenCalledTimes(1);
 
     rejectDisable(new AgentApiClientError({ message: "Lifecycle failed", kind: "network" }));
     expect(await screen.findByText("Lifecycle failed")).toBeTruthy();
     expect(screen.getByText("Research Agent")).toBeTruthy();
     expect(client.disableAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps unsupported row menu actions disabled and non-mutating", async () => {
+    const client = createClient();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    expect(within(agentRow("Research Agent")).getByRole("button", { name: /Open actions/ })).toBeTruthy();
+    expect(within(agentRow("Research Agent")).getByRole("button", { name: /Rename Research Agent/ })).toBeDisabled();
+    expect(within(agentRow("Research Agent")).getByRole("button", { name: /Duplicate Research Agent/ })).toBeDisabled();
+    expect(client.createAgent).not.toHaveBeenCalled();
+    expect(client.updateAgent).not.toHaveBeenCalled();
+    expect(client.deleteAgent).not.toHaveBeenCalled();
+  });
+
+  it("renders viewer mode without mutation controls or mutation API calls", async () => {
+    const client = createClient();
+
+    render(<AgentManagementPage workspaceId={workspaceId} apiClient={client} accessMode="viewer" />);
+    expect(await screen.findByText("Research Agent")).toBeTruthy();
+    expect(screen.getByText("Viewer")).toBeTruthy();
+    expect(screen.getByLabelText("Viewer permissions")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /New Agent/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Create agent/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Configure/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Disable Research Agent/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Delete Research Agent/ })).toBeNull();
+
+    expect(client.createAgent).not.toHaveBeenCalled();
+    expect(client.getAgentConfiguration).not.toHaveBeenCalled();
+    expect(client.updateAgent).not.toHaveBeenCalled();
+    expect(client.enableAgent).not.toHaveBeenCalled();
+    expect(client.disableAgent).not.toHaveBeenCalled();
+    expect(client.deleteAgent).not.toHaveBeenCalled();
   });
 });
