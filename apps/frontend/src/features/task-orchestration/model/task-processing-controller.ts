@@ -23,7 +23,7 @@
 
 import type { EntityId } from "@vcp/shared";
 
-import { ORDERED_STEP_IDS } from "./task-processing";
+import { ORDERED_STEP_IDS, isFailureSimulationPrompt } from "./task-processing";
 import type { TaskCreationAction } from "./task-creation-state";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +151,18 @@ export class TaskSessionNotFoundError extends Error {
 // Factory options
 // ---------------------------------------------------------------------------
 
+export interface TaskProcessingStateReader {
+  findTask(taskId: EntityId<"taskId">): import("./task-types").CreatedTaskRecord | null | undefined;
+}
+
+export interface TaskProcessingStreamingStopper {
+  stop(taskId: EntityId<"taskId">): void;
+}
+
+export interface TaskProcessingCompletionStopper {
+  stop(taskId: EntityId<"taskId">): void;
+}
+
 export interface TaskProcessingControllerOptions {
   /** Injected scheduler — must not use real global timers. */
   readonly scheduler: TaskProcessingScheduler;
@@ -162,6 +174,12 @@ export interface TaskProcessingControllerOptions {
   readonly actionSink: TaskProcessingActionSink;
   /** Delay in ms before the queued → running transition fires. */
   readonly pendingDelayMs: number;
+  /** Optional state reader to inspect task prompt for failure simulation. */
+  readonly stateReader?: TaskProcessingStateReader;
+  /** Optional streaming stopper to halt chunk streaming upon simulated failure. */
+  readonly streamingStopper?: TaskProcessingStreamingStopper;
+  /** Optional completion stopper to halt completion sessions upon simulated failure. */
+  readonly completionStopper?: TaskProcessingCompletionStopper;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,8 +217,16 @@ interface TaskControllerSession {
 export function createTaskProcessingController(
   options: TaskProcessingControllerOptions
 ): TaskProcessingController {
-  const { scheduler, clock, logIdentitySource, actionSink, pendingDelayMs } =
-    options;
+  const {
+    scheduler,
+    clock,
+    logIdentitySource,
+    actionSink,
+    pendingDelayMs,
+    stateReader,
+    streamingStopper,
+    completionStopper
+  } = options;
 
   // Map from taskId string → isolated session.
   const sessions = new Map<string, TaskControllerSession>();
@@ -365,6 +391,63 @@ export function createTaskProcessingController(
 
     const currentStepId = ORDERED_STEP_IDS[currentIndex];
     const timestamp = clock.now();
+
+    // -----------------------------------------------------------------------
+    // Aggregation-stage failure simulation trigger (Task 13)
+    // -----------------------------------------------------------------------
+    if (currentStepId === "aggregate-result" && stateReader) {
+      const task = stateReader.findTask(taskId);
+      if (task && isFailureSimulationPrompt(task.prompt)) {
+        // 1. Stop processing session physically (remove internal session state)
+        sessions.delete(key);
+
+        const errors: unknown[] = [];
+
+        // 2. Stop streaming session physically
+        if (streamingStopper) {
+          try {
+            streamingStopper.stop(taskId);
+          } catch (err) {
+            errors.push(err);
+          }
+        }
+
+        // 3. Stop completion session physically
+        if (completionStopper) {
+          try {
+            completionStopper.stop(taskId);
+          } catch (err) {
+            errors.push(err);
+          }
+        }
+
+        // 4. Dispatch semantic failure action exactly once
+        try {
+          _emitAction({
+            type: "task-failed",
+            taskId,
+            error: {
+              code: "MOCK_AGGREGATION_FAILED",
+              stepId: "aggregate-result",
+              title: "Không thể tổng hợp kết quả",
+              message: "Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.",
+              occurredAt: timestamp
+            }
+          });
+        } catch (err) {
+          errors.push(err);
+        }
+
+        if (errors.length > 0) {
+          throw new AggregateError(
+            errors,
+            `TaskProcessingController encountered errors during failure simulation cleanup for task "${key}".`
+          );
+        }
+
+        return;
+      }
+    }
 
     // Step 1 — complete the currently active step.
     _emitAction({

@@ -18,8 +18,8 @@ describe("Workflow Execution Handoff", () => {
     };
 
     const agentProvider = async (workspaceId, agentIds) => {
-      const all = await agentRepo.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
-      return all.filter(a => agentIds.includes(a.agentId));
+      const result = await agentRepo.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+      return result.agents.filter(a => agentIds.includes(a.agentId));
     };
 
     const useCases = new WorkflowUseCases(workflowRepo, agentProvider, mockHandoff);
@@ -79,8 +79,8 @@ describe("Workflow Execution Handoff", () => {
     };
 
     const agentProvider = async (workspaceId, agentIds) => {
-      const all = await agentRepo.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
-      return all.filter(a => agentIds.includes(a.agentId));
+      const result = await agentRepo.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+      return result.agents.filter(a => agentIds.includes(a.agentId));
     };
 
     const useCases = new WorkflowUseCases(workflowRepo, agentProvider, mockHandoff);
@@ -128,8 +128,8 @@ describe("Workflow Execution Handoff", () => {
     };
 
     const agentProvider = async (workspaceId, agentIds) => {
-      const all = await agentRepo.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
-      return all.filter(a => agentIds.includes(a.agentId));
+      const result = await agentRepo.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+      return result.agents.filter(a => agentIds.includes(a.agentId));
     };
 
     const useCases = new WorkflowUseCases(workflowRepo, agentProvider, mockHandoff);

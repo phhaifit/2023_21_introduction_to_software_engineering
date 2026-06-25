@@ -67,10 +67,10 @@ function makeAgent(overrides = {}) {
   const agents = await useCases.listAgents(workspaceA);
 
   assert.deepEqual(
-    agents.map((agent) => agent.agentId),
+    agents.items.map((agent) => agent.agentId),
     ["agent-enabled", "agent-disabled"]
   );
-  assert.deepEqual(Object.keys(agents[0]), [
+  assert.deepEqual(Object.keys(agents.items[0]), [
     "agentId",
     "workspaceId",
     "name",
@@ -220,7 +220,7 @@ function makeAgent(overrides = {}) {
   const selectableAfterDisable = await repository.listByWorkspace(workspaceA, {
     statuses: ["enabled"]
   });
-  assert.deepEqual(selectableAfterDisable, []);
+  assert.deepEqual(selectableAfterDisable.agents, []);
 
   const enabled = await useCases.enableAgent(workspaceA, "agent-toggle");
   assert.equal(enabled.status, "enabled");
@@ -238,12 +238,12 @@ function makeAgent(overrides = {}) {
   assert.equal(deleted.status, "deleted");
 
   const activeAgents = await useCases.listAgents(workspaceA);
-  assert.deepEqual(activeAgents, []);
+  assert.deepEqual(activeAgents.items, []);
 
   const selectableAgents = await repository.listByWorkspace(workspaceA, {
     statuses: ["enabled"]
   });
-  assert.deepEqual(selectableAgents, []);
+  assert.deepEqual(selectableAgents.agents, []);
 
   await assert.rejects(
     () => useCases.enableAgent(workspaceA, "agent-delete"),

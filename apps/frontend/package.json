@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/main.tsx",
     "./App.tsx": "./src/App.tsx",
-    "./features/*": "./src/features/*"
+    "./features/*": "./src/features/*",
+    "./components/*": "./src/components/*"
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -18,7 +19,8 @@
     "@vcp/shared": "0.1.0",
     "lucide-react": "^1.21.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

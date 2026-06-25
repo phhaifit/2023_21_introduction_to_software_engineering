@@ -6,7 +6,7 @@ import {
   AgentNotFoundError,
   AgentValidationError
 } from "../application/agent-lifecycle-use-cases.ts";
-import { sendAgentApiFailure, sendAgentApiSuccess } from "./api-response.ts";
+import { sendAgentApiFailure, sendAgentApiSuccess, sendAgentPaginatedApiSuccess } from "./api-response.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 import { canPerform } from "../../../shared/rbac/permissions.ts";
 export type AgentManagementRouterDependencies = {
@@ -48,7 +48,14 @@ export function createAgentManagementRouter(
       const context = getRequestContext(request);
       enforceAuth(context);
 
-      return dependencies.useCases.listAgents(context.workspace!.workspaceId);
+      return dependencies.useCases.listAgents(context.workspace!.workspaceId, {
+        search: request.query.search as string | undefined,
+        status: request.query.status as string | undefined,
+        sortBy: request.query.sortBy as string | undefined,
+        sortOrder: request.query.sortOrder as ("asc" | "desc") | undefined,
+        page: request.query.page ? parseInt(request.query.page as string, 10) : undefined,
+        pageSize: request.query.pageSize ? parseInt(request.query.pageSize as string, 10) : undefined
+      });
     });
   });
 
@@ -94,6 +101,36 @@ export function createAgentManagementRouter(
         role: payload.role,
         model: payload.model,
         instructions: payload.instructions
+      });
+
+      return result.publicSummary;
+    });
+  });
+
+  router.patch("/:agentId/name", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
+      const payload = readStringPayload(request, ["name"]);
+      const result = await dependencies.useCases.renameAgent({
+        workspaceId: context.workspace!.workspaceId,
+        agentId: request.params.agentId as EntityId<"agentId">,
+        name: payload.name
+      });
+
+      return result.publicSummary;
+    });
+  });
+
+  router.post("/:agentId/duplicate", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
+      const result = await dependencies.useCases.duplicateAgent({
+        workspaceId: context.workspace!.workspaceId,
+        agentId: request.params.agentId as EntityId<"agentId">
       });
 
       return result.publicSummary;
@@ -146,7 +183,11 @@ async function handleAgentApiRequest<T>(
 ): Promise<void> {
   try {
     const data = await action();
-    sendAgentApiSuccess(request, response, data);
+    if (data && typeof data === "object" && "items" in data && "pagination" in data) {
+      sendAgentPaginatedApiSuccess(request, response, (data as any).items, (data as any).pagination);
+    } else {
+      sendAgentApiSuccess(request, response, data);
+    }
   } catch (error) {
     if (error instanceof AuthenticationError) {
       sendAgentApiFailure(request, response, {

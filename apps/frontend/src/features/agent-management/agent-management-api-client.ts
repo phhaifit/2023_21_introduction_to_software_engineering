@@ -1,5 +1,5 @@
 import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
-import type { ErrorCode } from "@vcp/shared/contracts/api.ts";
+import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 
@@ -27,8 +27,20 @@ export type CreateAgentPayload = {
 
 export type UpdateAgentPayload = Omit<CreateAgentPayload, "name">;
 
+export type ListAgentsOptions = {
+  search?: string;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+};
+
 export type AgentManagementApiClient = {
-  listAgents(workspaceId: EntityId<"workspaceId">): Promise<AgentListItem[]>;
+  listAgents(
+    workspaceId: EntityId<"workspaceId">,
+    options?: ListAgentsOptions
+  ): Promise<{ items: AgentListItem[]; pagination: ApiPaginationMeta }>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
     payload: CreateAgentPayload
@@ -41,6 +53,15 @@ export type AgentManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     agentId: EntityId<"agentId">,
     payload: UpdateAgentPayload
+  ): Promise<AgentPublicSummary>;
+  renameAgent(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    newName: string
+  ): Promise<AgentPublicSummary>;
+  duplicateAgent(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
   ): Promise<AgentPublicSummary>;
   enableAgent(
     workspaceId: EntityId<"workspaceId">,
@@ -136,11 +157,11 @@ export function createAgentManagementApiClient(input: {
       });
     }
 
-    if (!("data" in body)) {
+    if (!("data" in body) || !("meta" in body)) {
       throw malformedResponse(response.status);
     }
 
-    return body.data as T;
+    return { data: body.data as T, meta: body.meta as any };
   }
 
   function collectionPath(workspaceId: EntityId<"workspaceId">): string {
@@ -155,31 +176,57 @@ export function createAgentManagementApiClient(input: {
   }
 
   return {
-    listAgents: (workspaceId) => request<AgentListItem[]>(collectionPath(workspaceId)),
-    createAgent: (workspaceId, payload) =>
-      request<AgentPublicSummary>(collectionPath(workspaceId), {
+    listAgents: async (workspaceId, options) => {
+      const query = new URLSearchParams();
+      if (options?.search) query.set("search", options.search);
+      if (options?.status) query.set("status", options.status);
+      if (options?.sortBy) query.set("sortBy", options.sortBy);
+      if (options?.sortOrder) query.set("sortOrder", options.sortOrder);
+      if (options?.page) query.set("page", options.page.toString());
+      if (options?.pageSize) query.set("pageSize", options.pageSize.toString());
+
+      const qs = query.toString();
+      const path = qs ? `${collectionPath(workspaceId)}?${qs}` : collectionPath(workspaceId);
+
+      const response = await request<AgentListItem[]>(path);
+      return {
+        items: response.data,
+        pagination: response.meta.pagination
+      };
+    },
+    createAgent: async (workspaceId, payload) =>
+      (await request<AgentPublicSummary>(collectionPath(workspaceId), {
         method: "POST",
         body: JSON.stringify(payload)
-      }),
-    getAgentConfiguration: (workspaceId, agentId) =>
-      request<AgentEditableConfiguration>(`${agentPath(workspaceId, agentId)}/configuration`),
-    updateAgent: (workspaceId, agentId, payload) =>
-      request<AgentPublicSummary>(agentPath(workspaceId, agentId), {
+      })).data,
+    getAgentConfiguration: async (workspaceId, agentId) =>
+      (await request<AgentEditableConfiguration>(`${agentPath(workspaceId, agentId)}/configuration`)).data,
+    updateAgent: async (workspaceId, agentId, payload) =>
+      (await request<AgentPublicSummary>(agentPath(workspaceId, agentId), {
         method: "PATCH",
         body: JSON.stringify(payload)
-      }),
-    enableAgent: (workspaceId, agentId) =>
-      request<AgentPublicSummary>(`${agentPath(workspaceId, agentId)}/enable`, {
+      })).data,
+    renameAgent: async (workspaceId, agentId, name) =>
+      (await request<AgentPublicSummary>(`${agentPath(workspaceId, agentId)}/name`, {
+        method: "PATCH",
+        body: JSON.stringify({ name })
+      })).data,
+    duplicateAgent: async (workspaceId, agentId) =>
+      (await request<AgentPublicSummary>(`${agentPath(workspaceId, agentId)}/duplicate`, {
         method: "POST"
-      }),
-    disableAgent: (workspaceId, agentId) =>
-      request<AgentPublicSummary>(`${agentPath(workspaceId, agentId)}/disable`, {
+      })).data,
+    enableAgent: async (workspaceId, agentId) =>
+      (await request<AgentPublicSummary>(`${agentPath(workspaceId, agentId)}/enable`, {
         method: "POST"
-      }),
-    deleteAgent: (workspaceId, agentId) =>
-      request<AgentPublicSummary>(agentPath(workspaceId, agentId), {
+      })).data,
+    disableAgent: async (workspaceId, agentId) =>
+      (await request<AgentPublicSummary>(`${agentPath(workspaceId, agentId)}/disable`, {
+        method: "POST"
+      })).data,
+    deleteAgent: async (workspaceId, agentId) =>
+      (await request<AgentPublicSummary>(agentPath(workspaceId, agentId), {
         method: "DELETE"
-      })
+      })).data
   };
 }
 

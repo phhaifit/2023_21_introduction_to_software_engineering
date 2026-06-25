@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from "react";
+import { NavLink } from "react-router-dom";
 import {
   Bot,
   ChevronLeft,
@@ -37,12 +38,7 @@ const footerItems: NavigationItem[] = [
   { key: "settings", label: "Settings", icon: Settings }
 ];
 
-type SidebarProps = {
-  activePage: PageKey;
-  onNavigate: (page: PageKey) => void;
-};
-
-export function Sidebar({ activePage, onNavigate }: SidebarProps) {
+export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const sidebarClass = `sidebar${isCollapsed ? " sidebar--collapsed" : ""}`;
   const toggleLabel = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
@@ -70,13 +66,13 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
       </div>
 
       <nav className="nav-list" aria-label="Workspace navigation">
-        <NavigationGroup items={primaryItems} activePage={activePage} onNavigate={onNavigate} />
+        <NavigationGroup items={primaryItems} />
         <div className="nav-section-label">Build</div>
-        <NavigationGroup items={buildItems} activePage={activePage} onNavigate={onNavigate} />
+        <NavigationGroup items={buildItems} />
       </nav>
 
       <nav className="nav-list nav-list--footer" aria-label="Workspace settings">
-        <NavigationGroup items={footerItems} activePage={activePage} onNavigate={onNavigate} />
+        <NavigationGroup items={footerItems} />
         <button className="nav-item nav-item--help" type="button" aria-label="Ask for help">
           <span className="nav-icon" aria-hidden="true">
             <HelpCircle size={19} strokeWidth={2.2} />
@@ -90,34 +86,33 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
 
 type NavigationGroupProps = {
   items: readonly NavigationItem[];
-  activePage: PageKey;
-  onNavigate: (page: PageKey) => void;
 };
 
-function NavigationGroup({ items, activePage, onNavigate }: NavigationGroupProps) {
+function NavigationGroup({ items }: NavigationGroupProps) {
   return (
     <>
       {items.map((item) => {
-        const isActive = item.key === activePage;
         const Icon = item.icon;
 
         return (
-          <button
-            className={`nav-item${isActive ? " active" : ""}`}
-            type="button"
-            aria-current={isActive ? "page" : undefined}
+          <NavLink
+            to={`/${item.key}`}
+            className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
             aria-label={item.ariaLabel ?? item.label}
             key={item.key}
-            onClick={() => onNavigate(item.key)}
           >
-            <span className="nav-icon" aria-hidden="true">
-              <Icon size={19} strokeWidth={2.2} />
-            </span>
-            <span className="nav-label">{item.label}</span>
-            {item.key === "agents" && isActive ? (
-              <span className="nav-active-dot" aria-hidden="true" />
-            ) : null}
-          </button>
+            {({ isActive }) => (
+              <>
+                <span className="nav-icon" aria-hidden="true">
+                  <Icon size={19} strokeWidth={2.2} />
+                </span>
+                <span className="nav-label">{item.label}</span>
+                {item.key === "agents" && isActive ? (
+                  <span className="nav-active-dot" aria-hidden="true" />
+                ) : null}
+              </>
+            )}
+          </NavLink>
         );
       })}
     </>

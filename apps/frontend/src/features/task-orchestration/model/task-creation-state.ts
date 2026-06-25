@@ -11,7 +11,8 @@ import {
   cancelActiveStep,
   completeActiveStep,
   createInitialProcessingSnapshot,
-  startProcessing
+  startProcessing,
+  failActiveStep
 } from "./task-processing";
 import {
   appendStreamingFragment,
@@ -116,6 +117,12 @@ export type TaskCreationAction =
       type: "task-cancelled";
       taskId: EntityId<"taskId">;
       cancelledAt: string;
+    }
+  | {
+      /** Marks the task as failed and stops active step. */
+      type: "task-failed";
+      taskId: EntityId<"taskId">;
+      error: import("./task-types").TaskError;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -342,6 +349,30 @@ export function taskCreationReducer(
         ...transitionResult.task,
         processingSnapshot: cancelResult.snapshot,
         cancelledAt: action.cancelledAt
+      };
+
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId ? updatedTask : t
+        )
+      };
+    }
+    case "task-failed": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+
+      const transitionResult = transitionTaskStatus(task, "failed");
+      if (!transitionResult.ok) return state;
+
+      const failResult = failActiveStep(task.processingSnapshot);
+      if (!failResult.ok) return state;
+
+      const updatedTask: CreatedTaskRecord = {
+        ...transitionResult.task,
+        processingSnapshot: failResult.snapshot,
+        error: action.error
       };
 
       return {

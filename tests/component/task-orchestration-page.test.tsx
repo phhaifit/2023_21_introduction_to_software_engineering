@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -99,10 +100,10 @@ describe("TaskOrchestrationPage base workspace", () => {
 
   it("opens the workspace through the executions navigation entry", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(<MemoryRouter><App /></MemoryRouter>);
 
     const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
-    await user.click(within(navigation).getByRole("button", { name: "Công việc" }));
+    await user.click(within(navigation).getByRole("link", { name: "Công việc" }));
 
     expect(screen.getByRole("region", { name: "Main conversation region" })).toBeVisible();
   });

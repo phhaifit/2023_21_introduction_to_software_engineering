@@ -98,6 +98,8 @@ export interface CreatedTaskRecord {
   finalizedResult?: TaskFinalizedResult;
   /** Authoritative cancellation timestamp; absent until atomic cancellation. */
   cancelledAt?: string;
+  /** Authoritative task error; absent until deterministic failure. */
+  error?: TaskError;
 }
 
 export interface MockAgent {
