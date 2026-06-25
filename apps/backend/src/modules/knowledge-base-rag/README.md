@@ -10,10 +10,13 @@ Foundation reference: see `docs/module-ownership.md`,
 
 ## Current Status
 
-This backend module currently contains documentation/context only. It does not
-yet contain runtime backend logic, API routers, repository interfaces, Prisma
-repositories, in-memory repositories, worker adapters, or shared DTO
-implementations.
+This backend module now contains the internal backend foundation for domain
+models, application repository ports, safe DTO mappers, Prisma repository
+adapters, and deterministic in-memory repositories.
+
+It still does not contain HTTP API routers, route registration, upload parsing,
+file storage adapters, vector/embedding adapters, worker handlers, or frontend
+API-client implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -61,9 +64,9 @@ domain concepts: documents, uploads, validation, ingestion jobs, chunks,
 embedding/indexing status, external data sources, sync scope, sync jobs,
 processing events, and worker handoff.
 
-## Future Domain Concepts
+## Domain Concepts
 
-Future backend code should define these concepts before route implementation:
+The backend boundary defines these module-owned concepts:
 
 - `KnowledgeDocument`
 - `KnowledgeDocumentChunk`
@@ -77,23 +80,14 @@ Future backend code should define these concepts before route implementation:
 - Embedding/indexing status
 - Worker ingestion handoff
 
-## Future DB Ownership
+The domain models intentionally keep object storage references and vector
+references as opaque server-side strings (`storageKey`, `vectorRef`). Public DTO
+mappers do not expose those fields.
 
-This issue does not update Prisma schema or migrations.
+## DB Ownership
 
-Likely future KB/RAG-owned entities:
-
-- `KnowledgeDocument`
-- `KnowledgeDocumentChunk`
-- `KnowledgeIngestionJob`
-- `KnowledgeDataSource`
-- `KnowledgeSyncScopeNode`
-- `KnowledgeSyncJob`
-- `KnowledgeSyncJobEvent`
-
-The current Prisma skeleton already includes `Document`, `KnowledgeIndex`,
-`KnowledgeAccessGrant`, and `Job`. A future DB design issue must decide whether
-to extend those models or introduce additional additive models.
+The DB boundary is defined in `packages/database/prisma/schema.prisma`. Backend
+repositories use `@vcp/database` and only access KB/RAG-owned Prisma models.
 
 Rules:
 
@@ -181,8 +175,6 @@ credentials.
 
 ## Intended Backend Structure
 
-Future runtime implementation should use:
-
 ```text
 apps/backend/src/modules/knowledge-base-rag/
 |-- api/
@@ -190,6 +182,21 @@ apps/backend/src/modules/knowledge-base-rag/
 |-- domain/
 `-- infrastructure/
 ```
+
+Current backend foundation:
+
+- `application/*-repository.ts`
+- `application/dto-mappers.ts`
+- `domain/knowledge-document.ts`
+- `domain/knowledge-ingestion-job.ts`
+- `domain/knowledge-data-source.ts`
+- `domain/knowledge-sync.ts`
+- `infrastructure/prisma-*.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+
+The `api/` folder is intentionally documentation-only in this slice. Future API
+code should translate HTTP/request context into application calls and return
+shared DTOs through the public route contract.
 
 Likely future files:
 
@@ -200,21 +207,21 @@ Likely future files:
 - `application/ingestion-job-use-cases.ts`
 - `application/sync-use-cases.ts`
 - `application/ports.ts`
-- `application/*-repository.ts`
-- `domain/knowledge-document.ts`
 - `domain/upload-validation.ts`
-- `domain/knowledge-ingestion-job.ts`
-- `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
 - `domain/knowledge-events.ts`
-- `infrastructure/in-memory-*.ts`
-- `infrastructure/prisma-*.ts`
 - `infrastructure/*-adapter.ts`
 
 API code should translate HTTP and request context into application commands.
 Application code should depend on ports. Domain code should hold lifecycle and
 validation rules. Infrastructure should implement persistence, vector,
 embedding, object-storage, and queue adapters.
+
+Current repository ports cover documents and chunks, ingestion jobs, external
+data sources, sync scope nodes, sync jobs, and sync job events. Prisma adapters
+are workspace-scoped and do not query private models owned by Agent Management,
+Workflow Management, Task Orchestration, Authentication, or other modules.
+In-memory adapters are deterministic and workspace-scoped for future
+application/use-case tests.
 
 ## Worker Handoff
 

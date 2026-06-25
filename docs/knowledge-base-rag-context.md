@@ -33,16 +33,27 @@ The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
 change that integration.
 
-The backend still needs a proper foundation before runtime implementation:
+The backend now has an internal module foundation under
+`apps/backend/src/modules/knowledge-base-rag`:
 
-- DB schema ownership decisions for KB/RAG-owned records.
-- Public API schema decisions.
-- Shared contracts and DTOs for frontend/backend/worker boundaries.
-- Public domain event definitions.
-- Backend `api/application/domain/infrastructure` layering.
-- Repository interfaces plus in-memory and Prisma infrastructure.
-- Worker ingestion handoff for long-running document processing.
-- Contract, boundary, backend, frontend, worker, and functional tests.
+- Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
+  sync jobs, and sync job events.
+- Application repository ports for documents, ingestion jobs, data sources,
+  sync scope, and sync jobs.
+- Safe DTO mappers from internal domain objects to shared public DTOs.
+- Prisma repositories using KB/RAG-owned Prisma models through `@vcp/database`.
+- Deterministic in-memory repositories for future use-case tests.
+- A documentation-only `api/` placeholder; no HTTP router is implemented yet.
+
+Runtime implementation still needs:
+
+- HTTP API routers and request validation.
+- Upload parsing, object storage, embedding, vector indexing, and external
+  source adapters.
+- Worker ingestion/sync runtime handoff.
+- Frontend API client alignment with shared DTOs.
+- Backend use cases, API tests, worker tests, frontend integration tests, and
+  functional PA5 tests.
 
 The worker path `apps/workers/src/jobs/document-ingestion` currently contains
 README/context only. The queue type already reserves `document.ingest`, but no
@@ -274,7 +285,7 @@ Payload principles:
 
 ## Backend Layering Roadmap
 
-Future backend implementation should use this structure:
+Backend implementation uses this structure:
 
 ```text
 apps/backend/src/modules/knowledge-base-rag/
@@ -284,7 +295,25 @@ apps/backend/src/modules/knowledge-base-rag/
 `-- infrastructure/
 ```
 
-Likely future files, not to be created in this architecture issue:
+Current repository/application boundary files:
+
+- `application/knowledge-document-repository.ts`
+- `application/knowledge-ingestion-job-repository.ts`
+- `application/knowledge-data-source-repository.ts`
+- `application/knowledge-sync-repositories.ts`
+- `application/dto-mappers.ts`
+- `domain/knowledge-document.ts`
+- `domain/knowledge-ingestion-job.ts`
+- `domain/knowledge-data-source.ts`
+- `domain/knowledge-sync.ts`
+- `infrastructure/prisma-knowledge-document-repository.ts`
+- `infrastructure/prisma-knowledge-ingestion-job-repository.ts`
+- `infrastructure/prisma-knowledge-data-source-repository.ts`
+- `infrastructure/prisma-knowledge-sync-repository.ts`
+- `infrastructure/prisma-knowledge-base-rag-mapper.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+
+Likely future runtime files:
 
 - `api/knowledge-base-rag-router.ts`
 - `api/api-response.ts`
@@ -292,23 +321,18 @@ Likely future files, not to be created in this architecture issue:
 - `application/upload-validation-use-cases.ts`
 - `application/ingestion-job-use-cases.ts`
 - `application/sync-use-cases.ts`
-- `application/ports.ts`
-- `application/knowledge-document-repository.ts`
-- `application/knowledge-ingestion-job-repository.ts`
-- `domain/knowledge-document.ts`
 - `domain/upload-validation.ts`
-- `domain/knowledge-ingestion-job.ts`
-- `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
 - `domain/knowledge-events.ts`
-- `infrastructure/in-memory-knowledge-document-repository.ts`
-- `infrastructure/prisma-knowledge-document-repository.ts`
-- `infrastructure/prisma-knowledge-mappers.ts`
 - `infrastructure/vector-index-adapter.ts`
+- `infrastructure/object-storage-adapter.ts`
+- `infrastructure/embedding-adapter.ts`
 
 Application code should depend on repository and adapter ports. Infrastructure
 should implement those ports. API code should translate HTTP/request context
 into application commands and return shared API envelopes.
+
+This backend boundary slice intentionally does not add HTTP routes, worker
+handlers, frontend API clients, or Prisma schema changes.
 
 ## Worker Handoff Roadmap
 

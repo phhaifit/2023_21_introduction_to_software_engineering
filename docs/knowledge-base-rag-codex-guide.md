@@ -38,17 +38,17 @@ The Knowledge Base / RAG frontend currently includes:
 - Documents screen.
 - Upload Documents screen.
 
-The backend and worker sides still need foundation work before runtime
-implementation:
+The backend now has an internal foundation for future runtime implementation:
 
-- DB schema ownership.
-- Shared contracts and API DTOs.
-- Public API schema.
-- Public domain events.
-- Backend `api/application/domain/infrastructure` layering.
-- Repository interfaces, in-memory infrastructure, and Prisma infrastructure.
-- Worker ingestion handoff.
-- Tests across contract, backend, frontend, worker, and functional layers.
+- Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
+  sync jobs, and sync job events.
+- Application repository ports.
+- Safe DTO mappers to shared contracts.
+- Prisma repositories using KB/RAG-owned tables through `@vcp/database`.
+- Deterministic in-memory repositories for future use-case tests.
+
+The backend still does not have HTTP routers, route registration, upload/file
+adapters, embedding/vector adapters, worker handlers, or frontend API clients.
 
 ## Required Future Workflow
 
@@ -180,7 +180,7 @@ For KB/RAG persistence work:
 
 ## Backend Roadmap
 
-Future backend implementation should use this structure:
+Backend implementation uses this structure:
 
 ```text
 apps/backend/src/modules/knowledge-base-rag/
@@ -190,24 +190,29 @@ apps/backend/src/modules/knowledge-base-rag/
 `-- infrastructure/
 ```
 
+Current foundation files include:
+
+- `application/*-repository.ts`
+- `application/dto-mappers.ts`
+- `domain/knowledge-document.ts`
+- `domain/knowledge-ingestion-job.ts`
+- `domain/knowledge-data-source.ts`
+- `domain/knowledge-sync.ts`
+- `infrastructure/prisma-*.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+
 Likely future files:
 
 - `api/knowledge-base-rag-router.ts`
 - `api/api-response.ts`
 - `application/*-use-cases.ts`
-- `application/*-repository.ts`
 - `application/ports.ts`
-- `domain/knowledge-document.ts`
 - `domain/upload-validation.ts`
-- `domain/knowledge-ingestion-job.ts`
-- `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
 - `domain/knowledge-events.ts`
-- `infrastructure/in-memory-*.ts`
-- `infrastructure/prisma-*.ts`
 - `infrastructure/*-adapter.ts`
 
-Do not create these files in architecture-only documentation issues.
+Do not create API routers, worker handlers, frontend API clients, or adapters
+outside the selected task scope.
 
 ## API Contract Boundary
 
