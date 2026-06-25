@@ -27,7 +27,10 @@ import {
   createTaskProcessingController,
   TaskFinalStepBoundaryError,
   type TaskProcessingController,
-  type TaskProcessingScheduleHandle
+  type TaskProcessingScheduleHandle,
+  type TaskProcessingStateReader,
+  type TaskProcessingStreamingStopper,
+  type TaskProcessingCompletionStopper
 } from "./model/task-processing-controller";
 import {
   createBrowserTaskProcessingRuntime,
@@ -159,6 +162,23 @@ export function TaskOrchestrationPage({
     cancellationCoordinator ?? null
   );
 
+  // Stable ref-backed adapters for failure-simulation cleanup (Task 13).
+  // Closing over refs (not render-time values) ensures these are never stale.
+  const failureStateReader: TaskProcessingStateReader = {
+    findTask: (taskId) =>
+      taskStateRef.current.tasks.find((task) => task.taskId === taskId) ?? null
+  };
+  const failureStreamingStopper: TaskProcessingStreamingStopper = {
+    stop: (taskId) => {
+      streamingControllerRef.current?.stop(taskId);
+    }
+  };
+  const failureCompletionStopper: TaskProcessingCompletionStopper = {
+    stop: (taskId) => {
+      completionControllerRef.current?.stop(taskId);
+    }
+  };
+
   if (!controllerRef.current) {
     controllerRef.current = createTaskProcessingController({
       scheduler: runtimeRef.current.scheduler,
@@ -175,7 +195,10 @@ export function TaskOrchestrationPage({
           }
         }
       },
-      pendingDelayMs: delaysRef.current.pendingMs
+      pendingDelayMs: delaysRef.current.pendingMs,
+      stateReader: failureStateReader,
+      streamingStopper: failureStreamingStopper,
+      completionStopper: failureCompletionStopper
     });
   }
 
