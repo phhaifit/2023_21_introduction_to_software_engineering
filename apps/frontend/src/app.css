@@ -187,6 +187,7 @@ textarea {
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .nav-item:hover,
