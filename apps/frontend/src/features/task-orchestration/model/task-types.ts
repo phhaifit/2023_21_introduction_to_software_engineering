@@ -6,6 +6,8 @@ import {
   type TaskStatus as ProductionTaskStatus
 } from "@vcp/shared";
 
+import type { TaskFinalizedResult } from "./task-completion";
+
 export const TASK_STATUSES = [
   "pending",
   "in-progress",
@@ -92,6 +94,8 @@ export interface CreatedTaskRecord {
   processingSnapshot: import("./task-processing").ProcessingSnapshot;
   /** Authoritative partial-result streaming snapshot — present from task creation. */
   streamingSnapshot: import("./task-streaming").TaskStreamingSnapshot;
+  /** Authoritative completed-result state; absent until atomic completion. */
+  finalizedResult?: TaskFinalizedResult;
 }
 
 export interface MockAgent {
