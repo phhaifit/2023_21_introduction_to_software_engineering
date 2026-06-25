@@ -1,13 +1,20 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentApiClientError,
   type AgentListItem,
-  type AgentManagementApiClient
+  type AgentManagementApiClient,
 } from "@vcp/frontend/features/agent-management/agent-management-api-client.ts";
 import { AgentManagementPage } from "@vcp/frontend/features/agent-management/agent-management-page.tsx";
+import { ToastProvider } from "@vcp/frontend/components/shared/Toast.tsx";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 afterEach(cleanup);
@@ -22,7 +29,7 @@ const enabledAgent: AgentListItem = {
   model: "gpt-4.1-mini",
   status: "enabled",
   createdAt: "2026-06-19T00:00:00.000Z",
-  updatedAt: "2026-06-20T00:00:00.000Z"
+  updatedAt: "2026-06-20T00:00:00.000Z",
 };
 
 const disabledAgent: AgentListItem = {
@@ -30,27 +37,46 @@ const disabledAgent: AgentListItem = {
   agentId: "agent-disabled" as EntityId<"agentId">,
   name: "Support Agent",
   role: "Support",
-  status: "disabled"
+  status: "disabled",
+};
+
+const defaultPagination = {
+  totalItems: 2,
+  pageSize: 20,
+  totalPages: 1,
+  currentPage: 1,
 };
 
 function createClient(overrides: Partial<AgentManagementApiClient> = {}) {
   return {
-    listAgents: vi.fn(async () => [enabledAgent, disabledAgent]),
+    listAgents: vi.fn(async () => ({
+      items: [enabledAgent, disabledAgent],
+      pagination: defaultPagination,
+    })),
     createAgent: vi.fn(async () => enabledAgent),
     getAgentConfiguration: vi.fn(async () => ({
       ...enabledAgent,
-      instructions: "Prepare market research."
+      instructions: "Prepare market research.",
     })),
     updateAgent: vi.fn(async () => enabledAgent),
     enableAgent: vi.fn(async () => enabledAgent),
     disableAgent: vi.fn(async () => disabledAgent),
-    deleteAgent: vi.fn(async () => ({ ...enabledAgent, status: "deleted" as const })),
-    ...overrides
-  };
+    deleteAgent: vi.fn(async () => ({
+      ...enabledAgent,
+      status: "deleted" as const,
+    })),
+    renameAgent: vi.fn(async () => enabledAgent),
+    duplicateAgent: vi.fn(async () => enabledAgent),
+    ...overrides,
+  } as unknown as AgentManagementApiClient;
 }
 
 function renderPage(client = createClient()) {
-  render(<AgentManagementPage workspaceId={workspaceId} apiClient={client} />);
+  render(
+    <ToastProvider>
+      <AgentManagementPage workspaceId={workspaceId} apiClient={client} />
+    </ToastProvider>,
+  );
   return client;
 }
 
@@ -62,7 +88,10 @@ async function openCreateModal(user: ReturnType<typeof userEvent.setup>) {
 async function fillCreateForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Name"), "Planning Agent");
   await user.type(screen.getByLabelText("Role"), "Planner");
-  await user.type(screen.getByLabelText("Instructions"), "Create execution plans.");
+  await user.type(
+    screen.getByLabelText("Instructions"),
+    "Create execution plans.",
+  );
 }
 
 function agentRow(name: string): HTMLElement {
@@ -71,8 +100,14 @@ function agentRow(name: string): HTMLElement {
 
 describe("AgentManagementPage API integration", () => {
   it("shows loading and then renders enabled and disabled agents", async () => {
-    let resolveList!: (agents: AgentListItem[]) => void;
-    const listPromise = new Promise<AgentListItem[]>((resolve) => {
+    let resolveList!: (res: {
+      items: AgentListItem[];
+      pagination: any;
+    }) => void;
+    const listPromise = new Promise<{
+      items: AgentListItem[];
+      pagination: any;
+    }>((resolve) => {
       resolveList = resolve;
     });
     const client = createClient({ listAgents: vi.fn(() => listPromise) });
@@ -80,26 +115,46 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     expect(screen.getByRole("status").textContent).toContain("Loading agents");
 
-    resolveList([enabledAgent, disabledAgent]);
+    resolveList({
+      items: [enabledAgent, disabledAgent],
+      pagination: defaultPagination,
+    });
     expect(await screen.findByText("Research Agent")).toBeTruthy();
     expect(screen.getByText("Support Agent")).toBeTruthy();
   });
 
   it("renders the API empty state without mock agents", async () => {
     const user = userEvent.setup();
-    renderPage(createClient({ listAgents: vi.fn(async () => []) }));
+    renderPage(
+      createClient({
+        listAgents: vi.fn(async () => ({
+          items: [],
+          pagination: defaultPagination,
+        })),
+      }),
+    );
 
     expect(await screen.findByText("No active agents yet.")).toBeTruthy();
     expect(screen.queryByText("Research Agent")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Create first agent" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create first agent" }),
+    );
     expect(screen.getByRole("dialog", { name: "Create agent" })).toBeTruthy();
   });
 
   it("shows an initial error and retries the list request", async () => {
     const listAgents = vi
       .fn()
-      .mockRejectedValueOnce(new AgentApiClientError({ message: "API unavailable", kind: "network" }))
-      .mockResolvedValueOnce([enabledAgent]);
+      .mockRejectedValueOnce(
+        new AgentApiClientError({
+          message: "API unavailable",
+          kind: "network",
+        }),
+      )
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      });
     const user = userEvent.setup();
     renderPage(createClient({ listAgents }));
 
@@ -115,12 +170,18 @@ describe("AgentManagementPage API integration", () => {
       ...enabledAgent,
       agentId: "agent-created" as EntityId<"agentId">,
       name: "Planning Agent",
-      role: "Planner"
+      role: "Planner",
     };
     const listAgents = vi
       .fn()
-      .mockResolvedValueOnce([enabledAgent])
-      .mockResolvedValueOnce([enabledAgent, createdAgent]);
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [enabledAgent, createdAgent],
+        pagination: defaultPagination,
+      });
     const client = createClient({ listAgents });
     const user = userEvent.setup();
     renderPage(client);
@@ -135,7 +196,7 @@ describe("AgentManagementPage API integration", () => {
       name: "Planning Agent",
       role: "Planner",
       model: "gpt-4.1-mini",
-      instructions: "Create execution plans."
+      instructions: "Create execution plans.",
     });
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
   });
@@ -148,9 +209,9 @@ describe("AgentManagementPage API integration", () => {
           message: "Invalid agent configuration",
           details: { issues: ["role is required"] },
           status: 400,
-          kind: "api"
+          kind: "api",
         });
-      })
+      }),
     });
     const user = userEvent.setup();
     renderPage(client);
@@ -183,8 +244,12 @@ describe("AgentManagementPage API integration", () => {
     await user.click(screen.getByRole("button", { name: "Saving..." }));
     expect(client.createAgent).toHaveBeenCalledTimes(1);
 
-    rejectCreate(new AgentApiClientError({ message: "Create failed", kind: "api" }));
-    expect(await screen.findByText("Create failed")).toBeTruthy();
+    rejectCreate(
+      new AgentApiClientError({ message: "Create failed", kind: "api" }),
+    );
+    expect(
+      (await screen.findAllByText("Create failed")).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Research Agent")).toBeTruthy();
     expect(screen.getByLabelText("Name")).toHaveValue("Planning Agent");
   });
@@ -210,10 +275,18 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: "Configure",
+      }),
+    );
 
-    expect(screen.getByRole("dialog", { name: "Configure agent" })).toBeTruthy();
-    expect(await screen.findByDisplayValue("Prepare market research.")).toBeTruthy();
+    expect(
+      screen.getByRole("dialog", { name: "Configure agent" }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByDisplayValue("Prepare market research."),
+    ).toBeTruthy();
     expect(screen.getByLabelText("Name")).toHaveAttribute("readonly");
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
@@ -225,17 +298,23 @@ describe("AgentManagementPage API integration", () => {
           code: "agent.not_available",
           message: "Agent is not available in this workspace.",
           kind: "api",
-          status: 404
+          status: 404,
         });
-      })
+      }),
     });
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: "Configure",
+      }),
+    );
 
-    expect(await screen.findByText("Agent is not available in this workspace.")).toBeTruthy();
+    expect(
+      await screen.findByText("Agent is not available in this workspace."),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
     expect(client.updateAgent).not.toHaveBeenCalled();
   });
@@ -244,13 +323,23 @@ describe("AgentManagementPage API integration", () => {
     const updatedAgent = { ...enabledAgent, role: "Analyst", model: "gpt-4.1" };
     const listAgents = vi
       .fn()
-      .mockResolvedValueOnce([enabledAgent])
-      .mockResolvedValueOnce([updatedAgent]);
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [updatedAgent],
+        pagination: defaultPagination,
+      });
     const client = createClient({ listAgents });
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: "Configure",
+      }),
+    );
     await screen.findByDisplayValue("Prepare market research.");
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Analyst");
@@ -259,13 +348,23 @@ describe("AgentManagementPage API integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
-    await waitFor(() => expect(within(agentRow("Research Agent")).getByText("Analyst")).toBeTruthy());
-    expect(screen.queryByRole("dialog", { name: "Configure agent" })).toBeNull();
-    expect(client.updateAgent).toHaveBeenCalledWith(workspaceId, enabledAgent.agentId, {
-      role: "Analyst",
-      model: "gpt-4.1",
-      instructions: "Prepare market research."
-    });
+    await waitFor(() =>
+      expect(
+        within(agentRow("Research Agent")).getByText("Analyst"),
+      ).toBeTruthy(),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Configure agent" }),
+    ).toBeNull();
+    expect(client.updateAgent).toHaveBeenCalledWith(
+      workspaceId,
+      enabledAgent.agentId,
+      {
+        role: "Analyst",
+        model: "gpt-4.1",
+        instructions: "Prepare market research.",
+      },
+    );
   });
 
   it("preserves edited values and prevents duplicate update requests", async () => {
@@ -277,7 +376,11 @@ describe("AgentManagementPage API integration", () => {
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: "Configure",
+      }),
+    );
     await screen.findByDisplayValue("Prepare market research.");
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Analyst");
@@ -286,8 +389,12 @@ describe("AgentManagementPage API integration", () => {
     await user.click(screen.getByRole("button", { name: "Saving..." }));
     expect(client.updateAgent).toHaveBeenCalledTimes(1);
 
-    rejectUpdate(new AgentApiClientError({ message: "Update failed", kind: "api" }));
-    expect(await screen.findByText("Update failed")).toBeTruthy();
+    rejectUpdate(
+      new AgentApiClientError({ message: "Update failed", kind: "api" }),
+    );
+    expect(
+      (await screen.findAllByText("Update failed")).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByLabelText("Role")).toHaveValue("Analyst");
   });
 
@@ -297,32 +404,65 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: "Configure" }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: "Configure",
+      }),
+    );
     await screen.findByDisplayValue("Prepare market research.");
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Draft analyst");
     await user.click(screen.getByRole("button", { name: "Close agent form" }));
 
-    expect(screen.queryByRole("dialog", { name: "Configure agent" })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Configure agent" }),
+    ).toBeNull();
     expect(client.updateAgent).not.toHaveBeenCalled();
-    expect(within(agentRow("Research Agent")).getByText("Researcher")).toBeTruthy();
+    expect(
+      within(agentRow("Research Agent")).getByText("Researcher"),
+    ).toBeTruthy();
   });
 
   it("disables and enables agents while refreshing available actions", async () => {
     const listAgents = vi
       .fn()
-      .mockResolvedValueOnce([enabledAgent])
-      .mockResolvedValueOnce([{ ...enabledAgent, status: "disabled" }])
-      .mockResolvedValueOnce([enabledAgent]);
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [{ ...enabledAgent, status: "disabled" }],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      });
     const client = createClient({ listAgents });
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Disable/ }));
-    expect(await within(agentRow("Research Agent")).findByRole("button", { name: /Enable/ })).toBeTruthy();
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Enable/ }));
-    expect(await within(agentRow("Research Agent")).findByRole("button", { name: /Disable/ })).toBeTruthy();
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Disable/,
+      }),
+    );
+    expect(
+      await within(agentRow("Research Agent")).findByRole("button", {
+        name: /Enable/,
+      }),
+    ).toBeTruthy();
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Enable/,
+      }),
+    );
+    expect(
+      await within(agentRow("Research Agent")).findByRole("button", {
+        name: /Disable/,
+      }),
+    ).toBeTruthy();
 
     expect(client.disableAgent).toHaveBeenCalledTimes(1);
     expect(client.enableAgent).toHaveBeenCalledTimes(1);
@@ -331,22 +471,42 @@ describe("AgentManagementPage API integration", () => {
   it("requires deletion confirmation and removes the confirmed agent", async () => {
     const listAgents = vi
       .fn()
-      .mockResolvedValueOnce([enabledAgent])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({ items: [], pagination: defaultPagination });
     const client = createClient({ listAgents });
     const user = userEvent.setup();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Delete/ }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Delete/,
+      }),
+    );
+    expect(screen.getByRole("dialog", { name: "Delete agent" })).toBeTruthy();
     expect(client.deleteAgent).not.toHaveBeenCalled();
-    expect(screen.getByText("Research Agent")).toBeTruthy();
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Delete/ }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Delete agent" })).toBeNull();
+    expect(client.deleteAgent).not.toHaveBeenCalled();
+
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Delete/,
+      }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Delete agent" })).getByRole(
+        "button",
+        { name: "Delete" },
+      ),
+    );
+
     expect(await screen.findByText("No active agents yet.")).toBeTruthy();
     expect(client.deleteAgent).toHaveBeenCalledTimes(1);
-    expect(confirm).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the list and prevents duplicate lifecycle requests after failure", async () => {
@@ -359,41 +519,113 @@ describe("AgentManagementPage API integration", () => {
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Disable/ }));
-    await user.click(within(agentRow("Research Agent")).getByRole("button", { name: /Disable/ }));
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Disable/,
+      }),
+    );
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Disable/,
+      }),
+    );
     expect(client.disableAgent).toHaveBeenCalledTimes(1);
 
-    rejectDisable(new AgentApiClientError({ message: "Lifecycle failed", kind: "network" }));
+    rejectDisable(
+      new AgentApiClientError({ message: "Lifecycle failed", kind: "network" }),
+    );
     expect(await screen.findByText("Lifecycle failed")).toBeTruthy();
     expect(screen.getByText("Research Agent")).toBeTruthy();
     expect(client.disableAgent).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps unsupported row menu actions disabled and non-mutating", async () => {
-    const client = createClient();
+  it("supports row menu actions for renaming and duplicating agents", async () => {
+    const listAgents = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      });
+    const client = createClient({ listAgents });
+    const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
 
-    expect(within(agentRow("Research Agent")).getByRole("button", { name: /Open actions/ })).toBeTruthy();
-    expect(within(agentRow("Research Agent")).getByRole("button", { name: /Rename Research Agent/ })).toBeDisabled();
-    expect(within(agentRow("Research Agent")).getByRole("button", { name: /Duplicate Research Agent/ })).toBeDisabled();
-    expect(client.createAgent).not.toHaveBeenCalled();
-    expect(client.updateAgent).not.toHaveBeenCalled();
-    expect(client.deleteAgent).not.toHaveBeenCalled();
+    // Test Duplicate
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Open actions/,
+      }),
+    );
+    const duplicateButton = within(agentRow("Research Agent")).getByRole(
+      "button",
+      { name: /Duplicate Research Agent/ },
+    );
+    expect(duplicateButton).not.toBeDisabled();
+    await user.click(duplicateButton);
+    expect(client.duplicateAgent).toHaveBeenCalledWith(
+      workspaceId,
+      enabledAgent.agentId,
+    );
+
+    // Test Rename
+    await user.click(
+      within(agentRow("Research Agent")).getByRole("button", {
+        name: /Open actions/,
+      }),
+    );
+    const renameButton = within(agentRow("Research Agent")).getByRole(
+      "button",
+      { name: /Rename Research Agent/ },
+    );
+    expect(renameButton).not.toBeDisabled();
+    await user.click(renameButton);
+
+    // Rename Dialog should open
+    const renameDialog = screen.getByRole("dialog", { name: "Rename agent" });
+    expect(renameDialog).toBeTruthy();
+    const nameInput = within(renameDialog).getByLabelText("Name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "New Name");
+    await user.click(
+      within(renameDialog).getByRole("button", { name: "Save" }),
+    );
+
+    expect(client.renameAgent).toHaveBeenCalledWith(
+      workspaceId,
+      enabledAgent.agentId,
+      "New Name",
+    );
   });
 
   it("renders viewer mode without mutation controls or mutation API calls", async () => {
     const client = createClient();
 
-    render(<AgentManagementPage workspaceId={workspaceId} apiClient={client} accessMode="viewer" />);
+    render(
+      <ToastProvider>
+        <AgentManagementPage
+          workspaceId={workspaceId}
+          apiClient={client}
+          accessMode="viewer"
+        />
+      </ToastProvider>,
+    );
     expect(await screen.findByText("Research Agent")).toBeTruthy();
     expect(screen.getByText("Viewer")).toBeTruthy();
     expect(screen.getByLabelText("Viewer permissions")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /New Agent/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Create agent/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Configure/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Disable Research Agent/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Delete Research Agent/ })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Disable Research Agent/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Delete Research Agent/ }),
+    ).toBeNull();
 
     expect(client.createAgent).not.toHaveBeenCalled();
     expect(client.getAgentConfiguration).not.toHaveBeenCalled();

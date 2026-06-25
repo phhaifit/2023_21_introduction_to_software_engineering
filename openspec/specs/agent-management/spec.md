@@ -1,9 +1,7 @@
 ## Purpose
 
 Define workspace-scoped virtual employee lifecycle management, configuration, lifecycle control, and public agent summary behavior.
-
 ## Requirements
-
 ### Requirement: Agent Listing
 The system SHALL show workspace agents with key operating information.
 
@@ -16,7 +14,7 @@ The system SHALL allow authorized users to create an agent in a workspace.
 
 #### Scenario: Agent created
 - **WHEN** an authorized user with `agents:manage` permission submits a valid name, role, model, and instructions
-- **THEN** the system creates the agent, stores its configuration, and prepares the corresponding skill configuration content
+- **THEN** the system creates the agent, stores its configuration, prepares the corresponding skill configuration content, and refreshes the paginated agent list
 
 #### Scenario: Invalid agent rejected
 - **WHEN** an authorized user submits missing or invalid agent configuration
@@ -67,3 +65,18 @@ The system SHALL verify the agent management workflows via E2E testing.
 #### Scenario: Run Playwright tests
 - **WHEN** the e2e test suite is executed
 - **THEN** all agent management tests pass
+
+### Requirement: Agent Rename
+The system SHALL allow authorized users to rename an existing agent.
+
+#### Scenario: Agent renamed
+- **WHEN** an authorized user with `agents:manage` permission submits a new name for an existing agent
+- **THEN** the system validates workspace-scoped uniqueness, persists the new name, updates the skill configuration content, and returns the updated agent summary
+
+### Requirement: Agent Duplicate
+The system SHALL allow authorized users to duplicate an agent's configuration.
+
+#### Scenario: Agent duplicated
+- **WHEN** an authorized user with `agents:manage` permission requests to duplicate an existing agent
+- **THEN** the system creates a new agent with a unique auto-generated name and cloned configuration, writes the skill configuration content, and returns the new agent's public summary
+

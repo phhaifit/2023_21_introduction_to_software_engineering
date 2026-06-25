@@ -1,6 +1,7 @@
 import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
+import type { ApiPaginationMeta } from "@vcp/shared/contracts/api.ts";
 import { createAgent, isAgentSelectable, toAgentPublicSummary, type Agent } from "../domain/agent.ts";
 import type { AgentRepository } from "./agent-repository.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
@@ -74,15 +75,60 @@ export class AgentLifecycleUseCases {
     this.dependencies = dependencies;
   }
 
-  async listAgents(workspaceId: EntityId<"workspaceId">): Promise<AgentListItem[]> {
-    const agents = await this.dependencies.repository.listByWorkspace(workspaceId, {
-      statuses: ["enabled", "disabled"]
+  async listAgents(
+    workspaceId: EntityId<"workspaceId">,
+    options: {
+      search?: string;
+      status?: string;
+      sortBy?: string;
+      sortOrder?: "asc" | "desc";
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<{ items: AgentListItem[]; pagination: ApiPaginationMeta }> {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+
+    let statuses: readonly AgentStatus[] = ["enabled", "disabled"];
+    if (options.status) {
+      statuses = options.status.split(",") as AgentStatus[];
+    }
+
+    let sortBy = options.sortBy || "createdAt";
+    const allowedSortBy = ["name", "createdAt", "updatedAt", "status"];
+    if (!allowedSortBy.includes(sortBy)) {
+      throw new AgentValidationError([`invalid sortBy field: ${sortBy}`]);
+    }
+
+    const sortOrder = options.sortOrder || "asc";
+
+    const result = await this.dependencies.repository.listByWorkspace(workspaceId, {
+      search: options.search,
+      statuses,
+      sortBy,
+      sortOrder,
+      page,
+      pageSize
     });
 
-    return agents.map((agent) => ({
+    const items = result.agents.map((agent) => ({
       ...toAgentPublicSummary(agent),
       createdAt: agent.createdAt
     }));
+
+    const totalPages = Math.ceil(result.total / pageSize);
+
+    return {
+      items,
+      pagination: {
+        page,
+        pageSize,
+        totalItems: result.total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    };
   }
 
   async getAgentConfiguration(
@@ -145,6 +191,89 @@ export class AgentLifecycleUseCases {
       instructions: normalized.instructions,
       updatedAt: this.dependencies.now()
     });
+  }
+
+  async renameAgent(input: {
+    workspaceId: EntityId<"workspaceId">;
+    agentId: EntityId<"agentId">;
+    name: string;
+  }): Promise<AgentMutationResult> {
+    const name = input.name.trim();
+    if (!name) {
+      throw new AgentValidationError(["name is required"]);
+    }
+
+    const agent = await this.requireAgent(input.workspaceId, input.agentId);
+
+    if (agent.status === "deleted") {
+      throw new AgentValidationError(["deleted agents cannot be changed"]);
+    }
+
+    if (agent.name.toLowerCase() === name.toLowerCase()) {
+      return this.saveMutation(agent);
+    }
+
+    const nameAlreadyUsed = await this.dependencies.repository.existsByName(
+      input.workspaceId,
+      name
+    );
+
+    if (nameAlreadyUsed) {
+      throw new AgentValidationError(["name must be unique within the workspace"]);
+    }
+
+    return this.saveMutation({
+      ...agent,
+      name,
+      updatedAt: this.dependencies.now()
+    });
+  }
+
+  async duplicateAgent(input: {
+    workspaceId: EntityId<"workspaceId">;
+    agentId: EntityId<"agentId">;
+  }): Promise<AgentMutationResult> {
+    const sourceAgent = await this.requireAgent(input.workspaceId, input.agentId);
+
+    if (sourceAgent.status === "deleted") {
+      throw new AgentValidationError(["deleted agents cannot be duplicated"]);
+    }
+
+    const newName = await this.generateUniqueCopyName(input.workspaceId, sourceAgent.name);
+    const timestamp = this.dependencies.now();
+
+    const newAgent = createAgent({
+      agentId: this.dependencies.generateAgentId(),
+      workspaceId: input.workspaceId,
+      name: newName,
+      role: sourceAgent.role,
+      model: sourceAgent.model,
+      instructions: sourceAgent.instructions,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      status: "enabled"
+    });
+
+    return this.saveMutation(newAgent);
+  }
+
+  private async generateUniqueCopyName(
+    workspaceId: EntityId<"workspaceId">,
+    baseName: string
+  ): Promise<string> {
+    const maxIterations = 50;
+
+    for (let i = 1; i <= maxIterations; i++) {
+      const suffix = i === 1 ? " (Copy)" : ` (Copy ${i})`;
+      const candidateName = `${baseName}${suffix}`;
+
+      const exists = await this.dependencies.repository.existsByName(workspaceId, candidateName);
+      if (!exists) {
+        return candidateName;
+      }
+    }
+
+    return `${baseName} (Copy ${Date.now()})`;
   }
 
   async enableAgent(

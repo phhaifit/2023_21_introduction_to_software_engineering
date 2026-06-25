@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import {
   AlertCircle,
   ArrowUpDown,
@@ -17,9 +24,15 @@ import {
   Sparkles,
   Trash2,
   X,
+  XCircle,
+  ChevronDown,
   UserRoundCheck,
-  XCircle
 } from "lucide-react";
+
+import { useToast } from "../../components/shared/Toast.tsx";
+import { Pagination } from "../../components/shared/Pagination.tsx";
+import { RenameDialog } from "./components/RenameDialog.tsx";
+import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog.tsx";
 
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import agentsHeroUrl from "../../assets/agent-management/agents-hero.png";
@@ -27,14 +40,14 @@ import {
   AgentApiClientError,
   createAgentManagementApiClient,
   type AgentListItem,
-  type AgentManagementApiClient
+  type AgentManagementApiClient,
 } from "./agent-management-api-client.ts";
 import {
   createAgentManagementViewModel,
   type AgentFormField,
   type AgentFormState,
   type AgentRowAction,
-  type AgentRowViewModel
+  type AgentRowViewModel,
 } from "./agent-management-view.ts";
 import "./agent-management-view.css";
 
@@ -52,16 +65,17 @@ const createFormValues: AgentFormState["values"] = {
   name: "",
   role: "",
   model: "gpt-4.1-mini",
-  instructions: ""
+  instructions: "",
 };
 
 export function AgentManagementPage({
   workspaceId,
   apiClient = defaultApiClient,
-  accessMode = "manager"
+  accessMode = "manager",
 }: AgentManagementPageProps) {
   const [agents, setAgents] = useState<AgentListItem[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<EntityId<"agentId"> | null>(null);
+  const [selectedAgentId, setSelectedAgentId] =
+    useState<EntityId<"agentId"> | null>(null);
   const [form, setForm] = useState<AgentFormState>(createForm());
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [initialLoadError, setInitialLoadError] = useState<string | null>(null);
@@ -72,11 +86,54 @@ export function AgentManagementPage({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const pendingActionRef = useRef<string | null>(null);
   const canManageAgents = accessMode === "manager";
+  const { showSuccess, showError } = useToast();
+
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("updatedAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+
+  const [renameAgentObj, setRenameAgentObj] =
+    useState<AgentRowViewModel | null>(null);
+  const [deleteAgentObj, setDeleteAgentObj] =
+    useState<AgentRowViewModel | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const replaceAgents = useCallback(async () => {
-    const nextAgents = await apiClient.listAgents(workspaceId);
-    setAgents(nextAgents);
-  }, [apiClient, workspaceId]);
+    const statuses =
+      statusFilter === "All" ? undefined : [statusFilter.toLowerCase()];
+    const result = await apiClient.listAgents(workspaceId, {
+      search: debouncedSearch || undefined,
+      status: statuses,
+      sortBy,
+      sortOrder,
+      page,
+      pageSize,
+    });
+    setAgents(result.items);
+    setTotalPages(result.pagination.totalPages);
+  }, [
+    apiClient,
+    workspaceId,
+    debouncedSearch,
+    statusFilter,
+    sortBy,
+    sortOrder,
+    page,
+    pageSize,
+  ]);
 
   const loadInitialAgents = useCallback(async () => {
     setIsInitialLoading(true);
@@ -85,7 +142,9 @@ export function AgentManagementPage({
     try {
       await replaceAgents();
     } catch (error) {
-      setInitialLoadError(messageFor(error, "Unable to load workspace agents."));
+      setInitialLoadError(
+        messageFor(error, "Unable to load workspace agents."),
+      );
     } finally {
       setIsInitialLoading(false);
     }
@@ -100,13 +159,17 @@ export function AgentManagementPage({
       createAgentManagementViewModel({
         agents,
         selectedAgentId,
-        form
+        form,
       }),
-    [agents, form, selectedAgentId]
+    [agents, form, selectedAgentId],
   );
 
-  const enabledCount = viewModel.list.rows.filter((row) => row.status === "enabled").length;
-  const disabledCount = viewModel.list.rows.filter((row) => row.status === "disabled").length;
+  const enabledCount = viewModel.list.rows.filter(
+    (row) => row.status === "enabled",
+  ).length;
+  const disabledCount = viewModel.list.rows.filter(
+    (row) => row.status === "disabled",
+  ).length;
   const isBusy = pendingAction !== null || isEditLoading;
 
   function showCreateForm() {
@@ -138,26 +201,31 @@ export function AgentManagementPage({
         name: row.name,
         role: row.role,
         model: row.model,
-        instructions: ""
-      }
+        instructions: "",
+      },
     });
 
     try {
-      const configuration = await apiClient.getAgentConfiguration(workspaceId, agentId);
+      const configuration = await apiClient.getAgentConfiguration(
+        workspaceId,
+        agentId,
+      );
       setForm({
         mode: "edit",
         values: {
           name: configuration.name,
           role: configuration.role,
           model: configuration.model,
-          instructions: configuration.instructions
-        }
+          instructions: configuration.instructions,
+        },
       });
       setIsEditReady(true);
     } catch (error) {
       setForm((current) => ({
         ...current,
-        errors: { form: messageFor(error, "Unable to load agent configuration.") }
+        errors: {
+          form: messageFor(error, "Unable to load agent configuration."),
+        },
       }));
     } finally {
       setIsEditLoading(false);
@@ -169,22 +237,27 @@ export function AgentManagementPage({
       ...current,
       values: {
         ...current.values,
-        [field]: value
+        [field]: value,
       },
       errors: {
         ...current.errors,
         [field]: undefined,
-        form: undefined
-      }
+        form: undefined,
+      },
     }));
   }
 
   async function submitForm() {
-    if (!canManageAgents || pendingActionRef.current || (form.mode === "edit" && !isEditReady)) {
+    if (
+      !canManageAgents ||
+      pendingActionRef.current ||
+      (form.mode === "edit" && !isEditReady)
+    ) {
       return;
     }
 
-    const actionKey = form.mode === "create" ? "create" : `update:${selectedAgentId}`;
+    const actionKey =
+      form.mode === "create" ? "create" : `update:${selectedAgentId}`;
     await runMutation(
       actionKey,
       async () => {
@@ -194,28 +267,63 @@ export function AgentManagementPage({
           await apiClient.updateAgent(workspaceId, selectedAgentId, {
             role: form.values.role,
             model: form.values.model,
-            instructions: form.values.instructions
+            instructions: form.values.instructions,
           });
         }
 
         await replaceAgents();
         closeForm(true);
+        showSuccess(
+          form.mode === "create"
+            ? "Agent created successfully"
+            : "Agent configured successfully",
+        );
       },
       (error) => {
+        showError(messageFor(error, "Unable to update the agent."));
         setForm((current) => ({
           ...current,
-          errors: formErrorsFor(error)
+          errors: formErrorsFor(error),
         }));
-      }
+      },
     );
   }
 
-  async function performLifecycleAction(row: AgentRowViewModel, action: AgentRowAction) {
-    if (!canManageAgents || pendingActionRef.current) {
-      return;
-    }
+  async function handleDuplicate(row: AgentRowViewModel) {
+    if (!canManageAgents || pendingActionRef.current) return;
+    const agentId = row.agentId as EntityId<"agentId">;
+    await runMutation(
+      `duplicate:${agentId}`,
+      async () => {
+        await apiClient.duplicateAgent(workspaceId, agentId);
+        await replaceAgents();
+        showSuccess("Agent duplicated successfully");
+      },
+      (error) => showError(messageFor(error, "Unable to duplicate the agent.")),
+    );
+  }
 
-    if (action.kind === "delete" && !window.confirm("Delete this agent?")) {
+  async function handleRenameSubmit(newName: string) {
+    if (!renameAgentObj) return;
+    const agentId = renameAgentObj.agentId as EntityId<"agentId">;
+    try {
+      await apiClient.renameAgent(workspaceId, agentId, newName);
+      setRenameAgentObj(null);
+      await replaceAgents();
+      showSuccess("Agent renamed successfully");
+    } catch (error) {
+      setRenameError(messageFor(error, "Unable to rename agent."));
+    }
+  }
+
+  async function performLifecycleAction(
+    row: AgentRowViewModel,
+    action: AgentRowAction,
+  ) {
+    if (!canManageAgents || pendingActionRef.current) return;
+
+    if (action.kind === "delete") {
+      setDeleteAgentObj(row);
       return;
     }
 
@@ -225,23 +333,35 @@ export function AgentManagementPage({
       async () => {
         if (action.kind === "enable") {
           await apiClient.enableAgent(workspaceId, agentId);
+          showSuccess("Agent enabled successfully");
         } else if (action.kind === "disable") {
           await apiClient.disableAgent(workspaceId, agentId);
-        } else {
-          await apiClient.deleteAgent(workspaceId, agentId);
+          showSuccess("Agent disabled successfully");
         }
-
         await replaceAgents();
-        if (action.kind === "delete" && selectedAgentId === agentId) {
+      },
+      (error) => showError(messageFor(error, "Unable to update the agent.")),
+    );
+  }
+
+  async function performDelete() {
+    if (!deleteAgentObj) return;
+    const agentId = deleteAgentObj.agentId as EntityId<"agentId">;
+    await runMutation(
+      `delete:${agentId}`,
+      async () => {
+        await apiClient.deleteAgent(workspaceId, agentId);
+        await replaceAgents();
+        showSuccess("Agent deleted successfully");
+        setDeleteAgentObj(null);
+        if (selectedAgentId === agentId) {
           setSelectedAgentId(null);
           setIsEditReady(false);
           setForm(createForm());
           setIsFormOpen(false);
         }
       },
-      (error) => {
-        setPageError(messageFor(error, "Unable to update the agent."));
-      }
+      (error) => showError(messageFor(error, "Unable to delete the agent.")),
     );
   }
 
@@ -260,7 +380,7 @@ export function AgentManagementPage({
   async function runMutation(
     actionKey: string,
     operation: () => Promise<void>,
-    onError: (error: unknown) => void
+    onError: (error: unknown) => void,
   ) {
     if (pendingActionRef.current) {
       return;
@@ -282,7 +402,10 @@ export function AgentManagementPage({
   }
 
   return (
-    <section className="agent-management-page" aria-labelledby="agent-management-title">
+    <section
+      className="agent-management-page"
+      aria-labelledby="agent-management-title"
+    >
       <header className="agent-topbar">
         <div className="agent-topbar__title">
           <Bot size={24} aria-hidden="true" />
@@ -314,7 +437,9 @@ export function AgentManagementPage({
       <section className="agent-hero" aria-label="Agent automation overview">
         <div
           className="agent-hero__image"
-          style={{ backgroundImage: `linear-gradient(90deg, rgba(21, 28, 39, 0.72), rgba(21, 28, 39, 0.32)), url(${agentsHeroUrl})` }}
+          style={{
+            backgroundImage: `linear-gradient(90deg, rgba(21, 28, 39, 0.72), rgba(21, 28, 39, 0.32)), url(${agentsHeroUrl})`,
+          }}
           aria-hidden="true"
         />
         <div className="agent-hero__content">
@@ -324,8 +449,8 @@ export function AgentManagementPage({
           </span>
           <h2>Let's automate with Agents</h2>
           <p>
-            Track enabled and disabled agents, inspect configuration, and control lifecycle
-            actions from one workspace dashboard.
+            Track enabled and disabled agents, inspect configuration, and
+            control lifecycle actions from one workspace dashboard.
           </p>
         </div>
       </section>
@@ -334,38 +459,107 @@ export function AgentManagementPage({
         <label className="agent-toolbar__search">
           <Search size={18} aria-hidden="true" />
           <span className="sr-only">Search agents</span>
-          <input type="search" placeholder="Search..." disabled aria-label="Search agents" />
+          <input
+            type="search"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search agents"
+          />
         </label>
         <div className="agent-toolbar__actions">
-          <button type="button" disabled aria-label="Filter agents">
-            <Filter size={17} aria-hidden="true" />
-            Filter
-          </button>
-          <button type="button" disabled aria-label="Sort agents">
-            <ArrowUpDown size={17} aria-hidden="true" />
-            Sort: Last modified
-          </button>
+          <div className="agent-toolbar__select-wrapper">
+            <Filter
+              size={17}
+              aria-hidden="true"
+              className="agent-toolbar__select-icon"
+            />
+            <select
+              className="agent-toolbar__select"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Filter agents"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Enabled">Enabled</option>
+              <option value="Disabled">Disabled</option>
+            </select>
+            <ChevronDown size={14} className="agent-toolbar__select-chevron" />
+          </div>
+
+          <div className="agent-toolbar__select-wrapper">
+            <ArrowUpDown
+              size={17}
+              aria-hidden="true"
+              className="agent-toolbar__select-icon"
+            />
+            <select
+              className="agent-toolbar__select"
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [newSortBy, newSortOrder] = e.target.value.split("-") as [
+                  string,
+                  "asc" | "desc",
+                ];
+                setSortBy(newSortBy);
+                setSortOrder(newSortOrder);
+              }}
+              aria-label="Sort agents"
+            >
+              <option value="updatedAt-desc">Last modified</option>
+              <option value="createdAt-desc">Created date</option>
+              <option value="name-asc">Name A-Z</option>
+              <option value="name-desc">Name Z-A</option>
+            </select>
+            <ChevronDown size={14} className="agent-toolbar__select-chevron" />
+          </div>
+
           <div className="agent-view-toggle" aria-label="View mode">
-            <button type="button" disabled aria-label="List view">
+            <button
+              type="button"
+              aria-label="List view"
+              className="agent-view-toggle__btn active"
+            >
               <List size={17} aria-hidden="true" />
             </button>
-            <button type="button" disabled aria-label="Grid view">
+            <button
+              type="button"
+              disabled
+              aria-label="Grid view"
+              className="agent-view-toggle__btn"
+            >
               <Grid3X3 size={17} aria-hidden="true" />
             </button>
           </div>
         </div>
       </section>
 
-      {pageError ? <p className="agent-management-page__error" role="alert">{pageError}</p> : null}
+      {pageError ? (
+        <p className="agent-management-page__error" role="alert">
+          {pageError}
+        </p>
+      ) : null}
 
-      <div className={`agent-management${canManageAgents ? " agent-management--manager" : ""}`}>
-        <section className="agent-list" aria-labelledby="agent-list-title" aria-busy={isBusy}>
+      <div
+        className={`agent-management${canManageAgents ? " agent-management--manager" : ""}`}
+      >
+        <section
+          className="agent-list"
+          aria-labelledby="agent-list-title"
+          aria-busy={isBusy}
+        >
           <div className="agent-list__header">
             <div>
               <h2 id="agent-list-title">Agent list</h2>
               <p>{viewModel.list.rows.length} workspace agents</p>
             </div>
-            <dl className="agent-management-page__stats" aria-label="Agent status summary">
+            <dl
+              className="agent-management-page__stats"
+              aria-label="Agent status summary"
+            >
               <div>
                 <dt>Enabled</dt>
                 <dd>{enabledCount}</dd>
@@ -390,23 +584,71 @@ export function AgentManagementPage({
             </div>
           ) : null}
           {!isInitialLoading && !initialLoadError && viewModel.list.isEmpty ? (
-            <AgentEmptyState canManageAgents={canManageAgents} onCreate={showCreateForm} />
-          ) : null}
-          {!isInitialLoading && !initialLoadError && !viewModel.list.isEmpty ? (
-            <AgentTable
-              rows={viewModel.list.rows}
-              disabled={isBusy}
+            <AgentEmptyState
               canManageAgents={canManageAgents}
-              onEdit={showEditForm}
-              onLifecycleAction={performLifecycleAction}
+              onCreate={showCreateForm}
+              hasFilters={search.length > 0 || statusFilter !== "All"}
+              onClearFilters={() => {
+                setSearch("");
+                setStatusFilter("All");
+              }}
             />
           ) : null}
+          {!isInitialLoading && !initialLoadError && !viewModel.list.isEmpty ? (
+            <>
+              <AgentTable
+                rows={viewModel.list.rows}
+                disabled={isBusy}
+                canManageAgents={canManageAgents}
+                onEdit={showEditForm}
+                onRename={(row) => {
+                  setRenameAgentObj(row);
+                  setRenameError(null);
+                }}
+                onDuplicate={handleDuplicate}
+                onLifecycleAction={performLifecycleAction}
+              />
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+              />
+            </>
+          ) : null}
         </section>
+
+        {renameAgentObj && (
+          <RenameDialog
+            row={renameAgentObj}
+            disabled={isBusy}
+            error={renameError}
+            onClose={() => setRenameAgentObj(null)}
+            onSubmit={handleRenameSubmit}
+          />
+        )}
+
+        {deleteAgentObj && (
+          <ConfirmDeleteDialog
+            row={deleteAgentObj}
+            disabled={isBusy}
+            onClose={() => setDeleteAgentObj(null)}
+            onConfirm={performDelete}
+          />
+        )}
 
         {canManageAgents && isFormOpen ? (
           <AgentFormDialog
             form={viewModel.form}
-            disabled={pendingAction !== null || isEditLoading || (form.mode === "edit" && !isEditReady)}
+            disabled={
+              pendingAction !== null ||
+              isEditLoading ||
+              (form.mode === "edit" && !isEditReady)
+            }
             isEditLoading={isEditLoading}
             onClose={() => closeForm()}
             onFieldChange={updateFormField}
@@ -415,12 +657,16 @@ export function AgentManagementPage({
         ) : null}
 
         {!canManageAgents ? (
-          <aside className="agent-readonly-panel" aria-label="Viewer permissions">
+          <aside
+            className="agent-readonly-panel"
+            aria-label="Viewer permissions"
+          >
             <ShieldCheck size={22} aria-hidden="true" />
             <h2>Read-only access</h2>
             <p>
-              Viewer mode can inspect agent metadata, status, and update history. Mutation actions
-              are hidden until Workspace User Management supplies a role that can manage agents.
+              Viewer mode can inspect agent metadata, status, and update
+              history. Mutation actions are hidden until Workspace User
+              Management supplies a role that can manage agents.
             </p>
           </aside>
         ) : null}
@@ -439,13 +685,19 @@ function AgentFormDialog({
   isEditLoading,
   onClose,
   onFieldChange,
-  onSubmit
+  onSubmit,
 }: AgentFormDialogProps) {
-  const dialogTitle = form.mode === "create" ? "Create agent" : "Configure agent";
+  const dialogTitle =
+    form.mode === "create" ? "Create agent" : "Configure agent";
 
   return (
     <div className="agent-modal-backdrop" role="presentation">
-      <div className="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-form-title">
+      <div
+        className="agent-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="agent-form-title"
+      >
         <button
           type="button"
           className="agent-modal__close"
@@ -473,6 +725,8 @@ type AgentTableProps = {
   disabled: boolean;
   canManageAgents: boolean;
   onEdit: (row: AgentRowViewModel) => void;
+  onRename: (row: AgentRowViewModel) => void;
+  onDuplicate: (row: AgentRowViewModel) => void;
   onLifecycleAction: (row: AgentRowViewModel, action: AgentRowAction) => void;
 };
 
@@ -481,7 +735,9 @@ function AgentTable({
   disabled,
   canManageAgents,
   onEdit,
-  onLifecycleAction
+  onRename,
+  onDuplicate,
+  onLifecycleAction,
 }: AgentTableProps) {
   return (
     <div className="agent-table-wrap">
@@ -505,6 +761,8 @@ function AgentTable({
               disabled={disabled}
               canManageAgents={canManageAgents}
               onEdit={onEdit}
+              onRename={onRename}
+              onDuplicate={onDuplicate}
               onLifecycleAction={onLifecycleAction}
             />
           ))}
@@ -519,6 +777,8 @@ type AgentRowProps = {
   disabled: boolean;
   canManageAgents: boolean;
   onEdit: (row: AgentRowViewModel) => void;
+  onRename: (row: AgentRowViewModel) => void;
+  onDuplicate: (row: AgentRowViewModel) => void;
   onLifecycleAction: (row: AgentRowViewModel, action: AgentRowAction) => void;
 };
 
@@ -527,14 +787,19 @@ function AgentRow({
   disabled,
   canManageAgents,
   onEdit,
-  onLifecycleAction
+  onRename,
+  onDuplicate,
+  onLifecycleAction,
 }: AgentRowProps) {
   const selectableLabel = row.canBeSelectedForNewWork
     ? "Selectable for new work"
     : "Unavailable for new work";
 
   return (
-    <tr className={`agent-row agent-row--${row.statusTone}`} aria-current={row.isSelected ? "true" : undefined}>
+    <tr
+      className={`agent-row agent-row--${row.statusTone}`}
+      aria-current={row.isSelected ? "true" : undefined}
+    >
       <td>
         <div className="agent-row__identity">
           <span className="agent-avatar" aria-hidden="true">
@@ -549,7 +814,9 @@ function AgentRow({
       <td>{row.role}</td>
       <td>{row.model}</td>
       <td>
-        <span className={`agent-row__status agent-row__status--${row.statusTone}`}>
+        <span
+          className={`agent-row__status agent-row__status--${row.statusTone}`}
+        >
           {row.statusLabel}
         </span>
       </td>
@@ -557,7 +824,10 @@ function AgentRow({
       <td>{selectableLabel}</td>
       {canManageAgents ? (
         <td>
-          <div className="agent-row__actions" aria-label={`Actions for ${row.name}`}>
+          <div
+            className="agent-row__actions"
+            aria-label={`Actions for ${row.name}`}
+          >
             <button
               type="button"
               className="agent-menu-trigger"
@@ -567,8 +837,16 @@ function AgentRow({
             >
               <MoreVertical size={20} aria-hidden="true" />
             </button>
-            <div className="agent-action-menu" role="menu" aria-label={`Actions for ${row.name}`}>
-              <button type="button" onClick={() => void onEdit(row)} disabled={disabled}>
+            <div
+              className="agent-action-menu"
+              role="menu"
+              aria-label={`Actions for ${row.name}`}
+            >
+              <button
+                type="button"
+                onClick={() => void onEdit(row)}
+                disabled={disabled}
+              >
                 <Pencil size={17} aria-hidden="true" />
                 Configure
               </button>
@@ -583,11 +861,21 @@ function AgentRow({
                     onLifecycleAction={onLifecycleAction}
                   />
                 ))}
-              <button type="button" disabled aria-disabled="true" aria-label={`Rename ${row.name}`}>
+              <button
+                type="button"
+                onClick={() => onRename(row)}
+                disabled={disabled || !canManageAgents}
+                aria-label={`Rename ${row.name}`}
+              >
                 <SquarePen size={17} aria-hidden="true" />
                 Rename
               </button>
-              <button type="button" disabled aria-disabled="true" aria-label={`Duplicate ${row.name}`}>
+              <button
+                type="button"
+                onClick={() => onDuplicate(row)}
+                disabled={disabled || !canManageAgents}
+                aria-label={`Duplicate ${row.name}`}
+              >
                 <Copy size={17} aria-hidden="true" />
                 Duplicate
               </button>
@@ -617,8 +905,18 @@ type LifecycleButtonProps = {
   onLifecycleAction: (row: AgentRowViewModel, action: AgentRowAction) => void;
 };
 
-function LifecycleButton({ row, action, disabled, onLifecycleAction }: LifecycleButtonProps) {
-  const Icon = action.kind === "enable" ? PlayCircle : action.kind === "disable" ? XCircle : Trash2;
+function LifecycleButton({
+  row,
+  action,
+  disabled,
+  onLifecycleAction,
+}: LifecycleButtonProps) {
+  const Icon =
+    action.kind === "enable"
+      ? PlayCircle
+      : action.kind === "disable"
+        ? XCircle
+        : Trash2;
 
   return (
     <button
@@ -627,7 +925,9 @@ function LifecycleButton({ row, action, disabled, onLifecycleAction }: Lifecycle
       data-action={action.kind}
       data-agent-id={row.agentId}
       data-confirmation={
-        action.requiresConfirmation ? "Deleting an agent prevents future selection." : undefined
+        action.requiresConfirmation
+          ? "Deleting an agent prevents future selection."
+          : undefined
       }
       onClick={() => void onLifecycleAction(row, action)}
       disabled={disabled}
@@ -642,9 +942,39 @@ function LifecycleButton({ row, action, disabled, onLifecycleAction }: Lifecycle
 type AgentEmptyStateProps = {
   canManageAgents: boolean;
   onCreate: () => void;
+  hasFilters?: boolean;
+  onClearFilters?: () => void;
 };
 
-function AgentEmptyState({ canManageAgents, onCreate }: AgentEmptyStateProps) {
+function AgentEmptyState({
+  canManageAgents,
+  onCreate,
+  hasFilters,
+  onClearFilters,
+}: AgentEmptyStateProps) {
+  if (hasFilters) {
+    return (
+      <div className="agent-empty-state">
+        <div className="agent-empty-state__icon" aria-hidden="true">
+          <Search size={28} />
+        </div>
+        <p className="empty-label">No results found</p>
+        <h3>No agents match your filters</h3>
+        <p>
+          Try adjusting your search query or status filter to find what you're
+          looking for.
+        </p>
+        <button
+          type="button"
+          className="agent-secondary-button"
+          onClick={onClearFilters}
+        >
+          Clear filters
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="agent-empty-state">
       <div className="agent-empty-state__icon" aria-hidden="true">
@@ -653,10 +983,15 @@ function AgentEmptyState({ canManageAgents, onCreate }: AgentEmptyStateProps) {
       <p className="empty-label">No active agents yet.</p>
       <h3>Build your first virtual teammate</h3>
       <p>
-        Agents hold role, model, and instruction settings for work inside this workspace.
+        Agents hold role, model, and instruction settings for work inside this
+        workspace.
       </p>
       {canManageAgents ? (
-        <button type="button" className="agent-primary-button" onClick={onCreate}>
+        <button
+          type="button"
+          className="agent-primary-button"
+          onClick={onCreate}
+        >
           <Plus size={18} aria-hidden="true" />
           Create first agent
         </button>
@@ -673,7 +1008,9 @@ function AgentEmptyState({ canManageAgents, onCreate }: AgentEmptyStateProps) {
 function AgentListSkeleton() {
   return (
     <div className="agent-skeleton">
-      <p className="sr-only" role="status">Loading agents...</p>
+      <p className="sr-only" role="status">
+        Loading agents...
+      </p>
       <div aria-hidden="true">
         <div className="agent-skeleton__hero" />
         <div className="agent-skeleton__toolbar">
@@ -709,7 +1046,7 @@ function AgentForm({
   disabled,
   isEditLoading,
   onFieldChange,
-  onSubmit
+  onSubmit,
 }: AgentFormProps) {
   const formTitleId = "agent-form-title";
 
@@ -731,14 +1068,23 @@ function AgentForm({
         </span>
         <div>
           <h2 id={formTitleId}>{title ?? form.title}</h2>
-          <p>{form.mode === "create" ? "Define a new workspace agent." : "Update agent behavior."}</p>
+          <p>
+            {form.mode === "create"
+              ? "Define a new workspace agent."
+              : "Update agent behavior."}
+          </p>
         </div>
       </div>
       {isEditLoading ? <p role="status">Loading configuration...</p> : null}
-      {form.errors.form ? <p className="agent-form__error" role="alert">{form.errors.form}</p> : null}
+      {form.errors.form ? (
+        <p className="agent-form__error" role="alert">
+          {form.errors.form}
+        </p>
+      ) : null}
       <FormField
         field="name"
         label="Name"
+        hint="Give your agent a unique, descriptive name."
         value={form.values.name}
         error={form.errors.name}
         readOnly={form.mode === "edit"}
@@ -748,6 +1094,7 @@ function AgentForm({
       <FormField
         field="role"
         label="Role"
+        hint="What is this agent's primary function? (e.g. Data Analyst, UX Researcher)"
         value={form.values.role}
         error={form.errors.role}
         disabled={disabled}
@@ -756,6 +1103,7 @@ function AgentForm({
       <FormField
         field="model"
         label="Model"
+        hint="Which LLM should power this agent? (e.g. gpt-4o, claude-3-5-sonnet)"
         value={form.values.model}
         error={form.errors.model}
         disabled={disabled}
@@ -764,26 +1112,36 @@ function AgentForm({
       <FormField
         field="instructions"
         label="Instructions"
+        hint="Provide a detailed system prompt and behavioral guidelines for the agent."
         value={form.values.instructions}
         error={form.errors.instructions}
         disabled={disabled}
         onFieldChange={onFieldChange}
       />
-      <button type="submit" className="agent-primary-button" disabled={disabled}>
-        {disabled ? (isEditLoading ? "Loading..." : "Saving...") : form.submitLabel}
+      <button
+        type="submit"
+        className="agent-primary-button"
+        disabled={disabled}
+      >
+        {disabled
+          ? isEditLoading
+            ? "Loading..."
+            : "Saving..."
+          : form.submitLabel}
       </button>
     </form>
   );
 }
 
 type FormFieldProps = {
-  field: AgentFormField;
+  field: keyof AgentFormState["values"];
   label: string;
   value: string;
   error?: string;
+  hint?: string;
   readOnly?: boolean;
   disabled?: boolean;
-  onFieldChange: (field: AgentFormField, value: string) => void;
+  onFieldChange: (field: string, value: string) => void;
 };
 
 function FormField({
@@ -791,13 +1149,25 @@ function FormField({
   label,
   value,
   error,
+  hint,
   readOnly = false,
   disabled = false,
-  onFieldChange
+  onFieldChange,
 }: FormFieldProps) {
   const fieldId = `agent-${field}`;
   const errorId = `${fieldId}-error`;
-  const invalidProps = error ? { "aria-invalid": true, "aria-describedby": errorId } : {};
+  const hintId = `${fieldId}-hint`;
+
+  const describedBy = [error ? errorId : null, hint ? hintId : null]
+    .filter(Boolean)
+    .join(" ");
+
+  const invalidProps = error
+    ? { "aria-invalid": true, "aria-describedby": describedBy }
+    : hint
+      ? { "aria-describedby": describedBy }
+      : {};
+
   const commonProps = {
     id: fieldId,
     name: field,
@@ -805,19 +1175,28 @@ function FormField({
     disabled,
     onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onFieldChange(field, event.target.value),
-    ...invalidProps
+    ...invalidProps,
   };
 
   return (
-    <label className="agent-form__field" htmlFor={fieldId}>
-      <span>{label}</span>
+    <div className="agent-form__field">
+      <label htmlFor={fieldId}>{label}</label>
+      {hint ? (
+        <p className="agent-form__hint" id={hintId}>
+          {hint}
+        </p>
+      ) : null}
       {field === "instructions" ? (
         <textarea {...commonProps} />
       ) : (
         <input {...commonProps} readOnly={readOnly} />
       )}
-      {error ? <span id={errorId} className="agent-form__error" role="alert">{error}</span> : null}
-    </label>
+      {error ? (
+        <span id={errorId} className="agent-form__error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -826,8 +1205,13 @@ function createForm(): AgentFormState {
 }
 
 function formErrorsFor(error: unknown): AgentFormState["errors"] {
-  if (error instanceof AgentApiClientError && error.code === "validation.invalid_input") {
-    const issues = Array.isArray(error.details?.issues) ? error.details.issues : [];
+  if (
+    error instanceof AgentApiClientError &&
+    error.code === "validation.invalid_input"
+  ) {
+    const issues = Array.isArray(error.details?.issues)
+      ? error.details.issues
+      : [];
     const errors: AgentFormState["errors"] = {};
 
     for (const issue of issues) {
@@ -835,8 +1219,8 @@ function formErrorsFor(error: unknown): AgentFormState["errors"] {
         continue;
       }
 
-      const field = (["name", "role", "model", "instructions"] as const).find((candidate) =>
-        issue.startsWith(candidate)
+      const field = (["name", "role", "model", "instructions"] as const).find(
+        (candidate) => issue.startsWith(candidate),
       );
       if (field) {
         errors[field] = issue;
@@ -856,6 +1240,6 @@ function messageFor(error: unknown, fallback: string): string {
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
   }).format(new Date(value));
 }

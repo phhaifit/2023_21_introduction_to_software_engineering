@@ -77,7 +77,7 @@ assert.equal(wrongWorkspace, null);
 
 const workspaceAgents = await repository.listByWorkspace(workspaceA);
 assert.deepEqual(
-  workspaceAgents.map((agent) => agent.agentId),
+  workspaceAgents.agents.map((agent) => agent.agentId),
   ["agent-1", "agent-2"]
 );
 
@@ -85,7 +85,7 @@ const enabledWorkspaceAgents = await repository.listByWorkspace(workspaceA, {
   statuses: ["enabled"]
 });
 assert.deepEqual(
-  enabledWorkspaceAgents.map((agent) => agent.agentId),
+  enabledWorkspaceAgents.agents.map((agent) => agent.agentId),
   ["agent-1"]
 );
 

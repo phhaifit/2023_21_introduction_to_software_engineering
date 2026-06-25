@@ -1,9 +1,7 @@
 ## Purpose
 
 Define the browser-to-API integration behavior for workspace-scoped Agent Management operations and local development.
-
 ## Requirements
-
 ### Requirement: Agent Management Frontend API Client
 The system SHALL provide a frontend Agent Management API client that uses the shared response envelope for workspace-scoped list, create, configuration read, update, enable, disable, and delete operations.
 
@@ -16,19 +14,15 @@ The system SHALL provide a frontend Agent Management API client that uses the sh
 - **THEN** the client exposes the error code, message, and validation details without treating the response as successful data
 
 ### Requirement: API-Backed Agent List
-The system SHALL load the active agent list from the backend for the workspace supplied by the app boundary and render it through the redesigned Agent Management list presentation.
+The frontend SHALL fetch the agent list with query parameters and display paginated results.
 
-#### Scenario: Page initially loads agents
-- **WHEN** the Agent Management page mounts
-- **THEN** it shows a redesigned loading skeleton with a screen-reader-visible loading state and then renders the enabled and disabled agents returned by the list API
+#### Scenario: List with query support
+- **WHEN** the agent management page loads or query state changes (search, filter, sort, page)
+- **THEN** the frontend API client sends `GET /api/workspaces/:workspaceId/agents` with the current query parameters and renders the paginated result
 
-#### Scenario: Workspace has no active agents
-- **WHEN** the list API returns no agents
-- **THEN** the page renders the redesigned active-list empty state instead of mock agents
-
-#### Scenario: Initial list request fails
-- **WHEN** the list API cannot return agent data
-- **THEN** the page displays a recoverable general error instead of mock agents and preserves a retry action
+#### Scenario: Pagination state management
+- **WHEN** the user navigates between pages or changes page size
+- **THEN** the frontend updates the query state and re-fetches the agent list without full page reload
 
 ### Requirement: API-Backed Agent Creation
 The system SHALL submit create-form values to the workspace Agent Management API from the redesigned Agent Management presentation.
@@ -151,3 +145,52 @@ The system SHALL keep Agent Management behavior testable after the visual redesi
 #### Scenario: E2E tests verify redesigned lifecycle flow
 - **WHEN** Playwright tests exercise list, create, edit, enable, disable, and delete flows
 - **THEN** the tests pass against the redesigned presentation while still verifying the existing API-backed behavior
+
+### Requirement: Frontend Rename Flow
+The frontend SHALL support renaming agents through the API client.
+
+#### Scenario: Rename API call
+- **WHEN** a user confirms a rename in the rename dialog
+- **THEN** the frontend sends `PATCH /api/workspaces/:workspaceId/agents/:agentId/name` with the new name and refreshes the list on success
+
+#### Scenario: Rename validation error display
+- **WHEN** the rename API returns a validation error (duplicate name)
+- **THEN** the frontend displays the validation error in the rename dialog without closing it
+
+### Requirement: Frontend Duplicate Flow
+The frontend SHALL support duplicating agents through the API client.
+
+#### Scenario: Duplicate API call
+- **WHEN** a user clicks Duplicate in the row action menu
+- **THEN** the frontend sends `POST /api/workspaces/:workspaceId/agents/:agentId/duplicate` and shows a success toast with the new agent name on success
+
+### Requirement: Frontend Toast Integration
+The frontend SHALL show toast notifications for all mutation outcomes.
+
+#### Scenario: Create success toast
+- **WHEN** agent creation succeeds
+- **THEN** the frontend displays a success toast `"Agent '<name>' created successfully"`
+
+#### Scenario: Delete success toast
+- **WHEN** agent deletion succeeds
+- **THEN** the frontend displays a success toast `"Agent '<name>' deleted"`
+
+#### Scenario: Error toast
+- **WHEN** any mutation fails with a non-validation server error
+- **THEN** the frontend displays an error toast with the error message
+
+### Requirement: E2E Test Coverage for New Flows
+The system SHALL verify new agent management flows via E2E testing.
+
+#### Scenario: Search flow E2E
+- **WHEN** the E2E test types in the search input
+- **THEN** the agent list filters to matching results
+
+#### Scenario: Rename flow E2E
+- **WHEN** the E2E test renames an agent through the action menu
+- **THEN** the agent list reflects the new name
+
+#### Scenario: Duplicate flow E2E
+- **WHEN** the E2E test duplicates an agent through the action menu
+- **THEN** the agent list shows the new cloned agent
+
