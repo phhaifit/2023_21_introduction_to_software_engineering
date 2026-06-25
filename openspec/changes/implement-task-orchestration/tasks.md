@@ -438,7 +438,7 @@
 
   `feat(task-orchestration): add completed result view`
 
-* [ ] 11. [PA5] Task & Orchestration – Processing Detail Modal
+* [x] 11. [PA5] Task & Orchestration – Processing Detail Modal
 
   Scope:
 
