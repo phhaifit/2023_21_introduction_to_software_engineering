@@ -96,6 +96,8 @@ export interface CreatedTaskRecord {
   streamingSnapshot: import("./task-streaming").TaskStreamingSnapshot;
   /** Authoritative completed-result state; absent until atomic completion. */
   finalizedResult?: TaskFinalizedResult;
+  /** Authoritative cancellation timestamp; absent until atomic cancellation. */
+  cancelledAt?: string;
 }
 
 export interface MockAgent {

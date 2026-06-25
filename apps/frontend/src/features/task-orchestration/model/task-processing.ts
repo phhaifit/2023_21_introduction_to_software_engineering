@@ -239,6 +239,38 @@ export function completeActiveStep(
 }
 
 // ---------------------------------------------------------------------------
+// cancelActiveStep
+//
+// Marks the currently active step (if any) as "canceled".
+// Invariants:
+//   - If no step is active, returns the snapshot unmodified (no-op).
+// ---------------------------------------------------------------------------
+export function cancelActiveStep(
+  snapshot: ProcessingSnapshot
+): ProcessingResult<ProcessingSnapshot> {
+  const activeStep = snapshot.steps.find((s) => s.status === "active");
+  if (!activeStep) {
+    // If there is no active step (e.g. still waiting to start validate-input),
+    // it's a no-op but successful.
+    return {
+      ok: true,
+      snapshot
+    };
+  }
+
+  const newSteps = snapshot.steps.map((step) =>
+    step.id === activeStep.id
+      ? { ...step, status: "canceled" as const }
+      : { ...step }
+  );
+
+  return {
+    ok: true,
+    snapshot: { ...snapshot, steps: newSteps }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // appendProcessingLog
 //
 // Appends a log entry to the snapshot.

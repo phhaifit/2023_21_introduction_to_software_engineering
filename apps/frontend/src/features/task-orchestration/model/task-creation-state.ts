@@ -8,6 +8,7 @@ import type {
 import {
   appendProcessingLog,
   activateNextStep,
+  cancelActiveStep,
   completeActiveStep,
   createInitialProcessingSnapshot,
   startProcessing
@@ -109,6 +110,12 @@ export type TaskCreationAction =
       type: "task-completed";
       taskId: EntityId<"taskId">;
       result: TaskFinalizedResult;
+    }
+  | {
+      /** Marks the task as cancelled and stops active step. */
+      type: "task-cancelled";
+      taskId: EntityId<"taskId">;
+      cancelledAt: string;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -311,6 +318,30 @@ export function taskCreationReducer(
         processingSnapshot: task.processingSnapshot,
         streamingSnapshot: task.streamingSnapshot,
         finalizedResult: { ...action.result }
+      };
+
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId ? updatedTask : t
+        )
+      };
+    }
+    case "task-cancelled": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+
+      const transitionResult = transitionTaskStatus(task, "cancelled");
+      if (!transitionResult.ok) return state;
+
+      const cancelResult = cancelActiveStep(task.processingSnapshot);
+      if (!cancelResult.ok) return state;
+
+      const updatedTask: CreatedTaskRecord = {
+        ...transitionResult.task,
+        processingSnapshot: cancelResult.snapshot,
+        cancelledAt: action.cancelledAt
       };
 
       return {
