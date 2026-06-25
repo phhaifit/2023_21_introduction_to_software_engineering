@@ -8,8 +8,8 @@
 
 ## 2. API and Request Context
 
-- [ ] 2.1 Add authentication routes/controllers for register, login, logout, and current user
-- [ ] 2.2 Wire authenticated request parsing into `apps/backend/src/shared/auth/request-context.ts`
+- [x] 2.1 Add authentication routes/controllers for register, login, logout, and current user
+- [x] 2.2 Wire authenticated request parsing into `apps/backend/src/shared/auth/request-context.ts`
 - [x] 2.3 Return shared API success and error response shapes for all authentication endpoints
 
 ## 3. Frontend Experience
