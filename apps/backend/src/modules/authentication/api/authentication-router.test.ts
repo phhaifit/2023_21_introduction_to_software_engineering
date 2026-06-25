@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, type MockedFunction } from "vitest";
 import type { Request, Response } from "express";
 
-import { InvalidCredentialsError, ValidationError } from "../domain/errors.ts";
+import { EmailAlreadyUsedError, InvalidCredentialsError, ValidationError } from "../domain/errors.ts";
 import type { RegisterUseCase } from "../application/register-use-case.ts";
 import type { LoginUseCase } from "../application/login-use-case.ts";
 import type { UserPublicProfile } from "../domain/user-public-profile.ts";
@@ -171,6 +171,31 @@ describe("POST /register controller", () => {
     const body = res._body as any;
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe("validation.invalid_input");
+  });
+
+  it("use case throws EmailAlreadyUsedError → validation.invalid_input (422)", async () => {
+    const registerExecute = vi
+      .fn()
+      .mockRejectedValue(new EmailAlreadyUsedError("alice@example.com"));
+    const router = createAuthenticationRouter({
+      registerUseCase: makeRegisterUseCase(registerExecute),
+      loginUseCase: makeLoginUseCase(vi.fn()),
+    });
+
+    const req = makeMockRequest({
+      email: "alice@example.com",
+      password: "correct horse battery staple",
+    });
+    const res = makeMockResponse();
+
+    const handler = extractRouteHandler(router, "POST", "/register");
+    await handler(req as Request, res as unknown as Response, vi.fn());
+
+    expect(res._statusCode).toBe(422);
+    const body = res._body as any;
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("validation.invalid_input");
+    expect(body.error.message).toBe("Email already used: alice@example.com");
   });
 
   it("unexpected error → system.unexpected_error (500)", async () => {
