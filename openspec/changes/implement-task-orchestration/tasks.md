@@ -478,7 +478,7 @@
 
 ## Exception Flow
 
-* [ ] 12. [PA5] Task & Orchestration – Cancel Confirmation and Canceled State
+* [x] 12. [PA5] Task & Orchestration – Cancel Confirmation and Canceled State
 
   Scope:
 
