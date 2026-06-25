@@ -5,20 +5,66 @@
 Work only inside the Knowledge Base / RAG boundary unless the user explicitly
 asks for broader integration. This module prepares internal and external
 knowledge sources for future RAG use; it does not implement final answer
-generation.
+generation, Agent Management, Workflow Management, or Task Orchestration.
 
 Before each task, read:
 
 1. `AGENTS.md`
-2. `docs/openspec-team-guide.md`
-3. `docs/module-ownership.md`
-4. `docs/pr-checklist.md`
-5. `docs/knowledge-base-rag-context.md`
-6. `openspec/changes/implement-knowledge-base-rag/proposal.md`
-7. `openspec/changes/implement-knowledge-base-rag/design.md`
-8. `openspec/changes/implement-knowledge-base-rag/specs/knowledge-base-rag/spec.md`
-9. `openspec/changes/implement-knowledge-base-rag/tasks.md`
-10. The README in the relevant frontend, backend, or worker Knowledge Base path.
+2. `README.md`
+3. `docs/requirements.md`
+4. `docs/architecture.md`
+5. `docs/module-ownership.md`
+6. `docs/team-module-implementation-guide.md`
+7. `docs/api/module-api-contracts.md`
+8. `docs/pr-checklist.md`
+9. `docs/openspec-team-guide.md`
+10. `docs/knowledge-base-rag-context.md`
+11. `openspec/changes/implement-knowledge-base-rag/proposal.md`
+12. `openspec/changes/implement-knowledge-base-rag/design.md`
+13. `openspec/changes/implement-knowledge-base-rag/specs/knowledge-base-rag/spec.md`
+14. `openspec/changes/implement-knowledge-base-rag/tasks.md`
+15. The README in the relevant frontend, backend, or worker Knowledge Base path.
+
+If the OpenSpec CLI is unavailable, read the repository artifacts directly and
+report that the CLI command could not be run.
+
+## Current State
+
+The Knowledge Base / RAG frontend currently includes:
+
+- Base layout and local navigation.
+- Shared KB/RAG UI components.
+- Mock data and shared local view types.
+- Documents screen.
+- Upload Documents screen.
+
+The backend and worker sides still need foundation work before runtime
+implementation:
+
+- DB schema ownership.
+- Shared contracts and API DTOs.
+- Public API schema.
+- Public domain events.
+- Backend `api/application/domain/infrastructure` layering.
+- Repository interfaces, in-memory infrastructure, and Prisma infrastructure.
+- Worker ingestion handoff.
+- Tests across contract, backend, frontend, worker, and functional layers.
+
+## Required Future Workflow
+
+Use this order for future Knowledge Base / RAG implementation:
+
+1. Analyze the feature and current repo architecture.
+2. Design DB schema owned by the KB/RAG module.
+3. Define public API schema.
+4. Define shared contracts and DTOs.
+5. Define public domain events.
+6. Implement backend `api/application/domain/infrastructure`.
+7. Align frontend API client and UI with shared DTOs.
+8. Add contract, boundary, backend, frontend, worker, and functional tests.
+
+Do not continue UI-only implementation for new KB/RAG flows until the DB/API,
+shared contract, and event foundation has been defined.
 
 ## Allowed Directories
 
@@ -28,143 +74,249 @@ Before each task, read:
 - `docs/knowledge-base-rag-context.md`
 - `docs/knowledge-base-rag-codex-guide.md`
 - `openspec/changes/implement-knowledge-base-rag` only when the task changes
-  documented scope, requirements, or task status.
+  documented scope, requirements, or task status and the user permits it.
 
 ## Forbidden Directories Unless Explicitly Requested
 
 - `apps/frontend/src/features/agent-management`
 - `apps/backend/src/modules/agent-management`
+- `apps/backend/src/modules/authentication`
+- `apps/backend/src/modules/workflow-management`
+- `apps/backend/src/modules/task-orchestration`
+- `apps/backend/src/shared`
+- `apps/frontend/src/features/workflow-management`
+- `apps/frontend/src/features/task-orchestration`
 - Other frontend feature folders.
 - Other backend module folders.
-- `tests/contract/agent-management-*`
-- `tests/component/agent-management-*`
-- `tests/e2e/agent-management.spec.ts`
+- `apps/frontend/src/App.tsx`
+- `apps/frontend/src/types/navigation.ts`
+- `tests`
 - `packages/shared/src/contracts`
 - Package dependency files.
+- Prisma schema and migrations.
 - Build, Vite, Vitest, Playwright, Prisma, and backend runtime config.
 - OpenSpec archive folders.
 - `.local-docs`
 
-## Keep PRs Under 500 LOC
+## Architecture Reference Rules
 
-- Implement one sub-issue at a time.
-- Prefer one page/component plus one CSS file per frontend slice.
-- Use local mock data for prototype screens until backend work is assigned.
-- Avoid broad refactors, shared abstractions, app-shell rewrites, and routing
-  changes.
-- Update checkboxes only after implementation and verification are complete.
+Use Agent Management as a reference for architecture discipline:
 
-## Avoid Breaking Agent Management
+- Respect module boundaries.
+- Keep backend layering separate.
+- Define repository interfaces before implementations.
+- Keep Prisma access behind infrastructure adapters.
+- Use shared API response envelopes.
+- Use typed frontend API clients once backend contracts exist.
+- Add contract and persistence tests with boundary changes.
 
-- Do not edit Agent Management files.
-- Do not replace the current app shell without checking existing tests.
-- Existing tests may assert that `App.tsx` renders Agent Management.
-- If a Knowledge Base demo entry point is needed, use a minimal integration that
-  preserves existing Agent Management behavior.
+Do not copy Agent Management entities or logic directly. KB/RAG has its own
+domain: documents, uploads, validation, ingestion jobs, chunks,
+embedding/indexing status, external data sources, sync scope, manual sync jobs,
+processing status, and worker handoff.
 
-## Issue #36 Guidance
+Use Workflow Management and Task Orchestration as references for injected
+ports and handoff boundaries. Do not import their private repositories or
+services.
 
-Scope only:
+## Strict Rules
 
-- Main Knowledge Base / RAG layout container.
-- Header/title area.
-- Local navigation between placeholder views.
-- Required nav items: Documents, Upload Documents, Data Sources,
-  Synchronization Scope, Processing Status.
-- Active navigation state.
-- Placeholder content for each view.
-- Basic styling consistent with the existing frontend.
-- No real API calls.
+- Do not import internals from other modules.
+- Do not let other modules import KB/RAG internals.
+- Do not create or modify DB tables owned by other modules.
+- Do not let other modules create or mutate KB/RAG-owned tables directly.
+- Do not add API endpoints without updating shared contracts, docs/specs, and
+  tests.
+- Do not modify shared contracts without updating contract tests and documenting
+  why the current boundary is insufficient.
+- Do not let frontend mock data drift from shared DTOs once DTOs exist.
+- Do not run long-running ingestion, chunking, embedding, indexing, or sync work
+  inside HTTP requests.
+- Do not expose raw vector DB details, embedding-provider internals, object
+  storage private paths, raw credentials, tokens, or secrets.
+- Keep PRs small and scoped.
+- Run relevant build/test/diff checks before reporting completion.
 
-Out of scope:
+## Domain Concepts To Preserve
 
-- Detailed document table.
-- Upload logic.
-- File validation logic.
-- Selected files table.
-- Data source connection logic.
-- Synchronization tree.
-- Manual or automated sync logic.
-- Processing job table.
-- Backend integration.
-- External APIs.
-- Functional test cases, test report, or demo script.
+Future tasks should use clear names for these concepts:
 
-Recommended implementation shape for #36:
+- `KnowledgeDocument`
+- `KnowledgeDocumentChunk`
+- `UploadCandidateFile`
+- `UploadValidationResult`
+- `KnowledgeIngestionJob`
+- `KnowledgeDataSource`
+- `KnowledgeSyncScopeNode`
+- `KnowledgeSyncJob`
+- `KnowledgeSyncJobEvent` or processing event
+- Embedding/indexing status
+- Worker ingestion handoff
 
-- `knowledge-base-rag-page.tsx` for local state and placeholder views.
-- `knowledge-base-rag-view.css` for feature-prefixed styling.
-- Optional README update if decisions change.
-- No `react-router` dependency.
-- No backend or worker changes.
+## Backend Roadmap
 
-Do not mark OpenSpec task `3.1` complete for #36 unless the implemented scope
-actually includes document list and upload UI beyond placeholder navigation.
+Future backend implementation should use this structure:
 
-## Later Screen Tickets
+```text
+apps/backend/src/modules/knowledge-base-rag/
+|-- api/
+|-- application/
+|-- domain/
+`-- infrastructure/
+```
 
-- Add `knowledge-base-rag-mock-data.ts` when mock rows or source fixtures are
-  needed.
-- Add `knowledge-base-rag-view.ts` only when a framework-agnostic view model
-  removes real duplication or improves tests.
-- Add API client code only when backend endpoints exist or are explicitly mocked
-  for a scoped prototype.
-- Keep upload validation, sync scope, and status tables in separate sub-issues.
+Likely future files:
 
-## Naming Conventions
+- `api/knowledge-base-rag-router.ts`
+- `api/api-response.ts`
+- `application/*-use-cases.ts`
+- `application/*-repository.ts`
+- `application/ports.ts`
+- `domain/knowledge-document.ts`
+- `domain/upload-validation.ts`
+- `domain/knowledge-ingestion-job.ts`
+- `domain/knowledge-data-source.ts`
+- `domain/knowledge-sync-job.ts`
+- `domain/knowledge-events.ts`
+- `infrastructure/in-memory-*.ts`
+- `infrastructure/prisma-*.ts`
+- `infrastructure/*-adapter.ts`
 
-- Folder: `knowledge-base-rag`.
-- Components: `KnowledgeBaseRagPage`.
-- Files: `knowledge-base-rag-page.tsx`, `knowledge-base-rag-view.css`,
-  `knowledge-base-rag-mock-data.ts`, `knowledge-base-rag-view.ts`.
-- CSS classes: prefix with `knowledge-base-rag-`.
-- Test names later: prefix with `knowledge-base-rag`.
+Do not create these files in architecture-only documentation issues.
 
-## Styling Conventions
+## API Contract Roadmap
 
-- Use plain CSS imported by the feature component.
-- Match the existing frontend: light background, white cards, gray borders,
-  compact spacing, 6-8px radius, and the existing blue accent.
-- Keep layouts responsive with grid/flex and avoid nested cards.
-- Keep placeholder text concise and product-specific.
+The current API route matrix reserves workspace-scoped Knowledge routes under
+`/api/workspaces/:workspaceId/knowledge/...`. A future API design may also
+consider the following candidate shape, but it must be reconciled with the
+route matrix and workspace tenant rules before implementation:
+
+```text
+GET    /api/knowledge-base/documents
+POST   /api/knowledge-base/uploads/validate
+POST   /api/knowledge-base/uploads/prepare
+GET    /api/knowledge-base/ingestion-jobs
+GET    /api/knowledge-base/data-sources
+POST   /api/knowledge-base/data-sources/:sourceId/connect
+GET    /api/knowledge-base/sync-scope
+PUT    /api/knowledge-base/sync-scope
+POST   /api/knowledge-base/sync-jobs
+GET    /api/knowledge-base/sync-jobs
+```
+
+Document and test the chosen route shape before adding handlers.
+
+## Shared DTO Roadmap
+
+Likely future shared DTOs:
+
+- `KnowledgeDocumentDto`
+- `KnowledgeDocumentChunkDto`
+- `UploadCandidateFileDto`
+- `UploadValidationRequest`
+- `UploadValidationResponse`
+- `PrepareUploadRequest`
+- `PrepareUploadResponse`
+- `IngestionJobDto`
+- `ExternalDataSourceDto` or `KnowledgeDataSourceDto`
+- `SyncScopeNodeDto`
+- `SyncJobDto`
+- `KnowledgeBaseApiError`
+
+Use shared DTOs only for stable cross-boundary shapes. Keep private domain
+entities, repository records, raw provider payloads, vector internals, and
+worker implementation details module-local.
+
+## Domain Event Roadmap
+
+Likely future public events:
+
+- `knowledge.document.uploadValidated`
+- `knowledge.document.ingestionQueued`
+- `knowledge.document.ingestionStarted`
+- `knowledge.document.ingestionCompleted`
+- `knowledge.document.ingestionFailed`
+- `knowledge.dataSource.connected`
+- `knowledge.dataSource.connectionFailed`
+- `knowledge.sync.scopeUpdated`
+- `knowledge.sync.requested`
+- `knowledge.sync.started`
+- `knowledge.sync.completed`
+- `knowledge.sync.failed`
+
+Payloads should include `eventId`, event name/type, `workspaceId`, actor ID
+when user-triggered, relevant document/source/job IDs, status, `occurredAt`,
+and safe failure fields. Payloads must not leak pgvector, queue internals,
+credential data, raw chunk operations, or private adapter details.
+
+## Worker Handoff Rules
+
+The expected flow is:
+
+1. Upload is validated.
+2. Valid uploads are prepared.
+3. Ingestion job is queued.
+4. Worker processes parsing, chunking, embedding, and indexing.
+5. Status is updated.
+6. Domain events are emitted.
+7. UI reads job/status state through API.
+
+Manual sync and external data-source processing must follow the same async
+boundary. HTTP requests should create state and enqueue work, not block on
+slow or retryable processing.
 
 ## Testing Expectations
 
-- For documentation-only tasks, report that no tests were run if no code changed.
-- For #36 UI code, run at minimum `npm run build` and `git diff --check`.
-- For later behavior, add focused component tests in `tests/component`.
-- For shared contracts, run `npm run test:contracts`; avoid contract changes
-  without review.
-- For PR handoff, attempt `openspec validate "implement-knowledge-base-rag"`
-  and `openspec validate --all --strict` when the CLI is available.
+For documentation-only tasks, run `git diff --check`, `git status --short`,
+and any requested grep checks. Report that full tests were not run.
 
-## Risks And Anti-Patterns
+For future implementation work, add focused tests in the same PR:
 
-- Mixing upload, sync, table, and backend work into issue #36.
-- Adding React Router for a local placeholder screen.
-- Calling real APIs from prototype screens before backend scope exists.
-- Editing Agent Management to make room for this module.
-- Changing shared contracts for local UI placeholder needs.
-- Writing synchronous ingestion inside HTTP handlers.
-- Letting vector database details leak into frontend or other modules.
+- Shared contract tests when DTOs/events/error codes change.
+- DB schema/migration tests when Prisma changes.
+- Domain tests for validation and lifecycle rules.
+- Application/use-case tests.
+- In-memory repository tests.
+- Prisma mapper/repository tests.
+- API router tests.
+- Frontend API client tests.
+- Component tests for Documents and Upload screens once behavior is wired.
+- Import-boundary tests.
+- Worker handoff tests.
+- Functional PA5 test cases.
 
-## Future Sub-Issue Checklist
+Before reporting implementation completion, run relevant commands such as:
 
-- Confirm branch and dirty files with `git status --short --branch`.
-- Re-read this guide and the active OpenSpec change.
-- Identify the exact sub-issue scope and out-of-scope list.
-- Touch only Knowledge Base / RAG-owned files.
-- Keep UI, backend, worker, and contract work separated by ticket.
-- Add tests with implemented behavior when tests are in scope.
-- Run the smallest relevant validation commands.
-- Report files changed, commands run, known gaps, and whether other modules were
-  untouched.
+```bash
+npm run build
+npm test
+npm run test:contracts
+openspec validate "implement-knowledge-base-rag" --strict
+openspec validate --all --strict
+git diff --check
+```
+
+Run Prisma validation only when Prisma files are affected:
+
+```bash
+npm run prisma -- validate
+```
+
+## Current UI Guidance
+
+The existing frontend prototype is allowed to keep local mock data until shared
+DTOs are defined. New UI-only flows should pause until the API/DTO/event
+foundation is designed. When API contracts exist, add a KB/RAG API client that
+follows the Agent Management and Workflow Management client pattern: typed
+fetch wrapper, shared `ApiResponse` parsing, shared `ErrorCode`, network error
+handling, and malformed-response handling.
 
 ## Final Response Checklist
 
 - State the concrete files changed.
 - State validation commands and outcomes.
+- Confirm no runtime code was changed for docs-only tasks.
 - Confirm no other feature modules were modified.
 - Confirm no dependencies were added.
-- Confirm no implementation code was added when the task was documentation-only.
+- Confirm no OpenSpec artifacts were modified unless explicitly requested.
 - Do not commit unless explicitly asked.
