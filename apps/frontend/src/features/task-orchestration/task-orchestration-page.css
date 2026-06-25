@@ -670,6 +670,127 @@
   margin: 0;
 }
 
+.task-failed-state {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.task-failed-state__header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-failed-state h4 {
+  color: #9f1239;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.task-failed-state__badge {
+  background: #ffe4e6;
+  border: 1px solid #fda4af;
+  border-radius: 999px;
+  color: #9f1239;
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.task-failed-state__error-wrapper {
+  min-width: 0;
+}
+
+.task-failed-state__eyebrow {
+  color: #9f1239;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-block-end: 8px;
+}
+
+.task-failed-state__partial-output {
+  border-block-start: 1px solid #fecdd3;
+  padding-block-start: 12px;
+  min-width: 0;
+}
+
+.task-failed-state__body {
+  color: #0f172a;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-error-details {
+  background: #ffffff;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.task-error-details__header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-error-details h5 {
+  color: #9f1239;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.task-error-details__time {
+  color: #be123c;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.task-error-details__body p {
+  color: #0f172a;
+  line-height: 1.55;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-error-details__meta {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin: 0;
+  border-block-start: 1px solid #fecdd3;
+  padding-block-start: 12px;
+}
+
+.task-error-details__meta dt {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.task-error-details__meta dd {
+  color: #0f172a;
+  font-weight: 700;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .task-workspace {
     grid-template-columns: 1fr;

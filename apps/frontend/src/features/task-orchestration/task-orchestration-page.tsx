@@ -62,6 +62,7 @@ import { TaskCompletedResult } from "./components/task-completed-result";
 import { TaskProcessingDetailModal } from "./components/task-processing-detail-modal";
 import { TaskCancelConfirmationDialog } from "./components/task-cancel-confirmation-dialog";
 import { TaskCanceledState } from "./components/task-canceled-state";
+import { TaskFailedState } from "./components/task-failed-state";
 import { buildTaskProcessingDetail } from "./model/task-processing-detail";
 import {
   createTaskCancellationCoordinator,
@@ -520,6 +521,8 @@ export function TaskOrchestrationPage({
       ? "In-progress task"
       : activeTask?.status === "cancelled"
       ? "Canceled task"
+      : activeTask?.status === "failed"
+      ? "Failed task"
       : activeTask?.status === "succeeded"
       ? "Completed task"
       : "Pending task";
@@ -529,6 +532,7 @@ export function TaskOrchestrationPage({
   const shouldShowPartialResult =
     activeTask !== undefined &&
     activeTask.status !== "succeeded" &&
+    activeTask.status !== "failed" &&
     (activeTask.streamingSnapshot.phase === "streaming" ||
       activeTask.streamingSnapshot.phase === "exhausted" ||
       activeTask.streamingSnapshot.fragments.length > 0);
@@ -613,7 +617,7 @@ export function TaskOrchestrationPage({
                 steps={activeTask.processingSnapshot.steps}
               />
 
-              {activeTask.status === "running" || activeTask.status === "cancelled" ? (
+              {activeTask.status === "running" || activeTask.status === "cancelled" || activeTask.status === "failed" ? (
                 <TaskLogList
                   logs={activeTask.processingSnapshot.logs}
                   ariaLabel="Orchestration processing logs"
@@ -638,6 +642,10 @@ export function TaskOrchestrationPage({
                 <TaskCanceledState task={activeTask} />
               ) : null}
 
+              {activeTask.status === "failed" ? (
+                <TaskFailedState task={activeTask} />
+              ) : null}
+
               {activeTask.status === "queued" || activeTask.status === "running" ? (
                 <div className="task-workspace__pending-actions">
                   <button
@@ -656,7 +664,7 @@ export function TaskOrchestrationPage({
                 </div>
               ) : null}
 
-              {activeTask.status === "succeeded" || activeTask.status === "running" ? (
+              {activeTask.status === "succeeded" || activeTask.status === "running" || activeTask.status === "failed" ? (
                 <div className="task-workspace__detail-actions">
                   <button type="button" onClick={() => setIsDetailModalOpen(true)}>
                     View processing details
