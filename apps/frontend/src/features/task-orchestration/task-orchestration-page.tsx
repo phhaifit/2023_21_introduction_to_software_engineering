@@ -57,7 +57,13 @@ import {
 } from "./model/task-completion-controller";
 import { TaskCompletedResult } from "./components/task-completed-result";
 import { TaskProcessingDetailModal } from "./components/task-processing-detail-modal";
+import { TaskCancelConfirmationDialog } from "./components/task-cancel-confirmation-dialog";
+import { TaskCanceledState } from "./components/task-canceled-state";
 import { buildTaskProcessingDetail } from "./model/task-processing-detail";
+import {
+  createTaskCancellationCoordinator,
+  type TaskCancellationCoordinator
+} from "./model/task-cancellation-coordinator";
 import {
   ROUTING_MODES,
   type RoutingMode
@@ -84,6 +90,7 @@ type TaskOrchestrationPageProps = {
   streamingDelays?: TaskStreamingDelays;
   completionRuntime?: TaskCompletionRuntime;
   completionDelays?: TaskCompletionDelays;
+  cancellationCoordinator?: TaskCancellationCoordinator;
 };
 
 const suggestedPrompts = [
@@ -105,7 +112,8 @@ export function TaskOrchestrationPage({
   streamingRuntime,
   streamingDelays,
   completionRuntime,
-  completionDelays
+  completionDelays,
+  cancellationCoordinator
 }: TaskOrchestrationPageProps) {
   const [prompt, setPrompt] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
@@ -116,6 +124,7 @@ export function TaskOrchestrationPage({
     initialTaskCreationState
   );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const taskClientRef = useRef(
     taskCreationClient ?? createMockTaskCreationClient()
   );
@@ -146,6 +155,9 @@ export function TaskOrchestrationPage({
     completionDelays ?? DEFAULT_TASK_COMPLETION_DELAYS
   );
   const completionControllerRef = useRef<TaskCompletionController | null>(null);
+  const cancellationCoordinatorRef = useRef<TaskCancellationCoordinator | null>(
+    cancellationCoordinator ?? null
+  );
 
   if (!controllerRef.current) {
     controllerRef.current = createTaskProcessingController({
@@ -153,7 +165,15 @@ export function TaskOrchestrationPage({
       clock: runtimeRef.current.clock,
       logIdentitySource: runtimeRef.current.logIdentitySource,
       actionSink: {
-        dispatch: (action) => dispatchRef.current(action)
+        dispatch: (action) => {
+          if (mountedRef.current) {
+            taskStateRef.current = taskCreationReducer(
+              taskStateRef.current,
+              action
+            );
+            dispatchRef.current(action);
+          }
+        }
       },
       pendingDelayMs: delaysRef.current.pendingMs
     });
@@ -208,6 +228,32 @@ export function TaskOrchestrationPage({
     });
   }
 
+  if (!cancellationCoordinatorRef.current && controllerRef.current && streamingControllerRef.current && completionControllerRef.current) {
+    cancellationCoordinatorRef.current = createTaskCancellationCoordinator({
+      stateReader: {
+        findTask: (taskId) =>
+          taskStateRef.current.tasks.find((task) => task.taskId === taskId)
+      },
+      processingStopper: controllerRef.current,
+      streamingStopper: streamingControllerRef.current,
+      completionStopper: completionControllerRef.current,
+      clock: {
+        nowIso: () => runtimeRef.current.clock.now()
+      },
+      actionSink: {
+        dispatch: (action) => {
+          if (mountedRef.current) {
+            taskStateRef.current = taskCreationReducer(
+              taskStateRef.current,
+              action
+            );
+            dispatchRef.current(action);
+          }
+        }
+      }
+    });
+  }
+
   const activeTask = getActiveTask(taskState);
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
@@ -216,6 +262,32 @@ export function TaskOrchestrationPage({
   useEffect(() => {
     mountedRef.current = true;
 
+    if (!cancellationCoordinatorRef.current && controllerRef.current && streamingControllerRef.current && completionControllerRef.current) {
+      cancellationCoordinatorRef.current = createTaskCancellationCoordinator({
+        stateReader: {
+          findTask: (taskId) =>
+            taskStateRef.current.tasks.find((task) => task.taskId === taskId)
+        },
+        processingStopper: controllerRef.current,
+        streamingStopper: streamingControllerRef.current,
+        completionStopper: completionControllerRef.current,
+        clock: {
+          nowIso: () => runtimeRef.current.clock.now()
+        },
+        actionSink: {
+          dispatch: (action) => {
+            if (mountedRef.current) {
+              taskStateRef.current = taskCreationReducer(
+                taskStateRef.current,
+                action
+              );
+              dispatchRef.current(action);
+            }
+          }
+        }
+      });
+    }
+
     return () => {
       mountedRef.current = false;
       progressionHandleRef.current?.cancel();
@@ -223,6 +295,8 @@ export function TaskOrchestrationPage({
       controllerRef.current?.dispose();
       streamingControllerRef.current?.dispose();
       completionControllerRef.current?.dispose();
+      cancellationCoordinatorRef.current?.dispose();
+      cancellationCoordinatorRef.current = null;
     };
   }, []);
 
@@ -230,6 +304,7 @@ export function TaskOrchestrationPage({
     const taskId = activeTask?.taskId;
 
     setIsDetailModalOpen(false);
+    setIsCancelDialogOpen(false);
 
     return () => {
       progressionHandleRef.current?.cancel();
@@ -418,7 +493,13 @@ export function TaskOrchestrationPage({
       : "Initial processing timeline";
 
   const taskArticleLabel =
-    activeTask?.status === "running" ? "In-progress task" : "Pending task";
+    activeTask?.status === "running"
+      ? "In-progress task"
+      : activeTask?.status === "cancelled"
+      ? "Canceled task"
+      : activeTask?.status === "succeeded"
+      ? "Completed task"
+      : "Pending task";
   const partialText = activeTask
     ? selectAccumulatedPartialText(activeTask.streamingSnapshot)
     : "";
@@ -509,7 +590,7 @@ export function TaskOrchestrationPage({
                 steps={activeTask.processingSnapshot.steps}
               />
 
-              {activeTask.status === "running" ? (
+              {activeTask.status === "running" || activeTask.status === "cancelled" ? (
                 <TaskLogList
                   logs={activeTask.processingSnapshot.logs}
                   ariaLabel="Orchestration processing logs"
@@ -530,12 +611,22 @@ export function TaskOrchestrationPage({
                 />
               ) : null}
 
-              {activeTask.status === "queued" ? (
+              {activeTask.status === "cancelled" ? (
+                <TaskCanceledState task={activeTask} />
+              ) : null}
+
+              {activeTask.status === "queued" || activeTask.status === "running" ? (
                 <div className="task-workspace__pending-actions">
                   <button
                     type="button"
                     className="task-workspace__cancel-btn"
-                    onClick={() => onCancelTaskRequested?.(activeTask.taskId)}
+                    onClick={() => {
+                      if (onCancelTaskRequested) {
+                        onCancelTaskRequested(activeTask.taskId);
+                      } else {
+                        setIsCancelDialogOpen(true);
+                      }
+                    }}
                   >
                     Cancel task
                   </button>
@@ -577,6 +668,17 @@ export function TaskOrchestrationPage({
           <TaskProcessingDetailModal
             detail={buildTaskProcessingDetail(activeTask)!}
             onClose={() => setIsDetailModalOpen(false)}
+          />
+        ) : null}
+
+        {isCancelDialogOpen && activeTask && (activeTask.status === "queued" || activeTask.status === "running") ? (
+          <TaskCancelConfirmationDialog
+            task={activeTask}
+            onConfirm={() => {
+              cancellationCoordinatorRef.current?.cancel(activeTask.taskId);
+              setIsCancelDialogOpen(false);
+            }}
+            onDismiss={() => setIsCancelDialogOpen(false)}
           />
         ) : null}
 
