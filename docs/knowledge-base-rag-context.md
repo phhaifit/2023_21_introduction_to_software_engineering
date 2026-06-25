@@ -40,6 +40,9 @@ The backend now has an internal module foundation under
   sync jobs, and sync job events.
 - Application repository ports for documents, ingestion jobs, data sources,
   sync scope, and sync jobs.
+- Application use cases for document reads, metadata-only upload validation,
+  safe upload preparation, ingestion-job reads, data-source placeholders,
+  sync-scope updates, and queued manual sync-job creation.
 - Safe DTO mappers from internal domain objects to shared public DTOs.
 - Prisma repositories using KB/RAG-owned Prisma models through `@vcp/database`.
 - Deterministic in-memory repositories for future use-case tests.
@@ -52,8 +55,7 @@ Runtime implementation still needs:
   source adapters.
 - Worker ingestion/sync runtime handoff.
 - Frontend API client alignment with shared DTOs.
-- Backend use cases, API tests, worker tests, frontend integration tests, and
-  functional PA5 tests.
+- API tests, worker tests, frontend integration tests, and functional PA5 tests.
 
 The worker path `apps/workers/src/jobs/document-ingestion` currently contains
 README/context only. The queue type already reserves `document.ingest`, but no
@@ -302,6 +304,13 @@ Current repository/application boundary files:
 - `application/knowledge-data-source-repository.ts`
 - `application/knowledge-sync-repositories.ts`
 - `application/dto-mappers.ts`
+- `application/knowledge-document-use-cases.ts`
+- `application/knowledge-upload-use-cases.ts`
+- `application/knowledge-ingestion-use-cases.ts`
+- `application/knowledge-data-source-use-cases.ts`
+- `application/knowledge-sync-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
 - `domain/knowledge-document.ts`
 - `domain/knowledge-ingestion-job.ts`
 - `domain/knowledge-data-source.ts`
@@ -317,10 +326,6 @@ Likely future runtime files:
 
 - `api/knowledge-base-rag-router.ts`
 - `api/api-response.ts`
-- `application/document-use-cases.ts`
-- `application/upload-validation-use-cases.ts`
-- `application/ingestion-job-use-cases.ts`
-- `application/sync-use-cases.ts`
 - `domain/upload-validation.ts`
 - `domain/knowledge-events.ts`
 - `infrastructure/vector-index-adapter.ts`
@@ -333,6 +338,12 @@ into application commands and return shared API envelopes.
 
 This backend boundary slice intentionally does not add HTTP routes, worker
 handlers, frontend API clients, or Prisma schema changes.
+
+The application use-case slice intentionally keeps upload validation
+metadata-only and creates only safe pending document, ingestion-job, and
+sync-job records through repository ports. It does not parse files, upload to
+object storage, enqueue runtime workers, call embedding providers, or write to a
+vector database.
 
 ## Worker Handoff Roadmap
 

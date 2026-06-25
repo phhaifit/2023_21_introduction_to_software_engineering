@@ -11,12 +11,12 @@ Foundation reference: see `docs/module-ownership.md`,
 ## Current Status
 
 This backend module now contains the internal backend foundation for domain
-models, application repository ports, safe DTO mappers, Prisma repository
-adapters, and deterministic in-memory repositories.
+models, application repository ports, application use cases, safe DTO mappers,
+Prisma repository adapters, and deterministic in-memory repositories.
 
-It still does not contain HTTP API routers, route registration, upload parsing,
-file storage adapters, vector/embedding adapters, worker handlers, or frontend
-API-client implementation.
+It still does not contain HTTP API routers, route registration, real file
+parsing, file storage adapters, vector/embedding adapters, worker handlers, or
+frontend API-client implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -101,26 +101,24 @@ Rules:
 - Actor identity, timestamps, statuses, and API response shape should follow
   shared platform conventions.
 
-## Future API Contract Roadmap
+## API Contract Roadmap
 
-Do not implement these routes in architecture-only issues.
+Do not implement these routes outside an API-router issue.
 
-The current API matrix reserves workspace-scoped routes under
-`/api/workspaces/:workspaceId/knowledge/...`. A future API design may consider
-this candidate route shape, but it must be reconciled with the API matrix and
-workspace tenant rules before implementation:
+The public contract uses workspace-scoped routes under
+`/api/workspaces/:workspaceId/knowledge/...`:
 
 ```text
-GET    /api/knowledge-base/documents
-POST   /api/knowledge-base/uploads/validate
-POST   /api/knowledge-base/uploads/prepare
-GET    /api/knowledge-base/ingestion-jobs
-GET    /api/knowledge-base/data-sources
-POST   /api/knowledge-base/data-sources/:sourceId/connect
-GET    /api/knowledge-base/sync-scope
-PUT    /api/knowledge-base/sync-scope
-POST   /api/knowledge-base/sync-jobs
-GET    /api/knowledge-base/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/documents
+POST   /api/workspaces/:workspaceId/knowledge/uploads/validate
+POST   /api/workspaces/:workspaceId/knowledge/uploads/prepare
+GET    /api/workspaces/:workspaceId/knowledge/ingestion-jobs
+GET    /api/workspaces/:workspaceId/knowledge/data-sources
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect
+GET    /api/workspaces/:workspaceId/knowledge/sync-scope
+PUT    /api/workspaces/:workspaceId/knowledge/sync-scope
+POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
 Before implementation, define request/response DTOs and decide how workspace
@@ -187,6 +185,13 @@ Current backend foundation:
 
 - `application/*-repository.ts`
 - `application/dto-mappers.ts`
+- `application/knowledge-document-use-cases.ts`
+- `application/knowledge-upload-use-cases.ts`
+- `application/knowledge-ingestion-use-cases.ts`
+- `application/knowledge-data-source-use-cases.ts`
+- `application/knowledge-sync-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
 - `domain/knowledge-document.ts`
 - `domain/knowledge-ingestion-job.ts`
 - `domain/knowledge-data-source.ts`
@@ -202,10 +207,6 @@ Likely future files:
 
 - `api/knowledge-base-rag-router.ts`
 - `api/api-response.ts`
-- `application/document-use-cases.ts`
-- `application/upload-validation-use-cases.ts`
-- `application/ingestion-job-use-cases.ts`
-- `application/sync-use-cases.ts`
 - `application/ports.ts`
 - `domain/upload-validation.ts`
 - `domain/knowledge-events.ts`
@@ -222,6 +223,12 @@ are workspace-scoped and do not query private models owned by Agent Management,
 Workflow Management, Task Orchestration, Authentication, or other modules.
 In-memory adapters are deterministic and workspace-scoped for future
 application/use-case tests.
+
+Current application use cases cover metadata-only upload validation, safe
+upload preparation into pending document/ingestion-job records, document and
+chunk reads, ingestion-job reads, data-source placeholder connection, sync-scope
+updates, and queued manual sync-job creation. They do not parse files, upload
+to storage, enqueue real workers, call embedding providers, or write vectors.
 
 ## Worker Handoff
 
