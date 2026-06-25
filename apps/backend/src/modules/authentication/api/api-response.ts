@@ -1,0 +1,66 @@
+﻿import type { Request, Response } from "express";
+
+import type {
+  ApiFailure,
+  ApiMeta,
+  ApiSuccess,
+  ErrorCode
+} from "@vcp/shared/contracts/api.ts";
+
+const HTTP_STATUS_MAP: Record<ErrorCode, number> = {
+  "auth.unauthorized": 401,
+  "auth.invalid_credentials": 401,
+  "auth.session_expired": 401,
+  "auth.forbidden": 403,
+  "validation.invalid_input": 422,
+  "workspace.not_found": 404,
+  "workspace.not_ready": 503,
+  "subscription.required": 402,
+  "subscription.payment_failed": 402,
+  "agent.not_available": 503,
+  "tool.secret_unavailable": 503,
+  "workflow.invalid_definition": 422,
+  "task.execution_failed": 500,
+  "knowledge.access_denied": 403,
+  "system.unexpected_error": 500
+};
+
+export function sendAuthApiSuccess<T>(
+  request: Request,
+  response: Response,
+  data: T
+): void {
+  const body: ApiSuccess<T> = {
+    ok: true,
+    data,
+    meta: createApiMeta(request)
+  };
+
+  response.status(200).json(body);
+}
+
+export function sendAuthApiFailure(
+  request: Request,
+  response: Response,
+  code: ErrorCode,
+  message: string
+): void {
+  const body: ApiFailure = {
+    ok: false,
+    error: {
+      code,
+      message
+    },
+    meta: createApiMeta(request)
+  };
+
+  const statusCode = HTTP_STATUS_MAP[code];
+  response.status(statusCode).json(body);
+}
+
+function createApiMeta(request: Request): ApiMeta {
+  return {
+    requestId: request.header("x-request-id") ?? "authentication-request",
+    timestamp: new Date().toISOString()
+  };
+}
