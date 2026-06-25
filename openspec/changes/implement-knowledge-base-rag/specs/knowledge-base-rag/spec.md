@@ -29,6 +29,32 @@ The system SHALL define workspace-scoped Knowledge Base / RAG public API and DTO
 - **THEN** the events use shared namespaced event contracts with `eventId`, `eventType`, `workspaceId`, relevant document/source/job IDs, `occurredAt`, public status, actor ID when user-triggered, and safe failure fields when relevant
 - **AND** existing legacy event names remain available until a reviewed compatibility migration removes them
 
+### Requirement: Persistence Ownership Boundary
+The system SHALL define KB/RAG-owned persistence models before backend repositories, API handlers, or worker handlers are implemented.
+
+#### Scenario: KB/RAG-owned tables are available
+- **WHEN** the Prisma schema is inspected
+- **THEN** KB/RAG owns document metadata, document chunks, ingestion jobs, knowledge indexes, knowledge access grants, external data sources, sync scope nodes, sync jobs, and sync job events
+- **AND** workspace-scoped KB/RAG records include `workspaceId`
+- **AND** lookup paths for workspace, status, parent document/source/job IDs, and actor IDs are indexed where applicable
+
+#### Scenario: Existing skeleton models are extended instead of duplicated
+- **WHEN** the DB schema is evolved for KB/RAG
+- **THEN** the existing `Document`, `KnowledgeIndex`, and `KnowledgeAccessGrant` skeleton models remain available
+- **AND** `Document` is extended as the KB/RAG document table rather than creating a duplicate `KnowledgeDocument` table
+- **AND** KB/RAG-specific job details are stored in explicit KB/RAG-owned job tables rather than mutating the generic `Job` table
+
+#### Scenario: Internal KB/RAG relationships use database integrity
+- **WHEN** KB/RAG persistence records reference other KB/RAG-owned records
+- **THEN** the Prisma schema defines internal relations and migration foreign keys for document chunks, ingestion jobs, knowledge indexes, access grants, sync scope nodes, sync jobs, and sync job events
+- **AND** those internal foreign keys use restrictive delete behavior rather than cascading deletion
+- **AND** KB/RAG tables do not add foreign keys to users, workspaces, agents, workflows, tasks, subscriptions, authentication, or session tables
+
+#### Scenario: Sensitive infrastructure data is excluded
+- **WHEN** KB/RAG persistence records are stored
+- **THEN** the schema does not store raw credentials, OAuth refresh tokens, provider secrets, passwords, public or private object-storage URLs, raw embedding vectors, raw vector DB configuration, queue internals, or provider private payloads
+- **AND** cross-module references remain scalar public IDs unless a later OpenSpec-backed design explicitly introduces a relation
+
 ### Requirement: Data Source Sync Placeholder
 The system SHALL provide a configurable boundary for external knowledge sources.
 

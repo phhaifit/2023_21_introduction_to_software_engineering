@@ -127,25 +127,39 @@ Future implementation should define these concepts before writing runtime code:
 - Worker ingestion handoff: the boundary from HTTP/API intent to background
   document processing.
 
-## Proposed Future DB Ownership
+## DB Ownership Boundary
 
-This issue does not change Prisma schema or migrations. It documents the
-intended ownership model for a later DB design issue.
+The DB source of truth is Prisma under `packages/database/prisma`. The
+KB/RAG persistence boundary is implemented with additive Prisma schema and
+migration changes.
 
-Likely future KB/RAG-owned tables or entities:
+Final decision:
 
-- `KnowledgeDocument`
-- `KnowledgeDocumentChunk`
-- `KnowledgeIngestionJob`
-- `KnowledgeDataSource`
-- `KnowledgeSyncScopeNode`
-- `KnowledgeSyncJob`
-- `KnowledgeSyncJobEvent`
+- Extend the existing KB/RAG-owned `Document` model/table instead of creating a
+  duplicate `KnowledgeDocument` table.
+- Extend the existing KB/RAG-owned `KnowledgeIndex` model/table with safe
+  indexing lifecycle fields.
+- Keep the existing KB/RAG-owned `KnowledgeAccessGrant` model/table for future
+  agent knowledge access work.
+- Leave the generic `Job` model/table untouched; KB/RAG-specific work records
+  use explicit KB/RAG-owned job tables.
+- Add explicit KB/RAG-owned tables for chunks, ingestion jobs, data sources,
+  sync scope, sync jobs, and sync job events.
+- Add internal Prisma relations and SQL foreign keys only between KB/RAG-owned
+  tables, using `onDelete: Restrict` / `ON DELETE RESTRICT` and
+  `onUpdate: NoAction` / `ON UPDATE NO ACTION`.
 
-The existing Prisma skeleton already contains `Document`, `KnowledgeIndex`,
-`KnowledgeAccessGrant`, and `Job`. A later persistence issue must decide whether
-to extend those models or introduce additional additive models. That decision
-must be captured in OpenSpec/design docs before a migration is created.
+KB/RAG-owned Prisma models/tables:
+
+- `Document` / `documents`
+- `KnowledgeIndex` / `knowledge_indexes`
+- `KnowledgeAccessGrant` / `knowledge_access_grants`
+- `KnowledgeDocumentChunk` / `knowledge_document_chunks`
+- `KnowledgeIngestionJob` / `knowledge_ingestion_jobs`
+- `KnowledgeDataSource` / `knowledge_data_sources`
+- `KnowledgeSyncScopeNode` / `knowledge_sync_scope_nodes`
+- `KnowledgeSyncJob` / `knowledge_sync_jobs`
+- `KnowledgeSyncJobEvent` / `knowledge_sync_job_events`
 
 Rules:
 
@@ -162,6 +176,14 @@ Rules:
 - Cross-module references such as `agentId`, `taskId`, or `workspaceId` should
   remain scalar public IDs unless an OpenSpec-backed DB design explicitly
   requires a relation.
+- Do not add database foreign keys from KB/RAG tables to users, workspaces,
+  agents, workflows, tasks, subscriptions, authentication, or session tables in
+  this persistence boundary.
+- Store object/file references as server-side keys such as `storageKey`, not
+  public or private URLs.
+- Do not store raw credentials, OAuth refresh tokens, provider secrets,
+  passwords, raw embedding vectors, raw vector DB configuration, object-storage
+  URLs, or queue internals in these tables.
 
 ## Public API Contract Boundary
 

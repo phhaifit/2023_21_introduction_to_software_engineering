@@ -198,6 +198,7 @@ export type KnowledgeAccessGrantWhereInput = {
   status?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
   createdAt?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
   updatedAt?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  document?: Prisma.XOR<Prisma.DocumentScalarRelationFilter, Prisma.DocumentWhereInput>
 }
 
 export type KnowledgeAccessGrantOrderByWithRelationInput = {
@@ -208,6 +209,7 @@ export type KnowledgeAccessGrantOrderByWithRelationInput = {
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  document?: Prisma.DocumentOrderByWithRelationInput
 }
 
 export type KnowledgeAccessGrantWhereUniqueInput = Prisma.AtLeast<{
@@ -222,6 +224,7 @@ export type KnowledgeAccessGrantWhereUniqueInput = Prisma.AtLeast<{
   status?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
   createdAt?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
   updatedAt?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  document?: Prisma.XOR<Prisma.DocumentScalarRelationFilter, Prisma.DocumentWhereInput>
 }, "knowledgeAccessGrantId" | "workspaceId_documentId_agentId">
 
 export type KnowledgeAccessGrantOrderByWithAggregationInput = {
@@ -253,11 +256,11 @@ export type KnowledgeAccessGrantScalarWhereWithAggregatesInput = {
 export type KnowledgeAccessGrantCreateInput = {
   knowledgeAccessGrantId: string
   workspaceId: string
-  documentId: string
   agentId: string
   status?: string
   createdAt: string
   updatedAt: string
+  document: Prisma.DocumentCreateNestedOneWithoutAccessGrantsInput
 }
 
 export type KnowledgeAccessGrantUncheckedCreateInput = {
@@ -273,11 +276,11 @@ export type KnowledgeAccessGrantUncheckedCreateInput = {
 export type KnowledgeAccessGrantUpdateInput = {
   knowledgeAccessGrantId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
-  documentId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  document?: Prisma.DocumentUpdateOneRequiredWithoutAccessGrantsNestedInput
 }
 
 export type KnowledgeAccessGrantUncheckedUpdateInput = {
@@ -303,7 +306,6 @@ export type KnowledgeAccessGrantCreateManyInput = {
 export type KnowledgeAccessGrantUpdateManyMutationInput = {
   knowledgeAccessGrantId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
-  documentId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
@@ -318,6 +320,16 @@ export type KnowledgeAccessGrantUncheckedUpdateManyInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+}
+
+export type KnowledgeAccessGrantListRelationFilter = {
+  every?: Prisma.KnowledgeAccessGrantWhereInput
+  some?: Prisma.KnowledgeAccessGrantWhereInput
+  none?: Prisma.KnowledgeAccessGrantWhereInput
+}
+
+export type KnowledgeAccessGrantOrderByRelationAggregateInput = {
+  _count?: Prisma.SortOrder
 }
 
 export type KnowledgeAccessGrantWorkspaceIdDocumentIdAgentIdCompoundUniqueInput = {
@@ -356,6 +368,141 @@ export type KnowledgeAccessGrantMinOrderByAggregateInput = {
   updatedAt?: Prisma.SortOrder
 }
 
+export type KnowledgeAccessGrantCreateNestedManyWithoutDocumentInput = {
+  create?: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput> | Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput[] | Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput[]
+  connectOrCreate?: Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput | Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput[]
+  createMany?: Prisma.KnowledgeAccessGrantCreateManyDocumentInputEnvelope
+  connect?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+}
+
+export type KnowledgeAccessGrantUncheckedCreateNestedManyWithoutDocumentInput = {
+  create?: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput> | Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput[] | Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput[]
+  connectOrCreate?: Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput | Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput[]
+  createMany?: Prisma.KnowledgeAccessGrantCreateManyDocumentInputEnvelope
+  connect?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+}
+
+export type KnowledgeAccessGrantUpdateManyWithoutDocumentNestedInput = {
+  create?: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput> | Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput[] | Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput[]
+  connectOrCreate?: Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput | Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput[]
+  upsert?: Prisma.KnowledgeAccessGrantUpsertWithWhereUniqueWithoutDocumentInput | Prisma.KnowledgeAccessGrantUpsertWithWhereUniqueWithoutDocumentInput[]
+  createMany?: Prisma.KnowledgeAccessGrantCreateManyDocumentInputEnvelope
+  set?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  disconnect?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  delete?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  connect?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  update?: Prisma.KnowledgeAccessGrantUpdateWithWhereUniqueWithoutDocumentInput | Prisma.KnowledgeAccessGrantUpdateWithWhereUniqueWithoutDocumentInput[]
+  updateMany?: Prisma.KnowledgeAccessGrantUpdateManyWithWhereWithoutDocumentInput | Prisma.KnowledgeAccessGrantUpdateManyWithWhereWithoutDocumentInput[]
+  deleteMany?: Prisma.KnowledgeAccessGrantScalarWhereInput | Prisma.KnowledgeAccessGrantScalarWhereInput[]
+}
+
+export type KnowledgeAccessGrantUncheckedUpdateManyWithoutDocumentNestedInput = {
+  create?: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput> | Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput[] | Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput[]
+  connectOrCreate?: Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput | Prisma.KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput[]
+  upsert?: Prisma.KnowledgeAccessGrantUpsertWithWhereUniqueWithoutDocumentInput | Prisma.KnowledgeAccessGrantUpsertWithWhereUniqueWithoutDocumentInput[]
+  createMany?: Prisma.KnowledgeAccessGrantCreateManyDocumentInputEnvelope
+  set?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  disconnect?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  delete?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  connect?: Prisma.KnowledgeAccessGrantWhereUniqueInput | Prisma.KnowledgeAccessGrantWhereUniqueInput[]
+  update?: Prisma.KnowledgeAccessGrantUpdateWithWhereUniqueWithoutDocumentInput | Prisma.KnowledgeAccessGrantUpdateWithWhereUniqueWithoutDocumentInput[]
+  updateMany?: Prisma.KnowledgeAccessGrantUpdateManyWithWhereWithoutDocumentInput | Prisma.KnowledgeAccessGrantUpdateManyWithWhereWithoutDocumentInput[]
+  deleteMany?: Prisma.KnowledgeAccessGrantScalarWhereInput | Prisma.KnowledgeAccessGrantScalarWhereInput[]
+}
+
+export type KnowledgeAccessGrantCreateWithoutDocumentInput = {
+  knowledgeAccessGrantId: string
+  workspaceId: string
+  agentId: string
+  status?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput = {
+  knowledgeAccessGrantId: string
+  workspaceId: string
+  agentId: string
+  status?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type KnowledgeAccessGrantCreateOrConnectWithoutDocumentInput = {
+  where: Prisma.KnowledgeAccessGrantWhereUniqueInput
+  create: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput>
+}
+
+export type KnowledgeAccessGrantCreateManyDocumentInputEnvelope = {
+  data: Prisma.KnowledgeAccessGrantCreateManyDocumentInput | Prisma.KnowledgeAccessGrantCreateManyDocumentInput[]
+  skipDuplicates?: boolean
+}
+
+export type KnowledgeAccessGrantUpsertWithWhereUniqueWithoutDocumentInput = {
+  where: Prisma.KnowledgeAccessGrantWhereUniqueInput
+  update: Prisma.XOR<Prisma.KnowledgeAccessGrantUpdateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedUpdateWithoutDocumentInput>
+  create: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedCreateWithoutDocumentInput>
+}
+
+export type KnowledgeAccessGrantUpdateWithWhereUniqueWithoutDocumentInput = {
+  where: Prisma.KnowledgeAccessGrantWhereUniqueInput
+  data: Prisma.XOR<Prisma.KnowledgeAccessGrantUpdateWithoutDocumentInput, Prisma.KnowledgeAccessGrantUncheckedUpdateWithoutDocumentInput>
+}
+
+export type KnowledgeAccessGrantUpdateManyWithWhereWithoutDocumentInput = {
+  where: Prisma.KnowledgeAccessGrantScalarWhereInput
+  data: Prisma.XOR<Prisma.KnowledgeAccessGrantUpdateManyMutationInput, Prisma.KnowledgeAccessGrantUncheckedUpdateManyWithoutDocumentInput>
+}
+
+export type KnowledgeAccessGrantScalarWhereInput = {
+  AND?: Prisma.KnowledgeAccessGrantScalarWhereInput | Prisma.KnowledgeAccessGrantScalarWhereInput[]
+  OR?: Prisma.KnowledgeAccessGrantScalarWhereInput[]
+  NOT?: Prisma.KnowledgeAccessGrantScalarWhereInput | Prisma.KnowledgeAccessGrantScalarWhereInput[]
+  knowledgeAccessGrantId?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  workspaceId?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  documentId?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  agentId?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  status?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  createdAt?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+  updatedAt?: Prisma.StringFilter<"KnowledgeAccessGrant"> | string
+}
+
+export type KnowledgeAccessGrantCreateManyDocumentInput = {
+  knowledgeAccessGrantId: string
+  workspaceId: string
+  agentId: string
+  status?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type KnowledgeAccessGrantUpdateWithoutDocumentInput = {
+  knowledgeAccessGrantId?: Prisma.StringFieldUpdateOperationsInput | string
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+}
+
+export type KnowledgeAccessGrantUncheckedUpdateWithoutDocumentInput = {
+  knowledgeAccessGrantId?: Prisma.StringFieldUpdateOperationsInput | string
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+}
+
+export type KnowledgeAccessGrantUncheckedUpdateManyWithoutDocumentInput = {
+  knowledgeAccessGrantId?: Prisma.StringFieldUpdateOperationsInput | string
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+}
+
 
 
 export type KnowledgeAccessGrantSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -366,6 +513,7 @@ export type KnowledgeAccessGrantSelect<ExtArgs extends runtime.Types.Extensions.
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["knowledgeAccessGrant"]>
 
 export type KnowledgeAccessGrantSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -376,6 +524,7 @@ export type KnowledgeAccessGrantSelectCreateManyAndReturn<ExtArgs extends runtim
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["knowledgeAccessGrant"]>
 
 export type KnowledgeAccessGrantSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -386,6 +535,7 @@ export type KnowledgeAccessGrantSelectUpdateManyAndReturn<ExtArgs extends runtim
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["knowledgeAccessGrant"]>
 
 export type KnowledgeAccessGrantSelectScalar = {
@@ -399,10 +549,21 @@ export type KnowledgeAccessGrantSelectScalar = {
 }
 
 export type KnowledgeAccessGrantOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"knowledgeAccessGrantId" | "workspaceId" | "documentId" | "agentId" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["knowledgeAccessGrant"]>
+export type KnowledgeAccessGrantInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
+}
+export type KnowledgeAccessGrantIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
+}
+export type KnowledgeAccessGrantIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  document?: boolean | Prisma.DocumentDefaultArgs<ExtArgs>
+}
 
 export type $KnowledgeAccessGrantPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "KnowledgeAccessGrant"
-  objects: {}
+  objects: {
+    document: Prisma.$DocumentPayload<ExtArgs>
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     knowledgeAccessGrantId: string
     workspaceId: string
@@ -805,6 +966,7 @@ readonly fields: KnowledgeAccessGrantFieldRefs;
  */
 export interface Prisma__KnowledgeAccessGrantClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  document<T extends Prisma.DocumentDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.DocumentDefaultArgs<ExtArgs>>): Prisma.Prisma__DocumentClient<runtime.Types.Result.GetResult<Prisma.$DocumentPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -858,6 +1020,10 @@ export type KnowledgeAccessGrantFindUniqueArgs<ExtArgs extends runtime.Types.Ext
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
+  /**
    * Filter, which KnowledgeAccessGrant to fetch.
    */
   where: Prisma.KnowledgeAccessGrantWhereUniqueInput
@@ -876,6 +1042,10 @@ export type KnowledgeAccessGrantFindUniqueOrThrowArgs<ExtArgs extends runtime.Ty
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
+  /**
    * Filter, which KnowledgeAccessGrant to fetch.
    */
   where: Prisma.KnowledgeAccessGrantWhereUniqueInput
@@ -893,6 +1063,10 @@ export type KnowledgeAccessGrantFindFirstArgs<ExtArgs extends runtime.Types.Exte
    * Omit specific fields from the KnowledgeAccessGrant
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
   /**
    * Filter, which KnowledgeAccessGrant to fetch.
    */
@@ -942,6 +1116,10 @@ export type KnowledgeAccessGrantFindFirstOrThrowArgs<ExtArgs extends runtime.Typ
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
+  /**
    * Filter, which KnowledgeAccessGrant to fetch.
    */
   where?: Prisma.KnowledgeAccessGrantWhereInput
@@ -989,6 +1167,10 @@ export type KnowledgeAccessGrantFindManyArgs<ExtArgs extends runtime.Types.Exten
    * Omit specific fields from the KnowledgeAccessGrant
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
   /**
    * Filter, which KnowledgeAccessGrants to fetch.
    */
@@ -1038,6 +1220,10 @@ export type KnowledgeAccessGrantCreateArgs<ExtArgs extends runtime.Types.Extensi
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
+  /**
    * The data needed to create a KnowledgeAccessGrant.
    */
   data: Prisma.XOR<Prisma.KnowledgeAccessGrantCreateInput, Prisma.KnowledgeAccessGrantUncheckedCreateInput>
@@ -1071,6 +1257,10 @@ export type KnowledgeAccessGrantCreateManyAndReturnArgs<ExtArgs extends runtime.
    */
   data: Prisma.KnowledgeAccessGrantCreateManyInput | Prisma.KnowledgeAccessGrantCreateManyInput[]
   skipDuplicates?: boolean
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantIncludeCreateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1085,6 +1275,10 @@ export type KnowledgeAccessGrantUpdateArgs<ExtArgs extends runtime.Types.Extensi
    * Omit specific fields from the KnowledgeAccessGrant
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
   /**
    * The data needed to update a KnowledgeAccessGrant.
    */
@@ -1137,6 +1331,10 @@ export type KnowledgeAccessGrantUpdateManyAndReturnArgs<ExtArgs extends runtime.
    * Limit how many KnowledgeAccessGrants to update.
    */
   limit?: number
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantIncludeUpdateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1151,6 +1349,10 @@ export type KnowledgeAccessGrantUpsertArgs<ExtArgs extends runtime.Types.Extensi
    * Omit specific fields from the KnowledgeAccessGrant
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
   /**
    * The filter to search for the KnowledgeAccessGrant to update in case it exists.
    */
@@ -1177,6 +1379,10 @@ export type KnowledgeAccessGrantDeleteArgs<ExtArgs extends runtime.Types.Extensi
    * Omit specific fields from the KnowledgeAccessGrant
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
   /**
    * Filter which KnowledgeAccessGrant to delete.
    */
@@ -1209,4 +1415,8 @@ export type KnowledgeAccessGrantDefaultArgs<ExtArgs extends runtime.Types.Extens
    * Omit specific fields from the KnowledgeAccessGrant
    */
   omit?: Prisma.KnowledgeAccessGrantOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeAccessGrantInclude<ExtArgs> | null
 }
