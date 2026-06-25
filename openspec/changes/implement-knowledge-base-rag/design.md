@@ -33,8 +33,21 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 4. Store document lifecycle status.
    - Rationale: Users need to know whether uploaded data is pending, indexed, failed, or disabled.
 
+5. Use workspace-scoped public API and shared DTO contracts.
+   - Rationale: Knowledge documents, ingestion jobs, data sources, and sync scope are workspace-owned resources, so the public boundary uses `/api/workspaces/:workspaceId/knowledge/...` and derives trusted tenant/user context from route and auth middleware.
+   - Alternative considered: Short `/api/knowledge-base/...` routes. Rejected because they would bypass the current API matrix convention for workspace-owned resources.
+
+6. Keep KB/RAG public DTOs caller-safe.
+   - Rationale: Frontend, backend, workers, and future module integrations need stable DTOs without credentials, provider secrets, object-storage private paths, raw vector records, embedding payloads, queue internals, generated lifecycle fields, or trusted actor/workspace inputs in request bodies.
+   - Alternative considered: Reusing frontend mock view types as API contracts. Rejected because local view state can drift and may encode presentation-only fields.
+
+7. Add granular public domain events without removing legacy event names.
+   - Rationale: Future ingestion and sync flows need public state-transition events while existing `knowledge.document_uploaded` and `knowledge.index_ready` names may still be referenced by older docs/tests.
+   - Alternative considered: Replacing legacy event names immediately. Rejected until usage is audited and a compatibility migration is approved.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
 - Embedding services may be unavailable -> Provide mock/local adapter mode for demos and tests.
 - Access control is security-sensitive -> Check agent knowledge assignment before retrieval, not only during upload.
+- Public contracts can drift from prototype UI mocks -> Map or adapt frontend mock data to `@vcp/shared` DTOs before adding API-client work.

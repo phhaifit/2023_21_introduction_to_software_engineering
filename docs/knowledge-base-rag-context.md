@@ -163,36 +163,37 @@ Rules:
   remain scalar public IDs unless an OpenSpec-backed DB design explicitly
   requires a relation.
 
-## Proposed Public API Contract Roadmap
+## Public API Contract Boundary
 
-This issue only documents a roadmap. It does not implement API routes.
+This issue defines the public route boundary only. It does not implement API
+routes.
 
-The current API route matrix reserves workspace-scoped Knowledge routes under
-`/api/workspaces/:workspaceId/knowledge/...`. The following shorter route list
-is a candidate future contract shape that must be reconciled with the API
-matrix and tenant-boundary rules before implementation:
+The final KB/RAG contract uses the workspace-scoped route shape required by
+the API matrix and tenant-boundary rules:
 
 ```text
-GET    /api/knowledge-base/documents
-POST   /api/knowledge-base/uploads/validate
-POST   /api/knowledge-base/uploads/prepare
-GET    /api/knowledge-base/ingestion-jobs
-GET    /api/knowledge-base/data-sources
-POST   /api/knowledge-base/data-sources/:sourceId/connect
-GET    /api/knowledge-base/sync-scope
-PUT    /api/knowledge-base/sync-scope
-POST   /api/knowledge-base/sync-jobs
-GET    /api/knowledge-base/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/documents
+POST   /api/workspaces/:workspaceId/knowledge/uploads/validate
+POST   /api/workspaces/:workspaceId/knowledge/uploads/prepare
+GET    /api/workspaces/:workspaceId/knowledge/ingestion-jobs
+GET    /api/workspaces/:workspaceId/knowledge/data-sources
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect
+GET    /api/workspaces/:workspaceId/knowledge/sync-scope
+PUT    /api/workspaces/:workspaceId/knowledge/sync-scope
+POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
-Before any endpoint is implemented, the team must decide whether these routes
-should include `/api/workspaces/:workspaceId/...` directly or derive workspace
-from authenticated context. The existing architecture guidance prefers
-workspace-scoped routes for workspace-owned resources.
+`workspaceId` is a route tenant locator. Request bodies must not accept
+trusted workspace, actor/user, generated ID, lifecycle status, timestamp,
+private storage, vector database, embedding-provider, queue, credential, or
+secret fields.
 
-## Proposed Shared DTO / Contract Roadmap
+## Shared DTO / Contract Boundary
 
-Likely future public DTOs:
+The public shared contract boundary is defined in
+`packages/shared/src/contracts/knowledge-base-rag.ts` and exported from
+`@vcp/shared`. It currently defines:
 
 - `KnowledgeDocumentDto`
 - `KnowledgeDocumentChunkDto`
@@ -212,14 +213,15 @@ raw credentials, tokens, provider secrets, private vector DB configuration,
 embedding-provider internals, object-storage private paths, or server-owned
 mutation fields.
 
-Frontend local mock types should be migrated or mapped to shared DTOs once the
-contracts exist. Until then, mock types remain module-local prototype types.
+Frontend local mock types should now be mapped toward these shared DTOs before
+new API-client work begins. Prototype-only view models may remain module-local
+when they are purely presentation-specific.
 
 ## Proposed Domain Events Roadmap
 
-The shared contracts currently include `knowledge.document_uploaded` and
-`knowledge.index_ready`. A later reviewed shared-contract issue may replace or
-extend them with more granular events such as:
+The shared contracts retain the legacy `knowledge.document_uploaded` and
+`knowledge.index_ready` events for compatibility and add these granular public
+events:
 
 - `knowledge.document.uploadValidated`
 - `knowledge.document.ingestionQueued`
