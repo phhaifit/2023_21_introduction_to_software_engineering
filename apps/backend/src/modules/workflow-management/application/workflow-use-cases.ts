@@ -121,11 +121,11 @@ export class WorkflowUseCases {
     };
   }
 
-  async listWorkflows(workspaceId: EntityId<"workspaceId">, limit = 50, offset = 0): Promise<{ items: WorkflowDto[]; total: number }> {
+  async listWorkflows(workspaceId: EntityId<"workspaceId">, limit = 50, offset = 0): Promise<{ items: (WorkflowDto & { stepCount: number })[]; total: number }> {
     const result = await this.repository.listByWorkspace(workspaceId, { limit, offset });
     return {
       total: result.total,
-      items: result.items.map(toWorkflowSummary),
+      items: result.items.map(w => ({ ...toWorkflowSummary(w), stepCount: w.steps?.length ?? 0 })),
     };
   }
 

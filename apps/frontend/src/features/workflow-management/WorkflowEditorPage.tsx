@@ -38,6 +38,8 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "success" | "failed">("idle");
   const [executionError, setExecutionError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   const [selectedAgentId, setSelectedAgentId] = useState<string>(MOCK_AGENTS[0].agentId);
 
@@ -149,6 +151,13 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
   };
 
   const handleSave = async () => {
+    if (!formData.name.trim()) {
+      setNameError("Vui lòng nhập Tên Workflow trước khi lưu.");
+      return;
+    }
+    setNameError(null);
+    setSubmitError(null);
+
     try {
       const payload: CreateWorkflowCommand = {
         name: formData.name,
@@ -175,7 +184,11 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
       alert("Đã lưu workflow thành công! Bạn có thể Chạy Workflow ngay bây giờ.");
     } catch (err: any) {
       console.error("Failed to save workflow:", err);
-      alert(err.message || "Không thể lưu workflow. V vui lòng kiểm tra lại cấu hình.");
+      if (err.message?.includes("agents are missing or disabled")) {
+        setSubmitError("Lưu thất bại: Có Agent trong kịch bản đã bị khóa hoặc không tồn tại.");
+      } else {
+        setSubmitError(err.message || "Không thể lưu workflow. Vui lòng kiểm tra lại cấu hình.");
+      }
     }
   };
 
@@ -191,10 +204,19 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
               name="name"
               type="text"
               className="form-input"
+              style={nameError ? { border: "1px solid #ef4444" } : {}}
               placeholder="Ví dụ: Data Pipeline Alpha..."
               value={formData.name}
-              onChange={handleChange}
+              onChange={(e) => {
+                handleChange(e);
+                if (e.target.value.trim()) setNameError(null);
+              }}
             />
+            {nameError && (
+              <div style={{ color: "#ef4444", fontSize: "13px", marginTop: "4px" }}>
+                {nameError}
+              </div>
+            )}
           </div>
 
           <div className="form-group" style={{ marginTop: '16px' }}>
@@ -298,7 +320,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
       </div>
 
       {/* Cột phải: Cài đặt bổ sung & Nút hành động */}
-      <div className="editor-sidebar">
+      <div className="editor-sidebar" style={{ position: 'sticky', top: '24px', alignSelf: 'flex-start' }}>
         <SectionCard title="Trạng thái & Phát hành">
           <div className="form-group">
             <label className="form-label" htmlFor="status">Trạng thái hiện tại</label>
@@ -343,6 +365,12 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
               {executionStatus === "running" && <div>Đang gửi yêu cầu thực thi...</div>}
               {executionStatus === "success" && <div style={{ fontWeight: 'bold' }}>✓ Đã gửi yêu cầu chạy thành công! Vui lòng chuyển sang Lịch sử chạy để xem chi tiết.</div>}
               {executionStatus === "failed" && <div><b>Lỗi:</b> {executionError}</div>}
+            </div>
+          )}
+
+          {submitError && (
+            <div style={{ marginTop: '16px', padding: '12px', background: '#fef2f2', color: '#b91c1c', borderRadius: '6px', fontSize: '13px' }}>
+              <b>Lỗi:</b> {submitError}
             </div>
           )}
         </div>

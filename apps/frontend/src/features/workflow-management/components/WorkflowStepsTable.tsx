@@ -15,117 +15,249 @@ export function WorkflowStepsTable({
   agents,
   onMoveUp,
   onMoveDown,
-  onRemove
+  onRemove,
 }: WorkflowStepsTableProps) {
   if (steps.length === 0) {
     return (
-      <div style={{ textAlign: "center", padding: "20px 0", color: "var(--muted)", fontSize: "14px", background: "#f8fafc", borderRadius: "6px", border: "1px dashed var(--line)" }}>
-        Chưa có bước nào được cấu hình.<br />
-        (Tính năng kéo thả step sẽ được cập nhật)
+      <div
+        style={{
+          textAlign: "center",
+          padding: "40px 20px",
+          color: "var(--muted)",
+          fontSize: "14px",
+          background: "var(--bg-subtle)",
+          borderRadius: "8px",
+          border: "2px dashed var(--line)",
+        }}
+      >
+        <div style={{ fontSize: "24px", marginBottom: "8px" }}>🚀</div>
+        <div style={{ fontWeight: 500, color: "var(--text)" }}>
+          Chưa có bước nào được cấu hình
+        </div>
+        <div style={{ marginTop: "4px" }}>
+          Thêm một Agent bên dưới để bắt đầu xây dựng luồng của bạn.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="table-container" style={{ margin: 0 }}>
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th style={{ width: "60px", textAlign: "center" }}>Bước</th>
-            <th>Agent</th>
-            <th>Vai trò</th>
-            <th style={{ width: "120px" }}>Trạng thái</th>
-            <th style={{ width: "100px", textAlign: "right" }}>Thao tác</th>
-          </tr>
-        </thead>
-        <tbody>
-          {steps.map((step, index) => {
-            const agent = agents.find((a) => a.agentId === step.agentId);
-            const isMissing = !agent;
-            const isDisabled = agent?.status === "disabled";
-            const isDeleted = agent?.status === "deleted";
-            const hasWarning = isMissing || isDisabled || isDeleted;
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+        position: "relative",
+        paddingLeft: "24px",
+      }}
+    >
+      {/* Vertical line connecting steps */}
+      <div
+        style={{
+          position: "absolute",
+          left: "39px",
+          top: "20px",
+          bottom: "20px",
+          width: "2px",
+          background: "var(--line)",
+          zIndex: 0,
+        }}
+      ></div>
 
-            return (
-              <tr key={step.workflowStepId} style={{ background: hasWarning ? "#fef2f2" : undefined }}>
-                <td style={{ textAlign: "center", fontWeight: "bold" }}>
-                  {step.stepOrder}
-                </td>
-                <td>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontWeight: 500, color: hasWarning ? "#ef4444" : "var(--text)" }}>
+      {steps.map((step, index) => {
+        const agent = agents.find((a) => a.agentId === step.agentId);
+        const isMissing = !agent;
+        const isDisabled = agent?.status === "disabled";
+        const isDeleted = agent?.status === "deleted";
+        const hasWarning = isMissing || isDisabled || isDeleted;
+
+        return (
+          <div
+            key={step.workflowStepId}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "16px",
+              position: "relative",
+              zIndex: 1,
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            {/* Step Number Badge */}
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                background: hasWarning ? "#fee2e2" : "var(--accent)",
+                color: hasWarning ? "#ef4444" : "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: "bold",
+                fontSize: "14px",
+                flexShrink: 0,
+                boxShadow: "0 0 0 4px var(--bg-surface)",
+              }}
+            >
+              {step.stepOrder}
+            </div>
+
+            {/* Step Card */}
+            <div
+              className="panel"
+              style={{
+                flex: 1,
+                padding: "16px",
+                border: hasWarning
+                  ? "1px solid #fca5a5"
+                  : "1px solid var(--line)",
+                background: hasWarning ? "#fff5f5" : "var(--bg-surface)",
+                transition: "box-shadow 0.2s, transform 0.2s",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                }}
+              >
+                {/* Info */}
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: "15px",
+                        color: hasWarning ? "#ef4444" : "var(--text)",
+                      }}
+                    >
                       {agent ? agent.name : "Unknown Agent"}
                     </span>
                     {hasWarning && (
                       <span
-                        title={isMissing ? "Agent không tồn tại" : "Agent đã bị vô hiệu hóa hoặc xóa"}
+                        title={
+                          isMissing
+                            ? "Agent không tồn tại"
+                            : "Agent đã bị vô hiệu hóa hoặc xóa"
+                        }
                         style={{
-                          display: "inline-block",
                           background: "#fee2e2",
                           color: "#ef4444",
                           fontSize: "11px",
                           padding: "2px 6px",
                           borderRadius: "4px",
-                          fontWeight: "bold"
+                          fontWeight: "bold",
                         }}
                       >
-                        Lỗi
+                        Lỗi Cấu Hình
+                      </span>
+                    )}
+                    {!hasWarning && agent?.status === "enabled" && (
+                      <span
+                        style={{
+                          background: "#d1fae5",
+                          color: "#059669",
+                          fontSize: "11px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        Sẵn sàng
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px", fontFamily: "monospace" }}>
+
+                  <div
+                    style={{
+                      color: "var(--muted)",
+                      fontSize: "13px",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {agent ? agent.role : "Không có vai trò"}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--muted)",
+                      fontFamily: "monospace",
+                      background: "var(--bg-subtle)",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      display: "inline-block",
+                    }}
+                  >
                     ID: {step.agentId}
                   </div>
-                </td>
-                <td>
-                  <span style={{ color: "var(--muted)", fontSize: "13px" }}>
-                    {agent ? agent.role : "---"}
-                  </span>
-                </td>
-                <td>
-                  {!agent ? (
-                    <span className="status-badge" style={{ background: "#f1f5f9", color: "#64748b" }}>Missing</span>
-                  ) : agent.status === "enabled" ? (
-                    <span className="status-badge status-active">Hoạt động</span>
-                  ) : (
-                    <span className="status-badge status-inactive">Bị khóa</span>
-                  )}
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "4px" }}>
+                </div>
+
+                {/* Actions */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: "4px" }}>
                     <button
                       className="secondary-action"
-                      style={{ padding: "4px 8px", fontSize: "12px" }}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "12px",
+                        opacity: index === 0 ? 0.3 : 1,
+                      }}
                       disabled={index === 0}
                       onClick={() => onMoveUp(step.workflowStepId)}
-                      title="Move Up"
+                      title="Chuyển lên"
                     >
                       ↑
                     </button>
                     <button
                       className="secondary-action"
-                      style={{ padding: "4px 8px", fontSize: "12px" }}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "12px",
+                        opacity: index === steps.length - 1 ? 0.3 : 1,
+                      }}
                       disabled={index === steps.length - 1}
                       onClick={() => onMoveDown(step.workflowStepId)}
-                      title="Move Down"
+                      title="Chuyển xuống"
                     >
                       ↓
                     </button>
-                    <button
-                      className="secondary-action"
-                      style={{ padding: "4px 8px", fontSize: "12px", color: "#ef4444", borderColor: "#fca5a5" }}
-                      onClick={() => onRemove(step.workflowStepId)}
-                      title="Remove"
-                    >
-                      ✕
-                    </button>
                   </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <button
+                    className="secondary-action"
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: "12px",
+                      color: "#ef4444",
+                      borderColor: "#fecaca",
+                      background: "#fef2f2",
+                    }}
+                    onClick={() => onRemove(step.workflowStepId)}
+                    title="Xóa bước này"
+                  >
+                    Xóa bỏ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
