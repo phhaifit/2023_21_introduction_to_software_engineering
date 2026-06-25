@@ -74,6 +74,25 @@ The system SHALL define internal KB/RAG backend domain, application, and infrast
 - **AND** public DTO mappers exclude storage keys, content hashes, vector references, safe metadata, credentials, secrets, tokens, passwords, raw embeddings, vector configuration, private URLs, and queue payloads
 - **AND** Prisma repositories query only KB/RAG-owned persistence models
 
+### Requirement: Application Use Cases
+The system SHALL provide KB/RAG application use cases that future API routers and workers can call without importing repositories or infrastructure directly.
+
+#### Scenario: Metadata-only upload validation
+- **WHEN** upload candidates are validated
+- **THEN** the use case validates only caller-provided metadata such as file name, media type, and size
+- **AND** it does not parse files, upload files, create document rows, create ingestion jobs, call workers, call embedding providers, or write vectors
+
+#### Scenario: Safe upload preparation
+- **WHEN** valid upload candidates are prepared
+- **THEN** the use case creates pending document metadata and pending ingestion-job records through repository ports
+- **AND** it returns `PrepareUploadResponse` DTOs without storage keys, private URLs, queue payloads, raw embeddings, vector references, credentials, tokens, or secrets
+
+#### Scenario: Placeholder source and sync use cases
+- **WHEN** data-source connection, sync-scope update, or manual sync request use cases are called
+- **THEN** they operate on workspace-scoped repository ports
+- **AND** manual sync creates only a queued sync-job record without calling external providers or worker runtime handlers
+- **AND** data-source placeholder connection does not accept or store raw credentials, provider secrets, OAuth tokens, or refresh tokens
+
 ### Requirement: Data Source Sync Placeholder
 The system SHALL provide a configurable boundary for external knowledge sources.
 

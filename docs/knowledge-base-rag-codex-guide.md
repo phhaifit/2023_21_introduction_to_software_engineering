@@ -43,12 +43,16 @@ The backend now has an internal foundation for future runtime implementation:
 - Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
   sync jobs, and sync job events.
 - Application repository ports.
+- Application use cases for document reads, metadata-only upload validation,
+  safe upload preparation, ingestion-job reads, data-source placeholders,
+  sync-scope updates, and queued manual sync requests.
 - Safe DTO mappers to shared contracts.
 - Prisma repositories using KB/RAG-owned tables through `@vcp/database`.
 - Deterministic in-memory repositories for future use-case tests.
 
-The backend still does not have HTTP routers, route registration, upload/file
-adapters, embedding/vector adapters, worker handlers, or frontend API clients.
+The backend still does not have HTTP routers, route registration, real
+upload/file adapters, embedding/vector adapters, worker handlers, or frontend
+API clients.
 
 ## Required Future Workflow
 
@@ -193,6 +197,9 @@ apps/backend/src/modules/knowledge-base-rag/
 Current foundation files include:
 
 - `application/*-repository.ts`
+- `application/*-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
 - `application/dto-mappers.ts`
 - `domain/knowledge-document.ts`
 - `domain/knowledge-ingestion-job.ts`
@@ -205,7 +212,6 @@ Likely future files:
 
 - `api/knowledge-base-rag-router.ts`
 - `api/api-response.ts`
-- `application/*-use-cases.ts`
 - `application/ports.ts`
 - `domain/upload-validation.ts`
 - `domain/knowledge-events.ts`

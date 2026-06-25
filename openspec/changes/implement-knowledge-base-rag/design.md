@@ -61,6 +61,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: This slice adds internal backend models, repository interfaces, Prisma repositories, and in-memory repositories only. It does not implement HTTP routers, request validation, file/object storage, embedding/vector adapters, worker handlers, frontend API clients, or new Prisma schema changes.
    - Constraint: Prisma repositories use only KB/RAG-owned models and keep cross-module references as scalar public IDs.
 
+11. Add application use cases before HTTP routes.
+   - Rationale: Future API routers and workers should call stable application services instead of reaching directly into repositories or infrastructure adapters.
+   - Boundary: Application use cases validate upload candidate metadata, prepare safe pending document and ingestion-job records, read document/chunk/job/source/sync state, connect data-source placeholders, update sync scope, and create queued manual sync-job records. They do not parse files, upload to object storage, enqueue runtime worker handlers, call embedding providers, call external data-source providers, or write to a vector database.
+   - Constraint: Use cases receive trusted `workspaceId` and actor identity from caller context, use injected repository ports, clock, and ID generators, and return caller-safe shared DTOs.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
