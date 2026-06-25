@@ -12,11 +12,12 @@ Foundation reference: see `docs/module-ownership.md`,
 
 This backend module now contains the internal backend foundation for domain
 models, application repository ports, application use cases, safe DTO mappers,
-Prisma repository adapters, and deterministic in-memory repositories.
+Prisma repository adapters, deterministic in-memory repositories, and a thin
+workspace-scoped HTTP API router.
 
-It still does not contain HTTP API routers, route registration, real file
-parsing, file storage adapters, vector/embedding adapters, worker handlers, or
-frontend API-client implementation.
+It still does not contain real file parsing, file storage adapters,
+vector/embedding adapters, worker handlers, or frontend API-client
+implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -101,9 +102,7 @@ Rules:
 - Actor identity, timestamps, statuses, and API response shape should follow
   shared platform conventions.
 
-## API Contract Roadmap
-
-Do not implement these routes outside an API-router issue.
+## HTTP API Contract
 
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:
@@ -121,8 +120,13 @@ POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
 GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
-Before implementation, define request/response DTOs and decide how workspace
-context is provided. Request bodies must not accept trusted fields such as
+The API router in `api/knowledge-base-rag-router.ts` maps these routes to
+application use cases. It parses request bodies, reads `workspaceId` from the
+route path, takes actor identity from `request.context`, returns shared DTOs
+through `ApiResponse` envelopes, and does not call Prisma, storage, embedding,
+vector, worker, or provider adapters directly.
+
+Request bodies must not accept trusted fields such as
 `workspaceId`, actor/user ID, generated IDs, lifecycle status, timestamps, raw
 credentials, private object-storage paths, or vector DB internals.
 
@@ -183,6 +187,9 @@ apps/backend/src/modules/knowledge-base-rag/
 
 Current backend foundation:
 
+- `api/knowledge-base-rag-router.ts`
+- `api/knowledge-base-rag-request-parsers.ts`
+- `api/api-response.ts`
 - `application/*-repository.ts`
 - `application/dto-mappers.ts`
 - `application/knowledge-document-use-cases.ts`
@@ -199,14 +206,8 @@ Current backend foundation:
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
 
-The `api/` folder is intentionally documentation-only in this slice. Future API
-code should translate HTTP/request context into application calls and return
-shared DTOs through the public route contract.
-
 Likely future files:
 
-- `api/knowledge-base-rag-router.ts`
-- `api/api-response.ts`
 - `application/ports.ts`
 - `domain/upload-validation.ts`
 - `domain/knowledge-events.ts`
