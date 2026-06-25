@@ -10,15 +10,17 @@
     "./shared/*": "./src/shared/*"
   },
   "scripts": {
-    "dev": "node src/local-agent-management-server.ts",
+    "dev": "npx tsx watch src/local-agent-management-server.ts",
     "test": "cd ../.. && vitest run --config vitest.config.ts apps/backend/src/modules/authentication/**/*.test.ts",
     "build": "..\\..\\node_modules\\.bin\\tsc.cmd --noEmit --module ESNext --moduleResolution bundler --target ES2022 --strict --skipLibCheck --allowImportingTsExtensions src/modules/authentication/application/password-hasher.ts src/modules/authentication/application/session-repository.ts src/modules/authentication/application/user-repository.ts src/modules/authentication/domain/session.ts src/modules/authentication/domain/user.ts src/modules/authentication/infrastructure/bcrypt-password-hasher.ts src/modules/authentication/infrastructure/bcrypt-password-hasher.test.ts src/modules/authentication/infrastructure/in-memory-session-repository.ts src/modules/authentication/infrastructure/in-memory-session-repository.test.ts src/modules/authentication/infrastructure/in-memory-user-repository.ts src/modules/authentication/infrastructure/in-memory-user-repository.test.ts"
   },
   "dependencies": {
+    "@types/nodemailer": "^8.0.1",
     "@vcp/database": "0.1.0",
     "@vcp/shared": "0.1.0",
     "bcryptjs": "^3.0.3",
     "express": "^5.2.1",
+    "nodemailer": "^9.0.1",
     "pg": "^8.22.0"
   },
   "devDependencies": {

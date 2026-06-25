@@ -6,6 +6,7 @@
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
     "noEmit": true,
     "paths": {
       "@vcp/backend/*": ["apps/backend/src/*"],

@@ -43,6 +43,7 @@ import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/applicat
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import { createWorkspaceUserManagementRouter, createAcceptInvitationRouter, createWorkspaceListRouter, WorkspaceUserManagementService, WorkspaceUserManagementRepository, InMemoryWorkspaceUserManagementRepository } from "./modules/workspace-user-management/index.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
   InMemoryKnowledgeDocumentRepository,
@@ -234,6 +235,18 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     await seedDemoAgents(repository);
   }
 
+  const workspaceUserManagementRepo = new InMemoryWorkspaceUserManagementRepository();
+  const workspaceUserManagementService = new WorkspaceUserManagementService({
+    repository: workspaceUserManagementRepo,
+    generateId: () => randomUUID(),
+  });
+  await workspaceUserManagementRepo.createWorkspace({
+    workspaceId: DEMO_WORKSPACE_ID,
+    name: "Demo Workspace",
+    createdAt: new Date().toISOString(),
+    ownerId: "local-dev-user"
+  });
+
   const app = express();
   app.use(express.json());
 
@@ -277,6 +290,18 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   app.use(
     "/api/workspaces/:workspaceId/workflows",
     createWorkflowManagementRouter({ useCases: workflowUseCases })
+  );
+
+  app.use("/api/workspaces", createWorkspaceListRouter({ service: workspaceUserManagementService }));
+
+  app.use(
+    "/api/workspaces/:workspaceId/members",
+    createWorkspaceUserManagementRouter({ service: workspaceUserManagementService })
+  );
+  
+  app.use(
+    "/api/invitations",
+    createAcceptInvitationRouter({ service: workspaceUserManagementService })
   );
 
   app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));

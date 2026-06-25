@@ -11,6 +11,16 @@ import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
+import { MembersPage } from "./features/workspace-user-management/components/MembersPage.tsx";
+import { AcceptInvitationPage } from "./features/workspace-user-management/components/AcceptInvitationPage.tsx";
+import { WorkspaceListPage } from "./features/workspace-user-management/components/WorkspaceListPage.tsx";
+import { useParams } from "react-router-dom";
+
+function MembersPageWrapper() {
+  const { workspaceId } = useParams();
+  if (!workspaceId) return null;
+  return <MembersPage workspaceId={workspaceId} />;
+}
 
 export function App() {
   return (
@@ -32,6 +42,9 @@ export function App() {
           <Route path="/billing" element={<SubscriptionPaymentPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/authentication" element={<AuthenticationPage />} />
+          <Route path="/workspace" element={<WorkspaceListPage />} />
+          <Route path="/workspace/:workspaceId" element={<MembersPageWrapper />} />
+          <Route path="/invite/accept" element={<AcceptInvitationPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
