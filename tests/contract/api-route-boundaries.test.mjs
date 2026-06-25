@@ -79,11 +79,15 @@ const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId/runs", "planned"],
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId/logs", "planned"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/documents", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/documents", "planned"],
-  ["DELETE", "/api/workspaces/:workspaceId/knowledge/documents/:documentId", "planned"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/documents/:documentId/ingestion", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/retrieval", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/access-assignments", "planned"]
+  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare", "planned"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/ingestion-jobs", "planned"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/data-sources", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect", "planned"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-scope", "planned"],
+  ["PUT", "/api/workspaces/:workspaceId/knowledge/sync-scope", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "planned"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "planned"]
 ];
 
 for (const [method, path, status] of expectedRoutes) {

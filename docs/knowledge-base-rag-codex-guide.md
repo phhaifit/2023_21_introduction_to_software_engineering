@@ -184,31 +184,33 @@ Likely future files:
 
 Do not create these files in architecture-only documentation issues.
 
-## API Contract Roadmap
+## API Contract Boundary
 
-The current API route matrix reserves workspace-scoped Knowledge routes under
-`/api/workspaces/:workspaceId/knowledge/...`. A future API design may also
-consider the following candidate shape, but it must be reconciled with the
-route matrix and workspace tenant rules before implementation:
+The KB/RAG public API contract uses workspace-scoped routes under
+`/api/workspaces/:workspaceId/knowledge/...`. Do not use the older
+`/api/knowledge-base/...` candidate shape for implementation:
 
 ```text
-GET    /api/knowledge-base/documents
-POST   /api/knowledge-base/uploads/validate
-POST   /api/knowledge-base/uploads/prepare
-GET    /api/knowledge-base/ingestion-jobs
-GET    /api/knowledge-base/data-sources
-POST   /api/knowledge-base/data-sources/:sourceId/connect
-GET    /api/knowledge-base/sync-scope
-PUT    /api/knowledge-base/sync-scope
-POST   /api/knowledge-base/sync-jobs
-GET    /api/knowledge-base/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/documents
+POST   /api/workspaces/:workspaceId/knowledge/uploads/validate
+POST   /api/workspaces/:workspaceId/knowledge/uploads/prepare
+GET    /api/workspaces/:workspaceId/knowledge/ingestion-jobs
+GET    /api/workspaces/:workspaceId/knowledge/data-sources
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect
+GET    /api/workspaces/:workspaceId/knowledge/sync-scope
+PUT    /api/workspaces/:workspaceId/knowledge/sync-scope
+POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
-Document and test the chosen route shape before adding handlers.
+This route contract is documented and tested as a shared boundary. It still
+does not mean backend handlers exist.
 
-## Shared DTO Roadmap
+## Shared DTO Boundary
 
-Likely future shared DTOs:
+Shared DTOs are defined in
+`packages/shared/src/contracts/knowledge-base-rag.ts` and exported from
+`@vcp/shared`:
 
 - `KnowledgeDocumentDto`
 - `KnowledgeDocumentChunkDto`
@@ -229,7 +231,9 @@ worker implementation details module-local.
 
 ## Domain Event Roadmap
 
-Likely future public events:
+Shared contracts retain legacy `knowledge.document_uploaded` and
+`knowledge.index_ready` event names for compatibility and add these public
+granular events:
 
 - `knowledge.document.uploadValidated`
 - `knowledge.document.ingestionQueued`

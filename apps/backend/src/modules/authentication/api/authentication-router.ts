@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 
-import { InvalidCredentialsError, ValidationError } from "../domain/errors.ts";
+import { EmailAlreadyUsedError, InvalidCredentialsError, ValidationError } from "../domain/errors.ts";
 import type { RegisterUseCase } from "../application/register-use-case.ts";
 import type { LoginUseCase } from "../application/login-use-case.ts";
 import { sendAuthApiSuccess, sendAuthApiFailure } from "./api-response.ts";
@@ -116,6 +116,16 @@ async function handleAuthApiRequest<T>(
         request,
         response,
         "auth.invalid_credentials",
+        error.message
+      );
+      return;
+    }
+
+    if (error instanceof EmailAlreadyUsedError) {
+      sendAuthApiFailure(
+        request,
+        response,
+        "validation.invalid_input",
         error.message
       );
       return;
