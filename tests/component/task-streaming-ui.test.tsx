@@ -253,7 +253,8 @@ describe("Task 9B streaming UI integration", () => {
     const partial = screen.getByLabelText("Accumulated partial result");
     expect(partial).toHaveTextContent("Alpha Beta");
     expect(partial).not.toHaveTextContent("Gamma");
-    expect(screen.getByText("Keep context visible.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Keep context visible.")).toBeVisible();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "View processing details" }));
@@ -294,7 +295,8 @@ describe("Task 9B streaming UI integration", () => {
     expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Alpha");
 
     await submitPrompt("Second task.");
-    expect(screen.getByText("Second task.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Second task.")).toBeVisible();
     expect(screen.getByText(/Alpha/)).toBeVisible();
     // Task A streaming continues in the background
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
