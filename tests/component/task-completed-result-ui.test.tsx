@@ -317,10 +317,20 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
 
     await submitPrompt("Second task.");
-    expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(0);
+    // Creating another Task does not stop the first Task; the first Task continues in the background.
+    expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
 
+    // Flush the background completion for Task 1
+    await act(() => { first.scheduler.flushNext(COMPLETION_MS); });
+
+    // UI still renders only the currently selected Task (Task 2, which is Pending/In-progress, not Completed)
+    expect(screen.queryByRole("region", { name: /completed result/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Second task.")).toBeVisible();
+
+    // Progress Task 2 to completion
     await completeTask(first.scheduler, 1);
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
+    // Unmount stops remaining runtime resources
     first.unmount();
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(0);
   });
@@ -341,12 +351,16 @@ describe("Task 10B Completed Result UI Integration", () => {
       join(root, "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"),
       "utf8"
     );
+    const conversationSource = readFileSync(
+      join(root, "apps/frontend/src/features/task-orchestration/components/task-conversation.tsx"),
+      "utf8"
+    );
     const runtimeSource = readFileSync(
       join(root, "apps/frontend/src/features/task-orchestration/model/task-completion-runtime.ts"),
       "utf8"
     );
     
-    expect(pageSource).toMatch(/TaskCompletedResult/);
+    expect(conversationSource).toMatch(/TaskCompletedResult/);
     expect(pageSource).not.toMatch(/\.status\s*=\s*["'`]succeeded/);
     expect(pageSource).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);
     expect(pageSource).not.toMatch(/\bwindow\.|\bsetTimeout\b|\bclearTimeout\b|\bnavigator\.clipboard\b/);
