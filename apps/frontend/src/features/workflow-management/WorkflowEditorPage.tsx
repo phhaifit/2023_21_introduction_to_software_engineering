@@ -162,20 +162,20 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
         completedAt: null,
       });
 
-      alert("Đã yêu cầu thực thi Workflow thành công! (Handoff to Task Orchestration)");
+      alert("Workflow execution requested successfully! (Handoff to Task Orchestration)");
       if (onExecutionSuccess) {
         onExecutionSuccess();
       }
     } catch (err: any) {
       console.error("Failed to execute workflow:", err);
       setExecutionStatus("failed");
-      setExecutionError(err.message || "Không thể thực thi workflow. Workflow cần ở trạng thái 'Đang hoạt động' và có ít nhất 1 bước.");
+      setExecutionError(err.message || "Failed to execute workflow. Workflow must be in 'Active' status and have at least 1 step.");
     }
   };
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      setNameError("Vui lòng nhập Tên Workflow trước khi lưu.");
+      setNameError("Please enter a Workflow Name before saving.");
       return;
     }
     setNameError(null);
@@ -210,13 +210,13 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
         await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
       }
       
-      alert("Đã lưu workflow thành công! Bạn có thể Chạy Workflow ngay bây giờ.");
+      alert("Workflow saved successfully! You can now Run the workflow.");
     } catch (err: any) {
       console.error("Failed to save workflow:", err);
       if (err.message?.includes("agents are missing or disabled")) {
-        setSubmitError("Lưu thất bại: Có Agent trong kịch bản đã bị khóa hoặc không tồn tại.");
+        setSubmitError("Save failed: An Agent in the workflow is disabled or missing.");
       } else {
-        setSubmitError(err.message || "Không thể lưu workflow. Vui lòng kiểm tra lại cấu hình.");
+        setSubmitError(err.message || "Failed to save workflow. Please check your configuration.");
       }
     }
   };
@@ -225,16 +225,16 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
     <div className="editor-layout">
       {/* Cột trái: Thông tin chính */}
       <div className="editor-main">
-        <SectionCard title="Thông tin chung" description="Cấu hình thông tin cơ bản cho workflow.">
+        <SectionCard title="General Information" description="Configure basic information for the workflow.">
           <div className="form-group">
-            <label className="form-label" htmlFor="name">Tên Workflow</label>
+            <label className="form-label" htmlFor="name">Workflow Name</label>
             <input
               id="name"
               name="name"
               type="text"
               className="form-input"
               style={nameError ? { border: "1px solid #ef4444" } : {}}
-              placeholder="Ví dụ: Data Pipeline Alpha..."
+              placeholder="Example: Data Pipeline Alpha..."
               value={formData.name}
               onChange={(e) => {
                 handleChange(e);
@@ -249,12 +249,12 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
           </div>
 
           <div className="form-group" style={{ marginTop: '16px' }}>
-            <label className="form-label" htmlFor="description">Mô tả chi tiết</label>
+            <label className="form-label" htmlFor="description">Detailed Description</label>
             <textarea
               id="description"
               name="description"
               className="form-input"
-              placeholder="Giải thích mục đích của workflow này..."
+              placeholder="Explain the purpose of this workflow..."
               rows={4}
               value={formData.description}
               onChange={handleChange}
@@ -262,9 +262,9 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
           </div>
         </SectionCard>
 
-        <SectionCard title="Cấu hình Trigger" description="Xác định cách thức workflow này được kích hoạt.">
+        <SectionCard title="Trigger Configuration" description="Determine how this workflow is triggered.">
           <div className="form-group">
-            <label className="form-label" htmlFor="triggerType">Loại Trigger</label>
+            <label className="form-label" htmlFor="triggerType">Trigger Type</label>
             <select
               id="triggerType"
               name="triggerType"
@@ -272,9 +272,9 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
               value={formData.triggerType}
               onChange={handleChange}
             >
-              <option value="manual">Kích hoạt thủ công (Manual)</option>
-              <option value="schedule">Theo lịch trình (Schedule)</option>
-              <option value="webhook">Qua Webhook (API)</option>
+              <option value="manual">Manual</option>
+              <option value="schedule">Scheduled</option>
+              <option value="webhook">Via Webhook (API)</option>
             </select>
           </div>
 
@@ -282,40 +282,40 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
             <div className="form-group" style={{ marginTop: '16px', padding: '12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid var(--line)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="form-label" htmlFor="scheduleFrequency">Tần suất chạy</label>
+                  <label className="form-label" htmlFor="scheduleFrequency">Run Frequency</label>
                   <select
                     id="scheduleFrequency"
                     className="form-input"
                     value={scheduleFrequency}
                     onChange={e => setScheduleFrequency(e.target.value)}
                   >
-                    <option value="daily">Hàng ngày</option>
-                    <option value="weekly">Hàng tuần</option>
-                    <option value="monthly">Hàng tháng</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
                   </select>
                 </div>
                 {scheduleFrequency === "weekly" && (
                   <div>
-                    <label className="form-label" htmlFor="scheduleDayOfWeek">Vào Thứ</label>
+                    <label className="form-label" htmlFor="scheduleDayOfWeek">On Day</label>
                     <select
                       id="scheduleDayOfWeek"
                       className="form-input"
                       value={scheduleDayOfWeek}
                       onChange={e => setScheduleDayOfWeek(e.target.value)}
                     >
-                      <option value="2">Thứ Hai</option>
-                      <option value="3">Thứ Ba</option>
-                      <option value="4">Thứ Tư</option>
-                      <option value="5">Thứ Năm</option>
-                      <option value="6">Thứ Sáu</option>
-                      <option value="7">Thứ Bảy</option>
-                      <option value="1">Chủ Nhật</option>
+                      <option value="2">Monday</option>
+                      <option value="3">Tuesday</option>
+                      <option value="4">Wednesday</option>
+                      <option value="5">Thursday</option>
+                      <option value="6">Friday</option>
+                      <option value="7">Saturday</option>
+                      <option value="1">Sunday</option>
                     </select>
                   </div>
                 )}
                 {scheduleFrequency === "monthly" && (
                   <div>
-                    <label className="form-label" htmlFor="scheduleDayOfMonth">Vào Ngày</label>
+                    <label className="form-label" htmlFor="scheduleDayOfMonth">On Date</label>
                     <select
                       id="scheduleDayOfMonth"
                       className="form-input"
@@ -323,16 +323,16 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
                       onChange={e => setScheduleDayOfMonth(e.target.value)}
                     >
                       {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                        <option key={day} value={day}>Ngày {day}</option>
+                        <option key={day} value={day}>Day {day}</option>
                       ))}
                     </select>
                     <div style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '4px' }}>
-                      (Tự động lùi về ngày cuối tháng nếu tháng đó có ít ngày hơn)
+                      (Automatically rolls back to the last day of the month if fewer days exist)
                     </div>
                   </div>
                 )}
                 <div>
-                  <label className="form-label" htmlFor="scheduleTime">Thời gian chạy</label>
+                  <label className="form-label" htmlFor="scheduleTime">Run Time</label>
                   <input
                     type="time"
                     id="scheduleTime"
@@ -358,18 +358,18 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
                 />
                 <button
                   className="secondary-action"
-                  onClick={() => alert('Đã copy Webhook URL!')}
+                  onClick={() => alert('Webhook URL copied!')}
                   style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}
                 >
                   Copy
                 </button>
               </div>
-              <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>Gửi HTTP POST request đến URL này để kích hoạt workflow.</p>
+              <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>Send an HTTP POST request to this URL to trigger the workflow.</p>
             </div>
           )}
         </SectionCard>
         
-        <SectionCard title="Các bước thực thi">
+        <SectionCard title="Execution Steps">
           <WorkflowStepsTable
             steps={formData.steps}
             agents={MOCK_AGENTS}
@@ -379,7 +379,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
           />
           
           <div style={{ marginTop: '16px', padding: '16px', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-subtle)' }}>
-            <div style={{ marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>Thêm bước mới:</div>
+            <div style={{ marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>Add new step:</div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <select 
                 className="form-input" 
@@ -389,11 +389,11 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
               >
                 {MOCK_AGENTS.map(agent => (
                   <option key={agent.agentId} value={agent.agentId}>
-                    {agent.name} ({agent.role}) {agent.status === 'disabled' ? ' - [BỊ KHÓA]' : ''}
+                    {agent.name} ({agent.role}) {agent.status === 'disabled' ? ' - [DISABLED]' : ''}
                   </option>
                 ))}
               </select>
-              <button className="primary-action" style={{ padding: '8px 24px', whiteSpace: 'nowrap' }} onClick={handleConfirmAddStep}>+ Thêm Agent</button>
+              <button className="primary-action" style={{ padding: '8px 24px', whiteSpace: 'nowrap' }} onClick={handleConfirmAddStep}>+ Add Agent</button>
             </div>
           </div>
         </SectionCard>
@@ -401,9 +401,9 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
 
       {/* Cột phải: Cài đặt bổ sung & Nút hành động */}
       <div className="editor-sidebar" style={{ position: 'sticky', top: '24px', alignSelf: 'flex-start' }}>
-        <SectionCard title="Trạng thái & Phát hành">
+        <SectionCard title="Status & Publishing">
           <div className="form-group">
-            <label className="form-label" htmlFor="status">Trạng thái hiện tại</label>
+            <label className="form-label" htmlFor="status">Current Status</label>
             <select
               id="status"
               name="status"
@@ -411,46 +411,46 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
               value={formData.status}
               onChange={handleChange}
             >
-              <option value="draft">Bản nháp (Draft)</option>
-              <option value="active">Đang hoạt động (Active)</option>
-              <option value="archived">Lưu trữ (Archived)</option>
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '12px', lineHeight: '1.5' }}>
-            Lưu ý: Bạn phải lưu Workflow ở trạng thái "Đang hoạt động" mới có thể bấm Chạy (Execute).
+            Note: You must save the Workflow as "Active" to click Run (Execute).
           </p>
         </SectionCard>
 
         <div className="panel" style={{ padding: '16px' }}>
           <div className="form-actions" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', flexDirection: 'column' }}>
             <ConfirmButton onClick={handleSave} variant="primary">
-              Lưu cấu hình Workflow
+              Save Workflow Configuration
             </ConfirmButton>
             <button
               className="primary-action"
               onClick={handleExecute}
               style={{ background: formData.status === "active" ? '#10b981' : '#e5e7eb', borderColor: formData.status === "active" ? '#10b981' : '#e5e7eb', color: formData.status === "active" ? 'white' : '#9ca3af', cursor: formData.status === "active" ? 'pointer' : 'not-allowed' }}
               disabled={executionStatus === "running" || formData.status !== "active"}
-              title={formData.status !== "active" ? "Lưu workflow thành 'Đang hoạt động' để chạy" : ""}
+              title={formData.status !== "active" ? "Save workflow as 'Active' to run" : ""}
             >
-              {executionStatus === "running" ? "Đang gửi yêu cầu..." : "▶ Chạy Workflow (Execute)"}
+              {executionStatus === "running" ? "Sending request..." : "▶ Run Workflow (Execute)"}
             </button>
             <button className="secondary-action" onClick={onCancel}>
-              Quay lại danh sách
+              Back to list
             </button>
           </div>
 
           {executionStatus !== "idle" && (
             <div style={{ marginTop: '16px', padding: '12px', background: executionStatus === "failed" ? '#fef2f2' : '#f0fdf4', color: executionStatus === "failed" ? '#b91c1c' : '#15803d', borderRadius: '6px', fontSize: '13px' }}>
-              {executionStatus === "running" && <div>Đang gửi yêu cầu thực thi...</div>}
-              {executionStatus === "success" && <div style={{ fontWeight: 'bold' }}>✓ Đã gửi yêu cầu chạy thành công! Vui lòng chuyển sang Lịch sử chạy để xem chi tiết.</div>}
-              {executionStatus === "failed" && <div><b>Lỗi:</b> {executionError}</div>}
+              {executionStatus === "running" && <div>Sending execution request...</div>}
+              {executionStatus === "success" && <div style={{ fontWeight: 'bold' }}>✓ Execution request sent successfully! Please switch to Run History to view details.</div>}
+              {executionStatus === "failed" && <div><b>Error:</b> {executionError}</div>}
             </div>
           )}
 
           {submitError && (
             <div style={{ marginTop: '16px', padding: '12px', background: '#fef2f2', color: '#b91c1c', borderRadius: '6px', fontSize: '13px' }}>
-              <b>Lỗi:</b> {submitError}
+              <b>Error:</b> {submitError}
             </div>
           )}
         </div>

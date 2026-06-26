@@ -55,7 +55,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
         <div className="elevated-card" style={{ padding: '24px', borderTop: '4px solid #6366f1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Tổng số Workflow</div>
+              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Total Workflows</div>
               <div style={{ fontSize: '36px', fontWeight: '800', color: '#1e293b', lineHeight: 1 }}>{workflows.length}</div>
             </div>
             <div style={{ background: '#e0e7ff', padding: '12px', borderRadius: '12px', color: '#4f46e5' }}>
@@ -65,7 +65,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
           {workflows.length > 0 && (
             <div style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <TrendingUp size={14} color="#10b981" />
-              <span>Sẵn sàng để tự động hóa</span>
+              <span>Ready for automation</span>
             </div>
           )}
         </div>
@@ -74,7 +74,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
         <div className="elevated-card" style={{ padding: '24px', borderTop: '4px solid #10b981' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Đang hoạt động</div>
+              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Active</div>
               <div style={{ fontSize: '36px', fontWeight: '800', color: '#10b981', lineHeight: 1 }}>{activeCount}</div>
             </div>
             <div style={{ background: '#dcfce7', padding: '12px', borderRadius: '12px', color: '#059669' }}>
@@ -85,7 +85,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
             <div className="progress-bar-fill" style={{ width: `${activePercentage}%`, background: '#10b981' }}></div>
           </div>
           <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--muted)', textAlign: 'right' }}>
-            {activePercentage}% tổng số
+            {activePercentage}% of total
           </div>
         </div>
 
@@ -93,7 +93,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
         <div className="elevated-card" style={{ padding: '24px', borderTop: '4px solid #f59e0b' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Bản nháp</div>
+              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Drafts</div>
               <div style={{ fontSize: '36px', fontWeight: '800', color: '#f59e0b', lineHeight: 1 }}>{draftCount}</div>
             </div>
             <div style={{ background: '#fef3c7', padding: '12px', borderRadius: '12px', color: '#d97706' }}>
@@ -104,7 +104,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
             <div className="progress-bar-fill" style={{ width: `${draftPercentage}%`, background: '#f59e0b' }}></div>
           </div>
           <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--muted)', textAlign: 'right' }}>
-            {draftPercentage}% tổng số
+            {draftPercentage}% of total
           </div>
         </div>
 
@@ -112,7 +112,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
         <div className="elevated-card" style={{ padding: '24px', borderTop: '4px solid #8b5cf6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Tổng số bước</div>
+              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Total Steps</div>
               <div style={{ fontSize: '36px', fontWeight: '800', color: '#8b5cf6', lineHeight: 1 }}>{totalSteps}</div>
             </div>
             <div style={{ background: '#ede9fe', padding: '12px', borderRadius: '12px', color: '#7c3aed' }}>
@@ -120,7 +120,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
             </div>
           </div>
           <div style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)' }}>
-            Trung bình {workflows.length ? Math.round(totalSteps / workflows.length) : 0} bước / workflow
+            Average {workflows.length ? Math.round(totalSteps / workflows.length) : 0} steps / workflow
           </div>
         </div>
 
@@ -132,23 +132,23 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
           <div style={{ background: '#f1f5f9', padding: '8px', borderRadius: '8px', color: '#475569' }}>
             <Calendar size={18} />
           </div>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Cập nhật gần đây</h3>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Recent Updates</h3>
         </div>
         
         {workflows.length === 0 ? (
           <div style={{ padding: '64px 32px', textAlign: 'center', color: 'var(--muted)' }}>
             <Layers size={48} strokeWidth={1} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
-            <div style={{ fontSize: '15px', fontWeight: 500 }}>Chưa có workflow nào được tạo</div>
-            <div style={{ fontSize: '13px', marginTop: '4px' }}>Hãy chuyển sang tab "Danh sách" để tạo mới</div>
+            <div style={{ fontSize: '15px', fontWeight: 500 }}>No workflows created yet</div>
+            <div style={{ fontSize: '13px', marginTop: '4px' }}>Switch to the "List" tab to create a new one</div>
           </div>
         ) : (
           <div className="data-table-wrapper" style={{ border: 'none', borderRadius: '0' }}>
             <table className="data-table" style={{ margin: 0 }}>
               <thead>
                 <tr style={{ background: 'transparent' }}>
-                  <th style={{ padding: '16px 24px', color: '#64748b', fontSize: '12px' }}>Tên Workflow</th>
-                  <th style={{ padding: '16px 24px', color: '#64748b', fontSize: '12px' }}>Trạng thái</th>
-                  <th style={{ padding: '16px 24px', color: '#64748b', fontSize: '12px', textAlign: 'right' }}>Cập nhật lần cuối</th>
+                  <th style={{ padding: '16px 24px', color: '#64748b', fontSize: '12px' }}>Workflow Name</th>
+                  <th style={{ padding: '16px 24px', color: '#64748b', fontSize: '12px' }}>Status</th>
+                  <th style={{ padding: '16px 24px', color: '#64748b', fontSize: '12px', textAlign: 'right' }}>Last Updated</th>
                 </tr>
               </thead>
               <tbody>
