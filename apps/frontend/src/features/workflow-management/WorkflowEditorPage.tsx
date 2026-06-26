@@ -15,7 +15,7 @@ const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agent-writer", workspaceId: DEMO_WORKSPACE_ID, name: "Writer Agent", role: "Content Writer", model: "gpt-3.5", status: "enabled" }
 ] as AgentPublicSummary[];
 
-export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, onExecutionSuccess, onCancel }: { apiClient?: WorkflowManagementApiClient; workflowId?: string | null; onExecutionSuccess?: () => void; onCancel?: () => void }) {
+export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, importedData, onExecutionSuccess, onCancel }: { apiClient?: WorkflowManagementApiClient; workflowId?: string | null; importedData?: any; onExecutionSuccess?: () => void; onCancel?: () => void }) {
   const [formData, setFormData] = useState<{
     workflowId: string;
     workspaceId: string;
@@ -74,8 +74,32 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, o
         .catch(err => {
           console.error("Failed to load workflow", err);
         });
+    } else if (importedData) {
+      const config = importedData.triggerConfig || {};
+      setScheduleFrequency(config.frequency || "daily");
+      setScheduleDayOfWeek(config.dayOfWeek || "2");
+      setScheduleDayOfMonth(config.dayOfMonth || "1");
+      setScheduleTime(config.time || "08:00");
+
+      setFormData({
+        workflowId: "new-wf-123",
+        workspaceId: DEMO_WORKSPACE_ID,
+        name: importedData.name || "",
+        description: importedData.description || "",
+        status: "draft",
+        triggerType: importedData.triggerType || "manual",
+        triggerConfig: config,
+        steps: importedData.steps ? importedData.steps.map((s: any, i: number) => ({
+          ...s,
+          workflowStepId: `step-${Date.now()}-${i}`,
+          workspaceId: DEMO_WORKSPACE_ID,
+          workflowId: "new-wf-123",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })) : []
+      });
     }
-  }, [workflowId, apiClient]);
+  }, [workflowId, importedData, apiClient]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
