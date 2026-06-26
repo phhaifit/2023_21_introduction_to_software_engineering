@@ -198,6 +198,7 @@ model WorkflowStep {
   workflowId     String
   agentId        String
   stepOrder      Int
+  nextSteps      Json?
   createdAt      String
   updatedAt      String
 
@@ -207,7 +208,6 @@ model WorkflowStep {
   @@index([workspaceId])
   @@index([workflowId])
   @@index([agentId])
-  @@unique([workflowId, stepOrder])
   @@map("workflow_steps")
 }
 

@@ -37,7 +37,7 @@ describe("workflow mock data imports", () => {
     const apiClient = createMockApiClient();
     render(<WorkflowsPage apiClient={apiClient} />);
 
-    await user.click(screen.getByRole("button", { name: "Danh sách" }));
+    await user.click(screen.getByRole("button", { name: "List" }));
 
     const table = await screen.findByRole("table");
     expect(within(table).getByText(mockWorkflows[0].name)).toBeVisible();
@@ -48,14 +48,14 @@ describe("workflow mock data imports", () => {
     const apiClient = createMockApiClient();
     render(<WorkflowsPage apiClient={apiClient} />);
 
-    await user.click(screen.getByRole("button", { name: "Danh sách" }));
+    await user.click(screen.getByRole("button", { name: "List" }));
     await screen.findByRole("table");
     
     await user.type(
-      screen.getByPlaceholderText("Tìm kiếm workflow..."),
+      screen.getByPlaceholderText("Search workflows..."),
       "khong-co-workflow"
     );
-    expect(screen.getByText("Không tìm thấy Workflow")).toBeVisible();
-    expect(screen.getByText("Không có kết quả phù hợp với từ khóa của bạn.")).toBeVisible();
+    expect(screen.getByText("No Workflows Found")).toBeVisible();
+    expect(screen.getByText("No results match your search.")).toBeVisible();
   });
 });

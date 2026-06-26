@@ -8,6 +8,8 @@ export type WorkflowStepsTableProps = {
   onMoveUp: (stepId: string) => void;
   onMoveDown: (stepId: string) => void;
   onRemove: (stepId: string) => void;
+  onAddBranch: (stepId: string, targetStepId: string, condition: string) => void;
+  onRemoveBranch: (stepId: string, targetStepId: string) => void;
 };
 
 export function WorkflowStepsTable({
@@ -16,6 +18,8 @@ export function WorkflowStepsTable({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onAddBranch,
+  onRemoveBranch,
 }: WorkflowStepsTableProps) {
   if (steps.length === 0) {
     return (
@@ -247,6 +251,81 @@ export function WorkflowStepsTable({
                     title="Delete this step"
                   >
                     <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Branches UI */}
+              <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed var(--line)" }}>
+                <div style={{ fontWeight: 600, fontSize: "13px", marginBottom: "8px" }}>Next Steps (Branches)</div>
+                {step.nextSteps && step.nextSteps.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                    {step.nextSteps.map(branch => {
+                      const targetStep = steps.find(s => s.workflowStepId === branch.targetStepId);
+                      const targetAgent = targetStep ? agents.find(a => a.agentId === targetStep.agentId) : null;
+                      return (
+                        <div key={branch.targetStepId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-subtle)", padding: "8px 12px", borderRadius: "6px", fontSize: "13px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ color: "var(--muted)" }}>↳ If</span>
+                            <span style={{ fontWeight: 500, fontFamily: "monospace", background: "white", padding: "2px 6px", borderRadius: "4px" }}>
+                              {branch.condition || 'always'}
+                            </span>
+                            <span style={{ color: "var(--muted)" }}>→ Go to Step {targetStep?.stepOrder}</span>
+                            <span style={{ fontWeight: 600 }}>({targetAgent?.name || 'Unknown'})</span>
+                          </div>
+                          <button
+                            onClick={() => onRemoveBranch(step.workflowStepId, branch.targetStepId)}
+                            style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
+                            title="Remove branch"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "13px", color: "var(--muted)", fontStyle: "italic", marginBottom: "12px" }}>
+                    No branches defined. Step will naturally progress or end here.
+                  </div>
+                )}
+                
+                {/* Add Branch Form (Inline) */}
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <select
+                    id={`branch-target-${step.workflowStepId}`}
+                    className="form-input"
+                    style={{ flex: 1, padding: "6px 10px", fontSize: "13px", margin: 0, height: "32px" }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Select target step...</option>
+                    {steps.map(s => {
+                      if (s.workflowStepId === step.workflowStepId) return null; // No self loops
+                      const a = agents.find(ag => ag.agentId === s.agentId);
+                      return <option key={s.workflowStepId} value={s.workflowStepId}>Step {s.stepOrder} ({a?.name || 'Unknown'})</option>
+                    })}
+                  </select>
+                  <input
+                    id={`branch-condition-${step.workflowStepId}`}
+                    type="text"
+                    className="form-input"
+                    placeholder="Condition (e.g. status=='approved')"
+                    style={{ flex: 1, padding: "6px 10px", fontSize: "13px", margin: 0, height: "32px" }}
+                  />
+                  <button
+                    className="secondary-action"
+                    style={{ padding: "6px 12px", height: "32px", fontSize: "13px", whiteSpace: "nowrap" }}
+                    onClick={(e) => {
+                      const targetSelect = document.getElementById(`branch-target-${step.workflowStepId}`) as HTMLSelectElement;
+                      const condInput = document.getElementById(`branch-condition-${step.workflowStepId}`) as HTMLInputElement;
+                      if (targetSelect.value) {
+                        onAddBranch(step.workflowStepId, targetSelect.value, condInput.value);
+                        targetSelect.value = "";
+                        condInput.value = "";
+                      }
+                    }}
+                  >
+                    + Add Branch
                   </button>
                 </div>
               </div>

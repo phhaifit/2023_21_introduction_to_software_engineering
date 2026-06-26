@@ -21,6 +21,7 @@ export interface WorkflowStep {
   workflowId: EntityId<"workflowId">;
   agentId: EntityId<"agentId">;
   stepOrder: number;
+  nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,7 +55,8 @@ export function createWorkflowStep(
   workspaceId: EntityId<"workspaceId">,
   workflowId: EntityId<"workflowId">,
   agentId: EntityId<"agentId">,
-  stepOrder: number
+  stepOrder: number,
+  nextSteps: Array<{ targetStepId: string; condition?: string | null }> | null = null
 ): WorkflowStep {
   const now = new Date().toISOString();
   return {
@@ -63,6 +65,7 @@ export function createWorkflowStep(
     workflowId,
     agentId,
     stepOrder,
+    nextSteps,
     createdAt: now,
     updatedAt: now,
   };
@@ -89,6 +92,7 @@ export function toWorkflowStepDto(step: WorkflowStep): WorkflowStepDto {
     workflowId: step.workflowId,
     agentId: step.agentId,
     stepOrder: step.stepOrder,
+    nextSteps: step.nextSteps as any,
     createdAt: step.createdAt,
     updatedAt: step.updatedAt,
   };

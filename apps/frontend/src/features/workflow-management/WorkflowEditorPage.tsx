@@ -113,6 +113,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
       workflowId: formData.workflowId,
       agentId: selectedAgentId,
       stepOrder: formData.steps.length + 1,
+      nextSteps: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     } as WorkflowStepDto;
@@ -161,6 +162,33 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
       // Update stepOrder
       newSteps.forEach((s, i) => { s.stepOrder = i + 1; });
       return { ...prev, steps: newSteps };
+    });
+  };
+
+  const handleAddBranch = (stepId: string, targetStepId: string, condition: string) => {
+    setFormData(prev => {
+      const newSteps = prev.steps.map(s => {
+        if (s.workflowStepId === stepId) {
+          const nextSteps = s.nextSteps || [];
+          if (!nextSteps.find(n => n.targetStepId === targetStepId)) {
+            return { ...s, nextSteps: [...nextSteps, { targetStepId, condition: condition || null }] };
+          }
+        }
+        return s;
+      });
+      return { ...prev, steps: newSteps as any };
+    });
+  };
+
+  const handleRemoveBranch = (stepId: string, targetStepId: string) => {
+    setFormData(prev => {
+      const newSteps = prev.steps.map(s => {
+        if (s.workflowStepId === stepId && s.nextSteps) {
+          return { ...s, nextSteps: s.nextSteps.filter(n => n.targetStepId !== targetStepId) };
+        }
+        return s;
+      });
+      return { ...prev, steps: newSteps as any };
     });
   };
 
@@ -218,7 +246,8 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
         } : {},
         steps: formData.steps.map(s => ({
           agentId: s.agentId,
-          stepOrder: s.stepOrder
+          stepOrder: s.stepOrder,
+          nextSteps: s.nextSteps
         }))
       };
       
@@ -400,6 +429,8 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
             onMoveUp={handleMoveStepUp}
             onMoveDown={handleMoveStepDown}
             onRemove={handleRemoveStep}
+            onAddBranch={handleAddBranch}
+            onRemoveBranch={handleRemoveBranch}
           />
           
           <div style={{ marginTop: '16px', padding: '16px', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-subtle)' }}>
