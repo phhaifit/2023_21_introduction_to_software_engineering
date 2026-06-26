@@ -37,6 +37,12 @@
   color: #9a3412;
 }
 
+.task-status-badge--pending::before, .task-conversation-navigation__status--pending::before { content: "⏳ "; }
+.task-status-badge--in-progress::before, .task-conversation-navigation__status--in-progress::before { content: "⚡ "; }
+.task-status-badge--completed::before, .task-conversation-navigation__status--completed::before { content: "✓ "; }
+.task-status-badge--failed::before, .task-conversation-navigation__status--failed::before { content: "✕ "; }
+.task-status-badge--canceled::before, .task-conversation-navigation__status--canceled::before { content: "⊘ "; }
+
 .processing-timeline {
   max-width: 100%;
   min-width: 0;
@@ -321,8 +327,10 @@
   flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
-  margin: 16px 28px 0;
+  margin: 16px 28px 16px;
   padding: 14px 20px;
+  flex-shrink: 0;
+  z-index: 5;
 }
 
 .task-orchestration-dock__status-area {
@@ -426,6 +434,7 @@
 
 .task-processing-detail-modal__primary-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 24px;
   margin-bottom: 16px;
   align-items: center;

@@ -128,7 +128,7 @@ export function TaskConversationNavigation({
       <section className="task-conversation-navigation__list-container" aria-labelledby="recent-work-title">
         <h3 id="recent-work-title">Recent work</h3>
         {filteredItems.length === 0 ? (
-          <p className="task-conversation-navigation__empty">
+          <p className="task-conversation-navigation__empty" aria-live="polite">
             {items.length === 0 ? "No conversations yet" : "No matching conversations found"}
           </p>
         ) : (
