@@ -323,8 +323,8 @@ describe("Task 10B Completed Result UI Integration", () => {
     // Flush the background completion for Task 1
     await act(() => { first.scheduler.flushNext(COMPLETION_MS); });
 
-    // UI still renders only the currently selected Task (Task 2, which is Pending/In-progress, not Completed)
-    expect(screen.queryByRole("region", { name: /completed result/i })).not.toBeInTheDocument();
+    // In a multi-turn conversation feed, Task 1's completed result remains visible, while Task 2 is still pending/in-progress
+    expect(screen.getAllByRole("region", { name: /completed result/i })).toHaveLength(1);
     expect(screen.getByText("Second task.")).toBeVisible();
 
     // Progress Task 2 to completion
