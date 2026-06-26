@@ -20,7 +20,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   req.context = {
     user: { id: "user-1", email: "test@example.com" },
-    workspace: { workspaceId: "ws-1", name: "Test WS", role: "owner" }
+    workspace: { workspaceId: "ws-1", name: "Test WS", role: "admin" }
   };
   next();
 });
@@ -30,7 +30,7 @@ app.use("/api/agents", router);
 async function runTests() {
   const createRes = await request(app)
     .post("/api/agents")
-    .send({ name: "Alpha", role: "R1", model: "m1", instructions: "i1" });
+    .send({ name: "Alpha", role: "R1", model: "gemini-2.5-flash", instructions: "i1" });
   
   assert.equal(createRes.status, 200, "Create should succeed");
   const agentId = createRes.body.data.agentId;

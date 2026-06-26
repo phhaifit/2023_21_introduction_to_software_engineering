@@ -11,7 +11,7 @@ import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/i
 const workspaceA = "workspace-a";
 const workspaceB = "workspace-b";
 
-function createHarness() {
+function createHarness(options = {}) {
   const repository = new InMemoryAgentRepository();
   const timestamps = [
     "2026-06-20T01:00:00.000Z",
@@ -27,6 +27,7 @@ function createHarness() {
     repository,
     useCases: new AgentLifecycleUseCases({
       repository,
+      ...(options.modelCatalog ? { modelCatalog: options.modelCatalog } : {}),
       now: () => timestamps.shift(),
       generateAgentId: () => agentIds.shift()
     })
@@ -39,7 +40,7 @@ function makeAgent(overrides = {}) {
     workspaceId: workspaceA,
     name: "Seeded Agent",
     role: "Researcher",
-    model: "gpt-4.1-mini",
+    model: "gemini-2.5-flash",
     instructions: "Collect and summarize market data.",
     createdAt: "2026-06-20T00:00:00.000Z",
     updatedAt: "2026-06-20T00:00:00.000Z",
@@ -136,19 +137,19 @@ function makeAgent(overrides = {}) {
     workspaceId: workspaceA,
     name: " Support Agent ",
     role: " Customer Support ",
-    model: " gpt-4.1-mini ",
+    model: " gemini-2.5-flash ",
     instructions: " Resolve customer tickets. "
   });
 
   assert.equal(result.agent.agentId, "agent-1");
   assert.equal(result.agent.name, "Support Agent");
   assert.equal(result.agent.role, "Customer Support");
-  assert.equal(result.agent.model, "gpt-4.1-mini");
+  assert.equal(result.agent.model, "gemini-2.5-flash");
   assert.equal(result.agent.instructions, "Resolve customer tickets.");
   assert.equal(result.agent.status, "enabled");
   assert.match(result.skillConfiguration, /# Support Agent/);
   assert.match(result.skillConfiguration, /## Role\nCustomer Support/);
-  assert.match(result.skillConfiguration, /## Model\ngpt-4\.1-mini/);
+  assert.match(result.skillConfiguration, /## Model\ngemini-2\.5-flash/);
   assert.match(result.skillConfiguration, /Resolve customer tickets\./);
 
   const saved = await repository.findById(workspaceA, "agent-1");
@@ -246,6 +247,52 @@ function makeAgent(overrides = {}) {
 }
 
 {
+  const disabledCatalog = {
+    async listModels() {
+      return [
+        {
+          providerId: "gemini",
+          modelId: "gemini-2.5-flash",
+          displayName: "Gemini 2.5 Flash",
+          capabilities: ["text-generation"],
+          tier: "demo",
+          enabled: true
+        },
+        {
+          providerId: "gemini",
+          modelId: "disabled-demo-model",
+          displayName: "Disabled Demo Model",
+          capabilities: ["text-generation"],
+          tier: "demo",
+          enabled: false
+        }
+      ];
+    }
+  };
+  const { useCases } = createHarness({ modelCatalog: disabledCatalog });
+
+  const models = await useCases.listAgentModels(workspaceA);
+
+  assert.deepEqual(
+    models.map((model) => model.modelId),
+    ["gemini-2.5-flash"]
+  );
+  assert.deepEqual(models[0].capabilities, ["text-generation"]);
+
+  await assert.rejects(
+    () =>
+      useCases.createAgent({
+        workspaceId: workspaceA,
+        name: "Disabled Model Agent",
+        role: "Researcher",
+        model: "disabled-demo-model",
+        instructions: "Prepare research."
+      }),
+    AgentValidationError
+  );
+}
+
+{
   const { repository, useCases } = createHarness();
   await repository.save(makeAgent({ name: "Support Agent" }));
 
@@ -255,7 +302,7 @@ function makeAgent(overrides = {}) {
         workspaceId: workspaceA,
         name: " support agent ",
         role: "Support",
-        model: "gpt-4.1-mini",
+        model: "gemini-2.5-flash",
         instructions: "Help customers."
       }),
     AgentValidationError
@@ -272,6 +319,18 @@ function makeAgent(overrides = {}) {
       }),
     AgentValidationError
   );
+
+  await assert.rejects(
+    () =>
+      useCases.createAgent({
+        workspaceId: workspaceA,
+        name: "Unknown Model Agent",
+        role: "Researcher",
+        model: "unknown-model",
+        instructions: "Prepare research."
+      }),
+    AgentValidationError
+  );
 }
 
 {
@@ -282,18 +341,30 @@ function makeAgent(overrides = {}) {
     workspaceId: workspaceA,
     agentId: "agent-update",
     role: "Analyst",
-    model: "gpt-4.1",
+    model: "gemini-2.5-flash-lite",
     instructions: "Prepare weekly analysis."
   });
 
   assert.equal(result.agent.role, "Analyst");
-  assert.equal(result.agent.model, "gpt-4.1");
+  assert.equal(result.agent.model, "gemini-2.5-flash-lite");
   assert.equal(result.agent.instructions, "Prepare weekly analysis.");
   assert.equal(result.agent.updatedAt, "2026-06-20T01:00:00.000Z");
   assert.match(result.skillConfiguration, /## Role\nAnalyst/);
 
   const saved = await repository.findById(workspaceA, "agent-update");
   assert.equal(saved.role, "Analyst");
+
+  await assert.rejects(
+    () =>
+      useCases.updateAgent({
+        workspaceId: workspaceA,
+        agentId: "agent-update",
+        role: "Analyst",
+        model: "unknown-model",
+        instructions: "Prepare weekly analysis."
+      }),
+    AgentValidationError
+  );
 }
 
 {

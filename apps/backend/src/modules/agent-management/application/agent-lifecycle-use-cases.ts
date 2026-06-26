@@ -1,4 +1,5 @@
 import type {
+  AgentModelCatalogEntry,
   AgentPublicSummary,
   AgentSkillImportAnalysisRequest,
   AgentSkillImportValidationResponse,
@@ -10,6 +11,7 @@ import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { ApiPaginationMeta } from "@vcp/shared/contracts/api.ts";
 import { createAgent, isAgentSelectable, toAgentPublicSummary, type Agent } from "../domain/agent.ts";
 import type { AgentRepository } from "./agent-repository.ts";
+import { StaticAgentModelCatalog, type AgentModelCatalogPort } from "./agent-model-catalog.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
 import type { AgentSkillWriter } from "./agent-skill-writer.ts";
 
@@ -58,6 +60,7 @@ export type UpdateAgentInput = {
 
 export type AgentLifecycleDependencies = {
   repository: AgentRepository;
+  modelCatalog?: AgentModelCatalogPort;
   skillWriter?: AgentSkillWriter;
   now: () => string;
   generateAgentId: () => EntityId<"agentId">;
@@ -82,9 +85,11 @@ export class AgentNotFoundError extends Error {
 
 export class AgentLifecycleUseCases {
   private readonly dependencies: AgentLifecycleDependencies;
+  private readonly modelCatalog: AgentModelCatalogPort;
 
   constructor(dependencies: AgentLifecycleDependencies) {
     this.dependencies = dependencies;
+    this.modelCatalog = dependencies.modelCatalog ?? new StaticAgentModelCatalog();
   }
 
   async listAgents(
@@ -165,6 +170,18 @@ export class AgentLifecycleUseCases {
     };
   }
 
+  async listAgentModels(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<AgentModelCatalogEntry[]> {
+    const entries = await this.modelCatalog.listModels(workspaceId);
+    return entries
+      .filter((entry) => entry.enabled)
+      .map((entry) => ({
+        ...entry,
+        capabilities: [...entry.capabilities]
+      }));
+  }
+
   previewSkillMarkdown(input: AgentSkillPreviewRequest): AgentSkillPreviewResponse {
     const normalized = this.validateAgentSkillDraft(input);
 
@@ -222,6 +239,7 @@ export class AgentLifecycleUseCases {
 
   async createAgent(input: CreateAgentInput): Promise<AgentMutationResult> {
     const normalized = this.validateCreateInput(input);
+    await this.assertSelectableModel(input.workspaceId, normalized.model);
     const nameAlreadyUsed = await this.dependencies.repository.existsByName(
       input.workspaceId,
       normalized.name
@@ -248,6 +266,7 @@ export class AgentLifecycleUseCases {
 
   async updateAgent(input: UpdateAgentInput): Promise<AgentMutationResult> {
     const normalized = this.validateUpdateInput(input);
+    await this.assertSelectableModel(input.workspaceId, normalized.model);
     const agent = await this.requireAgent(input.workspaceId, input.agentId);
     this.assertAgentCanBeChanged(agent);
 
@@ -465,6 +484,18 @@ export class AgentLifecycleUseCases {
     }
 
     return normalized as T;
+  }
+
+  private async assertSelectableModel(
+    workspaceId: EntityId<"workspaceId">,
+    modelId: string
+  ): Promise<void> {
+    const catalog = await this.modelCatalog.listModels(workspaceId);
+    const matchingModel = catalog.find((entry) => entry.modelId === modelId);
+
+    if (!matchingModel || !matchingModel.enabled) {
+      throw new AgentValidationError(["model must match an enabled catalog model"]);
+    }
   }
 
   private looksLikeMarkdown(markdown: string, fileName: string | undefined): boolean {

@@ -306,7 +306,7 @@ async function seedDemoAgents(repository: AgentRepository): Promise<void> {
       workspaceId: DEMO_WORKSPACE_ID,
       name: "Research Agent",
       role: "Market researcher",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Track market signals and prepare concise opportunity briefs.",
       createdAt: "2026-06-20T08:00:00.000Z",
       updatedAt: "2026-06-20T08:30:00.000Z"
@@ -318,7 +318,7 @@ async function seedDemoAgents(repository: AgentRepository): Promise<void> {
       workspaceId: DEMO_WORKSPACE_ID,
       name: "Support Agent",
       role: "Customer support",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash-lite",
       instructions: "Draft support replies and flag conversations that need a human owner.",
       status: "disabled",
       createdAt: "2026-06-19T09:15:00.000Z",
@@ -331,7 +331,7 @@ async function seedDemoAgents(repository: AgentRepository): Promise<void> {
       workspaceId: DEMO_WORKSPACE_ID,
       name: "Writer Agent",
       role: "Content Writer",
-      model: "gpt-3.5",
+      model: "openrouter/owl-alpha",
       instructions: "Draft content based on research briefs.",
       createdAt: "2026-06-20T10:00:00.000Z",
       updatedAt: "2026-06-20T10:00:00.000Z"

@@ -14,7 +14,7 @@ const summary = {
   workspaceId,
   name: "Research Agent",
   role: "Researcher",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   status: "enabled" as const,
   updatedAt: "2026-06-20T00:00:00.000Z"
 };
@@ -82,7 +82,7 @@ describe("Agent Management API client", () => {
     const payload = {
       name: "Research Agent",
       role: "Researcher",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Prepare research."
     };
 
@@ -91,6 +91,29 @@ describe("Agent Management API client", () => {
     expect(fetchImplementation).toHaveBeenCalledWith(
       "/api/workspaces/workspace-a/agents",
       expect.objectContaining({ method: "POST", body: JSON.stringify(payload) })
+    );
+  });
+
+  it("lists selectable agent models from the workspace catalog", async () => {
+    const models = [
+      {
+        providerId: "gemini",
+        modelId: "gemini-2.5-flash",
+        displayName: "Gemini 2.5 Flash",
+        capabilities: ["text-generation", "structured-output"],
+        tier: "demo",
+        enabled: true
+      }
+    ];
+    const fetchImplementation = vi.fn(async () => success(models));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+
+    const result = await client.listAgentModels(workspaceId);
+
+    expect(result).toEqual(models);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/agents/models",
+      expect.objectContaining({ headers: expect.objectContaining({ accept: "application/json" }) })
     );
   });
 
@@ -105,7 +128,7 @@ describe("Agent Management API client", () => {
     await client.getAgentConfiguration(workspaceId, agentId);
     await client.updateAgent(workspaceId, agentId, {
       role: "Analyst",
-      model: "gpt-4.1",
+      model: "gemini-2.5-flash-lite",
       instructions: "Prepare analysis."
     });
 
@@ -170,7 +193,7 @@ describe("Agent Management API client", () => {
     await expect(client.createAgent(workspaceId, {
       name: "Agent",
       role: "",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Work."
     })).rejects.toMatchObject({
       code: "validation.invalid_input",
@@ -189,10 +212,34 @@ describe("Agent Management API client", () => {
         throw new Error("offline");
       })
     });
+    const errorClient = createAgentManagementApiClient({
+      fetchImplementation: vi.fn(async () =>
+        response(
+          {
+            ok: false,
+            error: {
+              code: "auth.unauthorized",
+              message: "User is not authenticated"
+            },
+            meta: { requestId: "test", timestamp: "2026-06-20T00:00:00.000Z" }
+          },
+          401
+        )
+      )
+    });
 
     await expect(malformedClient.listAgents(workspaceId)).rejects.toMatchObject({
       kind: "malformed-response",
       code: "system.unexpected_error"
+    });
+    await expect(malformedClient.listAgentModels(workspaceId)).rejects.toMatchObject({
+      kind: "malformed-response",
+      code: "system.unexpected_error"
+    });
+    await expect(errorClient.listAgentModels(workspaceId)).rejects.toMatchObject({
+      kind: "api",
+      code: "auth.unauthorized",
+      status: 401
     });
     await expect(networkClient.listAgents(workspaceId)).rejects.toEqual(
       expect.objectContaining<Partial<AgentApiClientError>>({

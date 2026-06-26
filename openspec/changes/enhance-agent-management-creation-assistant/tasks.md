@@ -22,15 +22,15 @@
 
 ## 3. Phase 2 - Model Catalog and Model Validation
 
-- [ ] 3.1 Add an Agent Management model catalog port and static server-side catalog implementation for the first demo with `gemini-2.5-flash`, `gemini-2.5-flash-lite`, and `openrouter/owl-alpha`.
-- [ ] 3.2 Include model metadata for provider id, model id, display name, capabilities, tier, and enabled state without exposing provider credentials or billing internals.
-- [ ] 3.3 Add `GET /api/workspaces/:workspaceId/agents/models` using workspace context and shared API response shape.
-- [ ] 3.4 Update create-agent validation to reject unknown, disabled, or unavailable model ids.
-- [ ] 3.5 Update update-agent validation to reject unknown, disabled, or unavailable model ids.
-- [ ] 3.6 Add backend tests for model catalog response, unauthorized access, valid model acceptance, invalid model create rejection, and invalid model update rejection.
-- [ ] 3.7 Update frontend Agent Management API client with `listAgentModels()`.
-- [ ] 3.8 Add frontend tests for model catalog parsing and malformed/error responses.
-- [ ] 3.9 Run focused backend, frontend API-client, and contract tests for model catalog behavior.
+- [x] 3.1 Add an Agent Management model catalog port and static server-side catalog implementation for the first demo with `gemini-2.5-flash`, `gemini-2.5-flash-lite`, and `openrouter/owl-alpha`.
+- [x] 3.2 Include model metadata for provider id, model id, display name, capabilities, tier, and enabled state without exposing provider credentials or billing internals.
+- [x] 3.3 Add `GET /api/workspaces/:workspaceId/agents/models` using workspace context and shared API response shape.
+- [x] 3.4 Update create-agent validation to reject unknown, disabled, or unavailable model ids.
+- [x] 3.5 Update update-agent validation to reject unknown, disabled, or unavailable model ids.
+- [x] 3.6 Add backend tests for model catalog response, unauthorized access, valid model acceptance, invalid model create rejection, and invalid model update rejection.
+- [x] 3.7 Update frontend Agent Management API client with `listAgentModels()`.
+- [x] 3.8 Add frontend tests for model catalog parsing and malformed/error responses.
+- [x] 3.9 Run focused backend, frontend API-client, and contract tests for model catalog behavior.
 
 ## 4. Phase 3 - Guided Modal and Template Draft UI
 

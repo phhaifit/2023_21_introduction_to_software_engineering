@@ -64,7 +64,7 @@ const defaultApiClient = createAgentManagementApiClient();
 const createFormValues: AgentFormState["values"] = {
   name: "",
   role: "",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   instructions: "",
 };
 
@@ -1103,7 +1103,7 @@ function AgentForm({
       <FormField
         field="model"
         label="Model"
-        hint="Which LLM should power this agent? (e.g. gpt-4o, claude-3-5-sonnet)"
+        hint="Which LLM should power this agent? (e.g. gemini-2.5-flash, openrouter/owl-alpha)"
         value={form.values.model}
         error={form.errors.model}
         disabled={disabled}

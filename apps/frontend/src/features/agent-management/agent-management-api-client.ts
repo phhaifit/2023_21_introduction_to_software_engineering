@@ -1,4 +1,7 @@
-import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
+import type {
+  AgentModelCatalogEntry,
+  AgentPublicSummary
+} from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
@@ -41,6 +44,9 @@ export type AgentManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     options?: ListAgentsOptions
   ): Promise<{ items: AgentListItem[]; pagination: ApiPaginationMeta }>;
+  listAgentModels(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<AgentModelCatalogEntry[]>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
     payload: CreateAgentPayload
@@ -194,6 +200,8 @@ export function createAgentManagementApiClient(input: {
         pagination: response.meta.pagination
       };
     },
+    listAgentModels: async (workspaceId) =>
+      (await request<AgentModelCatalogEntry[]>(`${collectionPath(workspaceId)}/models`)).data,
     createAgent: async (workspaceId, payload) =>
       (await request<AgentPublicSummary>(collectionPath(workspaceId), {
         method: "POST",
