@@ -1,0 +1,250 @@
+/* Task & Orchestration Production UI Visual Tokens and Reusable Primitives */
+
+:root {
+  /* Utilizing existing global tokens (--bg, --panel, --text, --muted, --line, --accent, --accent-soft, --success, --success-soft, --warning, --warning-soft, --danger, --danger-soft, --shadow, --surface-low, --surface-mid, --surface-strong) */
+
+  /* Module-level visual tokens where shared tokens do not exist */
+  --task-surface-sidebar: #f8fafc;
+  --task-surface-main: #ffffff;
+  --task-surface-card: #ffffff;
+  --task-surface-meta: #f8fafc;
+  --task-surface-empty: #f8fafc;
+  --task-surface-loading: #f8fafc;
+  --task-surface-cancel-subtle: #fffaf5;
+  --task-surface-fail-subtle: #fff1f2;
+  --task-surface-active-subtle: #f8faff;
+
+  --task-border-subtle: #e2e8f0;
+  --task-border-card: #cbd5e1;
+  --task-border-modal: #d8dee8;
+  --task-border-cancel: #fed7aa;
+  --task-border-fail: #fecdd3;
+  --task-border-active: #a5b4fc;
+  --task-border-focus: #c7d2fe;
+
+  --task-text-title: #0f172a;
+  --task-text-body: #0f172a;
+  --task-text-muted: #64748b;
+  --task-text-eyebrow: #6366f1;
+  --task-text-cancel: #9a3412;
+  --task-text-cancel-strong: #c2410c;
+  --task-text-fail: #9f1239;
+  --task-text-fail-strong: #be123c;
+  --task-text-info: #0369a1;
+  --task-text-success: #047857;
+  --task-text-warning: #a16207;
+
+  --task-space-xs: 4px;
+  --task-space-sm: 8px;
+  --task-space-md: 12px;
+  --task-space-lg: 16px;
+  --task-space-xl: 24px;
+  --task-space-xxl: 32px;
+
+  --task-radius-sm: 6px;
+  --task-radius-md: 8px;
+  --task-radius-lg: 10px;
+  --task-radius-xl: 12px;
+  --task-radius-xxl: 16px;
+  --task-radius-pill: 999px;
+
+  --task-elevation-modal: 0 10px 40px rgba(15, 23, 42, 0.15);
+  --task-elevation-card: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+/* Typography Hierarchy Utilities */
+.task-type-page-title {
+  color: var(--task-text-title);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.task-type-section-heading {
+  color: var(--task-text-title);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.task-type-card-heading {
+  color: var(--task-text-title);
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.task-type-metadata-label {
+  color: var(--task-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.task-type-metadata-value {
+  color: var(--task-text-title);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.task-type-helper-text {
+  color: var(--task-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.task-type-logs {
+  color: var(--task-text-body);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.task-type-result-text {
+  color: var(--task-text-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.task-type-error-text {
+  color: var(--task-text-fail);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+/* Surface Hierarchy Utilities */
+.task-surface-main {
+  background: var(--task-surface-main);
+  border: 1px solid var(--task-border-modal);
+  border-radius: var(--task-radius-xxl);
+}
+
+.task-surface-sidebar {
+  background: var(--task-surface-sidebar);
+  border-right: 1px solid var(--task-border-subtle);
+}
+
+.task-surface-card {
+  background: var(--task-surface-card);
+  border: 1px solid var(--task-border-card);
+  border-radius: var(--task-radius-md);
+  box-shadow: var(--task-elevation-card);
+}
+
+.task-surface-modal {
+  background: var(--task-surface-main);
+  border: 1px solid var(--task-border-modal);
+  border-radius: var(--task-radius-md);
+  box-shadow: var(--task-elevation-modal);
+}
+
+/* Status Presentation Utilities */
+.task-status-box {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--task-space-sm);
+  padding: var(--task-space-xs) var(--task-space-sm);
+  border-radius: var(--task-radius-pill);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid currentColor;
+}
+
+.task-status-box--pending {
+  background: var(--task-surface-meta);
+  color: var(--task-text-muted);
+}
+
+.task-status-box--in-progress {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.task-status-box--completed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.task-status-box--failed {
+  background: var(--task-surface-fail-subtle);
+  color: var(--task-text-fail);
+}
+
+.task-status-box--canceled {
+  background: var(--task-surface-cancel-subtle);
+  color: var(--task-text-cancel);
+}
+
+/* Status Semantic Differentiation (Not color-only) */
+.task-status-box::before {
+  content: "•";
+  display: inline-block;
+  font-size: 1.1em;
+}
+
+.task-status-box--pending::before { content: "○"; }
+.task-status-box--in-progress::before { content: "▶"; }
+.task-status-box--completed::before { content: "✓"; }
+.task-status-box--failed::before { content: "✕"; }
+.task-status-box--canceled::before { content: "━"; }
+
+/* Interactive State Utilities */
+.task-control {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.task-control:hover {
+  filter: brightness(0.96);
+}
+
+.task-control:active {
+  transform: scale(0.98);
+}
+
+.task-control:focus-visible {
+  outline: 3px solid var(--task-border-focus);
+  outline-offset: 2px;
+}
+
+.task-control:disabled,
+.task-control[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+  filter: none;
+  transform: none;
+}
+
+/* Busy / Loading Presentation */
+.task-control--busy,
+[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.8;
+  position: relative;
+  pointer-events: none;
+}
+
+@keyframes taskPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.task-loading-pulse {
+  animation: taskPulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Accessibility (a11y) Preservations */
+.task-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

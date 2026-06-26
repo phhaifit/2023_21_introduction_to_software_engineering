@@ -72,8 +72,11 @@ import {
   ROUTING_MODES,
   type RoutingMode
 } from "./model/task-types";
+import { TaskConversation } from "./components/task-conversation";
+import { TaskOrchestrationDock } from "./components/task-orchestration-dock";
 
 import "./task-orchestration-page.css";
+import "./task-orchestration-tokens.css";
 
 import type { CreatedTaskRecord } from "./model/task-types";
 
@@ -557,11 +560,10 @@ export function TaskOrchestrationPage({
       <div className="task-workspace__main">
         <header className="task-workspace__header">
           <div>
-            <p className="task-workspace__eyebrow">Demo workspace</p>
+            <p className="task-workspace__eyebrow">Workspace</p>
             <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
             <p>Bring a request to your virtual team and keep the work in one conversation.</p>
           </div>
-          <span className="task-workspace__label">PA5 workspace</span>
         </header>
 
         <section
@@ -583,94 +585,10 @@ export function TaskOrchestrationPage({
               }`}
               aria-label={taskArticleLabel}
             >
-              <header className="task-workspace__task-header">
-                <div>
-                  <p className="task-workspace__eyebrow">Submitted request</p>
-                  <h3>{activeTask.prompt}</h3>
-                </div>
-                <TaskStatusBadge status={activeTaskPresentationStatus} />
-              </header>
-
-              <dl className="task-workspace__task-meta" aria-label="Task identifiers">
-                <div>
-                  <dt>Work ID</dt>
-                  <dd>{activeTask.workId}</dd>
-                </div>
-                <div>
-                  <dt>Task ID</dt>
-                  <dd>{activeTask.taskId}</dd>
-                </div>
-                <div>
-                  <dt>{activeTask.processingSnapshot.startedAt ? "Started" : "Created"}</dt>
-                  <dd>
-                    {activeTask.processingSnapshot.startedAt ?? activeTask.createdAt}
-                  </dd>
-                </div>
-              </dl>
-
-              <p className="task-workspace__routing-summary">
-                {formatRoutingSummary(activeTask.requestedRouting)}
-              </p>
-
-              <ProcessingTimeline
-                ariaLabel={timelineAriaLabel}
-                steps={activeTask.processingSnapshot.steps}
+              <TaskConversation
+                task={activeTask}
+                clipboardWriter={completionRuntimeRef.current.clipboard}
               />
-
-              {activeTask.status === "running" || activeTask.status === "cancelled" || activeTask.status === "failed" ? (
-                <TaskLogList
-                  logs={activeTask.processingSnapshot.logs}
-                  ariaLabel="Orchestration processing logs"
-                />
-              ) : null}
-
-              {shouldShowPartialResult ? (
-                <TaskPartialResult
-                  partialText={partialText}
-                  phase={activeTask.streamingSnapshot.phase}
-                />
-              ) : null}
-
-              {activeTask.status === "succeeded" && activeTask.finalizedResult ? (
-                <TaskCompletedResult
-                  result={activeTask.finalizedResult}
-                  clipboardWriter={completionRuntimeRef.current.clipboard}
-                />
-              ) : null}
-
-              {activeTask.status === "cancelled" ? (
-                <TaskCanceledState task={activeTask} />
-              ) : null}
-
-              {activeTask.status === "failed" ? (
-                <TaskFailedState task={activeTask} />
-              ) : null}
-
-              {activeTask.status === "queued" || activeTask.status === "running" ? (
-                <div className="task-workspace__pending-actions">
-                  <button
-                    type="button"
-                    className="task-workspace__cancel-btn"
-                    onClick={() => {
-                      if (onCancelTaskRequested) {
-                        onCancelTaskRequested(activeTask.taskId);
-                      } else {
-                        setIsCancelDialogOpen(true);
-                      }
-                    }}
-                  >
-                    Cancel task
-                  </button>
-                </div>
-              ) : null}
-
-              {activeTask.status === "succeeded" || activeTask.status === "running" || activeTask.status === "failed" ? (
-                <div className="task-workspace__detail-actions">
-                  <button type="button" onClick={() => setIsDetailModalOpen(true)}>
-                    View processing details
-                  </button>
-                </div>
-              ) : null}
             </article>
           ) : (
             <div className="task-workspace__empty">
@@ -710,6 +628,20 @@ export function TaskOrchestrationPage({
               setIsCancelDialogOpen(false);
             }}
             onDismiss={() => setIsCancelDialogOpen(false)}
+          />
+        ) : null}
+
+        {activeTask ? (
+          <TaskOrchestrationDock
+            task={activeTask}
+            onOpenDetails={() => setIsDetailModalOpen(true)}
+            onCancelClick={() => {
+              if (onCancelTaskRequested) {
+                onCancelTaskRequested(activeTask.taskId);
+              } else {
+                setIsCancelDialogOpen(true);
+              }
+            }}
           />
         ) : null}
 

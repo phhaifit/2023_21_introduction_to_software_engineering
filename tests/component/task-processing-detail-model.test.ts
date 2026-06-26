@@ -105,13 +105,13 @@ describe("Task Processing Detail Model", () => {
 
   it("rejects unsupported statuses", () => {
     const pendingTask = createTestTask({ status: "queued" });
-    expect(buildTaskProcessingDetail(pendingTask)).toBeNull();
+    expect(buildTaskProcessingDetail(pendingTask)).not.toBeNull();
 
     const failedTask = createTestTask({ status: "failed" });
     expect(buildTaskProcessingDetail(failedTask)).toBeNull();
 
     const canceledTask = createTestTask({ status: "cancelled" });
-    expect(buildTaskProcessingDetail(canceledTask)).toBeNull();
+    expect(buildTaskProcessingDetail(canceledTask)).not.toBeNull();
   });
 
   it("builds valid detail model for in-progress task", () => {

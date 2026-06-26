@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TaskProcessingDetail } from "../model/task-processing-detail";
 import { ProcessingTimeline } from "./processing-timeline";
 import { TaskLogList } from "./task-log-list";
@@ -12,6 +12,7 @@ export interface TaskProcessingDetailModalProps {
 
 export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -49,24 +50,16 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
         </button>
       </header>
       <div className="task-processing-detail-modal__body">
-        <dl className="task-processing-detail-modal__meta" aria-label="Processing identifiers">
+        <div className="task-processing-detail-modal__primary-meta">
           <div>
-            <dt>Work ID</dt>
-            <dd>{detail.workId}</dd>
+            <span className="task-type-metadata-label">Status</span>
+            <TaskStatusBadge status={detail.status} />
           </div>
           <div>
-            <dt>Task ID</dt>
-            <dd>{detail.taskId}</dd>
+            <span className="task-type-metadata-label">Duration</span>
+            <span>{formatDuration(detail.durationMs)}</span>
           </div>
-          <div>
-            <dt>Status</dt>
-            <dd><TaskStatusBadge status={detail.status} /></dd>
-          </div>
-          <div>
-            <dt>Duration</dt>
-            <dd>{formatDuration(detail.durationMs)}</dd>
-          </div>
-        </dl>
+        </div>
         
         <p className="task-processing-detail-modal__routing">
           {detail.routingSummary}
@@ -75,7 +68,11 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
         {detail.status === "failed" && detail.error ? (
           <section aria-labelledby="modal-error-title">
             <h3 id="modal-error-title" className="task-processing-detail-modal__section-title">Error Details</h3>
-            <TaskErrorDetails error={detail.error} />
+            <div className="task-processing-detail-modal__user-error">
+              <h4>{detail.error.title}</h4>
+              <p>{detail.error.message}</p>
+              <p className="task-type-metadata-label">Failed step: {detail.error.stepId || "Unknown step"}</p>
+            </div>
           </section>
         ) : null}
 
@@ -84,13 +81,48 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
           <ProcessingTimeline steps={detail.steps} ariaLabel="Processing timeline details" />
         </section>
 
-        <section aria-labelledby="modal-logs-title">
-          <h3 id="modal-logs-title" className="task-processing-detail-modal__section-title">Logs</h3>
-          {detail.logs.length > 0 ? (
-            <TaskLogList logs={detail.logs} ariaLabel="Processing log details" />
-          ) : (
-            <p>No orchestration logs available.</p>
-          )}
+        <section aria-labelledby="modal-advanced-title" className="task-advanced-section">
+          <button
+            type="button"
+            id="modal-advanced-title"
+            className="task-advanced-section__toggle"
+            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+            aria-expanded={isAdvancedOpen}
+          >
+            {isAdvancedOpen ? "Hide Advanced details" : "Show Advanced details"}
+          </button>
+
+          <div className={`task-advanced-section__content${isAdvancedOpen ? " task-advanced-section__content--open" : ""}`}>
+            <dl className="task-processing-detail-modal__meta" aria-label="Processing identifiers">
+              <div>
+                <dt>Work ID</dt>
+                <dd>{detail.workId}</dd>
+              </div>
+              <div>
+                <dt>Task ID</dt>
+                <dd>{detail.taskId}</dd>
+              </div>
+              <div>
+                <dt>{detail.startedAt ? "Started" : "Created"}</dt>
+                <dd>{detail.startedAt ?? detail.createdAt}</dd>
+              </div>
+              {detail.error ? (
+                <div>
+                  <dt>Internal error code</dt>
+                  <dd>{detail.error.code}</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            <section aria-labelledby="modal-logs-title">
+              <h3 id="modal-logs-title" className="task-processing-detail-modal__section-title">Logs</h3>
+              {detail.logs.length > 0 ? (
+                <TaskLogList logs={detail.logs} ariaLabel="Processing log details" />
+              ) : (
+                <p>No orchestration logs available.</p>
+              )}
+            </section>
+          </div>
         </section>
       </div>
     </dialog>

@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -210,7 +210,15 @@ function renderPage(options: Partial<ReturnType<typeof makeRuntimes>> & {
 }
 
 afterEach(cleanup);
-beforeEach(() => resetTaskIdentitySequence());
+beforeEach(() => {
+  resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
+});
 
 describe("Task 10B Completed Result UI Integration", () => {
   it("does not complete early for empty, pending, running before final step, or streaming", async () => {
@@ -256,15 +264,17 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
     expect(screen.getByRole("region", { name: /completed result/i })).toBeVisible();
     expect(screen.getByText("Alpha Beta Gamma")).toBeVisible();
-    
-    // UI elements should be visible
     expect(screen.getByText("Complete me.")).toBeVisible();
+    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
-    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Orchestration processing logs")).not.toBeInTheDocument();
   });
 
   it("supports exactly once completion and terminal protection", async () => {
