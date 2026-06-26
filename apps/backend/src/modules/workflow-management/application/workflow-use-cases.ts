@@ -17,7 +17,7 @@ export interface CreateWorkflowCommand {
   description?: string;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
-  steps: { agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
+  steps: { workflowStepId?: string; agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
 }
 
 export interface UpdateWorkflowCommand {
@@ -28,7 +28,7 @@ export interface UpdateWorkflowCommand {
   status?: WorkflowStatus;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
-  steps?: { agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
+  steps?: { workflowStepId?: string; agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
 }
 
 export interface ExecuteWorkflowCommand {
@@ -52,18 +52,32 @@ export class WorkflowUseCases {
   async createWorkflow(command: CreateWorkflowCommand): Promise<{ workflow: WorkflowDto; steps: WorkflowStepDto[] }> {
     const workflowId = `wf_${crypto.randomUUID()}` as EntityId<"workflowId">;
     
-    const steps = command.steps.map((step) =>
-      createWorkflowStep(
-        `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">,
+    const idMap = new Map<string, string>();
+    const newStepIds = command.steps.map(step => {
+      const newId = `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">;
+      if (step.workflowStepId) {
+        idMap.set(step.workflowStepId, newId);
+      }
+      return newId;
+    });
+
+    const steps = command.steps.map((step, index) => {
+      const mappedNextSteps = step.nextSteps?.map(next => ({
+        ...next,
+        targetStepId: idMap.get(next.targetStepId) || next.targetStepId
+      })) || null;
+
+      return createWorkflowStep(
+        newStepIds[index],
         command.workspaceId,
         workflowId,
         step.agentId ? (step.agentId as EntityId<"agentId">) : null,
         step.stepType ?? "agent",
         step.stepOrder,
-        step.nextSteps,
+        mappedNextSteps,
         step.inputMapping
-      )
-    );
+      );
+    });
 
     const workflow = createWorkflow(workflowId, command.workspaceId, command.name, command.description ?? null, command.triggerType ?? "manual", command.triggerConfig ?? null, steps);
 
@@ -116,18 +130,32 @@ export class WorkflowUseCases {
     }
 
     if (command.steps !== undefined) {
-      targetWorkflow.steps = command.steps.map((step) =>
-        createWorkflowStep(
-          `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">,
+      const idMap = new Map<string, string>();
+      const newStepIds = command.steps.map(step => {
+        const newId = `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">;
+        if (step.workflowStepId) {
+          idMap.set(step.workflowStepId, newId);
+        }
+        return newId;
+      });
+
+      targetWorkflow.steps = command.steps.map((step, index) => {
+        const mappedNextSteps = step.nextSteps?.map(next => ({
+          ...next,
+          targetStepId: idMap.get(next.targetStepId) || next.targetStepId
+        })) || null;
+
+        return createWorkflowStep(
+          newStepIds[index],
           command.workspaceId,
           targetWorkflow.workflowId,
           step.agentId ? (step.agentId as EntityId<"agentId">) : null,
           step.stepType ?? "agent",
           step.stepOrder,
-          step.nextSteps,
+          mappedNextSteps,
           step.inputMapping
-        )
-      );
+        );
+      });
     } else if (targetWorkflow !== workflow && workflow.steps) {
       // Copy steps to new version if steps not provided in command
       targetWorkflow.steps = workflow.steps.map(step => 
