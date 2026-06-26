@@ -14,7 +14,7 @@
 
 ## Production UI Roadmap
 
-* [ ] 1. Production UI Foundation and Visual System
+* [x] 1. Production UI Foundation and Visual System
 
   Scope:
 
