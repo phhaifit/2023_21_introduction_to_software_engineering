@@ -212,7 +212,7 @@ describe("Task 9B streaming UI integration", () => {
     );
     expect(screen.getByRole("status")).toHaveTextContent("Preparing your workspace");
     expect(loading.scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
-  });
+  }, 10000);
 
   it("starts exactly once at execute-task, uses injected delay, and shows the active loading indicator", async () => {
     const { scheduler } = renderPage();

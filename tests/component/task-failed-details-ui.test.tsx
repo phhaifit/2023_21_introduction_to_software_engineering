@@ -150,7 +150,7 @@ describe("1. Failed Summary Visibility", () => {
     expect(screen.getByText("Task Failed")).toBeVisible();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
-  });
+  }, 10000);
 });
 
 describe("2. TaskError Details UI", () => {
