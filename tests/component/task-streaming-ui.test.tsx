@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -174,7 +174,15 @@ function renderPage(options: Partial<ReturnType<typeof makeRuntimes>> & {
 }
 
 afterEach(cleanup);
-beforeEach(() => resetTaskIdentitySequence());
+beforeEach(() => {
+  resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
+});
 
 describe("Task 9B streaming UI integration", () => {
   it("does not create a streaming session for empty, invalid, pending, early running, terminal, or loading states", async () => {
@@ -246,12 +254,17 @@ describe("Task 9B streaming UI integration", () => {
     expect(partial).toHaveTextContent("Alpha Beta");
     expect(partial).not.toHaveTextContent("Gamma");
     expect(screen.getByText("Keep context visible.")).toBeVisible();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
-    expect(screen.getAllByLabelText("Orchestration processing logs")[0]).toBeVisible();
-    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    expect(screen.getAllByLabelText("Processing log details")[0]).toBeVisible();
+    expect(screen.getAllByLabelText("Task status: In Progress")[0]).toBeVisible();
   });
 
   it("exhausts after the final fragment without completing the task or creating a final result", async () => {
@@ -318,6 +331,10 @@ describe("Task 9B streaming UI integration", () => {
       join(root, "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"),
       "utf8"
     );
+    const modalSource = readFileSync(
+      join(root, "apps/frontend/src/features/task-orchestration/components/task-processing-detail-modal.tsx"),
+      "utf8"
+    );
     const runtimeSource = readFileSync(
       join(root, "apps/frontend/src/features/task-orchestration/model/task-streaming-runtime.ts"),
       "utf8"
@@ -327,8 +344,8 @@ describe("Task 9B streaming UI integration", () => {
       "utf8"
     );
 
-    expect(pageSource).toMatch(/ProcessingTimeline/);
-    expect(pageSource).toMatch(/TaskLogList/);
+    expect(modalSource).toMatch(/ProcessingTimeline/);
+    expect(modalSource).toMatch(/TaskLogList/);
     expect(pageSource).toMatch(/TaskStatusBadge/);
     expect(pageSource).not.toMatch(/\.status\s*=\s*["'`](running|succeeded|failed|cancelled)/);
     expect(pageSource).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);

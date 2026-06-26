@@ -25,7 +25,7 @@ export interface TaskProcessingDetail {
 export function buildTaskProcessingDetail(task: CreatedTaskRecord): TaskProcessingDetail | null {
   const status = toTaskPresentationStatus(task.status);
   
-  if (status !== "in-progress" && status !== "completed" && status !== "failed") {
+  if (!status) {
     return null;
   }
 

@@ -28,6 +28,12 @@ afterEach(cleanup);
 
 beforeEach(() => {
   resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
 });
 
 class SpyTaskCreationClient implements TaskCreationClient {
@@ -82,6 +88,11 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.getByLabelText("Pending task")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
     expect(screen.getByText("Draft the weekly report.")).toBeVisible();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     expect(screen.getByText("WORK-000001")).toBeVisible();
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
@@ -90,7 +101,7 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.queryByText(/Completed/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Failed/i)).not.toBeInTheDocument();
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: /processing timeline/i });
     expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);
   });
 
@@ -110,6 +121,8 @@ describe("Task 6B task creation UI flow", () => {
       }
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("workflowId");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
   });
 
@@ -135,6 +148,8 @@ describe("Task 6B task creation UI flow", () => {
       }
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("agentId");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText(
       "Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS"
     )).toBeVisible();
@@ -184,6 +199,9 @@ describe("Task 6B task creation UI flow", () => {
     await submitPrompt("Second task.");
 
     expect(client.calls).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("TASK-000002")).toBeVisible();
     expect(screen.getByText("WORK-000002")).toBeVisible();
 

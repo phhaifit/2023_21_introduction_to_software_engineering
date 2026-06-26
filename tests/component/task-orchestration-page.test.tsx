@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@vcp/frontend/features/agent-management/agent-management-page.tsx", () => ({
   AgentManagementPage: () => <section>Agent management placeholder</section>
@@ -24,6 +24,14 @@ import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 
 afterEach(cleanup);
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
+});
 
 describe("TaskOrchestrationPage base workspace", () => {
   it("renders the semantic empty workspace without task processing data", () => {
@@ -92,9 +100,13 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(prompt).toHaveValue("");
     expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
+    expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     expect(screen.getByText(/Task ID/i)).toBeVisible();
     expect(screen.getByText(/Work ID/i)).toBeVisible();
-    expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
     expect(screen.queryByText(/processing log/i)).not.toBeInTheDocument();
   });
 
