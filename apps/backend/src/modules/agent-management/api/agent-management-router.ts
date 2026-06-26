@@ -1,5 +1,11 @@
 import { Router, type Request, type Response } from "express";
 
+import type {
+  AgentSkillKnowledgeReference,
+  AgentSkillImportAnalysisRequest,
+  AgentSkillPreviewRequest,
+  AgentSkillToolReference
+} from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import {
   AgentLifecycleUseCases,
@@ -74,6 +80,36 @@ export function createAgentManagementRouter(
       });
 
       return result.publicSummary;
+    });
+  });
+
+  router.post("/skill-preview", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
+      return dependencies.useCases.previewSkillMarkdown(readSkillPreviewPayload(request));
+    });
+  });
+
+  router.post("/assistant/import-skill", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
+      return dependencies.useCases.validateSkillMarkdownImport(readSkillImportPayload(request));
+    });
+  });
+
+  router.get("/:agentId/skill.md", async (request, response) => {
+    await handleAgentMarkdownRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      return dependencies.useCases.downloadAgentSkillMarkdown(
+        context.workspace!.workspaceId,
+        request.params.agentId as EntityId<"agentId">
+      );
     });
   });
 
@@ -176,6 +212,26 @@ export function createAgentManagementRouter(
   return router;
 }
 
+async function handleAgentMarkdownRequest(
+  request: Request,
+  response: Response,
+  action: () => Promise<{ markdown: string; fileName: "skill.md"; agent: { name: string } }>
+): Promise<void> {
+  try {
+    const artifact = await action();
+    response
+      .status(200)
+      .setHeader("content-type", "text/markdown; charset=utf-8")
+      .setHeader(
+        "content-disposition",
+        `attachment; filename="${toSafeSkillFileName(artifact.agent.name)}.skill.md"`
+      )
+      .send(artifact.markdown);
+  } catch (error) {
+    handleAgentApiError(request, response, error);
+  }
+}
+
 async function handleAgentApiRequest<T>(
   request: Request,
   response: Response,
@@ -189,49 +245,53 @@ async function handleAgentApiRequest<T>(
       sendAgentApiSuccess(request, response, data);
     }
   } catch (error) {
-    if (error instanceof AuthenticationError) {
-      sendAgentApiFailure(request, response, {
-        code: "auth.unauthorized",
-        message: error.message,
-        statusCode: 401
-      });
-      return;
-    }
-
-    if (error instanceof AuthorizationError) {
-      sendAgentApiFailure(request, response, {
-        code: "auth.forbidden",
-        message: error.message,
-        statusCode: 403
-      });
-      return;
-    }
-
-    if (error instanceof AgentValidationError) {
-      sendAgentApiFailure(request, response, {
-        code: "validation.invalid_input",
-        message: error.message,
-        details: { issues: error.issues },
-        statusCode: 400
-      });
-      return;
-    }
-
-    if (error instanceof AgentNotFoundError) {
-      sendAgentApiFailure(request, response, {
-        code: "agent.not_available",
-        message: "Agent is not available in this workspace.",
-        statusCode: 404
-      });
-      return;
-    }
-
-    sendAgentApiFailure(request, response, {
-      code: "system.unexpected_error",
-      message: "Unexpected Agent Management API error.",
-      statusCode: 500
-    });
+    handleAgentApiError(request, response, error);
   }
+}
+
+function handleAgentApiError(request: Request, response: Response, error: unknown): void {
+  if (error instanceof AuthenticationError) {
+    sendAgentApiFailure(request, response, {
+      code: "auth.unauthorized",
+      message: error.message,
+      statusCode: 401
+    });
+    return;
+  }
+
+  if (error instanceof AuthorizationError) {
+    sendAgentApiFailure(request, response, {
+      code: "auth.forbidden",
+      message: error.message,
+      statusCode: 403
+    });
+    return;
+  }
+
+  if (error instanceof AgentValidationError) {
+    sendAgentApiFailure(request, response, {
+      code: "validation.invalid_input",
+      message: error.message,
+      details: { issues: error.issues },
+      statusCode: 400
+    });
+    return;
+  }
+
+  if (error instanceof AgentNotFoundError) {
+    sendAgentApiFailure(request, response, {
+      code: "agent.not_available",
+      message: "Agent is not available in this workspace.",
+      statusCode: 404
+    });
+    return;
+  }
+
+  sendAgentApiFailure(request, response, {
+    code: "system.unexpected_error",
+    message: "Unexpected Agent Management API error.",
+    statusCode: 500
+  });
 }
 
 function readStringPayload<T extends string>(
@@ -258,4 +318,95 @@ function readStringPayload<T extends string>(
   }
 
   return values;
+}
+
+function readSkillPreviewPayload(request: Request): AgentSkillPreviewRequest {
+  const required = readStringPayload(request, ["name", "role", "model", "instructions"]);
+  const payload = request.body as Record<string, unknown> | undefined;
+
+  return {
+    ...required,
+    responsibilities: readOptionalStringArray(payload, "responsibilities"),
+    operatingContext: readOptionalString(payload, "operatingContext"),
+    requestedTools: readOptionalToolReferences(payload),
+    requestedKnowledge: readOptionalKnowledgeReferences(payload),
+    constraints: readOptionalStringArray(payload, "constraints"),
+    escalationRules: readOptionalStringArray(payload, "escalationRules"),
+    exampleTasks: readOptionalStringArray(payload, "exampleTasks")
+  };
+}
+
+function readSkillImportPayload(request: Request): AgentSkillImportAnalysisRequest {
+  const required = readStringPayload(request, ["markdown"]);
+  const payload = request.body as Record<string, unknown> | undefined;
+
+  return {
+    markdown: required.markdown,
+    fileName: readOptionalString(payload, "fileName")
+  };
+}
+
+function readOptionalString(
+  payload: Record<string, unknown> | undefined,
+  field: string
+): string | undefined {
+  const value = payload?.[field];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readOptionalStringArray(
+  payload: Record<string, unknown> | undefined,
+  field: string
+): string[] | undefined {
+  const value = payload?.[field];
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function readOptionalToolReferences(
+  payload: Record<string, unknown> | undefined
+): AgentSkillToolReference[] | undefined {
+  const values = payload?.requestedTools;
+  if (!Array.isArray(values)) {
+    return undefined;
+  }
+
+  return values
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .map((item) => ({
+      toolId: typeof item.toolId === "string" ? (item.toolId as EntityId<"toolId">) : undefined,
+      name: typeof item.name === "string" ? item.name : "",
+      reason: typeof item.reason === "string" ? item.reason : undefined
+    }));
+}
+
+function readOptionalKnowledgeReferences(
+  payload: Record<string, unknown> | undefined
+): AgentSkillKnowledgeReference[] | undefined {
+  const values = payload?.requestedKnowledge;
+  if (!Array.isArray(values)) {
+    return undefined;
+  }
+
+  return values
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .map((item) => ({
+      documentId:
+        typeof item.documentId === "string" ? (item.documentId as EntityId<"documentId">) : undefined,
+      title: typeof item.title === "string" ? item.title : "",
+      reason: typeof item.reason === "string" ? item.reason : undefined
+    }));
+}
+
+function toSafeSkillFileName(agentName: string): string {
+  const safeName = agentName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  return safeName || "agent";
 }

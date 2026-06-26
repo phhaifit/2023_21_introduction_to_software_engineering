@@ -23,11 +23,13 @@ The feature currently has a local PA5 prototype:
   metrics and list rendering.
 - `knowledge-base-rag-upload.tsx`: Upload Documents screen with mock candidate
   file validation display.
+- `knowledge-base-rag-api-client.ts`: typed frontend API client for the
+  workspace-scoped KB/RAG backend route family.
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
-There is no KB/RAG frontend API client yet. Current local types are prototype
-view types, not public DTOs.
+Documents and Upload screens still use local mock data. Current local view
+types are prototype presentation types, not public DTOs.
 
 ## Frontend Scope
 
@@ -46,20 +48,21 @@ Do not continue UI-only implementation for new KB/RAG flows until DB/API,
 shared contract, and event foundation is defined. Existing mock views may stay
 local until shared DTOs exist.
 
-When backend contracts exist, add a frontend API client that follows the Agent
-Management and Workflow Management pattern:
+The frontend API client follows the Agent Management and Workflow Management
+pattern:
 
 - Typed fetch wrapper.
 - Shared `ApiResponse` envelope parsing.
 - Shared `ErrorCode` usage.
 - Network error handling.
 - Malformed response handling.
-- Route methods that match the approved KB/RAG API matrix.
+- Route methods that match the approved KB/RAG API matrix under
+  `/api/workspaces/:workspaceId/knowledge/...`.
 - Tests in `tests/component`.
 
 ## DTO Alignment
 
-Future UI should align with shared DTOs such as:
+Future UI integration should align with shared DTOs such as:
 
 - `KnowledgeDocumentDto`
 - `UploadCandidateFileDto`
@@ -72,16 +75,16 @@ Future UI should align with shared DTOs such as:
 - `SyncScopeNodeDto`
 - `SyncJobDto`
 
-Until those DTOs exist, keep mock types module-local and avoid exporting them as
-cross-module contracts.
+Keep mock/view types module-local and avoid exporting them as cross-module
+contracts. The next integration issue should map the existing Documents and
+Upload screens to the shared DTOs through `knowledge-base-rag-api-client.ts`.
 
 ## Implementation Rules
 
 - Keep code inside this feature folder unless explicitly requested.
 - Do not modify Agent Management or other feature folders.
 - Do not import backend, worker, database, Prisma, or private module files.
-- Do not add API calls until the backend route and shared DTO contract are
-  defined or explicitly mocked for a scoped task.
+- Do not wire UI screens to API calls outside a scoped integration task.
 - Do not add React Router for this feature unless a later app-shell issue
   explicitly requires route-based navigation.
 - Follow existing frontend style: React components, feature-prefixed CSS
@@ -92,7 +95,6 @@ cross-module contracts.
 ## Out Of Scope For Architecture-Only Issues
 
 - New UI screens.
-- Frontend API client.
 - Runtime upload handling.
 - Backend integration.
 - Worker integration.

@@ -14,6 +14,9 @@ export interface WorkflowExecutionHandoff {
 export interface CreateWorkflowCommand {
   workspaceId: EntityId<"workspaceId">;
   name: string;
+  description?: string;
+  triggerType?: "manual" | "schedule" | "webhook";
+  triggerConfig?: any;
   steps: { agentId: string; stepOrder: number }[];
 }
 
@@ -21,7 +24,10 @@ export interface UpdateWorkflowCommand {
   workspaceId: EntityId<"workspaceId">;
   workflowId: EntityId<"workflowId">;
   name?: string;
+  description?: string | null;
   status?: WorkflowStatus;
+  triggerType?: "manual" | "schedule" | "webhook";
+  triggerConfig?: any;
   steps?: { agentId: string; stepOrder: number }[];
 }
 
@@ -56,7 +62,7 @@ export class WorkflowUseCases {
       )
     );
 
-    const workflow = createWorkflow(workflowId, command.workspaceId, command.name, steps);
+    const workflow = createWorkflow(workflowId, command.workspaceId, command.name, command.description ?? null, command.triggerType ?? "manual", command.triggerConfig ?? null, steps);
 
     // Validate agents before creation
     await validateWorkflowAgents(workflow.workspaceId, workflow.steps.map(toWorkflowStepDto), this.agentProvider);
@@ -82,6 +88,18 @@ export class WorkflowUseCases {
 
     if (command.status !== undefined) {
       workflow.status = command.status;
+    }
+
+    if (command.description !== undefined) {
+      workflow.description = command.description;
+    }
+
+    if (command.triggerType !== undefined) {
+      workflow.triggerType = command.triggerType;
+    }
+
+    if (command.triggerConfig !== undefined) {
+      workflow.triggerConfig = command.triggerConfig;
     }
 
     if (command.steps !== undefined) {
@@ -121,11 +139,11 @@ export class WorkflowUseCases {
     };
   }
 
-  async listWorkflows(workspaceId: EntityId<"workspaceId">, limit = 50, offset = 0): Promise<{ items: WorkflowDto[]; total: number }> {
+  async listWorkflows(workspaceId: EntityId<"workspaceId">, limit = 50, offset = 0): Promise<{ items: (WorkflowDto & { stepCount: number })[]; total: number }> {
     const result = await this.repository.listByWorkspace(workspaceId, { limit, offset });
     return {
       total: result.total,
-      items: result.items.map(toWorkflowSummary),
+      items: result.items.map(w => ({ ...toWorkflowSummary(w), stepCount: w.steps?.length ?? 0 })),
     };
   }
 

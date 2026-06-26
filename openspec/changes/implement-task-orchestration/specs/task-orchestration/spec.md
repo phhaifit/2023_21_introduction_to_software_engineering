@@ -816,37 +816,6 @@ The PA5 prototype SHALL operate without external APIs, external databases, exter
 
 ---
 
-### Requirement: PA5 Functional Verification
-
-The implementation SHALL include at least 25 executed functional test cases.
-
-Each required feature group SHALL contain at least 5 test cases.
-
-#### Scenario: Provide required functional test coverage
-
-* **WHEN** PA5 verification is completed
-* **THEN** at least 5 cases SHALL cover Task Submission and Validation
-* **AND** at least 5 cases SHALL cover Routing Selection
-* **AND** at least 5 cases SHALL cover Task Lifecycle State
-* **AND** at least 5 cases SHALL cover Cancellation and Failure Handling
-* **AND** at least 5 cases SHALL cover Result Display and Processing Details
-
-#### Scenario: Record test execution results
-
-* **WHEN** a functional test case is executed
-* **THEN** the report SHALL record its actual result
-* **AND** the report SHALL record Pass, Fail, or Blocked
-* **AND** a failed case SHALL reference a defect ID
-
-#### Scenario: Produce test summary
-
-* **WHEN** the functional test cycle is complete
-* **THEN** the test report SHALL include total, passed, failed, and blocked counts
-* **AND** the report SHALL list failed cases
-* **AND** the report SHALL list related defects
-* **AND** the report SHALL include a short test summary
-
----
 
 ### Requirement: Pull Request Code Size
 

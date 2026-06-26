@@ -55,6 +55,82 @@ The system SHALL define KB/RAG-owned persistence models before backend repositor
 - **THEN** the schema does not store raw credentials, OAuth refresh tokens, provider secrets, passwords, public or private object-storage URLs, raw embedding vectors, raw vector DB configuration, queue internals, or provider private payloads
 - **AND** cross-module references remain scalar public IDs unless a later OpenSpec-backed design explicitly introduces a relation
 
+### Requirement: Backend Repository and Application Boundary
+The system SHALL define internal KB/RAG backend domain, application, and infrastructure boundaries before worker handlers, frontend API clients, or adapter runtimes are implemented.
+
+#### Scenario: Backend module layers exist
+- **WHEN** the KB/RAG backend module is inspected
+- **THEN** it contains separate `api`, `application`, `domain`, and `infrastructure` boundaries
+- **AND** domain and application code do not depend on HTTP routers, Prisma records, frontend code, worker runtime, or another module's private internals
+
+#### Scenario: Repository ports are workspace-scoped
+- **WHEN** future API handlers or workers need documents, chunks, ingestion jobs, data sources, sync scope nodes, sync jobs, or sync job events
+- **THEN** they use KB/RAG application repository ports with explicit `workspaceId` scoping
+- **AND** they do not import Prisma records or another module's private repositories directly
+
+#### Scenario: Infrastructure adapters preserve module boundaries
+- **WHEN** Prisma or in-memory persistence adapters are used
+- **THEN** Prisma records are mapped to internal domain models before leaving infrastructure
+- **AND** public DTO mappers exclude storage keys, content hashes, vector references, safe metadata, credentials, secrets, tokens, passwords, raw embeddings, vector configuration, private URLs, and queue payloads
+- **AND** Prisma repositories query only KB/RAG-owned persistence models
+
+### Requirement: Backend HTTP API Router
+The system SHALL expose KB/RAG application use cases through workspace-scoped backend HTTP routes using shared DTO and API response contracts.
+
+#### Scenario: Workspace-scoped route family is exposed
+- **WHEN** a backend client calls KB/RAG HTTP routes
+- **THEN** the router exposes only `/api/workspaces/:workspaceId/knowledge/...` routes for documents, upload validation, upload preparation, ingestion jobs, data sources, sync scope, and sync jobs
+- **AND** it does not expose the older `/api/knowledge-base/...` candidate route family
+
+#### Scenario: Router remains a thin application adapter
+- **WHEN** a KB/RAG HTTP route handles a request
+- **THEN** it parses route/query/body input, derives `workspaceId` from the path, derives actor identity from request context, calls application use cases, and returns shared `ApiResponse` or `ApiPaginatedSuccess` envelopes
+- **AND** it does not import Prisma, call repositories directly, parse files, upload to object storage, call embedding providers, write vectors, run worker handlers, or call external source providers
+
+#### Scenario: Request bodies reject trusted or private fields
+- **WHEN** callers submit KB/RAG request bodies
+- **THEN** the router rejects server-owned or private fields such as `workspaceId`, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, provider secrets, tokens, passwords, raw embeddings, or vector configuration
+- **AND** data-source connection placeholders do not accept raw credentials, OAuth refresh tokens, provider tokens, or secrets
+
+### Requirement: Frontend API Client Boundary
+The system SHALL provide a typed frontend KB/RAG API client before existing UI screens are wired to live backend data.
+
+#### Scenario: Client calls finalized workspace-scoped routes
+- **WHEN** frontend code calls the KB/RAG API client
+- **THEN** the client builds only `/api/workspaces/:workspaceId/knowledge/...` URLs for documents, upload validation, upload preparation, ingestion jobs, data sources, sync scope, and sync jobs
+- **AND** it encodes `workspaceId`, `sourceId`, and query values safely
+- **AND** it does not call the older `/api/knowledge-base/...` candidate route family
+
+#### Scenario: Client parses shared API envelopes
+- **WHEN** the backend returns a KB/RAG API response
+- **THEN** the client parses shared success and paginated success envelopes into shared DTOs
+- **AND** API, network, and malformed-response failures are exposed through a typed frontend client error
+
+#### Scenario: Client remains a boundary, not UI integration
+- **WHEN** the frontend API client boundary is added
+- **THEN** existing Documents and Upload screens continue using local mock data until a scoped integration issue connects them
+- **AND** the client rejects unsafe request-body fields such as `workspaceId`, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, passwords, raw embeddings, or vector configuration before fetch
+- **AND** frontend code does not import backend modules, worker runtime, Prisma/database code, or another module's private internals
+
+### Requirement: Application Use Cases
+The system SHALL provide KB/RAG application use cases that future API routers and workers can call without importing repositories or infrastructure directly.
+
+#### Scenario: Metadata-only upload validation
+- **WHEN** upload candidates are validated
+- **THEN** the use case validates only caller-provided metadata such as file name, media type, and size
+- **AND** it does not parse files, upload files, create document rows, create ingestion jobs, call workers, call embedding providers, or write vectors
+
+#### Scenario: Safe upload preparation
+- **WHEN** valid upload candidates are prepared
+- **THEN** the use case creates pending document metadata and pending ingestion-job records through repository ports
+- **AND** it returns `PrepareUploadResponse` DTOs without storage keys, private URLs, queue payloads, raw embeddings, vector references, credentials, tokens, or secrets
+
+#### Scenario: Placeholder source and sync use cases
+- **WHEN** data-source connection, sync-scope update, or manual sync request use cases are called
+- **THEN** they operate on workspace-scoped repository ports
+- **AND** manual sync creates only a queued sync-job record without calling external providers or worker runtime handlers
+- **AND** data-source placeholder connection does not accept or store raw credentials, provider secrets, OAuth tokens, or refresh tokens
+
 ### Requirement: Data Source Sync Placeholder
 The system SHALL provide a configurable boundary for external knowledge sources.
 

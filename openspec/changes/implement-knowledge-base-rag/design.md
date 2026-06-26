@@ -56,6 +56,26 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: KB/RAG uses `onDelete: Restrict` and `onUpdate: NoAction` for internal FKs and does not add FKs from KB/RAG tables to users, workspaces, agents, workflows, tasks, subscriptions, authentication, or session tables.
    - Alternative considered: Keeping all KB/RAG references scalar-only. Rejected because repository convention already uses Prisma relations/FKs for module-owned internal relationships.
 
+10. Define backend domain/application/infrastructure boundaries before API and worker runtime.
+   - Rationale: API routers and workers should depend on stable domain models, repository ports, safe DTO mappers, and persistence adapters rather than reaching directly into Prisma records or frontend mock data.
+   - Boundary: This slice adds internal backend models, repository interfaces, Prisma repositories, and in-memory repositories only. It does not implement HTTP routers, request validation, file/object storage, embedding/vector adapters, worker handlers, frontend API clients, or new Prisma schema changes.
+   - Constraint: Prisma repositories use only KB/RAG-owned models and keep cross-module references as scalar public IDs.
+
+11. Add application use cases before HTTP routes.
+   - Rationale: Future API routers and workers should call stable application services instead of reaching directly into repositories or infrastructure adapters.
+   - Boundary: Application use cases validate upload candidate metadata, prepare safe pending document and ingestion-job records, read document/chunk/job/source/sync state, connect data-source placeholders, update sync scope, and create queued manual sync-job records. They do not parse files, upload to object storage, enqueue runtime worker handlers, call embedding providers, call external data-source providers, or write to a vector database.
+   - Constraint: Use cases receive trusted `workspaceId` and actor identity from caller context, use injected repository ports, clock, and ID generators, and return caller-safe shared DTOs.
+
+12. Expose a thin workspace-scoped HTTP API router after application use cases exist.
+   - Rationale: Backend clients need the finalized `/api/workspaces/:workspaceId/knowledge/...` route family to call KB/RAG use cases through shared API envelopes without reaching into repositories or infrastructure.
+   - Boundary: The router parses request/query payloads, derives `workspaceId` from the route, derives actor identity from request context, enforces `knowledge:manage` for mutations, maps application errors to shared API errors, and returns shared DTOs. It does not parse files, upload to object storage, call worker runtimes, call embedding/vector providers, call external source providers, or import Prisma directly.
+   - Constraint: Request bodies must not accept trusted workspace IDs, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, or secrets.
+
+13. Add a frontend API client boundary before wiring UI screens.
+   - Rationale: Documents and Upload screens should connect to live data through a typed client that uses the finalized shared DTOs and route family, rather than embedding fetch logic in components or continuing to evolve mock view types as contracts.
+   - Boundary: The client builds `/api/workspaces/:workspaceId/knowledge/...` URLs, parses shared API envelopes, maps API/network/malformed response errors consistently, and rejects unsafe request-body fields before fetch. It does not replace mock data in existing screens, parse files, upload to storage, call worker runtimes, call embedding/vector providers, or introduce new dependencies.
+   - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

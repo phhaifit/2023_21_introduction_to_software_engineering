@@ -229,6 +229,39 @@
       "createdAt"
     ]
   },
+  "agentManagement": {
+    "skillMarkdownSections": [
+      "Role",
+      "Model",
+      "Responsibilities",
+      "Operating Context",
+      "Instructions",
+      "Requested Tools",
+      "Requested Knowledge",
+      "Constraints",
+      "Escalation Rules",
+      "Example Tasks"
+    ],
+    "dtoExports": [
+      "AgentPublicSummary",
+      "AgentSkillDraftInput",
+      "AgentSkillPreviewRequest",
+      "AgentSkillPreviewResponse",
+      "AgentSkillImportAnalysisRequest",
+      "AgentSkillImportValidationResponse",
+      "AgentModelCatalogEntry",
+      "AgentDraftProviderMetadata",
+      "AgentDraftValidationWarning",
+      "AgentCreationAssistantDraft",
+      "AgentCreationAssistantDraftRequest",
+      "AgentCreationAssistantDraftResponse"
+    ],
+    "requestDtoExports": [
+      "AgentSkillPreviewRequest",
+      "AgentSkillImportAnalysisRequest",
+      "AgentCreationAssistantDraftRequest"
+    ]
+  },
   "knowledgeBaseRag": {
     "routes": [
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/documents" },

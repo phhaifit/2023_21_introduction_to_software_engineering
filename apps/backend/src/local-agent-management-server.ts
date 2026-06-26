@@ -35,6 +35,26 @@ import { InMemoryUserRepository } from "./modules/authentication/infrastructure/
 import { InMemorySessionRepository } from "./modules/authentication/infrastructure/in-memory-session-repository.ts";
 import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
 import { Sha256TokenHasher } from "./modules/authentication/infrastructure/sha256-token-hasher.ts";
+import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/knowledge-base-rag-router.ts";
+import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/application/knowledge-data-source-use-cases.ts";
+import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
+import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
+import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
+import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import {
+  InMemoryKnowledgeDataSourceRepository,
+  InMemoryKnowledgeDocumentRepository,
+  InMemoryKnowledgeIngestionJobRepository,
+  InMemoryKnowledgeSyncJobRepository,
+  InMemoryKnowledgeSyncScopeRepository
+} from "./modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
+import { PrismaKnowledgeDataSourceRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-data-source-repository.ts";
+import { PrismaKnowledgeDocumentRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-document-repository.ts";
+import { PrismaKnowledgeIngestionJobRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-ingestion-job-repository.ts";
+import {
+  PrismaKnowledgeSyncJobRepository,
+  PrismaKnowledgeSyncScopeRepository
+} from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
 
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
@@ -51,6 +71,8 @@ export type LocalAgentManagementRuntime = {
   checkoutUseCases: CheckoutUseCases;
   workflowRepository: any;
   workflowUseCases: any;
+  knowledgeBaseRagRepositories: any;
+  knowledgeBaseRagUseCases: any;
 };
 
 let cachedPrisma: any = null;
@@ -124,6 +146,53 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
+  const knowledgeDocumentRepository = prisma
+    ? new PrismaKnowledgeDocumentRepository(prisma)
+    : new InMemoryKnowledgeDocumentRepository();
+  const knowledgeIngestionJobRepository = prisma
+    ? new PrismaKnowledgeIngestionJobRepository(prisma)
+    : new InMemoryKnowledgeIngestionJobRepository();
+  const knowledgeDataSourceRepository = prisma
+    ? new PrismaKnowledgeDataSourceRepository(prisma)
+    : new InMemoryKnowledgeDataSourceRepository();
+  const knowledgeSyncScopeRepository = prisma
+    ? new PrismaKnowledgeSyncScopeRepository(prisma)
+    : new InMemoryKnowledgeSyncScopeRepository();
+  const knowledgeSyncJobRepository = prisma
+    ? new PrismaKnowledgeSyncJobRepository(prisma)
+    : new InMemoryKnowledgeSyncJobRepository();
+  const knowledgeBaseRagRepositories = {
+    documentRepository: knowledgeDocumentRepository,
+    ingestionJobRepository: knowledgeIngestionJobRepository,
+    dataSourceRepository: knowledgeDataSourceRepository,
+    syncScopeRepository: knowledgeSyncScopeRepository,
+    syncJobRepository: knowledgeSyncJobRepository
+  };
+  const knowledgeBaseRagUseCases = {
+    documentUseCases: new KnowledgeDocumentUseCases({
+      documentRepository: knowledgeDocumentRepository
+    }),
+    uploadUseCases: new KnowledgeUploadUseCases({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      now: () => new Date().toISOString(),
+      generateDocumentId: () => randomUUID() as any,
+      generateJobId: () => randomUUID() as any
+    }),
+    ingestionUseCases: new KnowledgeIngestionUseCases({
+      ingestionJobRepository: knowledgeIngestionJobRepository
+    }),
+    dataSourceUseCases: new KnowledgeDataSourceUseCases({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      now: () => new Date().toISOString()
+    }),
+    syncUseCases: new KnowledgeSyncUseCases({
+      syncScopeRepository: knowledgeSyncScopeRepository,
+      syncJobRepository: knowledgeSyncJobRepository,
+      now: () => new Date().toISOString(),
+      generateJobId: () => randomUUID() as any
+    })
+  };
   
   const mockExecutionHandoff = {
     async handoffExecution(request: any) {
@@ -192,6 +261,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createWorkflowManagementRouter({ useCases: workflowUseCases })
   );
 
+  app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));
+
   const authUserRepository = new InMemoryUserRepository();
   const authSessionRepository = new InMemorySessionRepository();
   const authPasswordHasher = new BcryptPasswordHasher();
@@ -215,7 +286,17 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     })
   );
 
-  return { app, repository, useCases, subscriptionRepository, checkoutUseCases, workflowRepository, workflowUseCases };
+  return {
+    app,
+    repository,
+    useCases,
+    subscriptionRepository,
+    checkoutUseCases,
+    workflowRepository,
+    workflowUseCases,
+    knowledgeBaseRagRepositories,
+    knowledgeBaseRagUseCases
+  };
 }
 
 async function seedDemoAgents(repository: AgentRepository): Promise<void> {

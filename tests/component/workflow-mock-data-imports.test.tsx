@@ -55,7 +55,7 @@ describe("workflow mock data imports", () => {
       screen.getByPlaceholderText("Tìm kiếm workflow..."),
       "khong-co-workflow"
     );
-
-    expect(screen.getByText("Không tìm thấy workflow nào.")).toBeVisible();
+    expect(screen.getByText("Không tìm thấy Workflow")).toBeVisible();
+    expect(screen.getByText("Không có kết quả phù hợp với từ khóa của bạn.")).toBeVisible();
   });
 });

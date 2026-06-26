@@ -74,6 +74,9 @@ export function createWorkflowManagementRouter(
       const result = await dependencies.useCases.createWorkflow({
         workspaceId: context.workspace!.workspaceId,
         name: payload.name,
+        description: payload.description,
+        triggerType: payload.triggerType,
+        triggerConfig: payload.triggerConfig,
         steps: payload.steps || []
       });
 
@@ -111,7 +114,10 @@ export function createWorkflowManagementRouter(
           workspaceId: context.workspace!.workspaceId,
           workflowId: request.params.workflowId as EntityId<"workflowId">,
           name: payload.name,
-          status: payload.status,
+          description: payload.description,
+          status: payload.status as WorkflowStatus,
+          triggerType: payload.triggerType,
+          triggerConfig: payload.triggerConfig,
           steps: payload.steps
         });
 

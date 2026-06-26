@@ -37,18 +37,28 @@ The Knowledge Base / RAG frontend currently includes:
 - Mock data and shared local view types.
 - Documents screen.
 - Upload Documents screen.
+- Typed frontend API client for the workspace-scoped KB/RAG routes.
 
-The backend and worker sides still need foundation work before runtime
-implementation:
+The Documents and Upload screens still use local mock data. Do not replace the
+mock data or wire the screens to API calls outside a scoped frontend
+integration issue.
 
-- DB schema ownership.
-- Shared contracts and API DTOs.
-- Public API schema.
-- Public domain events.
-- Backend `api/application/domain/infrastructure` layering.
-- Repository interfaces, in-memory infrastructure, and Prisma infrastructure.
-- Worker ingestion handoff.
-- Tests across contract, backend, frontend, worker, and functional layers.
+The backend now has an internal foundation for future runtime implementation:
+
+- Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
+  sync jobs, and sync job events.
+- Application repository ports.
+- Application use cases for document reads, metadata-only upload validation,
+  safe upload preparation, ingestion-job reads, data-source placeholders,
+  sync-scope updates, and queued manual sync requests.
+- Safe DTO mappers to shared contracts.
+- Prisma repositories using KB/RAG-owned tables through `@vcp/database`.
+- Deterministic in-memory repositories for future use-case tests.
+- A thin workspace-scoped HTTP API router that maps shared route contracts to
+  application use cases and shared API envelopes.
+
+The backend still does not have real upload/file adapters, embedding/vector
+adapters, or worker handlers.
 
 ## Required Future Workflow
 
@@ -180,7 +190,7 @@ For KB/RAG persistence work:
 
 ## Backend Roadmap
 
-Future backend implementation should use this structure:
+Backend implementation uses this structure:
 
 ```text
 apps/backend/src/modules/knowledge-base-rag/
@@ -190,24 +200,31 @@ apps/backend/src/modules/knowledge-base-rag/
 `-- infrastructure/
 ```
 
-Likely future files:
+Current foundation files include:
 
 - `api/knowledge-base-rag-router.ts`
+- `api/knowledge-base-rag-request-parsers.ts`
 - `api/api-response.ts`
-- `application/*-use-cases.ts`
 - `application/*-repository.ts`
-- `application/ports.ts`
+- `application/*-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
+- `application/dto-mappers.ts`
 - `domain/knowledge-document.ts`
-- `domain/upload-validation.ts`
 - `domain/knowledge-ingestion-job.ts`
 - `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
-- `domain/knowledge-events.ts`
-- `infrastructure/in-memory-*.ts`
+- `domain/knowledge-sync.ts`
 - `infrastructure/prisma-*.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+
+Likely future files:
+
+- `application/ports.ts`
+- `domain/upload-validation.ts`
+- `domain/knowledge-events.ts`
 - `infrastructure/*-adapter.ts`
 
-Do not create these files in architecture-only documentation issues.
+Do not create worker handlers or adapters outside the selected task scope.
 
 ## API Contract Boundary
 
@@ -228,8 +245,10 @@ POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
 GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
-This route contract is documented and tested as a shared boundary. It still
-does not mean backend handlers exist.
+This route contract is documented, tested, and exposed by the backend API
+router. The router must remain thin: parse request context, call application
+use cases, map responses/errors, and avoid file parsing, storage, embeddings,
+vector databases, external providers, and worker runtime execution.
 
 ## Shared DTO Boundary
 
@@ -333,9 +352,9 @@ npm run prisma -- validate
 
 ## Current UI Guidance
 
-The existing frontend prototype is allowed to keep local mock data until shared
-DTOs are defined. New UI-only flows should pause until the API/DTO/event
-foundation is designed. When API contracts exist, add a KB/RAG API client that
+The existing frontend prototype is allowed to keep local mock data until a
+scoped integration issue wires screens to the API. New UI-only flows should
+pause until the API/DTO/event foundation is designed. The KB/RAG API client
 follows the Agent Management and Workflow Management client pattern: typed
 fetch wrapper, shared `ApiResponse` parsing, shared `ErrorCode`, network error
 handling, and malformed-response handling.

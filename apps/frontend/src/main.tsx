@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./App.tsx";
 import { ToastProvider } from "./components/shared/Toast.tsx";
@@ -15,9 +16,11 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <React.StrictMode>
     <ToastProvider>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
     </ToastProvider>
   </React.StrictMode>
 );

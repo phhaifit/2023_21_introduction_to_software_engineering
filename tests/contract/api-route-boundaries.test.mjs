@@ -52,6 +52,11 @@ const expectedRoutes = [
   ["DELETE", "/api/workspaces/:workspaceId/members/:memberId", "planned"],
   ["GET", "/api/workspaces/:workspaceId/agents", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/agents/models", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/agents/skill-preview", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/agents/assistant/draft", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/agents/assistant/import-skill", "provisional-existing"],
+  ["GET", "/api/workspaces/:workspaceId/agents/:agentId/skill.md", "implemented"],
   ["GET", "/api/workspaces/:workspaceId/agents/:agentId/configuration", "implemented"],
   ["PATCH", "/api/workspaces/:workspaceId/agents/:agentId", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents/:agentId/enable", "implemented"],
@@ -78,16 +83,16 @@ const expectedRoutes = [
   ["POST", "/api/workspaces/:workspaceId/tasks/:taskId/cancel", "planned"],
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId/runs", "planned"],
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId/logs", "planned"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/documents", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare", "planned"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/ingestion-jobs", "planned"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/data-sources", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect", "planned"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-scope", "planned"],
-  ["PUT", "/api/workspaces/:workspaceId/knowledge/sync-scope", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "planned"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "planned"]
+  ["GET", "/api/workspaces/:workspaceId/knowledge/documents", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/ingestion-jobs", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/data-sources", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-scope", "implemented"],
+  ["PUT", "/api/workspaces/:workspaceId/knowledge/sync-scope", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "implemented"]
 ];
 
 for (const [method, path, status] of expectedRoutes) {
@@ -98,14 +103,14 @@ for (const [method, path, status] of expectedRoutes) {
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "implemented").length,
-  7,
-  "Only implemented Agent Management routes should be marked implemented by this matrix"
+  19,
+  "Implemented Agent Management and Knowledge Base / RAG routes should be marked implemented by this matrix"
 );
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "provisional-existing").length,
-  4,
-  "Existing Subscription & Payment routes should remain provisional until envelope alignment"
+  5,
+  "Existing provisional routes should remain documented until full contract alignment"
 );
 
 function findRouteLine(source, method, path) {

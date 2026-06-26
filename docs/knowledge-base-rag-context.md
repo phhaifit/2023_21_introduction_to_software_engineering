@@ -26,23 +26,38 @@ The frontend currently has a PA5 prototype under
   and `knowledge-base-rag-view.ts`.
 - Documents screen in `knowledge-base-rag-documents.tsx`.
 - Upload Documents screen in `knowledge-base-rag-upload.tsx`.
+- Typed frontend API client in `knowledge-base-rag-api-client.ts`.
 - Feature-prefixed CSS split by shell, shared components, documents, and upload
   screens.
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration.
+change that integration. Documents and Upload screens still render local mock
+data; API client wiring is intentionally left for a later integration slice.
 
-The backend still needs a proper foundation before runtime implementation:
+The backend now has an internal module foundation under
+`apps/backend/src/modules/knowledge-base-rag`:
 
-- DB schema ownership decisions for KB/RAG-owned records.
-- Public API schema decisions.
-- Shared contracts and DTOs for frontend/backend/worker boundaries.
-- Public domain event definitions.
-- Backend `api/application/domain/infrastructure` layering.
-- Repository interfaces plus in-memory and Prisma infrastructure.
-- Worker ingestion handoff for long-running document processing.
-- Contract, boundary, backend, frontend, worker, and functional tests.
+- Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
+  sync jobs, and sync job events.
+- Application repository ports for documents, ingestion jobs, data sources,
+  sync scope, and sync jobs.
+- Application use cases for document reads, metadata-only upload validation,
+  safe upload preparation, ingestion-job reads, data-source placeholders,
+  sync-scope updates, and queued manual sync-job creation.
+- Safe DTO mappers from internal domain objects to shared public DTOs.
+- Prisma repositories using KB/RAG-owned Prisma models through `@vcp/database`.
+- Deterministic in-memory repositories for future use-case tests.
+- A thin workspace-scoped HTTP API router under `api/` that maps shared route
+  contracts to application use cases and shared `ApiResponse` envelopes.
+
+Runtime implementation still needs:
+
+- Upload parsing, object storage, embedding, vector indexing, and external
+  source adapters.
+- Worker ingestion/sync runtime handoff.
+- Frontend UI integration with the KB/RAG API client.
+- Worker tests, frontend integration tests, and functional PA5 tests.
 
 The worker path `apps/workers/src/jobs/document-ingestion` currently contains
 README/context only. The queue type already reserves `document.ingest`, but no
@@ -187,8 +202,9 @@ Rules:
 
 ## Public API Contract Boundary
 
-This issue defines the public route boundary only. It does not implement API
-routes.
+The public route boundary is implemented by a thin backend API router. The
+router does not run long-lived ingestion/sync work and does not call storage,
+embedding providers, vector databases, external providers, or worker runtimes.
 
 The final KB/RAG contract uses the workspace-scoped route shape required by
 the API matrix and tenant-boundary rules:
@@ -235,9 +251,10 @@ raw credentials, tokens, provider secrets, private vector DB configuration,
 embedding-provider internals, object-storage private paths, or server-owned
 mutation fields.
 
-Frontend local mock types should now be mapped toward these shared DTOs before
-new API-client work begins. Prototype-only view models may remain module-local
-when they are purely presentation-specific.
+The frontend API client now uses these shared DTOs. Frontend local mock/view
+types should be mapped toward these DTOs when the Documents and Upload screens
+are connected to live API data. Prototype-only view models may remain
+module-local when they are purely presentation-specific.
 
 ## Proposed Domain Events Roadmap
 
@@ -274,7 +291,7 @@ Payload principles:
 
 ## Backend Layering Roadmap
 
-Future backend implementation should use this structure:
+Backend implementation uses this structure:
 
 ```text
 apps/backend/src/modules/knowledge-base-rag/
@@ -284,31 +301,55 @@ apps/backend/src/modules/knowledge-base-rag/
 `-- infrastructure/
 ```
 
-Likely future files, not to be created in this architecture issue:
+Current repository/application boundary files:
 
 - `api/knowledge-base-rag-router.ts`
+- `api/knowledge-base-rag-request-parsers.ts`
 - `api/api-response.ts`
-- `application/document-use-cases.ts`
-- `application/upload-validation-use-cases.ts`
-- `application/ingestion-job-use-cases.ts`
-- `application/sync-use-cases.ts`
-- `application/ports.ts`
 - `application/knowledge-document-repository.ts`
 - `application/knowledge-ingestion-job-repository.ts`
+- `application/knowledge-data-source-repository.ts`
+- `application/knowledge-sync-repositories.ts`
+- `application/dto-mappers.ts`
+- `application/knowledge-document-use-cases.ts`
+- `application/knowledge-upload-use-cases.ts`
+- `application/knowledge-ingestion-use-cases.ts`
+- `application/knowledge-data-source-use-cases.ts`
+- `application/knowledge-sync-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
 - `domain/knowledge-document.ts`
-- `domain/upload-validation.ts`
 - `domain/knowledge-ingestion-job.ts`
 - `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
-- `domain/knowledge-events.ts`
-- `infrastructure/in-memory-knowledge-document-repository.ts`
+- `domain/knowledge-sync.ts`
 - `infrastructure/prisma-knowledge-document-repository.ts`
-- `infrastructure/prisma-knowledge-mappers.ts`
+- `infrastructure/prisma-knowledge-ingestion-job-repository.ts`
+- `infrastructure/prisma-knowledge-data-source-repository.ts`
+- `infrastructure/prisma-knowledge-sync-repository.ts`
+- `infrastructure/prisma-knowledge-base-rag-mapper.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+
+Likely future runtime files:
+
+- `domain/upload-validation.ts`
+- `domain/knowledge-events.ts`
 - `infrastructure/vector-index-adapter.ts`
+- `infrastructure/object-storage-adapter.ts`
+- `infrastructure/embedding-adapter.ts`
 
 Application code should depend on repository and adapter ports. Infrastructure
 should implement those ports. API code should translate HTTP/request context
 into application commands and return shared API envelopes.
+
+The backend HTTP router slice intentionally does not add worker handlers,
+frontend API clients, file/object storage adapters, embedding/vector adapters,
+external source adapters, or Prisma schema changes.
+
+The application use-case slice intentionally keeps upload validation
+metadata-only and creates only safe pending document, ingestion-job, and
+sync-job records through repository ports. It does not parse files, upload to
+object storage, enqueue runtime workers, call embedding providers, or write to a
+vector database.
 
 ## Worker Handoff Roadmap
 
