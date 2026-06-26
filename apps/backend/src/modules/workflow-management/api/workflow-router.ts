@@ -6,7 +6,7 @@ import { WorkflowUseCases } from "../application/workflow-use-cases.ts";
 import { sendWorkflowApiFailure, sendWorkflowApiSuccess, sendWorkflowApiPaginatedSuccess } from "./api-response.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 import { canPerform } from "../../../shared/rbac/permissions.ts";
-import { WorkflowValidationError } from "../domain/workflow-validation.ts";
+import { WorkflowValidationError, WorkflowGraphError } from "../domain/workflow-validation.ts";
 
 export type WorkflowManagementRouterDependencies = {
   useCases: WorkflowUseCases;
@@ -270,6 +270,15 @@ async function handleWorkflowApiRequest(
         code: "validation.invalid_input",
         message: error.message,
         details: { issues: error.issues },
+        statusCode: 400
+      });
+      return;
+    }
+
+    if (error instanceof WorkflowGraphError) {
+      sendWorkflowApiFailure(request, response, {
+        code: "validation.invalid_graph",
+        message: error.message,
         statusCode: 400
       });
       return;

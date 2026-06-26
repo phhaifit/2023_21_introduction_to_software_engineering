@@ -15,12 +15,18 @@ export interface WorkflowDto {
   updatedAt: string;
 }
 
+export interface WorkflowStepTransition {
+  targetStepId: EntityId<"workflowStepId">;
+  condition?: string | null;
+}
+
 export interface WorkflowStepDto {
   workflowStepId: EntityId<"workflowStepId">;
   workspaceId: EntityId<"workspaceId">;
   workflowId: EntityId<"workflowId">;
   agentId: EntityId<"agentId">;
   stepOrder: number;
+  nextSteps?: WorkflowStepTransition[] | null;
   createdAt: string;
   updatedAt: string;
 }

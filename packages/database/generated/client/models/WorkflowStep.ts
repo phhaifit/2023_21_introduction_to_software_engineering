@@ -60,6 +60,7 @@ export type WorkflowStepCountAggregateOutputType = {
   workflowId: number
   agentId: number
   stepOrder: number
+  nextSteps: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -100,6 +101,7 @@ export type WorkflowStepCountAggregateInputType = {
   workflowId?: true
   agentId?: true
   stepOrder?: true
+  nextSteps?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -197,6 +199,7 @@ export type WorkflowStepGroupByOutputType = {
   workflowId: string
   agentId: string
   stepOrder: number
+  nextSteps: runtime.JsonValue | null
   createdAt: string
   updatedAt: string
   _count: WorkflowStepCountAggregateOutputType | null
@@ -230,6 +233,7 @@ export type WorkflowStepWhereInput = {
   workflowId?: Prisma.StringFilter<"WorkflowStep"> | string
   agentId?: Prisma.StringFilter<"WorkflowStep"> | string
   stepOrder?: Prisma.IntFilter<"WorkflowStep"> | number
+  nextSteps?: Prisma.JsonNullableFilter<"WorkflowStep">
   createdAt?: Prisma.StringFilter<"WorkflowStep"> | string
   updatedAt?: Prisma.StringFilter<"WorkflowStep"> | string
   workflow?: Prisma.XOR<Prisma.WorkflowScalarRelationFilter, Prisma.WorkflowWhereInput>
@@ -242,6 +246,7 @@ export type WorkflowStepOrderByWithRelationInput = {
   workflowId?: Prisma.SortOrder
   agentId?: Prisma.SortOrder
   stepOrder?: Prisma.SortOrder
+  nextSteps?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   workflow?: Prisma.WorkflowOrderByWithRelationInput
@@ -250,7 +255,6 @@ export type WorkflowStepOrderByWithRelationInput = {
 
 export type WorkflowStepWhereUniqueInput = Prisma.AtLeast<{
   workflowStepId?: string
-  workflowId_stepOrder?: Prisma.WorkflowStepWorkflowIdStepOrderCompoundUniqueInput
   AND?: Prisma.WorkflowStepWhereInput | Prisma.WorkflowStepWhereInput[]
   OR?: Prisma.WorkflowStepWhereInput[]
   NOT?: Prisma.WorkflowStepWhereInput | Prisma.WorkflowStepWhereInput[]
@@ -258,11 +262,12 @@ export type WorkflowStepWhereUniqueInput = Prisma.AtLeast<{
   workflowId?: Prisma.StringFilter<"WorkflowStep"> | string
   agentId?: Prisma.StringFilter<"WorkflowStep"> | string
   stepOrder?: Prisma.IntFilter<"WorkflowStep"> | number
+  nextSteps?: Prisma.JsonNullableFilter<"WorkflowStep">
   createdAt?: Prisma.StringFilter<"WorkflowStep"> | string
   updatedAt?: Prisma.StringFilter<"WorkflowStep"> | string
   workflow?: Prisma.XOR<Prisma.WorkflowScalarRelationFilter, Prisma.WorkflowWhereInput>
   logs?: Prisma.WorkflowStepLogListRelationFilter
-}, "workflowStepId" | "workflowId_stepOrder">
+}, "workflowStepId">
 
 export type WorkflowStepOrderByWithAggregationInput = {
   workflowStepId?: Prisma.SortOrder
@@ -270,6 +275,7 @@ export type WorkflowStepOrderByWithAggregationInput = {
   workflowId?: Prisma.SortOrder
   agentId?: Prisma.SortOrder
   stepOrder?: Prisma.SortOrder
+  nextSteps?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.WorkflowStepCountOrderByAggregateInput
@@ -288,6 +294,7 @@ export type WorkflowStepScalarWhereWithAggregatesInput = {
   workflowId?: Prisma.StringWithAggregatesFilter<"WorkflowStep"> | string
   agentId?: Prisma.StringWithAggregatesFilter<"WorkflowStep"> | string
   stepOrder?: Prisma.IntWithAggregatesFilter<"WorkflowStep"> | number
+  nextSteps?: Prisma.JsonNullableWithAggregatesFilter<"WorkflowStep">
   createdAt?: Prisma.StringWithAggregatesFilter<"WorkflowStep"> | string
   updatedAt?: Prisma.StringWithAggregatesFilter<"WorkflowStep"> | string
 }
@@ -297,6 +304,7 @@ export type WorkflowStepCreateInput = {
   workspaceId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
   workflow: Prisma.WorkflowCreateNestedOneWithoutStepsInput
@@ -309,6 +317,7 @@ export type WorkflowStepUncheckedCreateInput = {
   workflowId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
   logs?: Prisma.WorkflowStepLogUncheckedCreateNestedManyWithoutStepInput
@@ -319,6 +328,7 @@ export type WorkflowStepUpdateInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   workflow?: Prisma.WorkflowUpdateOneRequiredWithoutStepsNestedInput
@@ -331,6 +341,7 @@ export type WorkflowStepUncheckedUpdateInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   logs?: Prisma.WorkflowStepLogUncheckedUpdateManyWithoutStepNestedInput
@@ -342,6 +353,7 @@ export type WorkflowStepCreateManyInput = {
   workflowId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
 }
@@ -351,6 +363,7 @@ export type WorkflowStepUpdateManyMutationInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -361,6 +374,7 @@ export type WorkflowStepUncheckedUpdateManyInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -375,17 +389,13 @@ export type WorkflowStepOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type WorkflowStepWorkflowIdStepOrderCompoundUniqueInput = {
-  workflowId: string
-  stepOrder: number
-}
-
 export type WorkflowStepCountOrderByAggregateInput = {
   workflowStepId?: Prisma.SortOrder
   workspaceId?: Prisma.SortOrder
   workflowId?: Prisma.SortOrder
   agentId?: Prisma.SortOrder
   stepOrder?: Prisma.SortOrder
+  nextSteps?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -492,6 +502,7 @@ export type WorkflowStepCreateWithoutWorkflowInput = {
   workspaceId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
   logs?: Prisma.WorkflowStepLogCreateNestedManyWithoutStepInput
@@ -502,6 +513,7 @@ export type WorkflowStepUncheckedCreateWithoutWorkflowInput = {
   workspaceId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
   logs?: Prisma.WorkflowStepLogUncheckedCreateNestedManyWithoutStepInput
@@ -542,6 +554,7 @@ export type WorkflowStepScalarWhereInput = {
   workflowId?: Prisma.StringFilter<"WorkflowStep"> | string
   agentId?: Prisma.StringFilter<"WorkflowStep"> | string
   stepOrder?: Prisma.IntFilter<"WorkflowStep"> | number
+  nextSteps?: Prisma.JsonNullableFilter<"WorkflowStep">
   createdAt?: Prisma.StringFilter<"WorkflowStep"> | string
   updatedAt?: Prisma.StringFilter<"WorkflowStep"> | string
 }
@@ -551,6 +564,7 @@ export type WorkflowStepCreateWithoutLogsInput = {
   workspaceId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
   workflow: Prisma.WorkflowCreateNestedOneWithoutStepsInput
@@ -562,6 +576,7 @@ export type WorkflowStepUncheckedCreateWithoutLogsInput = {
   workflowId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
 }
@@ -587,6 +602,7 @@ export type WorkflowStepUpdateWithoutLogsInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   workflow?: Prisma.WorkflowUpdateOneRequiredWithoutStepsNestedInput
@@ -598,6 +614,7 @@ export type WorkflowStepUncheckedUpdateWithoutLogsInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -607,6 +624,7 @@ export type WorkflowStepCreateManyWorkflowInput = {
   workspaceId: string
   agentId: string
   stepOrder: number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt: string
   updatedAt: string
 }
@@ -616,6 +634,7 @@ export type WorkflowStepUpdateWithoutWorkflowInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   logs?: Prisma.WorkflowStepLogUpdateManyWithoutStepNestedInput
@@ -626,6 +645,7 @@ export type WorkflowStepUncheckedUpdateWithoutWorkflowInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   logs?: Prisma.WorkflowStepLogUncheckedUpdateManyWithoutStepNestedInput
@@ -636,6 +656,7 @@ export type WorkflowStepUncheckedUpdateManyWithoutWorkflowInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   stepOrder?: Prisma.IntFieldUpdateOperationsInput | number
+  nextSteps?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -677,6 +698,7 @@ export type WorkflowStepSelect<ExtArgs extends runtime.Types.Extensions.Internal
   workflowId?: boolean
   agentId?: boolean
   stepOrder?: boolean
+  nextSteps?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   workflow?: boolean | Prisma.WorkflowDefaultArgs<ExtArgs>
@@ -690,6 +712,7 @@ export type WorkflowStepSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   workflowId?: boolean
   agentId?: boolean
   stepOrder?: boolean
+  nextSteps?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   workflow?: boolean | Prisma.WorkflowDefaultArgs<ExtArgs>
@@ -701,6 +724,7 @@ export type WorkflowStepSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   workflowId?: boolean
   agentId?: boolean
   stepOrder?: boolean
+  nextSteps?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   workflow?: boolean | Prisma.WorkflowDefaultArgs<ExtArgs>
@@ -712,11 +736,12 @@ export type WorkflowStepSelectScalar = {
   workflowId?: boolean
   agentId?: boolean
   stepOrder?: boolean
+  nextSteps?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type WorkflowStepOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"workflowStepId" | "workspaceId" | "workflowId" | "agentId" | "stepOrder" | "createdAt" | "updatedAt", ExtArgs["result"]["workflowStep"]>
+export type WorkflowStepOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"workflowStepId" | "workspaceId" | "workflowId" | "agentId" | "stepOrder" | "nextSteps" | "createdAt" | "updatedAt", ExtArgs["result"]["workflowStep"]>
 export type WorkflowStepInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   workflow?: boolean | Prisma.WorkflowDefaultArgs<ExtArgs>
   logs?: boolean | Prisma.WorkflowStep$logsArgs<ExtArgs>
@@ -741,6 +766,7 @@ export type $WorkflowStepPayload<ExtArgs extends runtime.Types.Extensions.Intern
     workflowId: string
     agentId: string
     stepOrder: number
+    nextSteps: runtime.JsonValue | null
     createdAt: string
     updatedAt: string
   }, ExtArgs["result"]["workflowStep"]>
@@ -1173,6 +1199,7 @@ export interface WorkflowStepFieldRefs {
   readonly workflowId: Prisma.FieldRef<"WorkflowStep", 'String'>
   readonly agentId: Prisma.FieldRef<"WorkflowStep", 'String'>
   readonly stepOrder: Prisma.FieldRef<"WorkflowStep", 'Int'>
+  readonly nextSteps: Prisma.FieldRef<"WorkflowStep", 'Json'>
   readonly createdAt: Prisma.FieldRef<"WorkflowStep", 'String'>
   readonly updatedAt: Prisma.FieldRef<"WorkflowStep", 'String'>
 }

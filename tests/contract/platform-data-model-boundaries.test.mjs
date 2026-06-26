@@ -422,7 +422,6 @@ const expectedUniqueConstraints = {
   Agent: ["workspaceId", "name"],
   ToolConnection: ["workspaceId", "toolId"],
   AgentToolAssignment: ["workspaceId", "agentId", "toolId"],
-  WorkflowStep: ["workflowId", "stepOrder"],
   TaskRun: ["jobId"],
   KnowledgeAccessGrant: ["workspaceId", "documentId", "agentId"]
 };

@@ -3,7 +3,7 @@ import type { WorkflowStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { WorkflowDto, WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 import type { WorkflowRepository } from "../infrastructure/workflow-repository.ts";
 import { createWorkflow, createWorkflowStep, toWorkflowSummary, toWorkflowStepDto } from "../domain/workflow.ts";
-import { validateWorkflowAgents, WorkflowValidationError } from "../domain/workflow-validation.ts";
+import { validateWorkflowAgents, validateWorkflowDAG, WorkflowValidationError } from "../domain/workflow-validation.ts";
 import type { AgentSummaryProvider } from "../domain/workflow-validation.ts";
 import type { ExecuteWorkflowRequest } from "@vcp/shared/contracts/workflow.ts";
 
@@ -17,7 +17,7 @@ export interface CreateWorkflowCommand {
   description?: string;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
-  steps: { agentId: string; stepOrder: number }[];
+  steps: { agentId: string; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null }[];
 }
 
 export interface UpdateWorkflowCommand {
@@ -28,7 +28,7 @@ export interface UpdateWorkflowCommand {
   status?: WorkflowStatus;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
-  steps?: { agentId: string; stepOrder: number }[];
+  steps?: { agentId: string; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null }[];
 }
 
 export interface ExecuteWorkflowCommand {
@@ -58,14 +58,17 @@ export class WorkflowUseCases {
         command.workspaceId,
         workflowId,
         step.agentId as EntityId<"agentId">,
-        step.stepOrder
+        step.stepOrder,
+        step.nextSteps
       )
     );
 
     const workflow = createWorkflow(workflowId, command.workspaceId, command.name, command.description ?? null, command.triggerType ?? "manual", command.triggerConfig ?? null, steps);
 
     // Validate agents before creation
-    await validateWorkflowAgents(workflow.workspaceId, workflow.steps.map(toWorkflowStepDto), this.agentProvider);
+    const stepDtos = workflow.steps.map(toWorkflowStepDto);
+    await validateWorkflowAgents(workflow.workspaceId, stepDtos, this.agentProvider);
+    validateWorkflowDAG(stepDtos);
 
     await this.repository.save(workflow);
 
@@ -109,7 +112,8 @@ export class WorkflowUseCases {
           command.workspaceId,
           workflow.workflowId,
           step.agentId as EntityId<"agentId">,
-          step.stepOrder
+          step.stepOrder,
+          step.nextSteps
         )
       );
     }
@@ -119,7 +123,9 @@ export class WorkflowUseCases {
 
     // Re-validate agents on update to ensure no disabled agents are persisted if status is active, 
     // or simply just ensure the workflow remains valid.
-    await validateWorkflowAgents(workflow.workspaceId, workflow.steps.map(toWorkflowStepDto), this.agentProvider);
+    const stepDtos = workflow.steps.map(toWorkflowStepDto);
+    await validateWorkflowAgents(workflow.workspaceId, stepDtos, this.agentProvider);
+    validateWorkflowDAG(stepDtos);
 
     await this.repository.save(workflow);
 

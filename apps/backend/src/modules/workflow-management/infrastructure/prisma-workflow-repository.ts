@@ -50,6 +50,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             workflowId: step.workflowId,
             agentId: step.agentId,
             stepOrder: step.stepOrder,
+            nextSteps: step.nextSteps ? JSON.stringify(step.nextSteps) : null,
             createdAt: step.createdAt,
             updatedAt: step.updatedAt,
           })),
@@ -92,6 +93,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           workflowId: step.workflowId as EntityId<"workflowId">,
           agentId: step.agentId as EntityId<"agentId">,
           stepOrder: step.stepOrder,
+          nextSteps: step.nextSteps ? JSON.parse(step.nextSteps as string) : null,
           createdAt: step.createdAt,
           updatedAt: step.updatedAt,
         })
@@ -138,6 +140,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           workflowId: step.workflowId as EntityId<"workflowId">,
           agentId: step.agentId as EntityId<"agentId">,
           stepOrder: step.stepOrder,
+          nextSteps: step.nextSteps ? JSON.parse(step.nextSteps as string) : null,
           createdAt: step.createdAt,
           updatedAt: step.updatedAt,
         })
