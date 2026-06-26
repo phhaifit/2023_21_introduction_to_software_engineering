@@ -213,7 +213,7 @@ describe("Compact Orchestration Dock & Expandable Details", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("FAIL_SIMULATION: check dock and details");
-    
+
     const dock = screen.getByLabelText("Compact orchestration dock");
     expect(dock).toBeVisible();
 
@@ -314,7 +314,7 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} streamingRuntime={sRuntime} completionRuntime={cRuntime} />);
 
     await submitPrompt("Check cancel button");
-    
+
     const dock = screen.getByLabelText("Compact orchestration dock");
     expect(within(dock).getByRole("button", { name: /Cancel task/i })).toBeVisible();
 
@@ -364,7 +364,7 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
   it("25: Keyboard and focus behavior remains accessible", async () => {
     const user = userEvent.setup();
     render(<TaskOrchestrationPage />);
-    
+
     const input = screen.getByRole("textbox", { name: "Request" });
     await user.tab();
     // Verify focus can move properly
