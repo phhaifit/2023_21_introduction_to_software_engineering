@@ -32,10 +32,10 @@ The frontend currently has a PA5 prototype under
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration. Documents and Upload screens now use the typed
-frontend KB/RAG API client as their runtime source of truth. The remaining Data
-Sources, Synchronization Scope, and Processing Status views are still
-placeholder-only and should be integrated in later scoped slices.
+change that integration. Documents, Upload, Data Sources, and Synchronization
+Scope screens now use the typed frontend KB/RAG API client as their runtime
+source of truth. The remaining Processing Status view is still
+placeholder-only and should be integrated in a later scoped slice.
 
 The backend now has an internal module foundation under
 `apps/backend/src/modules/knowledge-base-rag`:
@@ -58,8 +58,7 @@ Runtime implementation still needs:
 - Upload parsing, object storage, embedding, vector indexing, and external
   source adapters.
 - Worker ingestion/sync runtime handoff.
-- Frontend API integration for Data Sources, Synchronization Scope, and
-  Processing Status.
+- Frontend API integration for Processing Status.
 - Worker tests, frontend integration tests, and functional PA5 tests.
 
 The worker path `apps/workers/src/jobs/document-ingestion` currently contains

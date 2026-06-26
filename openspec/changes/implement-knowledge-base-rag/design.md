@@ -81,10 +81,15 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: Documents loads `KnowledgeDocumentDto` values through `listDocuments`; Upload converts selected `File` objects to metadata-only `UploadCandidateFileDto` values, validates candidates through the API client, and prepares only accepted candidates. This slice does not integrate Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, vector databases, or new dependencies.
    - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
 
+15. Wire Data Sources and Synchronization Scope screens through the frontend API client in a scoped slice.
+   - Rationale: Runtime source/scope screens should use the same shared DTO and route boundary as backend routes instead of remaining static placeholders once the API client exists.
+   - Boundary: Data Sources loads `KnowledgeDataSourceDto` values through `listDataSources` and records safe connection intent through `connectDataSource` without credentials. Synchronization Scope loads `SyncScopeNodeDto` values through `getSyncScope`, persists selected scope IDs through `updateSyncScope`, requests queued manual sync intent through `requestManualSync`, and displays `SyncJobDto` values through `listSyncJobs`. This slice does not integrate Processing Status, worker runtime, external provider/OAuth flows, credentials, object storage, file parsing, embedding providers, vector databases, or new dependencies.
+   - Constraint: Frontend request bodies must not include workspace IDs, actor/user IDs, generated IDs, lifecycle status controlled by the server, timestamps, storage keys, vector references, queue payloads, credentials, secrets, tokens, refresh tokens, passwords, raw provider payloads, raw embeddings, or vector config.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
 - Embedding services may be unavailable -> Provide mock/local adapter mode for demos and tests.
 - Access control is security-sensitive -> Check agent knowledge assignment before retrieval, not only during upload.
-- Public contracts can drift from prototype UI mocks -> Keep runtime Documents and Upload flows mapped to shared DTOs through the API client, and keep any remaining mock data isolated to placeholder/test use.
+- Public contracts can drift from prototype UI mocks -> Keep runtime Documents, Upload, Data Sources, and Synchronization Scope flows mapped to shared DTOs through the API client, and keep any remaining mock data isolated to placeholder/test use.
 - KB/RAG persistence can outgrow the initial additive schema -> Add later migrations only through focused OpenSpec-backed issues and keep vector/embedding provider internals behind adapters.

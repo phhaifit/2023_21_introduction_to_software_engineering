@@ -39,11 +39,12 @@ The Knowledge Base / RAG frontend currently includes:
 - Upload Documents screen.
 - Typed frontend API client for the workspace-scoped KB/RAG routes.
 
-The Documents and Upload screens now use the typed KB/RAG API client for
-runtime loading, metadata-only upload validation, and upload preparation. Local
-mock data remains available for isolated prototype/test use. Do not wire Data
-Sources, Synchronization Scope, or Processing Status to API calls outside their
-own scoped frontend integration issues.
+The Documents, Upload, Data Sources, and Synchronization Scope screens now use
+the typed KB/RAG API client for runtime loading, metadata-only upload
+validation/preparation, safe data-source placeholder connection, sync-scope
+updates, manual sync requests, and sync job reads. Local mock data remains
+available for isolated prototype/test use. Do not wire Processing Status to API
+calls outside its own scoped frontend integration issue.
 
 The backend now has an internal foundation for future runtime implementation:
 
@@ -354,12 +355,13 @@ npm run prisma -- validate
 
 ## Current UI Guidance
 
-Documents and Upload use the API client; remaining placeholder views may keep
-local mock data until their own scoped integration issues wire them to API
-contracts. New UI-only flows should pause until the API/DTO/event foundation is
-designed. The KB/RAG API client follows the Agent Management and Workflow
-Management client pattern: typed fetch wrapper, shared `ApiResponse` parsing,
-shared `ErrorCode`, network error handling, and malformed-response handling.
+Documents, Upload, Data Sources, and Synchronization Scope use the API client;
+remaining placeholder views may keep local mock data until their own scoped
+integration issues wire them to API contracts. New UI-only flows should pause
+until the API/DTO/event foundation is designed. The KB/RAG API client follows
+the Agent Management and Workflow Management client pattern: typed fetch
+wrapper, shared `ApiResponse` parsing, shared `ErrorCode`, network error
+handling, and malformed-response handling.
 
 ## Final Response Checklist
 
