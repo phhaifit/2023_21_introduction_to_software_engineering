@@ -57,6 +57,12 @@ import {
   createTaskRuntimeRegistry,
   type TaskRuntimeRegistry
 } from "./model/task-runtime-registry";
+import {
+  resolveTaskOrchestrationProvider,
+  DEFAULT_PROVIDER_CONFIG,
+  type TaskOrchestrationClient,
+  type TaskEventSubscription
+} from "./model/task-orchestration-provider";
 
 import "./task-orchestration-page.css";
 import "./task-orchestration-tokens.css";
@@ -70,6 +76,7 @@ type TaskOrchestrationPageProps = {
   isReconnecting?: boolean;
   isProviderUnavailable?: boolean;
   taskCreationClient?: TaskCreationClient;
+  taskOrchestrationClient?: TaskOrchestrationClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
   processingRuntime?: TaskProcessingRuntime;
   processingDelays?: Readonly<{
@@ -96,6 +103,7 @@ export function TaskOrchestrationPage({
   isReconnecting = false,
   isProviderUnavailable = false,
   taskCreationClient,
+  taskOrchestrationClient,
   onCancelTaskRequested,
   processingRuntime,
   processingDelays,
@@ -116,9 +124,6 @@ export function TaskOrchestrationPage({
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [cancelTargetTaskId, setCancelTargetTaskId] = useState<string | null>(null);
-  const taskClientRef = useRef(
-    taskCreationClient ?? createMockTaskCreationClient()
-  );
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
@@ -142,41 +147,20 @@ export function TaskOrchestrationPage({
     completionDelays ?? DEFAULT_TASK_COMPLETION_DELAYS
   );
 
-  const runtimeRegistryRef = useRef<TaskRuntimeRegistry | null>(null);
-
-  function getOrCreateRuntimeRegistry(): TaskRuntimeRegistry {
-    if (runtimeRegistryRef.current) {
-      return runtimeRegistryRef.current;
-    }
-
-    const registry = createTaskRuntimeRegistry({
-      processingRuntime: runtimeRef.current,
-      processingDelays: delaysRef.current,
-      streamingRuntime: streamingRuntimeRef.current,
-      streamingDelays: streamingDelaysRef.current,
-      completionRuntime: completionRuntimeRef.current,
-      completionDelays: completionDelaysRef.current,
-      stateReader: {
-        findTask: (taskId) =>
-          taskStateRef.current.tasks.find((task) => task.taskId === taskId)
-      },
-      actionSink: {
-        dispatch: (action) => {
-          if (mountedRef.current) {
-            taskStateRef.current = taskCreationReducer(
-              taskStateRef.current,
-              action
-            );
-            dispatchRef.current(action);
-          }
-        }
-      },
-      cancellationCoordinator
-    });
-
-    runtimeRegistryRef.current = registry;
-    return registry;
-  }
+  const clientRef = useRef(
+    taskOrchestrationClient ??
+      resolveTaskOrchestrationProvider(DEFAULT_PROVIDER_CONFIG, {
+        taskCreationClient,
+        processingRuntime: runtimeRef.current,
+        processingDelays: delaysRef.current,
+        streamingRuntime: streamingRuntimeRef.current,
+        streamingDelays: streamingDelaysRef.current,
+        completionRuntime: completionRuntimeRef.current,
+        completionDelays: completionDelaysRef.current,
+        cancellationCoordinator
+      })
+  );
+  const subscriptionsRef = useRef(new Map<string, TaskEventSubscription>());
 
   const activeConversation = getActiveConversation(taskState);
   const activeConversationTasks = taskState.activeConversationId
@@ -225,22 +209,20 @@ export function TaskOrchestrationPage({
 
   useEffect(() => {
     mountedRef.current = true;
-
-    const registry = getOrCreateRuntimeRegistry();
+    const client = clientRef.current;
+    const subs = subscriptionsRef.current;
 
     return () => {
       mountedRef.current = false;
-      registry.dispose();
-
-      if (runtimeRegistryRef.current === registry) {
-        runtimeRegistryRef.current = null;
+      for (const sub of subs.values()) {
+        client.unsubscribeFromTaskEvents(sub);
+      }
+      subs.clear();
+      if ("reset" in client && typeof (client as any).reset === "function") {
+        (client as any).reset();
       }
     };
   }, []);
-
-  useEffect(() => {
-    getOrCreateRuntimeRegistry().syncTasks(taskState.tasks);
-  }, [taskState.tasks]);
 
   useEffect(() => {
     setIsDetailModalOpen(false);
@@ -273,7 +255,7 @@ export function TaskOrchestrationPage({
     dispatchTaskAction({ type: "submit-started" });
 
     try {
-      const response = await taskClientRef.current.createTask(requestResult.request);
+      const response = await clientRef.current.createTask(requestResult.request);
       dispatchTaskAction({
         type: "task-created",
         request: requestResult.request,
@@ -281,6 +263,13 @@ export function TaskOrchestrationPage({
         conversationId: taskState.activeConversationId
       });
       setPrompt("");
+
+      const sub = clientRef.current.subscribeToTaskEvents(response.taskId as string, (event) => {
+        if (mountedRef.current) {
+          dispatchTaskAction({ type: "runtime-event", event });
+        }
+      });
+      subscriptionsRef.current.set(response.taskId as string, sub);
     } catch {
       dispatchTaskAction({
         type: "submission-failed",
@@ -415,7 +404,7 @@ export function TaskOrchestrationPage({
             <TaskCancelConfirmationDialog
               task={cancelTargetTask}
               onConfirm={() => {
-                getOrCreateRuntimeRegistry().cancelTask(cancelTargetTask.taskId);
+                clientRef.current.cancelTask(cancelTargetTask.taskId as string);
                 setIsCancelDialogOpen(false);
                 setCancelTargetTaskId(null);
               }}
