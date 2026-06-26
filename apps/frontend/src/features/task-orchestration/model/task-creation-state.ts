@@ -269,17 +269,25 @@ export function taskCreationReducer(
       const updatedConv: TaskConversationSession = {
         ...existingConv,
         title: isFirstTask ? deriveConversationTitle(task.prompt) : existingConv.title,
-        taskIds: [...existingConv.taskIds, task.taskId],
+        taskIds: [...existingConv.taskIds.filter((id) => id !== task.taskId), task.taskId],
         updatedAt: task.createdAt
       };
 
-      const updatedConversations = conversations.some((c) => c.conversationId === updatedConv.conversationId)
-        ? conversations.map((c) => (c.conversationId === updatedConv.conversationId ? updatedConv : c))
-        : [...conversations, updatedConv];
+      const updatedConversations = (
+        conversations.some((c) => c.conversationId === updatedConv.conversationId)
+          ? conversations.map((c) => (c.conversationId === updatedConv.conversationId ? updatedConv : c))
+          : [...conversations, updatedConv]
+      ).map((c) =>
+        c.conversationId === updatedConv.conversationId
+          ? c
+          : { ...c, taskIds: c.taskIds.filter((id) => id !== task.taskId) }
+      );
+
+      const updatedTasks = [...state.tasks.filter((t) => t.taskId !== task.taskId), task];
 
       return {
         ...state,
-        tasks: [...state.tasks, task],
+        tasks: updatedTasks,
         conversations: updatedConversations,
         activeConversationId: updatedConv.conversationId,
         activeTaskId: task.taskId,
