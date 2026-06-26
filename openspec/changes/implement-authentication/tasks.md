@@ -14,9 +14,9 @@
 
 ## 3. Frontend Experience
 
-- [ ] 3.1 Build registration, login, and logout UI flows in `apps/frontend/src/features/authentication`
-- [ ] 3.2 Add authenticated state handling and protected-route guard
-- [ ] 3.3 Display validation and authentication errors without exposing sensitive details
+- [x] 3.1 Build registration, login, and logout UI flows in `apps/frontend/src/features/authentication`
+- [x] 3.2 Add authenticated state handling and protected-route guard
+- [x] 3.3 Display validation and authentication errors without exposing sensitive details
 
 ## 4. Verification and Handoff
 

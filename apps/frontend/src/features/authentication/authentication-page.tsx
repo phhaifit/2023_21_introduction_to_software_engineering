@@ -10,6 +10,10 @@ import {
 } from "./authentication-components.tsx";
 import { useAuth } from "./authentication-context.tsx";
 import {
+  EMAIL_REGEX,
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_COMPLEXITY_REGEX,
+  AUTH_FIELD_MESSAGES,
   getAuthErrorMessage,
   validateLoginForm,
   validateRegisterForm,
@@ -114,10 +118,14 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // Success banner shown on login screen after successful registration
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   function switchTo(next: "login" | "register") {
     setScreen(next);
     setFormError(null);
     setFieldErrors({});
+    setSuccessMessage(null);
   }
 
   function fieldError(field: string): string | undefined {
@@ -132,6 +140,60 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
     setFieldErrors(map);
   }
 
+  function setOneFieldError(field: string, message: string) {
+    setFieldErrors((prev) => ({ ...prev, [field]: message }));
+  }
+
+  function clearOneFieldError(field: string) {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // onBlur validators — run only for the blurred field
+  // ---------------------------------------------------------------------------
+
+  function handleEmailBlur() {
+    if (email === "") return; // Don't flag empty on first touch; submit handles that.
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setOneFieldError("email", AUTH_FIELD_MESSAGES.emailInvalid);
+    } else {
+      clearOneFieldError("email");
+    }
+  }
+
+  function handlePasswordBlur() {
+    if (password === "") return;
+    if (
+      password.length < MIN_PASSWORD_LENGTH ||
+      !PASSWORD_COMPLEXITY_REGEX.test(password)
+    ) {
+      setOneFieldError("password", AUTH_FIELD_MESSAGES.passwordTooShort);
+    } else {
+      clearOneFieldError("password");
+    }
+  }
+
+  function handlePasswordConfirmationBlur() {
+    if (passwordConfirmation === "") return;
+    if (password !== passwordConfirmation) {
+      setOneFieldError(
+        "passwordConfirmation",
+        AUTH_FIELD_MESSAGES.passwordsMismatch
+      );
+    } else {
+      clearOneFieldError("passwordConfirmation");
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Submit handlers
+  // ---------------------------------------------------------------------------
+
   async function handleLogin() {
     const values = { email, password };
     const validation = validateLoginForm(values);
@@ -143,6 +205,7 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
 
     setFieldErrors({});
     setFormError(null);
+    setSuccessMessage(null);
 
     const result = await signIn(values);
     if (!result.ok) {
@@ -163,15 +226,28 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
     setFormError(null);
 
     const result = await signUp(values);
+
     if (!result.ok) {
-      setFormError(getAuthErrorMessage(result.code));
+      // Duplicate email → field-level error on email; anything else → form banner.
+      if (result.code === "validation.invalid_input") {
+        setOneFieldError(
+          "email",
+          getAuthErrorMessage("validation.invalid_input")
+        );
+      } else {
+        setFormError(getAuthErrorMessage(result.code));
+      }
       return;
     }
 
-    // Registration succeeded — redirect to login without auto-login.
+    // Registration succeeded — set success message then switch to login manually
+    // so that switchTo() does not clear successMessage.
     setPassword("");
     setPasswordConfirmation("");
-    switchTo("login");
+    setScreen("login");
+    setFormError(null);
+    setFieldErrors({});
+    setSuccessMessage("Account created. Please log in.");
   }
 
   return (
@@ -181,6 +257,11 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
 
         {screen === "login" ? (
           <AuthCard title="Log in">
+            {successMessage ? (
+              <p className="auth-success-banner" role="status">
+                {successMessage}
+              </p>
+            ) : null}
             {formError ? <AuthAlert message={formError} /> : null}
             <form
               noValidate
@@ -195,7 +276,11 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
                 label="Email"
                 type="email"
                 value={email}
-                onChange={setEmail}
+                onChange={(v) => {
+                  setEmail(v);
+                  setSuccessMessage(null);
+                }}
+                onBlur={handleEmailBlur}
                 error={fieldError("email")}
                 autoComplete="email"
                 disabled={isSubmitting}
@@ -205,7 +290,10 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
                 label="Password"
                 type="password"
                 value={password}
-                onChange={setPassword}
+                onChange={(v) => {
+                  setPassword(v);
+                  setSuccessMessage(null);
+                }}
                 error={fieldError("password")}
                 autoComplete="current-password"
                 disabled={isSubmitting}
@@ -241,6 +329,7 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
                 type="email"
                 value={email}
                 onChange={setEmail}
+                onBlur={handleEmailBlur}
                 error={fieldError("email")}
                 autoComplete="email"
                 disabled={isSubmitting}
@@ -251,6 +340,7 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
                 type="password"
                 value={password}
                 onChange={setPassword}
+                onBlur={handlePasswordBlur}
                 error={fieldError("password")}
                 helperText="At least 8 characters, including a letter and a number."
                 autoComplete="new-password"
@@ -262,6 +352,7 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
                 type="password"
                 value={passwordConfirmation}
                 onChange={setPasswordConfirmation}
+                onBlur={handlePasswordConfirmationBlur}
                 error={fieldError("passwordConfirmation")}
                 autoComplete="new-password"
                 disabled={isSubmitting}
