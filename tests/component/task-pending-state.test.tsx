@@ -482,7 +482,14 @@ describe("17. no dual mutable timeline source — authoritative snapshot only", 
   });
 
   it("page renders timeline from processingSnapshot.steps, not a legacy field", () => {
-    const source = readFileSync(
+    const dockSource = readFileSync(
+      join(
+        process.cwd(),
+        "apps/frontend/src/features/task-orchestration/components/task-orchestration-dock.tsx"
+      ),
+      "utf8"
+    );
+    const pageSource = readFileSync(
       join(
         process.cwd(),
         "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
@@ -490,8 +497,8 @@ describe("17. no dual mutable timeline source — authoritative snapshot only", 
       "utf8"
     );
 
-    expect(source).toMatch(/processingSnapshot\.steps/);
-    expect(source).not.toMatch(/activeTask\.timeline/);
+    expect(dockSource).toMatch(/processingSnapshot\.steps/);
+    expect(pageSource).not.toMatch(/activeTask\.timeline/);
   });
 });
 

@@ -2,16 +2,16 @@
 
 ## 1. Context and Objectives
 
-The core Task & Orchestration prototype established a robust in-memory lifecycle engine (Pending, In-Progress, Completed, Failed, Canceled) and simulated orchestration mechanics (Tasks 1–13). This design details the production user interface enhancement required to transform the prototype into a premium, accessible, and modern workspace.
+The core Task & Orchestration prototype established a robust in-memory lifecycle engine (Pending, In-Progress, Completed, Failed, Canceled) and simulated orchestration mechanics (Tasks 1–13). This design details the production user interface enhancement required to transform the prototype into a premium, accessible, and modern conversation workspace.
 
 The design strictly preserves the existing domain model, state machine, and in-memory architecture. It introduces no backend persistence and avoids copying proprietary branding from commercial products.
 
 ## 2. Design Goals
 
 1. Establish a cohesive visual design system (typography, spacing, color, elevation).
-2. Refine the workspace shell and information architecture for superior ergonomics.
+2. Refine the conversation workspace shell, session navigation, and information architecture for superior ergonomics.
 3. Polish the composer, routing selector, execution feed, and processing inspector.
-4. Provide in-memory task history navigation, search, and status filtering.
+4. Provide in-memory conversation/history navigation, search, and status filtering.
 5. Implement flawless responsive design, empty states, and accessibility primitives.
 6. Maintain strict separation between UI `Loading` states and canonical `Pending` lifecycle states.
 7. Ensure all implementation pull requests remain focused and generally within 500 added lines of code.
@@ -39,12 +39,14 @@ The enhancement refines the existing component tree in `apps/frontend/src/featur
 TaskOrchestrationPage (Workspace Shell)
 ├── Sidebar
 │   ├── Workspace Introduction / Navigation Header
-│   └── TaskHistoryList (In-memory)
+│   └── ConversationHistoryNavigation (In-memory)
+│       ├── NewChatButton
 │       ├── SearchInput
-│       └── StatusFilterBar
+│       ├── StatusFilterBar
+│       └── ConversationList
 ├── MainContentArea
 │   ├── WorkspaceTopBar
-│   ├── ExecutionFeed (Task Cards / Timeline / Logs)
+│   ├── ExecutionFeed (Multi-turn Task Cards / Timeline / Logs)
 │   │   ├── TaskStatusBadge
 │   │   ├── TaskTimeline
 │   │   ├── StreamingResult
@@ -59,18 +61,54 @@ TaskOrchestrationPage (Workspace Shell)
 
 ## 5. Key Architectural Rules
 
-### 5.1 In-Memory History and Filtering
-* The `TaskHistoryList` renders tasks currently held in the client-side `TaskStore`.
-* Filtering operates on the in-memory array using `task.status`.
-* Search inspects `task.prompt`, `task.taskId`, and `task.workId`.
-* The UI must explicitly convey that history is session-scoped (in-memory) and will reset upon page reload or demo reset. No backend persistence is added.
+### 5.1 Authoritative Task Collection
+* Continue using the existing Task collection: `TaskCreationState.tasks`.
+* Do not create another Task store.
 
-### 5.2 Strict Separation of Loading vs. Pending
+### 5.2 Conversation Session View Model
+A conversation session may contain:
+```ts
+type TaskConversationSession = {
+  conversationId: string;
+  title: string;
+  taskIds: readonly string[];
+  createdAt: string;
+  updatedAt: string;
+};
+```
+* Conversation records must not copy prompt, partial output, final result, errors, logs, timeline, or routing metadata.
+
+### 5.3 Active Selection
+* Define `activeConversationId`.
+* Define active Task derived from the latest Task in the selected conversation, or a consistently maintained `activeTaskId`.
+* Changing active conversation is a presentation action only. It must not restart a Task, cancel a Task, stop a Task, or change lifecycle status.
+
+### 5.4 Per-Task Runtime Ownership
+Current single refs and active-Task effects are not sufficient for inactive background Tasks.
+* Processing handles are keyed by Task ID.
+* Streaming handles are keyed by Task ID.
+* Completion handles are keyed by Task ID.
+* Callbacks update records by Task ID.
+* Switching conversations does not cleanup another Task’s runtime.
+* Terminal Tasks clean up their own handles.
+* Reset/unmount cleans all remaining handles.
+* No new backend service is prescribed.
+
+### 5.5 New Chat versus Demo Reset
+* **New Chat:** Creates a new empty conversation, retains existing conversations and Tasks, and does not stop running Tasks.
+* **Demo Reset:** Follows the existing reset contract, clears conversation references consistently, and leaves no orphan IDs or handles.
+
+### 5.6 Task Boundaries
+* **Task 2 owns:** Minimal conversation navigation, New Chat, active conversation, switching, multi-turn rendering, background Task continuity, and workspace shell.
+* **Task 5 owns:** Search, status filters, prompt/Task ID/Work ID discovery, advanced history browsing, and optional sorting defined by the roadmap.
+* **Task 6 owns:** Final responsive, loading, empty, no-result, and accessibility polish.
+
+### 5.7 Strict Separation of Loading vs. Pending
 * **UI Loading State:** Represents an asynchronous view state (e.g., initial module loading or component mounting). Displayed via dedicated loading spinners or skeleton screens with appropriate ARIA labels (`aria-busy="true"`).
 * **Canonical Pending State:** Represents an established `Task` record that has been successfully submitted and validated, but has not yet begun simulated orchestration. Displayed via the canonical `Pending` status badge and initial timeline steps.
 * UI Loading must never be labeled or treated as `Pending`.
 
-### 5.3 Preservation of Lifecycle Semantics
+### 5.8 Preservation of Lifecycle Semantics
 * All UI enhancements are presentation-only.
 * Components must not directly mutate `task.status`, bypass state machine helpers (`canTransition`, `isTerminalStatus`), or modify the core logic established in Tasks 1–13.
 

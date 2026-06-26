@@ -47,37 +47,54 @@
 
   `feat(task-orchestration): establish production UI visual system`
 
-* [ ] 2. Task Workspace Shell and Information Architecture
+* [ ] 2. Conversation Workspace Shell and Session Navigation
 
   Scope:
 
-  * Upgrade the main Task & Orchestration page shell layout.
-  * Refine the information architecture separating the sidebar navigation, workspace header, main execution feed, and pinned composer area.
-  * Implement clean layout transitions and container boundaries using the established visual system tokens.
-  * Maintain strict separation between UI loading states and canonical Pending lifecycle states.
+  * In-memory conversation collection and active conversation management.
+  * New Chat action and ordered Task IDs per conversation.
+  * Multi-turn append and previous-turn preservation.
+  * Conversation switching and minimal conversation navigation in the sidebar.
+  * Per-Task background update isolation (runtimes keyed by Task ID).
+  * Orchestration dock and Processing Details scoped to the selected conversation.
+  * Upgrade the workspace shell layout and information architecture.
+  * No backend persistence.
   * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
 
   Acceptance:
 
-  * The workspace shell renders a clear, modern information architecture.
-  * Container slots for the sidebar, feed, and composer are stable and ergonomically positioned.
-  * UI loading states are distinct and do not use canonical Pending semantics.
-  * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
+  * Old chats are not overwritten.
+  * Second message appends to the current conversation.
+  * Earlier turns remain visible.
+  * New Chat retains previous conversations.
+  * Switching restores the correct history.
+  * Switching neither cancels nor reruns Tasks.
+  * Inactive running Tasks update the correct record.
+  * No state leakage between conversations.
+  * Empty conversation has no orchestration dock.
+  * Core Task lifecycle semantics remain strictly unchanged.
 
   Verification:
 
-  * Add workspace shell layout and rendering tests.
+  * Add reducer/state tests.
+  * Add multi-turn rendering tests.
+  * Add switching and isolation tests.
+  * Add background completion/failure tests.
+  * Add Strict Mode tests.
   * Run relevant frontend tests and build.
   * Run OpenSpec validation commands.
   * Run `git diff --check`.
 
   Suggested branch:
 
-  `feat/task-orchestration-workspace-shell`
+  `feat/task-orchestration-conversation-workspace`
 
   Suggested commits:
 
-  `feat(task-orchestration): upgrade workspace shell and information architecture`
+  `feat(task-orchestration): add in-memory conversation sessions`
+  `refactor(task-orchestration): isolate runtimes by task id`
+  `feat(task-orchestration): add conversation navigation and switching`
+  `test(task-orchestration): cover conversation history and isolation`
 
 * [ ] 3. Composer and Routing Experience
 
@@ -144,21 +161,23 @@
 
   `feat(task-orchestration): upgrade execution feed and processing inspector`
 
-* [ ] 5. Task History, Search, and Status Filters
+* [ ] 5. Conversation History, Search, and Status Filters
 
   Scope:
 
-  * Implement a client-side task history list within the workspace sidebar area.
-  * Add a search input to filter in-memory tasks by prompt text, Task ID, or Work ID.
-  * Add status filter controls to view tasks by status (Pending, In-Progress, Completed, Failed, Canceled).
+  * Enhance the conversation/history navigation within the workspace sidebar area.
+  * Add search input to filter in-memory conversations by prompt text, Task ID, or Work ID matching.
+  * Add canonical status filter controls to view conversations/tasks by status (Pending, In-Progress, Completed, Failed, Canceled).
+  * Support empty search-result state.
   * Display an explicit visual notice confirming that history data is session-scoped (in-memory) and not persistently stored in a backend database.
+  * No backend persistence.
   * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
 
   Acceptance:
 
-  * Users can instantly search and filter the in-memory task history list.
+  * Users can instantly search and filter in-memory conversation history.
   * Filter controls correctly match the five canonical task statuses.
-  * Clear UI copy informs the user that task history is stored in-memory for the active session only.
+  * Clear UI copy informs the user that conversation history is stored in-memory for the active session only.
   * No backend persistence or database queries are introduced.
   * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
 
@@ -175,7 +194,7 @@
 
   Suggested commits:
 
-  `feat(task-orchestration): add in-memory task history, search, and status filters`
+  `feat(task-orchestration): add in-memory conversation history, search, and status filters`
 
 * [ ] 6. Responsive, Empty, Loading, and Accessibility Polish
 

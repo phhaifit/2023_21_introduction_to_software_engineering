@@ -296,10 +296,20 @@ describe("Task 9B streaming UI integration", () => {
     await submitPrompt("Second task.");
     expect(screen.getByText("Second task.")).toBeVisible();
     expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
-    expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
+    // Task A streaming continues in the background
+    expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
 
-    await reachExecuteStep(scheduler);
+    // Flush Task 1's next background fragment (Beta)
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
+    expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+
+    // Advance Task 2 to execute step (Task 1 also advances in background)
+    await reachExecuteStep(scheduler);
+    await act(() => { scheduler.flushNext(STEP_MS); });
+    await act(() => { scheduler.flushNext(STEP_MS); });
+    // Now both Task 1 (Gamma) and Task 2 (Second) have pending fragments
+    await act(() => { scheduler.flushNext(FRAGMENT_MS); }); // Flush Task 1 (Gamma)
+    await act(() => { scheduler.flushNext(FRAGMENT_MS); }); // Flush Task 2 (Second)
     expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Second");
     expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
   });
@@ -331,6 +341,10 @@ describe("Task 9B streaming UI integration", () => {
       join(root, "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"),
       "utf8"
     );
+    const dockSource = readFileSync(
+      join(root, "apps/frontend/src/features/task-orchestration/components/task-orchestration-dock.tsx"),
+      "utf8"
+    );
     const modalSource = readFileSync(
       join(root, "apps/frontend/src/features/task-orchestration/components/task-processing-detail-modal.tsx"),
       "utf8"
@@ -346,7 +360,7 @@ describe("Task 9B streaming UI integration", () => {
 
     expect(modalSource).toMatch(/ProcessingTimeline/);
     expect(modalSource).toMatch(/TaskLogList/);
-    expect(pageSource).toMatch(/TaskStatusBadge/);
+    expect(dockSource).toMatch(/TaskStatusBadge/);
     expect(pageSource).not.toMatch(/\.status\s*=\s*["'`](running|succeeded|failed|cancelled)/);
     expect(pageSource).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);
     expect(pageSource).not.toMatch(/\bwindow\.|\bsetTimeout\b|\bclearTimeout\b/);
