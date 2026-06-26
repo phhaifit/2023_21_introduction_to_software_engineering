@@ -256,6 +256,11 @@ describe("5. Failed Processing Details Modal", () => {
 
     // Verify Error Details inside modal
     expect(within(dialog).getByRole("heading", { name: "Error Details" })).toBeVisible();
+    expect(within(dialog).getByText("Không thể tổng hợp kết quả")).toBeVisible();
+
+    // Open Advanced details to see internal error code
+    const advancedToggle = within(dialog).getByRole("button", { name: /Show Advanced details/i });
+    await user.click(advancedToggle);
     expect(within(dialog).getByText("MOCK_AGGREGATION_FAILED")).toBeVisible();
 
     // Close modal
