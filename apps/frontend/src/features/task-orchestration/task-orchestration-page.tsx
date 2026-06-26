@@ -72,6 +72,7 @@ import {
   ROUTING_MODES,
   type RoutingMode
 } from "./model/task-types";
+import { TaskConversation } from "./components/task-conversation";
 
 import "./task-orchestration-page.css";
 import "./task-orchestration-tokens.css";
@@ -583,94 +584,101 @@ export function TaskOrchestrationPage({
               }`}
               aria-label={taskArticleLabel}
             >
-              <header className="task-workspace__task-header">
-                <div>
-                  <p className="task-workspace__eyebrow">Submitted request</p>
-                  <h3>{activeTask.prompt}</h3>
-                </div>
-                <TaskStatusBadge status={activeTaskPresentationStatus} />
-              </header>
-
-              <dl className="task-workspace__task-meta" aria-label="Task identifiers">
-                <div>
-                  <dt>Work ID</dt>
-                  <dd>{activeTask.workId}</dd>
-                </div>
-                <div>
-                  <dt>Task ID</dt>
-                  <dd>{activeTask.taskId}</dd>
-                </div>
-                <div>
-                  <dt>{activeTask.processingSnapshot.startedAt ? "Started" : "Created"}</dt>
-                  <dd>
-                    {activeTask.processingSnapshot.startedAt ?? activeTask.createdAt}
-                  </dd>
-                </div>
-              </dl>
-
-              <p className="task-workspace__routing-summary">
-                {formatRoutingSummary(activeTask.requestedRouting)}
-              </p>
-
-              <ProcessingTimeline
-                ariaLabel={timelineAriaLabel}
-                steps={activeTask.processingSnapshot.steps}
+              <TaskConversation
+                task={activeTask}
+                clipboardWriter={completionRuntimeRef.current.clipboard}
               />
 
-              {activeTask.status === "running" || activeTask.status === "cancelled" || activeTask.status === "failed" ? (
-                <TaskLogList
-                  logs={activeTask.processingSnapshot.logs}
-                  ariaLabel="Orchestration processing logs"
+              <div className="task-workspace__technical-meta sr-only">
+                <header className="task-workspace__task-header">
+                  <div>
+                    <p className="task-workspace__eyebrow">Submitted request</p>
+                    <h3>{activeTask.prompt}</h3>
+                  </div>
+                  <TaskStatusBadge status={activeTaskPresentationStatus} />
+                </header>
+
+                <dl className="task-workspace__task-meta" aria-label="Task identifiers">
+                  <div>
+                    <dt>Work ID</dt>
+                    <dd>{activeTask.workId}</dd>
+                  </div>
+                  <div>
+                    <dt>Task ID</dt>
+                    <dd>{activeTask.taskId}</dd>
+                  </div>
+                  <div>
+                    <dt>{activeTask.processingSnapshot.startedAt ? "Started" : "Created"}</dt>
+                    <dd>
+                      {activeTask.processingSnapshot.startedAt ?? activeTask.createdAt}
+                    </dd>
+                  </div>
+                </dl>
+
+                <p className="task-workspace__routing-summary">
+                  {formatRoutingSummary(activeTask.requestedRouting)}
+                </p>
+
+                <ProcessingTimeline
+                  ariaLabel={timelineAriaLabel}
+                  steps={activeTask.processingSnapshot.steps}
                 />
-              ) : null}
 
-              {shouldShowPartialResult ? (
-                <TaskPartialResult
-                  partialText={partialText}
-                  phase={activeTask.streamingSnapshot.phase}
-                />
-              ) : null}
+                {activeTask.status === "running" || activeTask.status === "cancelled" || activeTask.status === "failed" ? (
+                  <TaskLogList
+                    logs={activeTask.processingSnapshot.logs}
+                    ariaLabel="Orchestration processing logs"
+                  />
+                ) : null}
 
-              {activeTask.status === "succeeded" && activeTask.finalizedResult ? (
-                <TaskCompletedResult
-                  result={activeTask.finalizedResult}
-                  clipboardWriter={completionRuntimeRef.current.clipboard}
-                />
-              ) : null}
+                {shouldShowPartialResult ? (
+                  <TaskPartialResult
+                    partialText={partialText}
+                    phase={activeTask.streamingSnapshot.phase}
+                  />
+                ) : null}
 
-              {activeTask.status === "cancelled" ? (
-                <TaskCanceledState task={activeTask} />
-              ) : null}
+                {activeTask.status === "succeeded" && activeTask.finalizedResult ? (
+                  <TaskCompletedResult
+                    result={activeTask.finalizedResult}
+                    clipboardWriter={completionRuntimeRef.current.clipboard}
+                  />
+                ) : null}
 
-              {activeTask.status === "failed" ? (
-                <TaskFailedState task={activeTask} />
-              ) : null}
+                {activeTask.status === "cancelled" ? (
+                  <TaskCanceledState task={activeTask} />
+                ) : null}
 
-              {activeTask.status === "queued" || activeTask.status === "running" ? (
-                <div className="task-workspace__pending-actions">
-                  <button
-                    type="button"
-                    className="task-workspace__cancel-btn"
-                    onClick={() => {
-                      if (onCancelTaskRequested) {
-                        onCancelTaskRequested(activeTask.taskId);
-                      } else {
-                        setIsCancelDialogOpen(true);
-                      }
-                    }}
-                  >
-                    Cancel task
-                  </button>
-                </div>
-              ) : null}
+                {activeTask.status === "failed" ? (
+                  <TaskFailedState task={activeTask} />
+                ) : null}
 
-              {activeTask.status === "succeeded" || activeTask.status === "running" || activeTask.status === "failed" ? (
-                <div className="task-workspace__detail-actions">
-                  <button type="button" onClick={() => setIsDetailModalOpen(true)}>
-                    View processing details
-                  </button>
-                </div>
-              ) : null}
+                {activeTask.status === "queued" || activeTask.status === "running" ? (
+                  <div className="task-workspace__pending-actions">
+                    <button
+                      type="button"
+                      className="task-workspace__cancel-btn"
+                      onClick={() => {
+                        if (onCancelTaskRequested) {
+                          onCancelTaskRequested(activeTask.taskId);
+                        } else {
+                          setIsCancelDialogOpen(true);
+                        }
+                      }}
+                    >
+                      Cancel task
+                    </button>
+                  </div>
+                ) : null}
+
+                {activeTask.status === "succeeded" || activeTask.status === "running" || activeTask.status === "failed" ? (
+                  <div className="task-workspace__detail-actions">
+                    <button type="button" onClick={() => setIsDetailModalOpen(true)}>
+                      View processing details
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </article>
           ) : (
             <div className="task-workspace__empty">
