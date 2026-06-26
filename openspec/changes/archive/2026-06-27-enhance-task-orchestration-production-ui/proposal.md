@@ -63,7 +63,10 @@ This change explicitly does not implement:
 ### New Capabilities
 
 ### Modified Capabilities
-- `task-orchestration`: Enhances the production user interface to establish a provider-neutral, multi-turn conversation workspace with active session navigation, conversation-oriented history search and status filtering, polished composer ergonomics, execution feed clarity, task-scoped processing inspection, distinct UI loading/reconnecting states, and comprehensive accessibility compliance, while retaining deterministic mock execution as a legitimate test and development adapter without altering canonical lifecycle semantics or introducing backend persistence.
+- `task-workspace`: Enhances the production user interface to establish a provider-neutral workspace shell, polished composer ergonomics, execution feed clarity, task-scoped processing inspection, distinct UI loading/reconnecting states, mock execution transparency, and comprehensive accessibility compliance.
+- `task-history`: Establishes a multi-turn conversation workspace with active session navigation, conversation-oriented history search and status filtering, and preserves background Task execution by immutable Task ID.
+- `task-execution-lifecycle`: Enforces terminal-state protection ensuring a terminal Task does not return to an active lifecycle state due to delayed or stale updates.
+- `task-orchestration-core`: Consistently reflects responsibility boundaries, architectural ownership, external dependency contracts, and cross-change dependency order.
 
 ## Impact
 

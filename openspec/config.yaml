@@ -9,6 +9,31 @@ schema: spec-driven
 #     We use conventional commits
 #     Domain: e-commerce platform
 
+context: |
+  ### Requirement: Pull Request Code Size
+
+  The module SHALL apply the following code-size review guideline. Implementation and automated test code SHOULD generally remain within 500 added lines per reviewable pull request or sub-issue. Larger changes SHOULD be decomposed into multiple focused review units. Exceeding this guideline is not, by itself, a functional acceptance failure when the scope is justified, the work is reviewable, and all required verification passes.
+
+  Code-line accounting SHALL include implementation and automated test code.
+
+  A sub-issue that may exceed the recommendation SHOULD be decomposed into multiple focused review units.
+
+  The guideline MUST NOT be interpreted as a requirement to remove useful tests or reduce coverage merely to satisfy a line count.
+
+  #### Scenario: Implementation follows the review guideline
+
+  * **GIVEN** a sub-issue implementation is ready for review
+  * **WHEN** added code lines are counted
+  * **THEN** the count SHOULD generally remain within 500 lines per reviewable pull request or sub-issue
+  * **OR** the work SHOULD be decomposed into multiple focused review units
+
+  #### Scenario: Planned work may exceed the recommendation
+
+  * **GIVEN** the developer or coding agent estimates that a sub-issue may exceed the 500-line recommendation
+  * **WHEN** implementation planning is reviewed
+  * **THEN** the sub-issue SHOULD be decomposed into multiple focused review units before or during coding
+  * **AND** unrelated major concerns MUST NOT be combined in the same pull request
+
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
 # Example:
