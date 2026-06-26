@@ -60,7 +60,8 @@ This change explicitly does not implement:
 - `task-execution-adapter`: Establishes the provider-neutral consumer-side integration contract (`TaskExecutionAdapter`) and DTO definitions (`StartExecutionCommand`, `NormalizedRuntimeEvent`, `ExecutionBinding`, normalized errors) to decouple the platform Task lifecycle from external execution runtimes without provisioning runtimes or managing infrastructure.
 
 ### Modified Capabilities
-- `task-orchestration`: Adapts the platform task domain to consume the `TaskExecutionAdapter` port, formalizes lifecycle status mapping rules, enforces transport disconnection resilience, and defines `MockTaskExecutionAdapter` as a legitimate test and development adapter.
+- `task-execution-lifecycle`: Adapts the platform task domain to consume the `TaskExecutionAdapter` port, formalizes lifecycle status mapping rules, and enforces transport disconnection resilience.
+- `task-orchestration-core`: Defines `MockTaskExecutionAdapter` as a legitimate test and development adapter, and establishes responsibility boundaries, external dependency contracts, and cross-change dependency order.
 
 ## Impact
 

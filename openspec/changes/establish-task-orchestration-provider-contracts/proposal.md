@@ -21,7 +21,8 @@ The current Task & Orchestration UI is tightly coupled to the in-browser mock ex
 
 ### Modified Capabilities
 
-- `task-orchestration`: The UI behavior constraint is strengthened: the workspace MUST NOT branch on provider identity, and runtime ownership MUST remain anchored to immutable Task ID rather than conversation selection.
+- `task-workspace`: The UI behavior constraint is strengthened: the workspace MUST NOT branch on provider identity.
+- `task-history`: Runtime ownership MUST remain anchored to immutable Task ID rather than conversation selection.
 
 ## Impact
 
