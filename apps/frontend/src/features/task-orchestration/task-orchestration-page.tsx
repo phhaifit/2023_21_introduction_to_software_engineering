@@ -15,6 +15,9 @@ import {
 import {
   buildCreateTaskRequest,
   getActiveTask,
+  getActiveConversation,
+  getConversationTasks,
+  getLatestConversationTask,
   initialTaskCreationState,
   taskCreationReducer
 } from "./model/task-creation-state";
@@ -46,6 +49,10 @@ import {
 } from "./model/task-types";
 import { TaskConversation } from "./components/task-conversation";
 import { TaskOrchestrationDock } from "./components/task-orchestration-dock";
+import {
+  TaskConversationNavigation,
+  type TaskConversationNavigationItem
+} from "./components/task-conversation-navigation";
 import {
   createTaskRuntimeRegistry,
   type TaskRuntimeRegistry
@@ -104,6 +111,7 @@ export function TaskOrchestrationPage({
   );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancelTargetTaskId, setCancelTargetTaskId] = useState<string | null>(null);
   const taskClientRef = useRef(
     taskCreationClient ?? createMockTaskCreationClient()
   );
@@ -166,10 +174,48 @@ export function TaskOrchestrationPage({
     return registry;
   }
 
-  const activeTask = getActiveTask(taskState);
+  const activeConversation = getActiveConversation(taskState);
+  const activeConversationTasks = taskState.activeConversationId
+    ? getConversationTasks(taskState, taskState.activeConversationId)
+    : [];
+  const latestActiveConversationTask = taskState.activeConversationId
+    ? getLatestConversationTask(taskState, taskState.activeConversationId)
+    : undefined;
+
+  const activeTask = latestActiveConversationTask;
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
     : null;
+
+  const navigationItems: TaskConversationNavigationItem[] = taskState.conversations.map((conv) => {
+    const latestTask = getLatestConversationTask(taskState, conv.conversationId);
+    return {
+      conversationId: conv.conversationId,
+      title: conv.title,
+      latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined
+    };
+  });
+
+  function handleSelectConversation(conversationId: string): void {
+    setIsDetailModalOpen(false);
+    setIsCancelDialogOpen(false);
+    setCancelTargetTaskId(null);
+    dispatchTaskAction({
+      type: "conversation-selected",
+      conversationId
+    });
+  }
+
+  function handleCreateConversation(): void {
+    setIsDetailModalOpen(false);
+    setIsCancelDialogOpen(false);
+    setCancelTargetTaskId(null);
+    setPrompt("");
+    dispatchTaskAction({
+      type: "conversation-created",
+      createdAt: runtimeRef.current.clock.now()
+    });
+  }
 
   useEffect(() => {
     mountedRef.current = true;
@@ -193,6 +239,7 @@ export function TaskOrchestrationPage({
   useEffect(() => {
     setIsDetailModalOpen(false);
     setIsCancelDialogOpen(false);
+    setCancelTargetTaskId(null);
   }, [activeTask?.taskId]);
 
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
@@ -224,7 +271,8 @@ export function TaskOrchestrationPage({
       dispatchTaskAction({
         type: "task-created",
         request: requestResult.request,
-        response
+        response,
+        conversationId: taskState.activeConversationId
       });
       setPrompt("");
     } catch {
@@ -235,17 +283,6 @@ export function TaskOrchestrationPage({
     }
   }
 
-  const taskArticleLabel =
-    activeTask?.status === "running"
-      ? "In-progress task"
-      : activeTask?.status === "cancelled"
-      ? "Canceled task"
-      : activeTask?.status === "failed"
-      ? "Failed task"
-      : activeTask?.status === "succeeded"
-      ? "Completed task"
-      : "Pending task";
-
   return (
     <section className="task-workspace" aria-labelledby="task-workspace-title">
       <aside className="task-workspace__sidebar" aria-label="Task workspace sidebar">
@@ -253,14 +290,12 @@ export function TaskOrchestrationPage({
           <p className="task-workspace__eyebrow">Conversations</p>
           <h2>Workspace sessions</h2>
         </div>
-        <button type="button" disabled>
-          New conversation
-        </button>
-        <section className="task-workspace__history" aria-labelledby="recent-work-title">
-          <h3 id="recent-work-title">Recent work</h3>
-          <p>No conversations yet.</p>
-          <span>New sessions will appear here in a later task.</span>
-        </section>
+        <TaskConversationNavigation
+          items={navigationItems}
+          activeConversationId={taskState.activeConversationId}
+          onCreateConversation={handleCreateConversation}
+          onSelectConversation={handleSelectConversation}
+        />
       </aside>
 
       <div className="task-workspace__main">
@@ -284,18 +319,37 @@ export function TaskOrchestrationPage({
                 <p>Loading local conversation controls and suggestions.</p>
               </div>
             </div>
-          ) : activeTask && activeTaskPresentationStatus ? (
-            <article
-              className={`task-workspace__task-view${
-                activeTask.status === "running" ? " task-workspace__task-view--in-progress" : ""
-              }`}
-              aria-label={taskArticleLabel}
-            >
-              <TaskConversation
-                task={activeTask}
-                clipboardWriter={completionRuntimeRef.current.clipboard}
-              />
-            </article>
+          ) : activeConversation && activeConversationTasks.length > 0 ? (
+            <div className="task-workspace__feed" aria-label="Conversation task feed">
+              {activeConversationTasks.map((task) => {
+                const isRunning = task.status === "running";
+                const articleLabel =
+                  task.status === "running"
+                    ? "In-progress task"
+                    : task.status === "cancelled"
+                    ? "Canceled task"
+                    : task.status === "failed"
+                    ? "Failed task"
+                    : task.status === "succeeded"
+                    ? "Completed task"
+                    : "Pending task";
+
+                return (
+                  <article
+                    key={task.taskId as string}
+                    className={`task-workspace__task-view${
+                      isRunning ? " task-workspace__task-view--in-progress" : ""
+                    }`}
+                    aria-label={articleLabel}
+                  >
+                    <TaskConversation
+                      task={task}
+                      clipboardWriter={completionRuntimeRef.current.clipboard}
+                    />
+                  </article>
+                );
+              })}
+            </div>
           ) : (
             <div className="task-workspace__empty">
               <span className="task-workspace__empty-mark" aria-hidden="true">✦</span>
@@ -326,16 +380,23 @@ export function TaskOrchestrationPage({
           />
         ) : null}
 
-        {isCancelDialogOpen && activeTask && (activeTask.status === "queued" || activeTask.status === "running") ? (
-          <TaskCancelConfirmationDialog
-            task={activeTask}
-            onConfirm={() => {
-              getOrCreateRuntimeRegistry().cancelTask(activeTask.taskId);
-              setIsCancelDialogOpen(false);
-            }}
-            onDismiss={() => setIsCancelDialogOpen(false)}
-          />
-        ) : null}
+        {(() => {
+          const cancelTargetTask = taskState.tasks.find((t) => t.taskId === cancelTargetTaskId);
+          return isCancelDialogOpen && cancelTargetTask && (cancelTargetTask.status === "queued" || cancelTargetTask.status === "running") ? (
+            <TaskCancelConfirmationDialog
+              task={cancelTargetTask}
+              onConfirm={() => {
+                getOrCreateRuntimeRegistry().cancelTask(cancelTargetTask.taskId);
+                setIsCancelDialogOpen(false);
+                setCancelTargetTaskId(null);
+              }}
+              onDismiss={() => {
+                setIsCancelDialogOpen(false);
+                setCancelTargetTaskId(null);
+              }}
+            />
+          ) : null;
+        })()}
 
         {activeTask ? (
           <TaskOrchestrationDock
@@ -346,6 +407,7 @@ export function TaskOrchestrationPage({
                 onCancelTaskRequested(activeTask.taskId);
               } else {
                 setIsCancelDialogOpen(true);
+                setCancelTargetTaskId(activeTask.taskId);
               }
             }}
           />

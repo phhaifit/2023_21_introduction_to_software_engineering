@@ -184,7 +184,8 @@ describe("4. submitted prompt is visible in Pending view", () => {
     const prompt = "Prepare the Q2 summary for stakeholders.";
     await submitPrompt(prompt);
 
-    expect(screen.getByText(prompt)).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText(prompt)).toBeVisible();
   });
 });
 
@@ -842,7 +843,8 @@ describe("32. prompt remains visible after Cancel task click", () => {
     await submitPrompt(prompt);
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
 
-    expect(screen.getByText(prompt)).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText(prompt)).toBeVisible();
   });
 });
 

@@ -220,7 +220,8 @@ describe("2. Dialog", () => {
 
     // submit second task
     await submitPrompt("Second task");
-    expect(await screen.findByText("Second task")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(await within(feed).findByText("Second task")).toBeVisible();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
@@ -407,14 +408,15 @@ describe("7. Isolation and Lifecycle", () => {
     );
 
     await submitPrompt("Task A");
-    expect(await screen.findByText("Task A")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(await within(feed).findByText("Task A")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
     expect(screen.getByRole("dialog", { name: "Cancel task?" })).toBeVisible();
 
     // Switch to Task B by submitting new prompt
     await submitPrompt("Task B");
-    expect(await screen.findByText("Task B")).toBeVisible();
+    expect(await within(feed).findByText("Task B")).toBeVisible();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // dialog closed
 
     // Open dialog on Task B
@@ -424,7 +426,7 @@ describe("7. Isolation and Lifecycle", () => {
 
     await user.click(within(dialogB).getByRole("button", { name: "Confirm cancellation" }));
     expect(screen.getByLabelText("Task status: Canceled")).toBeVisible();
-    expect(screen.getByText("Task B")).toBeVisible();
+    expect(within(feed).getByText("Task B")).toBeVisible();
 
     // Unmount safety
     expect(() => unmount()).not.toThrow();

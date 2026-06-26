@@ -159,7 +159,8 @@ async function submitPrompt(prompt: string) {
   const user = userEvent.setup();
   await user.type(screen.getByRole("textbox", { name: "Request" }), prompt);
   await user.click(screen.getByRole("button", { name: "Send request" }));
-  await screen.findByText(prompt);
+  const feed = screen.getByRole("region", { name: /conversation/i });
+  await within(feed).findByText(prompt);
 }
 
 async function startRunning(scheduler: FakeScheduler) {
@@ -264,7 +265,8 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
     expect(screen.getByRole("region", { name: /completed result/i })).toBeVisible();
     expect(screen.getByText("Alpha Beta Gamma")).toBeVisible();
-    expect(screen.getByText("Complete me.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Complete me.")).toBeVisible();
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
 
     const user = userEvent.setup();
@@ -323,9 +325,10 @@ describe("Task 10B Completed Result UI Integration", () => {
     // Flush the background completion for Task 1
     await act(() => { first.scheduler.flushNext(COMPLETION_MS); });
 
-    // UI still renders only the currently selected Task (Task 2, which is Pending/In-progress, not Completed)
-    expect(screen.queryByRole("region", { name: /completed result/i })).not.toBeInTheDocument();
-    expect(screen.getByText("Second task.")).toBeVisible();
+    // In a multi-turn conversation feed, Task 1's completed result remains visible, while Task 2 is still pending/in-progress
+    expect(screen.getAllByRole("region", { name: /completed result/i })).toHaveLength(1);
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Second task.")).toBeVisible();
 
     // Progress Task 2 to completion
     await completeTask(first.scheduler, 1);

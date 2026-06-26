@@ -1,7 +1,8 @@
-# Task & Orchestration PA5 Prototype Specification
+# task-orchestration Specification
 
-## ADDED Requirements
-
+## Purpose
+TBD - created by archiving change implement-task-orchestration. Update Purpose after archive.
+## Requirements
 ### Requirement: Task and Work Ownership Boundary
 
 The Task & Orchestration module SHALL own Task and TaskWork execution-attempt
@@ -816,7 +817,6 @@ The PA5 prototype SHALL operate without external APIs, external databases, exter
 
 ---
 
-
 ### Requirement: Pull Request Code Size
 
 The module SHALL apply the following code-size review guideline. Implementation and automated test code SHOULD generally remain within 500 added lines per reviewable pull request or sub-issue. Larger changes SHOULD be decomposed into multiple focused review units. Exceeding this guideline is not, by itself, a functional acceptance failure when the scope is justified, the work is reviewable, and all required verification passes.
@@ -840,3 +840,4 @@ The guideline MUST NOT be interpreted as a requirement to remove useful tests or
 * **WHEN** implementation planning is reviewed
 * **THEN** the sub-issue SHOULD be decomposed into multiple focused review units before or during coding
 * **AND** unrelated major concerns MUST NOT be combined in the same pull request
+
