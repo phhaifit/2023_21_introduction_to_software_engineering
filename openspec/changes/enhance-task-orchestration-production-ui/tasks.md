@@ -47,7 +47,7 @@
 
   `feat(task-orchestration): establish production UI visual system`
 
-* [ ] 2. Conversation Workspace Shell and Session Navigation
+* [x] 2. Conversation Workspace Shell and Session Navigation
 
   Scope:
 
