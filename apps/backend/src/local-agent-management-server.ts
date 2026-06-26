@@ -33,6 +33,8 @@ import { LogoutUseCase } from "./modules/authentication/application/logout-use-c
 import { AuthenticateSessionUseCase } from "./modules/authentication/application/authenticate-session-use-case.ts";
 import { InMemoryUserRepository } from "./modules/authentication/infrastructure/in-memory-user-repository.ts";
 import { InMemorySessionRepository } from "./modules/authentication/infrastructure/in-memory-session-repository.ts";
+import { PrismaUserRepository } from "./modules/authentication/infrastructure/prisma-user-repository.ts";
+import { PrismaSessionRepository } from "./modules/authentication/infrastructure/prisma-session-repository.ts";
 import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
 import { Sha256TokenHasher } from "./modules/authentication/infrastructure/sha256-token-hasher.ts";
 import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/knowledge-base-rag-router.ts";
@@ -109,6 +111,22 @@ async function createSubscriptionRepository(): Promise<any> {
     return new PrismaSubscriptionRepository(prisma);
   }
   return new InMemorySubscriptionRepository();
+}
+
+async function createAuthUserRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    return new PrismaUserRepository(prisma);
+  }
+  return new InMemoryUserRepository();
+}
+
+async function createAuthSessionRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    return new PrismaSessionRepository(prisma);
+  }
+  return new InMemorySessionRepository();
 }
 
 function createSkillWriter(): AgentSkillWriter {
@@ -263,8 +281,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));
 
-  const authUserRepository = new InMemoryUserRepository();
-  const authSessionRepository = new InMemorySessionRepository();
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
   const authPasswordHasher = new BcryptPasswordHasher();
   const authTokenHasher = new Sha256TokenHasher();
   app.use(
