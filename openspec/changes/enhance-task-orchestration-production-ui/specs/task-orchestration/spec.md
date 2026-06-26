@@ -25,6 +25,70 @@ The workspace shell SHALL establish a clear information architecture separating 
 
 ---
 
+### Requirement: In-Memory Conversation Sessions & Multi-Turn Navigation
+
+The system SHALL support real chat conversations through in-memory conversation sessions that maintain ordered Task IDs without duplicating authoritative Task data or introducing backend persistence.
+
+#### Scenario: New Chat creates an empty conversation
+* **WHEN** the user selects the New Chat action
+* **THEN** the system SHALL create a new empty conversation and make it active
+* **AND** existing conversations and Tasks SHALL remain intact
+
+#### Scenario: First submission creates the first turn
+* **GIVEN** an empty conversation is active
+* **WHEN** the user submits a prompt
+* **THEN** the system SHALL create a new Task in the authoritative Task collection
+* **AND** the Task ID SHALL be appended to the active conversation
+
+#### Scenario: Later submission appends a turn
+* **GIVEN** an active conversation contains existing Tasks
+* **WHEN** the user submits another prompt
+* **THEN** the system SHALL create another Task and append its Task ID
+* **AND** earlier Task IDs SHALL remain ordered and visible
+
+#### Scenario: Switching conversations restores history
+* **GIVEN** multiple conversation sessions exist
+* **WHEN** the user switches the active conversation
+* **THEN** the system SHALL restore the correct turn history for the selected conversation
+* **AND** no Task SHALL be recreated or rerun
+
+#### Scenario: Inactive Task continues processing
+* **GIVEN** a running Task belongs to an inactive conversation
+* **WHEN** background progression events occur
+* **THEN** its callbacks SHALL update that Task by ID while another conversation is active
+
+#### Scenario: Inactive Task reaches a terminal state
+* **GIVEN** a running Task belongs to an inactive conversation
+* **WHEN** the Task completes, fails, or is canceled
+* **THEN** only that Task and conversation SHALL reflect the terminal result
+
+#### Scenario: Active dock follows the selected conversation
+* **GIVEN** an active conversation contains Tasks
+* **WHEN** the orchestration dock is rendered
+* **THEN** the dock SHALL use the latest Task of the active conversation
+
+#### Scenario: Empty conversation has no orchestration dock
+* **GIVEN** an empty conversation is active
+* **WHEN** the workspace is rendered
+* **THEN** no orchestration dock SHALL be shown
+* **AND** no stale Task data SHALL appear
+
+#### Scenario: New Chat is not Demo Reset
+* **WHEN** the user triggers New Chat
+* **THEN** New Chat SHALL NOT clear or stop existing work
+
+#### Scenario: Conversation state is in-memory only
+* **WHEN** conversation sessions are created or modified
+* **THEN** all state SHALL remain in-memory only
+* **AND** no database or backend persistence SHALL be introduced
+
+#### Scenario: Conversation records do not duplicate Task data
+* **WHEN** a conversation references Tasks
+* **THEN** prompt, output, error, timeline, and log data SHALL remain authoritative in Task records
+* **AND** conversation records SHALL NOT duplicate Task data
+
+---
+
 ### Requirement: Composer and Routing Polish
 
 The task composer and routing selector SHALL provide polished interactive states, clear focus indicators, and explicit visual validation feedback without altering core task creation mechanics.
@@ -58,23 +122,23 @@ The execution feed and processing detail modal (inspector) SHALL provide superio
 
 ---
 
-### Requirement: In-Memory Task History and Filtering
+### Requirement: In-Memory Conversation History and Filtering
 
-The system SHALL provide client-side search and status filtering for task history within the sidebar area, operating entirely on in-memory data without backend persistence.
+The system SHALL provide client-side search and status filtering for conversation history within the sidebar area, operating entirely on in-memory data without backend persistence.
 
-#### Scenario: Filter in-memory task history by status
-* **GIVEN** multiple tasks exist in the client-side in-memory store
+#### Scenario: Filter in-memory conversation history by status
+* **GIVEN** multiple conversations exist in the client-side in-memory store
 * **WHEN** the user selects a status filter (Pending, In-Progress, Completed, Failed, or Canceled)
-* **THEN** the sidebar history list SHALL instantly filter to display only tasks matching the selected status
+* **THEN** the sidebar history list SHALL instantly filter to display only conversations matching the selected status
 
-#### Scenario: Search in-memory task history
-* **GIVEN** multiple tasks exist in the client-side in-memory store
+#### Scenario: Search in-memory conversation history
+* **GIVEN** multiple conversations exist in the client-side in-memory store
 * **WHEN** the user enters query text into the history search input
-* **THEN** the sidebar history list SHALL instantly filter to display tasks matching the query in their prompt, Task ID, or Work ID
+* **THEN** the sidebar history list SHALL instantly filter to display conversations matching the query in their prompt, Task ID, or Work ID
 
 #### Scenario: Explicitly convey in-memory scoping
-* **WHEN** the task history sidebar is rendered
-* **THEN** the UI SHALL display explicit copy or notices confirming that task history is session-scoped (in-memory) and will reset upon page reload or demo reset
+* **WHEN** the conversation history sidebar is rendered
+* **THEN** the UI SHALL display explicit copy or notices confirming that conversation history is session-scoped (in-memory) and will reset upon page reload or demo reset
 * **AND** the system SHALL NOT execute backend database queries or introduce persistence
 
 ---

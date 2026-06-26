@@ -2,55 +2,69 @@
 
 ## Summary
 
-Enhance the Task & Orchestration production user interface to establish a highly polished, modern workspace experience.
+Enhance the Task & Orchestration production user interface to establish a highly polished, modern conversation workspace experience.
 
-The implementation focuses on visual system foundations, information architecture, composer ergonomics, execution feed clarity, in-memory task history/filtering, responsive behaviors, and accessibility polish.
+The implementation focuses on visual system foundations, information architecture, in-memory conversation sessions, multi-turn navigation, composer ergonomics, execution feed clarity, in-memory conversation/history search and filtering, responsive behaviors, and accessibility polish.
 
 This enhancement strictly preserves the core task lifecycle semantics established in Tasks 1–13 of `implement-task-orchestration`. It operates entirely on in-memory data and introduces no backend persistence.
 
 ## Motivation
 
-The initial prototype implementation successfully established the core task lifecycle (Pending, In-Progress, Completed, Failed, Canceled) and mock orchestration mechanics. However, to serve as a production-grade enterprise workspace, the user interface requires a cohesive visual hierarchy, advanced layout ergonomics, robust status filtering, and comprehensive accessibility polish.
+The initial prototype implementation successfully established the core task lifecycle (Pending, In-Progress, Completed, Failed, Canceled) and mock orchestration mechanics. However, to serve as a production-grade enterprise workspace, the user interface requires a cohesive visual hierarchy, real chat conversations, advanced layout ergonomics, robust status filtering, and comprehensive accessibility polish.
 
-This change elevates the workspace presentation to modern enterprise UI standards without copying proprietary branding or assets from other commercial products, and without altering the stable underlying domain model.
+### Current Product Gap
+* Task records are already retained in `TaskCreationState.tasks`.
+* The UI renders only `activeTaskId`.
+* New submissions replace the visible interaction in the workspace.
+* There is no conversation/session model.
+* Changing the active Task stops previous processing because runtime effects are coupled to the active Task.
+
+### Proposed Capabilities
+* In-memory conversation sessions.
+* Ordered Task IDs per conversation.
+* Multi-turn append.
+* New Chat action.
+* Conversation switching.
+* Preservation of prior Tasks.
+* Background updates keyed by Task ID.
+* No backend persistence.
+* No duplicate Task data.
+
+Task lifecycle semantics remain strictly unchanged.
 
 ## Goals
 
 1. Establish a premium production UI foundation and visual design system (typography, spacing, color tokens, elevation).
-2. Refine the task workspace shell and information architecture.
+2. Refine the conversation workspace shell, session navigation, and information architecture.
 3. Enhance the prompt composer and routing selection experience with clear visual feedback.
 4. Upgrade the execution feed and processing inspector (details modal) for superior legibility and traceability.
-5. Implement in-memory task history navigation, search, and status filtering.
+5. Implement in-memory conversation/history search and status filtering.
 6. Polish responsive layouts, empty states, loading indicators, and accessibility primitives.
 7. Perform rigorous regression testing and final verification to ensure existing lifecycle behaviors remain intact.
 8. Maintain clean review units by keeping pull requests generally within the 500-added-line recommendation through focused decomposition.
 
 ## In Scope
 
-### Visual System & Workspace Shell
-
+### Visual System & Conversation Workspace Shell
 * Centralized CSS/styling tokens for consistent typography, spacing, and color palettes.
-* Enhanced chatbot-style workspace shell layout with refined sidebar, header, and main content areas.
+* Enhanced chatbot-style conversation workspace shell layout with refined sidebar navigation, header, and main content areas.
+* Minimal conversation navigation, New Chat, active conversation selection, switching, multi-turn rendering, and background Task continuity.
 * Modern layout aesthetics while strictly avoiding third-party branding or proprietary assets.
 
 ### Composer & Routing Experience
-
 * Refined input ergonomics, active/disabled states, and clear validation feedback.
 * Intuitive routing selector (Auto, Specific Agent, Predefined Workflow) with clear mode indicators.
 
 ### Execution Feed & Processing Inspector
-
 * Polished timeline presentation, status badges, and ordered log lists.
 * Improved processing detail modal (inspector) with clear sections for active, completed, failed, and canceled states.
 
-### Task History & Status Filtering
-
-* In-memory task history list in the sidebar area.
-* Client-side search and filtering by task status (Pending, In-Progress, Completed, Failed, Canceled).
+### Conversation Navigation, Search & Status Filtering
+* In-memory conversation/history navigation in the sidebar area with search and status filters.
+* Client-side search and filtering by task status (Pending, In-Progress, Completed, Failed, Canceled) matching prompt, Task ID, or Work ID.
 * Explicit visual indication that history data is session-scoped (in-memory) rather than persistently stored.
 
 ### Polish & Accessibility
-
 * Smooth responsive transitions across viewport sizes.
 * Distinct empty state for new sessions and explicit UI loading states.
 * Strict architectural separation between the UI `Loading` state and the canonical `Pending` lifecycle state.
