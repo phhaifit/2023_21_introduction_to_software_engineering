@@ -11,8 +11,11 @@ UI.
 
 The feature currently has a local PA5 prototype:
 
-- `knowledge-base-rag-page.tsx`: base shell, local navigation, and placeholder
-  views for Data Sources, Synchronization Scope, and Processing Status.
+- `knowledge-base-rag-page.tsx`: base shell and local navigation.
+- `knowledge-base-rag-data-sources.tsx`: Data Sources screen wired to
+  `listDataSources` and safe placeholder `connectDataSource` calls.
+- `knowledge-base-rag-sync-scope.tsx`: Synchronization Scope screen wired to
+  `getSyncScope`, `updateSyncScope`, `requestManualSync`, and `listSyncJobs`.
 - `knowledge-base-rag-components.tsx`: shared presentational components such as
   status badges, metric cards, section cards, metadata lists, progress bars,
   empty states, and tabs.
@@ -29,9 +32,9 @@ The feature currently has a local PA5 prototype:
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
-Documents and Upload screens now use the API client as their runtime source of
-truth. The Data Sources, Synchronization Scope, and Processing Status views are
-still placeholder-only. Current local view types are presentation types used to
+Documents, Upload, Data Sources, and Synchronization Scope screens now use the
+API client as their runtime source of truth. Processing Status is still
+placeholder-only. Current local view types are presentation types used to
 render shared DTOs, not public contracts.
 
 ## Frontend Scope
@@ -40,9 +43,9 @@ render shared DTOs, not public contracts.
 - Upload candidate review.
 - Upload validation display.
 - Processing and indexing status display.
-- Data source placeholders.
-- Synchronization scope placeholders.
-- Manual sync status placeholders.
+- API-backed data source placeholders.
+- API-backed synchronization scope placeholders.
+- API-backed manual sync status placeholders in Synchronization Scope.
 - Future agent knowledge permission controls after contracts exist.
 
 ## Architecture Alignment
@@ -79,9 +82,9 @@ Future UI integration should align with shared DTOs such as:
 - `SyncJobDto`
 
 Keep mock/view types module-local and avoid exporting them as cross-module
-contracts. Documents and Upload map shared DTOs through
-`knowledge-base-rag-api-client.ts`; future integration should follow the same
-pattern for Data Sources, Synchronization Scope, and Processing Status.
+contracts. Documents, Upload, Data Sources, and Synchronization Scope map
+shared DTOs through `knowledge-base-rag-api-client.ts`; future integration
+should follow the same pattern for Processing Status.
 
 ## Implementation Rules
 

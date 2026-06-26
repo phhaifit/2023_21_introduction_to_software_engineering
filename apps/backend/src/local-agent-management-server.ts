@@ -220,8 +220,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   };
 
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
-    const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
-    return all.filter((a: any) => agentIds.includes(a.agentId));
+    const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
+    return all.agents.filter((a: any) => agentIds.includes(a.agentId));
   };
 
   const workflowUseCases = new WorkflowUseCases(

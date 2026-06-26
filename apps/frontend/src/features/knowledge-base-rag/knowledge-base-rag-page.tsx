@@ -3,11 +3,13 @@ import { useMemo, useState } from "react";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
+import { KnowledgeBaseDataSourcesScreen } from "./knowledge-base-rag-data-sources.tsx";
 import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
 import {
   createKnowledgeBaseRagApiClient,
   type KnowledgeBaseRagApiClient
 } from "./knowledge-base-rag-api-client.ts";
+import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
 
@@ -182,7 +184,13 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
             workspaceId={workspaceId}
           />
         )}
-        {activeView.id !== "documents" && activeView.id !== "upload-documents" && (
+        {activeView.id === "data-sources" && (
+          <KnowledgeBaseDataSourcesScreen apiClient={apiClient} workspaceId={workspaceId} />
+        )}
+        {activeView.id === "synchronization-scope" && (
+          <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
+        )}
+        {activeView.id === "processing-status" && (
           <section className="knowledge-base-rag-content-card">
             <div className="knowledge-base-rag-content-header">
               <div>

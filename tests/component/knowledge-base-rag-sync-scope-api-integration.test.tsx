@@ -1,0 +1,162 @@
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { KnowledgeBaseRagApiClient } from "@vcp/frontend/features/knowledge-base-rag/knowledge-base-rag-api-client.ts";
+import { KnowledgeBaseSyncScopeScreen } from "@vcp/frontend/features/knowledge-base-rag/knowledge-base-rag-sync-scope.tsx";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import type {
+  SyncJobDto,
+  SyncScopeNodeDto
+} from "@vcp/shared/contracts/knowledge-base-rag.ts";
+
+afterEach(cleanup);
+
+const workspaceId = "workspace-a" as EntityId<"workspaceId">;
+
+const rootNode: SyncScopeNodeDto = {
+  scopeNodeId: "scope-root",
+  sourceId: "source-google-drive",
+  name: "Company Handbook",
+  nodeType: "folder",
+  selected: true,
+  selectable: true,
+  updatedAt: "2026-06-26T00:00:00.000Z"
+};
+
+const childNode: SyncScopeNodeDto = {
+  scopeNodeId: "scope-child",
+  sourceId: "source-google-drive",
+  parentScopeNodeId: rootNode.scopeNodeId,
+  name: "Benefits Overview.pdf",
+  nodeType: "file",
+  selected: false,
+  selectable: true,
+  updatedAt: "2026-06-26T00:00:00.000Z"
+};
+
+const syncJob: SyncJobDto = {
+  jobId: "sync-job-a" as EntityId<"jobId">,
+  workspaceId,
+  sourceId: "source-google-drive",
+  status: "pending",
+  requestedAt: "2026-06-26T00:05:00.000Z",
+  scannedItemCount: 0,
+  changedItemCount: 0
+};
+
+function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
+  return {
+    listDocuments: vi.fn(),
+    validateUploadCandidates: vi.fn(),
+    prepareUpload: vi.fn(),
+    listIngestionJobs: vi.fn(),
+    listDataSources: vi.fn(),
+    connectDataSource: vi.fn(),
+    getSyncScope: vi.fn(async () => [rootNode, childNode]),
+    updateSyncScope: vi.fn(async (_workspaceId, request) =>
+      [rootNode, childNode].map((node) => ({
+        ...node,
+        selected: request.selectedScopeNodeIds.includes(node.scopeNodeId)
+      }))
+    ),
+    requestManualSync: vi.fn(async () => syncJob),
+    listSyncJobs: vi.fn(async () => ({
+      items: [syncJob],
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false
+      }
+    })),
+    ...overrides
+  } as unknown as KnowledgeBaseRagApiClient;
+}
+
+describe("Knowledge Base / RAG Sync Scope API integration", () => {
+  it("loads sync scope and sync jobs through the API client", async () => {
+    const client = createClient();
+
+    render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading synchronization scope");
+    expect(await screen.findByText("Company Handbook")).toBeTruthy();
+    expect(screen.getByText("Benefits Overview.pdf")).toBeTruthy();
+    expect(screen.getByText("sync-job-a")).toBeTruthy();
+    expect(client.getSyncScope).toHaveBeenCalledWith(workspaceId);
+    expect(client.listSyncJobs).toHaveBeenCalledWith(workspaceId);
+  });
+
+  it("renders empty and error states without mock scope nodes", async () => {
+    const emptyClient = createClient({
+      getSyncScope: vi.fn(async () => []),
+      listSyncJobs: vi.fn(async () => ({
+        items: [],
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        }
+      }))
+    });
+    const failingClient = createClient({
+      getSyncScope: vi.fn(async () => {
+        throw new Error("Sync scope API unavailable");
+      })
+    });
+
+    const { unmount } = render(
+      <KnowledgeBaseSyncScopeScreen apiClient={emptyClient} workspaceId={workspaceId} />
+    );
+    expect(await screen.findByText("No synchronization scope available")).toBeTruthy();
+    unmount();
+
+    render(<KnowledgeBaseSyncScopeScreen apiClient={failingClient} workspaceId={workspaceId} />);
+    expect(await screen.findByText("Sync scope API unavailable")).toBeTruthy();
+  });
+
+  it("updates selected scope nodes with safe request payloads", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+
+    render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
+
+    await screen.findByText("Benefits Overview.pdf");
+    await user.click(screen.getByLabelText("Benefits Overview.pdf"));
+    await user.click(screen.getByRole("button", { name: "Save selection" }));
+
+    await waitFor(() => expect(client.updateSyncScope).toHaveBeenCalledTimes(1));
+    expect(client.updateSyncScope).toHaveBeenCalledWith(workspaceId, {
+      selectedScopeNodeIds: ["scope-root", "scope-child"]
+    });
+    expect(JSON.stringify(vi.mocked(client.updateSyncScope).mock.calls[0][1])).not.toMatch(
+      /workspaceId|credential|secret|token|refresh|password|storageKey|vectorRef|queuePayload/i
+    );
+    expect(await screen.findByText("Synchronization scope updated.")).toBeTruthy();
+  });
+
+  it("requests manual sync as a queued intent without worker runtime payloads", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+
+    render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
+
+    await screen.findByText("Company Handbook");
+    await user.click(screen.getByRole("button", { name: "Request manual sync" }));
+
+    await waitFor(() => expect(client.requestManualSync).toHaveBeenCalledTimes(1));
+    expect(client.requestManualSync).toHaveBeenCalledWith(workspaceId, {
+      scopeNodeIds: ["scope-root"]
+    });
+    expect(JSON.stringify(vi.mocked(client.requestManualSync).mock.calls[0][1])).not.toMatch(
+      /credential|secret|token|refresh|password|rawProvider|worker|queuePayload|vectorConfig/i
+    );
+    expect(await screen.findByText("Manual sync requested.")).toBeTruthy();
+  });
+});

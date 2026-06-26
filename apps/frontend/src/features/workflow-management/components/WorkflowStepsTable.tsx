@@ -34,10 +34,10 @@ export function WorkflowStepsTable({
       >
         <GitMerge size={48} strokeWidth={1} style={{ marginBottom: "16px", color: "var(--accent)", opacity: 0.5 }} />
         <div style={{ fontWeight: 600, color: "var(--text)", fontSize: "16px" }}>
-          Chưa có bước nào được cấu hình
+          No steps configured
         </div>
         <div style={{ marginTop: "8px", fontSize: "14px" }}>
-          Thêm một Agent bên dưới để bắt đầu xây dựng luồng của bạn.
+          Add an Agent below to start building your flow.
         </div>
       </div>
     );
@@ -148,8 +148,8 @@ export function WorkflowStepsTable({
                       <span
                         title={
                           isMissing
-                            ? "Agent không tồn tại"
-                            : "Agent đã bị vô hiệu hóa hoặc xóa"
+                            ? "Agent does not exist"
+                            : "Agent is disabled or deleted"
                         }
                         style={{
                           display: "inline-flex",
@@ -164,7 +164,7 @@ export function WorkflowStepsTable({
                         }}
                       >
                         <AlertTriangle size={12} />
-                        Lỗi Cấu Hình
+                        Config Error
                       </span>
                     )}
                     {!hasWarning && agent?.status === "enabled" && (
@@ -182,7 +182,7 @@ export function WorkflowStepsTable({
                         }}
                       >
                         <CheckCircle2 size={12} />
-                        Sẵn sàng
+                        Ready
                       </span>
                     )}
                   </div>
@@ -194,7 +194,7 @@ export function WorkflowStepsTable({
                       marginBottom: "8px",
                     }}
                   >
-                    {agent ? agent.role : "Không có vai trò"}
+                    {agent ? agent.role : "No role"}
                   </div>
 
                   <div
@@ -226,7 +226,7 @@ export function WorkflowStepsTable({
                       style={{ opacity: index === 0 ? 0.3 : 1 }}
                       disabled={index === 0}
                       onClick={() => onMoveUp(step.workflowStepId)}
-                      title="Chuyển lên"
+                      title="Move up"
                     >
                       <ArrowUp size={16} />
                     </button>
@@ -235,7 +235,7 @@ export function WorkflowStepsTable({
                       style={{ opacity: index === steps.length - 1 ? 0.3 : 1 }}
                       disabled={index === steps.length - 1}
                       onClick={() => onMoveDown(step.workflowStepId)}
-                      title="Chuyển xuống"
+                      title="Move down"
                     >
                       <ArrowDown size={16} />
                     </button>
@@ -244,7 +244,7 @@ export function WorkflowStepsTable({
                     className="icon-button danger"
                     style={{ width: "100%" }}
                     onClick={() => onRemove(step.workflowStepId)}
-                    title="Xóa bước này"
+                    title="Delete this step"
                   >
                     <Trash2 size={16} />
                   </button>

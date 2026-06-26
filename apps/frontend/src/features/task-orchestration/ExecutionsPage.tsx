@@ -7,13 +7,13 @@ import { TerminalSquare, ListTodo, History } from "lucide-react";
 
 function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClose: () => void }) {
   const logs = [
-    `> Khởi tạo Workflow: [${execution.workflowName}]`,
+    `> Initializing Workflow: [${execution.workflowName}]`,
     `> Run ID: ${execution.executionId}`,
-    `> Đang cấp phát tài nguyên... OK`,
-    execution.status === "Failed" ? `> [Lỗi] Mất kết nối tới server.` : `> [Hoàn thành] Bước 1 - Agent đã xử lý xong.`,
-    execution.status === "Failed" ? `> [Lỗi] Workflow bị hủy bỏ.` : `> [Hoàn thành] Bước 2 - Agent đã xử lý xong.`,
-    execution.status === "Success" ? `> [Thành công] Workflow đã thực thi xong toàn bộ các bước.` : execution.status === "Canceled" ? `> [Cảnh báo] Workflow đã bị người dùng hủy.` : `> [Đang chạy] Đang đợi tiến trình...`,
-    execution.status === "Success" ? `> Đóng luồng kết nối.` : ``
+    `> Allocating resources... OK`,
+    execution.status === "Failed" ? `> [Error] Lost connection to server.` : `> [Completed] Step 1 - Agent finished processing.`,
+    execution.status === "Failed" ? `> [Error] Workflow was canceled.` : `> [Completed] Step 2 - Agent finished processing.`,
+    execution.status === "Success" ? `> [Success] Workflow executed all steps successfully.` : execution.status === "Canceled" ? `> [Warning] Workflow was canceled by user.` : `> [Running] Waiting for process...`,
+    execution.status === "Success" ? `> Closing connection stream.` : ``
   ].filter(Boolean);
 
   return createPortal(
@@ -70,7 +70,7 @@ function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClos
               fontFamily: "monospace",
             }}
           >
-            Log chạy: {execution.workflowName}
+            Run Log: {execution.workflowName}
           </div>
         </div>
 
@@ -95,11 +95,11 @@ function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClos
                 key={i}
                 style={{
                   marginBottom: "8px",
-                  color: l.includes("[Lỗi]")
+                  color: l.includes("[Error]")
                     ? "#f87171"
-                    : l.includes("[Thành công]") || l.includes("[Hoàn thành]")
+                    : l.includes("[Success]") || l.includes("[Completed]")
                     ? "#4ade80"
-                    : l.includes("[Cảnh báo]")
+                    : l.includes("[Warning]")
                     ? "#facc15"
                     : "#38bdf8",
                 }}
@@ -125,7 +125,7 @@ function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClos
               onMouseOver={(e) => (e.currentTarget.style.background = "#475569")}
               onMouseOut={(e) => (e.currentTarget.style.background = "#334155")}
             >
-              Đóng cửa sổ
+              Close Window
             </button>
           </div>
         </div>
@@ -145,7 +145,7 @@ export function ExecutionsPage() {
   );
 
   const formatDuration = (startedAt: string, completedAt: string | null) => {
-    if (!completedAt) return "Đang chạy...";
+    if (!completedAt) return "Running...";
     const start = new Date(startedAt).getTime();
     const end = new Date(completedAt).getTime();
     const diffInSeconds = Math.floor((end - start) / 1000);
@@ -165,7 +165,7 @@ export function ExecutionsPage() {
     <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <SearchBar
-          placeholder="Tìm kiếm theo Tên hoặc Run ID..."
+          placeholder="Search by Name or Run ID..."
           value={search}
           onChange={setSearch}
         />
@@ -176,11 +176,11 @@ export function ExecutionsPage() {
           <thead>
             <tr>
               <th>Run ID</th>
-              <th>Tên Workflow</th>
-              <th>Trạng thái</th>
-              <th>Thời gian chạy</th>
-              <th>Bắt đầu lúc</th>
-              <th style={{ textAlign: 'right' }}>Thao tác</th>
+              <th>Workflow Name</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Started At</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -188,8 +188,8 @@ export function ExecutionsPage() {
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '64px 32px', color: 'var(--muted)' }}>
                   <History size={48} strokeWidth={1} style={{ margin: '0 auto 16px', opacity: 0.5, color: 'var(--accent)' }} />
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>Không tìm thấy lịch sử chạy nào</div>
-                  <div style={{ fontSize: '14px', marginTop: '4px' }}>Thử tìm kiếm với từ khóa khác hoặc quay lại sau.</div>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>No run history found</div>
+                  <div style={{ fontSize: '14px', marginTop: '4px' }}>Try searching with a different keyword or come back later.</div>
                 </td>
               </tr>
             ) : (
@@ -206,7 +206,7 @@ export function ExecutionsPage() {
                       style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
                       onClick={() => setSelectedExecution(run)}
                     >
-                      <TerminalSquare size={14} /> Xem Log
+                      <TerminalSquare size={14} /> View Log
                     </button>
                   </td>
                 </tr>

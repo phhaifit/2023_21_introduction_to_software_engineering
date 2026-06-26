@@ -120,6 +120,17 @@ The system SHALL provide a typed frontend KB/RAG API client before existing UI s
 - **AND** it does not send raw file bytes, `workspaceId` in the request body, actor/user IDs, generated IDs, lifecycle status, timestamps, storage keys, vector refs, queue payloads, credentials, secrets, tokens, passwords, raw embeddings, or vector configuration
 - **AND** this integration does not wire Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, or vector databases
 
+#### Scenario: Data Sources and Sync Scope screens use the API client
+- **WHEN** the Data Sources screen is opened
+- **THEN** it loads external source placeholders through `listDataSources(workspaceId)` and renders shared data-source DTO data with loading, error, and empty states
+- **AND** connection actions call `connectDataSource(workspaceId, sourceId)` as a safe placeholder without raw credentials, OAuth tokens, refresh tokens, provider secrets, passwords, or private provider payloads
+- **WHEN** the Synchronization Scope screen is opened
+- **THEN** it loads scope nodes through `getSyncScope(workspaceId)` and sync job status through `listSyncJobs(workspaceId)`
+- **AND** saving selected scope nodes calls `updateSyncScope(workspaceId, request)` with only selected public scope node IDs
+- **AND** requesting manual sync calls `requestManualSync(workspaceId, request)` as queued sync intent only
+- **AND** request bodies do not include `workspaceId`, actor/user IDs, generated IDs, lifecycle status controlled by the server, timestamps, storage keys, vector refs, queue payloads, credentials, secrets, tokens, refresh tokens, passwords, raw provider payloads, raw embeddings, or vector configuration
+- **AND** this integration does not wire Processing Status, worker runtime, external provider/OAuth runtime, object storage, file parsing, embedding providers, or vector databases
+
 ### Requirement: Application Use Cases
 The system SHALL provide KB/RAG application use cases that future API routers and workers can call without importing repositories or infrastructure directly.
 
@@ -148,6 +159,13 @@ The system SHALL provide a configurable boundary for external knowledge sources.
 
 ### Requirement: Document Ingestion and Vectorization
 The system SHALL process documents into searchable vector chunks asynchronously.
+
+#### Scenario: Worker handoff updates ingestion lifecycle safely
+- **WHEN** a worker handoff receives an already-created pending ingestion job for a workspace document
+- **THEN** it marks the ingestion job as ingesting and updates the associated document ingestion/indexing state through KB/RAG repository ports
+- **AND** after the skeleton processor succeeds it marks the job and document ready and records safe ingestion completed event payloads
+- **AND** after the skeleton processor fails it marks the job and document failed and stores only safe error code/message fields
+- **AND** the handoff does not parse files, read object storage, create chunks, call embedding providers, write vectors, execute external sync, import Prisma directly, import frontend code, or import another module's private internals
 
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
