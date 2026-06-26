@@ -167,6 +167,14 @@ The system SHALL process documents into searchable vector chunks asynchronously.
 - **AND** after the skeleton processor fails it marks the job and document failed and stores only safe error code/message fields
 - **AND** the handoff does not parse files, read object storage, create chunks, call embedding providers, write vectors, execute external sync, import Prisma directly, import frontend code, or import another module's private internals
 
+#### Scenario: Text processing pipeline persists deterministic chunks
+- **WHEN** a pending ingestion job for a supported text or markdown-style document is processed
+- **THEN** the worker pipeline reads text through an injected content reader, normalizes whitespace deterministically, splits text into stable chunks, and persists `KnowledgeDocumentChunk` records through KB/RAG repository ports
+- **AND** persisted chunks have stable chunk IDs from the injected generator, stable chunk indexes, stable text content, pending embedding status, and no vector references
+- **AND** the associated document records the chunk count while leaving vector indexing pending until a later embedding/vector issue
+- **AND** empty content, unsupported content, and content-reader failures mark the job and document failed with safe error code/message fields
+- **AND** the pipeline does not read object storage directly, parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors, implement retrieval, modify HTTP routes, import frontend code, or import another module's private internals
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata

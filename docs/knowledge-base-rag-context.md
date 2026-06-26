@@ -55,20 +55,25 @@ The backend now has an internal module foundation under
 - A worker handoff skeleton that transitions already-created document ingestion
   jobs through pending/ingesting/ready or pending/ingesting/failed lifecycle
   states using KB/RAG repository ports.
+- A deterministic worker-side text processing pipeline that reads supported
+  text/markdown content through an injected content reader, normalizes text,
+  splits stable chunks, and persists `KnowledgeDocumentChunk` records through
+  KB/RAG repository ports.
 
 Runtime implementation still needs:
 
-- Upload parsing, object storage, embedding, vector indexing, and external
-  source adapters.
-- Full worker ingestion/sync runtime adapters for parsing, chunking,
+- Object storage integration, real PDF/DOC/DOCX parsing, OCR, embedding, vector
+  indexing, retrieval, and external source adapters.
+- Full worker ingestion/sync runtime entrypoints for queue integration,
   embedding, vector writes, and external sync.
 - Frontend API integration for Processing Status.
 - Worker tests, frontend integration tests, and functional PA5 tests.
 
 The queue type already reserves `document.ingest`. The current worker handoff
 skeleton is module-local under the KB/RAG backend boundary and can be called by
-a later worker entrypoint. It does not parse files, create chunks, call storage,
-call embedding providers, write vectors, or execute external sync.
+a later worker entrypoint. The current processing pipeline handles supported
+text/markdown content only. It does not read object storage, parse PDF/DOC/DOCX,
+perform OCR, call embedding providers, write vectors, or execute external sync.
 
 ## Modular Monolith Alignment
 
@@ -335,6 +340,11 @@ Current repository/application boundary files:
 - `infrastructure/prisma-knowledge-sync-repository.ts`
 - `infrastructure/prisma-knowledge-base-rag-mapper.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+- `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-document-content-reader.ts`
+- `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-document-text-normalizer.ts`
+- `worker/knowledge-document-text-chunker.ts`
 
 Likely future runtime files:
 
@@ -358,6 +368,12 @@ sync-job records through repository ports. It does not parse files, upload to
 object storage, enqueue runtime workers, call embedding providers, or write to a
 vector database.
 
+The current worker processing slice adds text/markdown ingestion after handoff:
+it uses an injected content reader, deterministic normalization, deterministic
+chunking, and repository-backed chunk persistence. It does not read object
+storage directly, parse PDF/DOC/DOCX, perform OCR, call embeddings, write
+vectors, or implement retrieval.
+
 ## Worker Handoff Roadmap
 
 Long-running ingestion and synchronization must not run inside an HTTP request.
@@ -368,8 +384,8 @@ Expected flow:
 2. Valid uploads are prepared into durable document metadata.
 3. An ingestion job is queued through the worker/job boundary.
 4. The worker processes document ingestion.
-5. The worker parses, chunks, embeds, and indexes through adapter ports.
-6. Ingestion and indexing status are updated.
+5. The text pipeline normalizes supported text and persists chunks.
+6. Future embedding and vector indexing run through adapter ports.
 7. Domain events are emitted for public state transitions.
 8. The UI reads document, job, and status state through the API.
 

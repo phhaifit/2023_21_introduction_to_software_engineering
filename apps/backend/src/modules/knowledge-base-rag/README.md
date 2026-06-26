@@ -14,7 +14,8 @@ This backend module now contains the internal backend foundation for domain
 models, application repository ports, application use cases, safe DTO mappers,
 Prisma repository adapters, deterministic in-memory repositories, a thin
 workspace-scoped HTTP API router, and a worker handoff skeleton for document
-ingestion lifecycle updates.
+ingestion lifecycle updates. The worker boundary also includes a deterministic
+text processing pipeline for supported text/markdown documents.
 
 It still does not contain real file parsing, file storage adapters,
 vector/embedding adapters, full worker runtime handlers, or retrieval
@@ -207,6 +208,10 @@ Current backend foundation:
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
 - `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-document-content-reader.ts`
+- `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-document-text-normalizer.ts`
+- `worker/knowledge-document-text-chunker.ts`
 
 Likely future files:
 
@@ -244,8 +249,17 @@ pending -> ingesting -> failed
 It updates KB/RAG-owned document and ingestion-job status through repository
 ports, creates safe ingestion started/completed/failed events through existing
 event contracts, and returns/publishes only public lifecycle payloads. It does
-not parse documents, read file bytes, create chunks, call object storage,
-generate embeddings, write vectors, or run external sync.
+not read file bytes directly, call object storage, generate embeddings, write
+vectors, or run external sync.
+
+The document processing pipeline is the first real ingestion processor boundary.
+It reads text through an injected content reader, supports text/plain and
+markdown-style content, normalizes whitespace deterministically, splits text
+into stable chunks, and persists `KnowledgeDocumentChunk` records through the
+document repository. It marks ingestion as complete while leaving
+embedding/vector indexing pending. Real PDF/DOC/DOCX parsing, OCR, object
+storage integration, embeddings, vector writes, and retrieval remain future
+adapter/runtime scope.
 
 ## Worker Handoff
 
@@ -258,8 +272,8 @@ Expected flow:
 2. Prepare valid uploads into document metadata.
 3. Queue a document ingestion job.
 4. Worker handoff marks the job/document as processing.
-5. Future adapters parse, chunk, embed, and index through explicit boundaries.
-6. Update ingestion and indexing status.
+5. The text processing pipeline normalizes supported text and persists chunks.
+6. Future adapters embed and index through explicit boundaries.
 7. Emit public domain events.
 8. UI reads document, ingestion, and sync status through API routes.
 

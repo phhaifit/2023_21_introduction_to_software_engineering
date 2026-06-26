@@ -166,7 +166,11 @@ async function testSuccessPath() {
   assert.equal(result.job.startedAt, "2026-06-26T00:02:00.000Z");
   assert.equal(result.job.completedAt, "2026-06-26T00:03:00.000Z");
   assert.equal(result.document.ingestionStatus, "ready");
-  assert.equal(result.document.indexingStatus, "ready");
+  assert.equal(
+    result.document.indexingStatus,
+    "pending",
+    "handoff completion should not imply embedding/vector indexing"
+  );
   assert.deepEqual(
     result.events.map((event) => event.name),
     [
@@ -187,7 +191,8 @@ async function testSuccessPath() {
     "document-a"
   );
   assert.equal(persistedJob.status, "ready");
-  assert.equal(persistedDocument.indexingStatus, "ready");
+  assert.equal(persistedDocument.ingestionStatus, "ready");
+  assert.equal(persistedDocument.indexingStatus, "pending");
 }
 
 async function testFailurePath() {
