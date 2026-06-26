@@ -443,3 +443,18 @@
     padding: 28px 16px 48px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Success banner — shown after successful registration
+   -------------------------------------------------------------------------- */
+
+.auth-success-banner {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  border-radius: 8px;
+  color: var(--success);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 4px;
+  padding: 10px 14px;
+}
