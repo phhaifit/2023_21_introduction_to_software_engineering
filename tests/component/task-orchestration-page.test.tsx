@@ -122,4 +122,12 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(screen.getByRole("region", { name: "Main conversation region" })).toBeVisible();
   });
+
+  it("renders reconnecting and provider unavailable states along with simulation indicator", () => {
+    render(<TaskOrchestrationPage isReconnecting isProviderUnavailable />);
+
+    expect(screen.getByText("Simulated Mock Execution")).toBeVisible();
+    expect(screen.getByText("Reconnecting to workspace gateway")).toBeVisible();
+    expect(screen.getByText("Execution Provider Unavailable")).toBeVisible();
+  });
 });

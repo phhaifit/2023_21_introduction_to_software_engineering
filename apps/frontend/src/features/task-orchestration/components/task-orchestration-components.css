@@ -37,6 +37,12 @@
   color: #9a3412;
 }
 
+.task-status-badge--pending::before, .task-conversation-navigation__status--pending::before { content: "⏳ "; }
+.task-status-badge--in-progress::before, .task-conversation-navigation__status--in-progress::before { content: "⚡ "; }
+.task-status-badge--completed::before, .task-conversation-navigation__status--completed::before { content: "✓ "; }
+.task-status-badge--failed::before, .task-conversation-navigation__status--failed::before { content: "✕ "; }
+.task-status-badge--canceled::before, .task-conversation-navigation__status--canceled::before { content: "⊘ "; }
+
 .processing-timeline {
   max-width: 100%;
   min-width: 0;

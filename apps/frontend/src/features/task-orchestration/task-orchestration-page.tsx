@@ -67,6 +67,8 @@ type TaskCancellationRequestHandler = (
 
 type TaskOrchestrationPageProps = {
   isLoading?: boolean;
+  isReconnecting?: boolean;
+  isProviderUnavailable?: boolean;
   taskCreationClient?: TaskCreationClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
   processingRuntime?: TaskProcessingRuntime;
@@ -91,6 +93,8 @@ const routingOptions = createTaskOrchestrationSeedData();
 
 export function TaskOrchestrationPage({
   isLoading = false,
+  isReconnecting = false,
+  isProviderUnavailable = false,
   taskCreationClient,
   onCancelTaskRequested,
   processingRuntime,
@@ -307,12 +311,35 @@ export function TaskOrchestrationPage({
             <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
             <p>Bring a request to your virtual team and keep the work in one conversation.</p>
           </div>
+          <div className="task-workspace__simulation-indicator" aria-label="Simulation mode active" title="Simulation mode active">
+            <span className="task-workspace__simulation-dot" aria-hidden="true" />
+            <span>Simulated Mock Execution</span>
+          </div>
         </header>
 
         <section
           className="task-workspace__conversation"
           aria-label="Main conversation region"
         >
+          {isReconnecting ? (
+            <div className="task-workspace__reconnecting" role="status" aria-live="polite">
+              <span className="task-workspace__spinner task-workspace__spinner--reconnecting" aria-hidden="true" />
+              <div>
+                <h3>Reconnecting to workspace gateway</h3>
+                <p>Restoring live synchronization. Your canonical task processing continues in the background.</p>
+              </div>
+            </div>
+          ) : null}
+
+          {isProviderUnavailable ? (
+            <div className="task-workspace__provider-unavailable" role="alert">
+              <div>
+                <h3>Execution Provider Unavailable</h3>
+                <p>The external OpenClaw runtime is currently unreachable or stopped. Tasks will remain queued or use simulated mock execution.</p>
+              </div>
+            </div>
+          ) : null}
+
           {isLoading ? (
             <div className="task-workspace__loading" role="status" aria-live="polite">
               <span className="task-workspace__spinner" aria-hidden="true" />
