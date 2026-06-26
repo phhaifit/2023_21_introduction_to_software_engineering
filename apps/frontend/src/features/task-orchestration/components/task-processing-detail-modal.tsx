@@ -26,6 +26,30 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
     onClose();
   }
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDialogElement>) {
+    if (event.key === "Tab") {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusableElements = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey) {
+        if (document.activeElement === firstElement) {
+          lastElement?.focus();
+          event.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement?.focus();
+          event.preventDefault();
+        }
+      }
+    }
+  }
+
   function formatDuration(ms: number | null): string {
     if (ms === null) {
       return "Unavailable";
@@ -41,6 +65,7 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
       ref={dialogRef}
       className="task-processing-detail-modal"
       onCancel={handleCancel}
+      onKeyDown={handleKeyDown}
       aria-labelledby="processing-detail-title"
     >
       <header className="task-processing-detail-modal__header">

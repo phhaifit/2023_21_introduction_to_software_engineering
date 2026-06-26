@@ -41,13 +41,13 @@
 
 ## 6. Responsive, Empty, Loading and Accessibility
 
-- [ ] 6.1 Polish responsive layout behaviors across desktop, tablet, and mobile viewport dimensions, pinned composers, scrollable feeds, long results, and dedicated empty states.
-- [ ] 6.2 Implement distinct visual indicators for temporary UI states including loading, submitting, reconnecting (distinct from canonical Task status), and provider unavailable states (distinct from Failed Task).
-- [ ] 6.3 Implement comprehensive accessibility polish including keyboard navigation (`Tab`/`Shift+Tab`), focus trapping in modals, keyboard-accessible dialogs and routing selectors, focus-visible styling, and accessible simulation indicators.
-- [ ] 6.4 Implement accessible status labels ensuring status is not conveyed by color alone, reduced-motion compatibility, search no-result states, and verify empty conversations display no stale task actions.
+- [x] 6.1 Polish responsive layout behaviors across desktop, tablet, and mobile viewport dimensions, pinned composers, scrollable feeds, long results, and dedicated empty states.
+- [x] 6.2 Implement distinct visual indicators for temporary UI states including loading, submitting, reconnecting (distinct from canonical Task status), and provider unavailable states (distinct from Failed Task).
+- [x] 6.3 Implement comprehensive accessibility polish including keyboard navigation (`Tab`/`Shift+Tab`), focus trapping in modals, keyboard-accessible dialogs and routing selectors, focus-visible styling, and accessible simulation indicators.
+- [x] 6.4 Implement accessible status labels ensuring status is not conveyed by color alone, reduced-motion compatibility, search no-result states, and verify empty conversations display no stale task actions.
 
 ## 7. Regression and Final Verification
 
-- [ ] 7.1 Execute full presentation regression verification covering workspace shell, conversations, New Chat, composer, routing, lifecycle rendering, execution feed, processing details, history sidebar, search/filter, responsive layouts, and accessibility.
-- [ ] 7.2 Execute provider-neutral regression verification ensuring UI renders from normalized Task state, mock execution remains fully functional as a test and development adapter, presentation does not import OpenClaw-specific types or depend on provider-specific events, and no silent fallback occurs.
-- [ ] 7.3 Verify loading/reconnecting states do not distort canonical lifecycle, terminal Tasks never return to active, and multiple concurrent Tasks maintain perfect update isolation without requiring real OpenClaw integration tests.
+- [x] 7.1 Execute full presentation regression verification covering workspace shell, conversations, New Chat, composer, routing, lifecycle rendering, execution feed, processing details, history sidebar, search/filter, responsive layouts, and accessibility.
+- [x] 7.2 Execute provider-neutral regression verification ensuring UI renders from normalized Task state, mock execution remains fully functional as a test and development adapter, presentation does not import OpenClaw-specific types or depend on provider-specific events, and no silent fallback occurs.
+- [x] 7.3 Verify loading/reconnecting states do not distort canonical lifecycle, terminal Tasks never return to active, and multiple concurrent Tasks maintain perfect update isolation without requiring real OpenClaw integration tests.
