@@ -1,40 +1,48 @@
-# Design: Enhance Task & Orchestration Production UI
+## Context
 
-## 1. Context and Objectives
+The core Task & Orchestration prototype established a robust in-memory lifecycle engine (Pending, In-Progress, Completed, Failed, Canceled) and simulated orchestration mechanics (Tasks 1–13 of `implement-task-orchestration`). This design details the production user interface enhancement required to transform the prototype into a premium, accessible, and modern conversation workspace. The design strictly preserves the existing domain model, state machine, and in-memory architecture. It operates entirely on in-memory data, introduces no backend persistence, and avoids copying proprietary branding from commercial products.
 
-The core Task & Orchestration prototype established a robust in-memory lifecycle engine (Pending, In-Progress, Completed, Failed, Canceled) and simulated orchestration mechanics (Tasks 1–13). This design details the production user interface enhancement required to transform the prototype into a premium, accessible, and modern conversation workspace.
+## Goals / Non-Goals
 
-The design strictly preserves the existing domain model, state machine, and in-memory architecture. It introduces no backend persistence and avoids copying proprietary branding from commercial products.
+**Goals:**
+- Establish a cohesive visual design system (typography scales, standardized spacing, semantic color tokens, elevation layers).
+- Refine the conversation workspace shell, session navigation, and information architecture for superior ergonomics.
+- Polish the composer, routing selector, execution feed, and processing inspector (details modal).
+- Provide in-memory conversation/history navigation, search (by prompt, Task ID, Work ID), and status filtering.
+- Implement flawless responsive design, empty states, and accessibility primitives (keyboard navigation, focus trapping, ARIA live regions).
+- Maintain strict separation between UI `Loading` states and canonical `Pending` lifecycle states.
+- Ensure all implementation pull requests remain focused and generally within 500 added lines of code.
 
-## 2. Design Goals
+**Non-Goals:**
+- Modifying core task lifecycle semantics or state machine guards (Tasks 1–13 remain canonical).
+- Adding real backend database persistence or cross-session storage.
+- Integrating with external AI APIs, real agent microservices, or external streaming servers.
+- Copying or importing proprietary branding, icons, or visual assets from commercial products.
+- Altering shared public contracts or Prisma schema.
 
-1. Establish a cohesive visual design system (typography, spacing, color, elevation).
-2. Refine the conversation workspace shell, session navigation, and information architecture for superior ergonomics.
-3. Polish the composer, routing selector, execution feed, and processing inspector.
-4. Provide in-memory conversation/history navigation, search, and status filtering.
-5. Implement flawless responsive design, empty states, and accessibility primitives.
-6. Maintain strict separation between UI `Loading` states and canonical `Pending` lifecycle states.
-7. Ensure all implementation pull requests remain focused and generally within 500 added lines of code.
+## Decisions
 
-## 3. Visual System Foundation
+### Decision 1: Centralized Visual System Foundation
+- **Rationale**: Establish semantic color tokens for task statuses, font scales for clear hierarchy, and standardized spacing (4px/8px/16px/24px increments) to ensure visual consistency across the workspace without relying on proprietary third-party branding.
+- **Alternatives Considered**: Ad-hoc utility classes in individual components. Rejected because it leads to visual inconsistency and higher maintenance overhead.
 
-### Typography and Hierarchy
-* Establish clear font scales for workspace headers, task prompts, status labels, and technical logs.
-* Ensure optimal line height and contrast ratios for readability.
+### Decision 2: In-Memory Conversation Sessions View Model
+- **Rationale**: Maintain real chat conversations through `TaskConversationSession` view models (`conversationId`, `title`, `taskIds`, `createdAt`, `updatedAt`) referencing the authoritative Task collection (`TaskCreationState.tasks`) without duplicating prompt, output, error, timeline, or log metadata.
+- **Alternatives Considered**: Creating a separate Task store for conversations. Rejected because it duplicates authoritative state and causes synchronization discrepancies.
 
-### Spacing and Layout Tokens
-* Utilize a standardized grid and spacing system (e.g., 4px/8px/16px/24px increments).
-* Define consistent padding and margin tokens across all workspace components.
+### Decision 3: Per-Task Runtime Ownership & Isolation
+- **Rationale**: Key processing, streaming, and completion handles by Task ID rather than relying on a single active-Task ref. Callbacks update records strictly by Task ID, allowing inactive running Tasks in background conversations to progress and reach terminal states independently without state leakage.
+- **Alternatives Considered**: Coupling runtime effects solely to `activeTaskId`. Rejected because switching conversations would prematurely halt background processing.
 
-### Color Palette and Elevation
-* Use semantic color tokens for task statuses (Pending, In-Progress, Completed, Failed, Canceled).
-* Establish subtle background surfaces, border colors, and elevation shadows to separate the sidebar, main feed, composer, and modal inspector.
-* Strictly avoid proprietary branding or third-party color schemes.
+### Decision 4: New Chat vs. Demo Reset Differentiation
+- **Rationale**: `New Chat` creates a new empty conversation while retaining existing conversations/Tasks and active background runs. `Demo Reset` clears all conversation references and active handles consistently, leaving no orphan IDs.
+- **Alternatives Considered**: Conflating New Chat with Demo Reset. Rejected because users need to start new conversations without losing existing session history.
 
-## 4. Component Architecture
+### Decision 5: Strict Separation of UI Loading vs. Canonical Pending
+- **Rationale**: `UI Loading` represents an asynchronous view initialization state using dedicated spinners or skeletons with `aria-busy="true"`. `Canonical Pending` represents an established `Task` record awaiting simulated orchestration, displayed via the canonical `Pending` status badge and initial timeline steps.
+- **Alternatives Considered**: Using a generic loading spinner for pending tasks. Rejected because it conflates view rendering latencies with authoritative domain lifecycle states.
 
-The enhancement refines the existing component tree in `apps/frontend/src/features/task-orchestration/components`:
-
+### Component Architecture & Data Flow
 ```text
 TaskOrchestrationPage (Workspace Shell)
 ├── Sidebar
@@ -43,99 +51,38 @@ TaskOrchestrationPage (Workspace Shell)
 │       ├── NewChatButton
 │       ├── SearchInput
 │       ├── StatusFilterBar
-│       └── ConversationList
+│       └── ConversationList (Filters by Pending/In-Progress/Completed/Failed/Canceled)
 ├── MainContentArea
 │   ├── WorkspaceTopBar
 │   ├── ExecutionFeed (Multi-turn Task Cards / Timeline / Logs)
-│   │   ├── TaskStatusBadge
+│   │   ├── TaskStatusBadge (Explicit text label + semantic color)
 │   │   ├── TaskTimeline
-│   │   ├── StreamingResult
+│   │   ├── StreamingResult (ARIA live region)
 │   │   └── CompletedResultView
 │   └── ComposerArea
-│       ├── TaskComposer
-│       └── RoutingSelector
+│       ├── TaskComposer (Polished validation feedback)
+│       └── RoutingSelector (Auto / Specific Agent / Predefined Workflow)
 └── Modals / Dialogs
-    ├── ProcessingDetailModal (Inspector)
+    ├── ProcessingDetailModal (Inspector with structured tabs/sections)
     └── CancelConfirmationDialog
 ```
 
-## 5. Key Architectural Rules
+### State Transitions & Error Handling
+- **Lifecycle Preservation**: All UI enhancements operate as presentation-only. Components never directly mutate `task.status`, bypass state machine helpers (`canTransition`, `isTerminalStatus`), or alter core transition logic.
+- **Validation Feedback**: Submitting empty or whitespace-only prompts triggers explicit, accessible validation error styling in the composer without creating a task record or assigning a lifecycle status.
 
-### 5.1 Authoritative Task Collection
-* Continue using the existing Task collection: `TaskCreationState.tasks`.
-* Do not create another Task store.
+### Testing Strategy
+- **Component Tests**: Verify visual system tokens, workspace shell layout slots, composer validation styling, routing mode indicators, status badges with explicit text labels, and processing inspector tab rendering.
+- **State & Isolation Tests**: Verify in-memory conversation session reducers, multi-turn append, conversation switching history restoration, per-Task background progression isolation, and New Chat vs Demo Reset behaviors.
+- **Accessibility & Responsive Tests**: Verify keyboard navigation (`Tab`/`Shift+Tab`), modal focus trapping, ARIA attributes (`aria-busy`, `aria-live`, `role="status"`), and responsive layout adaptations across desktop, tablet, and mobile dimensions.
 
-### 5.2 Conversation Session View Model
-A conversation session may contain:
-```ts
-type TaskConversationSession = {
-  conversationId: string;
-  title: string;
-  taskIds: readonly string[];
-  createdAt: string;
-  updatedAt: string;
-};
-```
-* Conversation records must not copy prompt, partial output, final result, errors, logs, timeline, or routing metadata.
+## Risks / Trade-offs
 
-### 5.3 Active Selection
-* Define `activeConversationId`.
-* Define active Task derived from the latest Task in the selected conversation, or a consistently maintained `activeTaskId`.
-* Changing active conversation is a presentation action only. It must not restart a Task, cancel a Task, stop a Task, or change lifecycle status.
-
-### 5.4 Per-Task Runtime Ownership
-Current single refs and active-Task effects are not sufficient for inactive background Tasks.
-* Processing handles are keyed by Task ID.
-* Streaming handles are keyed by Task ID.
-* Completion handles are keyed by Task ID.
-* Callbacks update records by Task ID.
-* Switching conversations does not cleanup another Task’s runtime.
-* Terminal Tasks clean up their own handles.
-* Reset/unmount cleans all remaining handles.
-* No new backend service is prescribed.
-
-### 5.5 New Chat versus Demo Reset
-* **New Chat:** Creates a new empty conversation, retains existing conversations and Tasks, and does not stop running Tasks.
-* **Demo Reset:** Follows the existing reset contract, clears conversation references consistently, and leaves no orphan IDs or handles.
-
-### 5.6 Task Boundaries
-* **Task 2 owns:** Minimal conversation navigation, New Chat, active conversation, switching, multi-turn rendering, background Task continuity, and workspace shell.
-* **Task 5 owns:** Search, status filters, prompt/Task ID/Work ID discovery, advanced history browsing, and optional sorting defined by the roadmap.
-* **Task 6 owns:** Final responsive, loading, empty, no-result, and accessibility polish.
-
-### 5.7 Strict Separation of Loading vs. Pending
-* **UI Loading State:** Represents an asynchronous view state (e.g., initial module loading or component mounting). Displayed via dedicated loading spinners or skeleton screens with appropriate ARIA labels (`aria-busy="true"`).
-* **Canonical Pending State:** Represents an established `Task` record that has been successfully submitted and validated, but has not yet begun simulated orchestration. Displayed via the canonical `Pending` status badge and initial timeline steps.
-* UI Loading must never be labeled or treated as `Pending`.
-
-### 5.8 Preservation of Lifecycle Semantics
-* All UI enhancements are presentation-only.
-* Components must not directly mutate `task.status`, bypass state machine helpers (`canTransition`, `isTerminalStatus`), or modify the core logic established in Tasks 1–13.
-
-## 6. Accessibility (a11y) Design
-
-* **Keyboard Navigation:** All interactive elements (filters, search, composer buttons, task cards, modal triggers) must be fully navigable via `Tab` and `Shift+Tab`.
-* **Focus Management:** Modals and dialogs must trap focus when open and restore focus to the triggering element when closed.
-* **ARIA Attributes:** Use explicit ARIA roles and labels (e.g., `role="status"`, `aria-live="polite"`, `aria-expanded`, `aria-controls`).
-* **Color Independence:** Status badges must always include explicit text labels (e.g., "Failed", "In-Progress") and never rely on color alone to convey meaning.
-
-## 7. Code Size and Review Unit Decomposition
-
-Every task must be implemented in a dedicated pull request. To adhere to the review guideline of keeping added code within 500 lines per PR:
-* Developers must estimate added lines prior to implementation.
-* If a task (e.g., Task Workspace Shell or Execution Feed) risks exceeding 500 added lines, it must be decomposed into multiple focused review units (e.g., separating layout CSS/styles into one PR, and component markup into another).
-* Automated tests must accompany each implementation unit.
-
-## 8. Verification Strategy
-
-Every pull request must execute the following commands to verify correctness and ensure zero regression:
-
-```powershell
-npm test
-npm run build
-npx openspec validate "enhance-task-orchestration-production-ui" --strict
-npx openspec validate --all --strict
-git diff --check
-```
-
-Any known repository-wide validation failures (e.g., `spec/client-side-routing`) must be reported transparently and left unmodified if outside the active change scope.
+- **Risk: UI enhancements inadvertently alter core lifecycle semantics**
+  - *Mitigation*: Rely entirely on the existing state machine guards (`isTerminalStatus`, `canTransition`). Treat UI components as strictly presentation-only.
+- **Risk: History UI implies persistent backend storage**
+  - *Mitigation*: Provide explicit in-app copy and visual cues confirming that session history is stored in-memory for the active demonstration session only.
+- **Risk: Confusion between UI Loading and canonical Pending states**
+  - *Mitigation*: Ensure `Loading` is treated strictly as an asynchronous component/view state with distinct visual indicators (`aria-busy="true"`), while `Pending` remains an authoritative domain lifecycle status representing an accepted task awaiting execution.
+- **Risk: Pull requests exceed the 500-line review recommendation**
+  - *Mitigation*: Decompose large UI implementation tasks (e.g., separating layout CSS/styles into one PR, and component markup into another) to maintain clean, reviewable units accompanied by automated tests.
