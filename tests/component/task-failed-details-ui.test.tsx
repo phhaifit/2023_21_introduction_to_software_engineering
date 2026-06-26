@@ -256,6 +256,11 @@ describe("5. Failed Processing Details Modal", () => {
 
     // Verify Error Details inside modal
     expect(within(dialog).getByRole("heading", { name: "Error Details" })).toBeVisible();
+    expect(within(dialog).getByText("Không thể tổng hợp kết quả")).toBeVisible();
+
+    // Open Advanced details to see internal error code
+    const advancedToggle = within(dialog).getByRole("button", { name: /Show Advanced details/i });
+    await user.click(advancedToggle);
     expect(within(dialog).getByText("MOCK_AGGREGATION_FAILED")).toBeVisible();
 
     // Close modal
@@ -278,7 +283,11 @@ describe("6. Failed Timeline & Logs", () => {
 
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
 
-    const timeline = screen.getAllByLabelText("Initial processing timeline")[0]!;
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getAllByRole("button", { name: /Show Advanced details/i })[0]);
+
+    const timeline = screen.getAllByLabelText(/processing timeline/i)[0]!;
     const listItems = within(timeline).getAllByRole("listitem");
 
     expect(listItems[0]).toHaveTextContent("Completed"); // validate-input
@@ -288,7 +297,7 @@ describe("6. Failed Timeline & Logs", () => {
     expect(listItems[4]).toHaveTextContent("Failed"); // aggregate-result
     expect(listItems[5]).toHaveTextContent("Waiting"); // finalize
 
-    const logs = screen.getAllByLabelText("Orchestration processing logs")[0]!;
+    const logs = screen.getAllByLabelText("Processing log details")[0]!;
     expect(within(logs).getByText("Input validated successfully.")).toBeVisible();
     expect(within(logs).getByText("Task executed.")).toBeVisible();
     expect(within(logs).getByText("Aggregating result.")).toBeVisible();
@@ -342,7 +351,7 @@ describe("8. Demo Reset & Isolation", () => {
     for (let i = 0; i < 6; i++) {
       act(() => { pRuntimeA.scheduler.advance(); });
     }
-    expect(await screen.findByText("WORK-000001")).toBeVisible();
+    expect(await screen.findByText("FAIL_SIMULATION: Task A")).toBeVisible();
     expect(screen.getByLabelText("Task status: Failed")).toBeVisible();
 
     // Simulate Demo Reset by unmounting, cleaning up, resetting ID sequence, and remounting
@@ -357,12 +366,12 @@ describe("8. Demo Reset & Isolation", () => {
 
     // Assert empty state restored
     expect(screen.getByText("What should your virtual team work on?")).toBeVisible();
-    expect(screen.queryByText("WORK-000001")).not.toBeInTheDocument();
+    expect(screen.queryByText("FAIL_SIMULATION: Task A")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Task status: Failed")).not.toBeInTheDocument();
 
     // Submit Task B (normal task)
     await submitPrompt("Normal Task B");
-    expect(await screen.findByText("WORK-000002")).toBeVisible();
+    expect(await screen.findByText("Normal Task B")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
   });
 });

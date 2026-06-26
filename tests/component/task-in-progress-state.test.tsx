@@ -137,7 +137,15 @@ function countStepStatuses(timeline: HTMLElement, label: string) {
 }
 
 afterEach(cleanup);
-beforeEach(() => resetTaskIdentitySequence());
+beforeEach(() => {
+  resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
+});
 
 describe("Task 8B — In-Progress integration", () => {
   it("1–6: Pending before start — status, steps, logs, startedAt, invalid submit", async () => {
@@ -156,12 +164,14 @@ describe("Task 8B — In-Progress integration", () => {
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
     expect(sched.pendingStartCount(PENDING_MS)).toBeGreaterThan(0);
 
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Waiting")).toBe(6);
     expect(countStepStatuses(timeline, "Active")).toBe(0);
-    expect(screen.queryByLabelText("Orchestration processing logs")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Processing log details")).not.toBeInTheDocument();
 
-    const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Send request" }));
     expect(client.callCount).toBe(1);
     expect(sched.pendingStartCount(PENDING_MS)).toBe(1);
@@ -184,12 +194,16 @@ describe("Task 8B — In-Progress integration", () => {
     expect(screen.getByLabelText("In-progress task")).toBeVisible();
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
 
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Active")).toBe(1);
     expect(countStepStatuses(timeline, "Waiting")).toBe(5);
     expect(within(timeline).getByText("Validate input").closest("li")).toHaveTextContent("Active");
 
-    expect(screen.getByLabelText("Task identifiers")).toHaveTextContent(
+    expect(screen.getByLabelText("Processing identifiers")).toHaveTextContent(
       "2026-06-24T14:00:00.000Z"
     );
     expect(screen.getByText("LOG-0001")).toBeVisible();
@@ -218,13 +232,17 @@ describe("Task 8B — In-Progress integration", () => {
     await act(() => { sched.flushNext(); });
     expect(sched.entries.find((e) => !e.cancelled && !e.executed)?.delayMs).toBe(STEP_MS);
 
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Active")).toBe(1);
     expect(countStepStatuses(timeline, "Completed")).toBe(1);
     expect(countStepStatuses(timeline, "Waiting")).toBe(4);
     expect(within(timeline).getByText("Analyze request").closest("li")).toHaveTextContent("Active");
 
-    const logs = screen.getAllByLabelText("Orchestration processing logs")[0]!;
+    const logs = screen.getAllByLabelText("Processing log details")[0]!;
     const items = within(logs).getAllByRole("listitem");
     expect(items.length).toBeGreaterThanOrEqual(3);
     expect(beforeAdvance).toBeLessThanOrEqual(1);
@@ -248,6 +266,9 @@ describe("Task 8B — In-Progress integration", () => {
       await act(() => { sched.flushNext(); });
     }
 
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+
     const timeline = getTimeline();
     expect(within(timeline).getByText("Finalize").closest("li")).toHaveTextContent("Active");
     expect(countStepStatuses(timeline, "Active")).toBe(1);
@@ -258,7 +279,7 @@ describe("Task 8B — In-Progress integration", () => {
     });
 
     expect(sched.pendingCount).toBe(pendingBefore);
-    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    expect(screen.getAllByLabelText("Task status: In Progress")[0]).toBeVisible();
     expect(screen.queryByLabelText("Task status: Completed")).not.toBeInTheDocument();
     expect(screen.queryByText(/final result/i)).not.toBeInTheDocument();
   });
@@ -277,8 +298,13 @@ describe("Task 8B — In-Progress integration", () => {
     await submitPrompt("First task.");
     await act(() => { sched.flushNext(); });
     await act(() => { sched.flushNext(); });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     const firstLogCount = within(
-      screen.getAllByLabelText("Orchestration processing logs")[0]!
+      screen.getAllByLabelText("Processing log details")[0]!
     ).getAllByRole("listitem").length;
 
     unmount();
@@ -296,7 +322,10 @@ describe("Task 8B — In-Progress integration", () => {
     await submitPrompt("Second task.");
     await act(() => { second.sched.flushNext(); });
 
-    const logs = within(screen.getAllByLabelText("Orchestration processing logs")[0]!);
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
+    const logs = within(screen.getAllByLabelText("Processing log details")[0]!);
     expect(logs.getAllByRole("listitem")).toHaveLength(1);
     expect(logs.queryByText(`Step ${ORDERED_STEP_IDS[0]}`)).not.toBeInTheDocument();
     expect(firstLogCount).toBeGreaterThan(0);
@@ -335,6 +364,9 @@ describe("Task 8B — In-Progress integration", () => {
 
     await act(() => { sched.flushNext(); });
     await act(() => { sched.flushNext(); });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+
     expect(countStepStatuses(getTimeline(), "Active")).toBe(1);
     expect(countStepStatuses(getTimeline(), "Completed")).toBe(1);
   });
@@ -367,11 +399,20 @@ describe("Task 8B — In-Progress integration", () => {
       "utf8"
     );
 
+    const modalSrc = readFileSync(
+      join(process.cwd(), "apps/frontend/src/features/task-orchestration/components/task-processing-detail-modal.tsx"),
+      "utf8"
+    );
+    const detailSrc = readFileSync(
+      join(process.cwd(), "apps/frontend/src/features/task-orchestration/model/task-processing-detail.ts"),
+      "utf8"
+    );
+
     expect(pageSrc).not.toMatch(/\.status\s*=\s*["'`]running/);
     expect(pageSrc).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);
-    expect(pageSrc).toMatch(/ProcessingTimeline/);
-    expect(pageSrc).toMatch(/TaskLogList/);
-    expect(pageSrc).toMatch(/processingSnapshot\.logs/);
+    expect(modalSrc).toMatch(/ProcessingTimeline/);
+    expect(modalSrc).toMatch(/TaskLogList/);
+    expect(detailSrc).toMatch(/processingSnapshot\.logs/);
     expect(controllerSrc).toBe(readFileSync(
       join(
         process.cwd(),
@@ -406,6 +447,9 @@ describe("Task 8B — In-Progress integration", () => {
     for (let i = 0; i < ORDERED_STEP_IDS.length - 1; i++) {
       await act(() => { sched.flushNext(); });
     }
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Completed")).toBe(ORDERED_STEP_IDS.length - 1);

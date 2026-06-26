@@ -11,6 +11,8 @@ import { formatRoutingSummary } from "../task-orchestration-page";
 export interface TaskProcessingDetail {
   readonly taskId: string;
   readonly workId: string;
+  readonly createdAt: string;
+  readonly startedAt?: string;
   readonly status: TaskPresentationStatus;
   readonly routingSummary: string;
   readonly durationMs: number | null;
@@ -23,7 +25,7 @@ export interface TaskProcessingDetail {
 export function buildTaskProcessingDetail(task: CreatedTaskRecord): TaskProcessingDetail | null {
   const status = toTaskPresentationStatus(task.status);
   
-  if (status !== "in-progress" && status !== "completed" && status !== "failed") {
+  if (!status) {
     return null;
   }
 
@@ -52,6 +54,8 @@ export function buildTaskProcessingDetail(task: CreatedTaskRecord): TaskProcessi
   return {
     taskId: task.taskId,
     workId: task.workId,
+    createdAt: task.createdAt,
+    startedAt: processingSnapshot.startedAt,
     status,
     routingSummary: formatRoutingSummary(task.requestedRouting),
     durationMs,

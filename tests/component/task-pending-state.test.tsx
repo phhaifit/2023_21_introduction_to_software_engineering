@@ -101,6 +101,12 @@ afterEach(cleanup);
 
 beforeEach(() => {
   resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -153,10 +159,14 @@ describe("2. canonical status remains queued", () => {
 // ---------------------------------------------------------------------------
 describe("3. Task ID and Work ID are rendered", () => {
   it("shows both identifiers in the Pending view", async () => {
+    const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("Identify this task.");
+    expect(screen.queryByText("TASK-000001")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
@@ -183,10 +193,12 @@ describe("4. submitted prompt is visible in Pending view", () => {
 // ---------------------------------------------------------------------------
 describe("5. auto routing summary", () => {
   it("shows 'Routing: Auto-routing' for auto mode", async () => {
+    const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("Auto route this.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
@@ -209,6 +221,7 @@ describe("6. specific-agent routing summary", () => {
       "AGT-CODE"
     );
     await submitPrompt("Review this code.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
     expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
   });
@@ -229,6 +242,7 @@ describe("7. predefined-workflow routing summary", () => {
       "WFL-RESEARCH-SYNTHESIS"
     );
     await submitPrompt("Research and summarize.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
     expect(
       screen.getByText("Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS")
@@ -241,12 +255,14 @@ describe("7. predefined-workflow routing summary", () => {
 // ---------------------------------------------------------------------------
 describe("8. all six approved timeline steps are rendered", () => {
   it("timeline contains exactly six steps with approved labels", async () => {
+    const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("Six steps test.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: "Processing timeline details" });
     const items = within(timeline).getAllByRole("listitem");
 
     expect(items).toHaveLength(6);
@@ -263,12 +279,14 @@ describe("8. all six approved timeline steps are rendered", () => {
 // ---------------------------------------------------------------------------
 describe("9. every step is in waiting state on Pending", () => {
   it("all step status indicators show Waiting", async () => {
+    const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("All waiting.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: "Processing timeline details" });
     const waitingLabels = within(timeline).getAllByText("Waiting");
     expect(waitingLabels).toHaveLength(6);
   });
@@ -279,12 +297,14 @@ describe("9. every step is in waiting state on Pending", () => {
 // ---------------------------------------------------------------------------
 describe("10. no step is active in Pending state", () => {
   it("zero steps have Active status indicator", async () => {
+    const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("No active steps.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: "Processing timeline details" });
     expect(within(timeline).queryAllByText("Active")).toHaveLength(0);
   });
 
@@ -306,12 +326,14 @@ describe("10. no step is active in Pending state", () => {
 // ---------------------------------------------------------------------------
 describe("11. no step is completed in Pending state", () => {
   it("zero steps have Completed status indicator in timeline", async () => {
+    const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("No completed steps.");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: "Processing timeline details" });
     expect(within(timeline).queryAllByText("Completed")).toHaveLength(0);
   });
 
@@ -717,8 +739,9 @@ describe("28. timeline unchanged after Cancel task click", () => {
 
     await submitPrompt("Timeline stable.");
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: "Processing timeline details" });
     expect(within(timeline).getAllByRole("listitem")).toHaveLength(6);
   });
 });
@@ -739,8 +762,9 @@ describe("29. all steps remain Waiting after Cancel task click", () => {
 
     await submitPrompt("Steps still waiting.");
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: "Processing timeline details" });
     expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);
     expect(within(timeline).queryAllByText("Active")).toHaveLength(0);
     expect(within(timeline).queryAllByText("Completed")).toHaveLength(0);
@@ -763,6 +787,8 @@ describe("30. Task ID remains visible after Cancel task click", () => {
 
     await submitPrompt("ID stable.");
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText("TASK-000001")).toBeVisible();
   });
@@ -784,6 +810,8 @@ describe("31. Work ID remains visible after Cancel task click", () => {
 
     await submitPrompt("Work ID stable.");
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText("WORK-000001")).toBeVisible();
   });
@@ -827,6 +855,7 @@ describe("33. routing summary remains visible after Cancel task click", () => {
 
     await submitPrompt("Routing stable.");
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
   });

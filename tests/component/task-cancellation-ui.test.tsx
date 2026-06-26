@@ -220,7 +220,7 @@ describe("2. Dialog", () => {
 
     // submit second task
     await submitPrompt("Second task");
-    expect(await screen.findByText("TASK-000002")).toBeVisible();
+    expect(await screen.findByText("Second task")).toBeVisible();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
@@ -285,7 +285,10 @@ describe("4. Running Confirm", () => {
     });
 
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Analyzing request.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
     // Cancel
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
@@ -297,6 +300,8 @@ describe("4. Running Confirm", () => {
     expect(screen.getByText("Task Canceled")).toBeVisible();
 
     // Active step canceled (timeline preserved), logs preserved
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Analyzing request.")).toBeVisible();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument(); // no finalized result
     expect(screen.queryByRole("button", { name: "Cancel task" })).not.toBeInTheDocument();
@@ -402,14 +407,14 @@ describe("7. Isolation and Lifecycle", () => {
     );
 
     await submitPrompt("Task A");
-    expect(await screen.findByText("TASK-000001")).toBeVisible();
+    expect(await screen.findByText("Task A")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
     expect(screen.getByRole("dialog", { name: "Cancel task?" })).toBeVisible();
 
     // Switch to Task B by submitting new prompt
     await submitPrompt("Task B");
-    expect(await screen.findByText("TASK-000002")).toBeVisible();
+    expect(await screen.findByText("Task B")).toBeVisible();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // dialog closed
 
     // Open dialog on Task B
@@ -419,7 +424,7 @@ describe("7. Isolation and Lifecycle", () => {
 
     await user.click(within(dialogB).getByRole("button", { name: "Confirm cancellation" }));
     expect(screen.getByLabelText("Task status: Canceled")).toBeVisible();
-    expect(screen.getByText("TASK-000002")).toBeVisible();
+    expect(screen.getByText("Task B")).toBeVisible();
 
     // Unmount safety
     expect(() => unmount()).not.toThrow();
