@@ -1,265 +1,53 @@
 # Task & Orchestration — Production UI Enhancement Tasks
 
-## General Execution Rules
+## 1. Production UI Foundation and Visual System
 
-* OpenSpec is the source of truth.
-* Each numbered checkbox below represents one implementation sub-issue.
-* Implement only one selected sub-issue at a time.
-* Every sub-issue should normally use a dedicated branch and pull request.
-* Implementation and automated test code should generally remain within 500 added lines per reviewable pull request or sub-issue. Larger changes should be decomposed into multiple focused review units. Exceeding this guideline is not, by itself, a functional acceptance failure when the scope is justified, the work is reviewable, and all required verification passes.
-* Do not mark a task complete until implementation and verification are complete.
-* Do not introduce external API dependencies or backend persistence.
-* Do not modify core lifecycle semantics established in Tasks 1–13 of `implement-task-orchestration`.
-* Run relevant tests, build, and OpenSpec validation before marking a task complete.
+- [x] 1.1 Define centralized CSS tokens and design system utilities for typography scales, standardized spacing, semantic colors, and elevation layers maintaining a presentation-only scope.
+- [x] 1.2 Establish consistent design foundation classes supporting all five canonical task statuses (Pending, In-Progress, Completed, Failed, Canceled) without proprietary branding, provider-specific logic, or runtime behavior changes.
+- [x] 1.3 Implement focused styling and foundation rendering tests verifying semantic token consumption across all canonical statuses.
 
-## Production UI Roadmap
+## 2. Conversation Workspace Shell and Session Navigation
 
-* [x] 1. Production UI Foundation and Visual System
+- [ ] 2.1 Implement in-memory conversation session model (`TaskConversationSession`), active conversation management (`activeConversationId`), and stable sidebar/header/feed/composer layouts.
+- [ ] 2.2 Implement multi-turn Task feed and presentation-only conversation switching without canceling, restarting, pausing, duplicating, or resetting Tasks.
+- [ ] 2.3 Implement per-Task background runtime isolation (runtimes keyed by immutable Task ID) allowing inactive tasks to progress and reach terminal states.
+- [ ] 2.4 Implement New Chat action creating a new empty conversation while preserving existing conversations/Tasks and ensuring empty conversations do not display stale Task data or open processing details/cancellation dialogs for prior Tasks.
+- [ ] 2.5 Implement strict visual separation ensuring UI loading states are distinct from canonical Pending states, and verify unmount/reset cleanup leaves no orphan runtimes.
+- [ ] 2.6 Implement reducer, multi-turn rendering, switching isolation, background completion/failure, New Chat preservation, cancellation dialog target verification, and Strict Mode tests.
 
-  Scope:
+## 3. Composer and Routing Experience
 
-  * Define centralized CSS tokens and design system utilities for typography, spacing, semantic colors, and elevation.
-  * Establish consistent design foundation classes across the Task & Orchestration workspace.
-  * Strictly avoid copying proprietary branding, logos, or visual assets from other commercial products.
-  * Keep this task focused on visual styling foundations without altering component logic or lifecycle states.
-  * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
+- [ ] 3.1 Polish task composer input ergonomics, active/focus states, keyboard submit interactions, double-submit prevention, and explicit visual validation feedback for empty/whitespace prompts.
+- [ ] 3.2 Enhance routing mode selector (Auto, Specific Agent, Predefined Workflow) with clear mode descriptions, selector loading/unavailable states, and target required validation before submission.
+- [ ] 3.3 Implement routing mode switching behavior that clears incompatible target values and ensures the UI does not self-analyze prompts to select agents or self-execute Auto-routing.
+- [ ] 3.4 Implement provider-neutral task submission ensuring the request contains no provider credentials or direct OpenClaw calls, and preserves user input on recoverable submission failures.
+- [ ] 3.5 Implement composer interaction, routing selector validation, submitting state distinct from Pending presentation, and successful canonical Task creation transition tests.
 
-  Acceptance:
+## 4. Execution Feed and Processing Inspector
 
-  * Visual system tokens (color, typography, spacing, elevation) are cleanly defined and centralized.
-  * Token names are semantic and free of proprietary branding.
-  * The foundation supports all required task statuses (Pending, In-Progress, Completed, Failed, Canceled).
-  * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
+- [ ] 4.1 Render normalized runtime updates while retaining deterministic mock updates as a legitimate test and development adapter across Pending, In-Progress, Completed, Failed, and Canceled states.
+- [ ] 4.2 Upgrade execution feed rendering ensuring partial output is clearly distinguished from finalized results, Completed tasks display finalized results, Failed tasks display errors without treating incomplete output as Completed, and Canceled tasks stop receiving updates.
+- [ ] 4.3 Enhance processing detail modal (inspector) scoped strictly by Task ID, displaying canonical steps and logs, separating technical details from main results, with Advanced Details closed by default and excluding raw credentials or sensitive provider payloads.
+- [ ] 4.4 Implement terminal-state protection ensuring delayed non-terminal events do not transition terminal Tasks back to active, and cross-Task isolation ensuring inactive conversations never receive data from active Tasks.
+- [ ] 4.5 Implement feed rendering, partial output separation, inspector task-scoping, missing optional observability graceful handling, and terminal protection tests.
 
-  Verification:
+## 5. Conversation History, Search and Status Filters
 
-  * Add or update focused styling and foundation rendering tests.
-  * Run relevant frontend tests and build.
-  * Run `openspec validate "enhance-task-orchestration-production-ui" --strict`.
-  * Run `openspec validate --all --strict`.
-  * Run `git diff --check`.
+- [ ] 5.1 Implement conversation-oriented history navigation within the workspace sidebar area, ordering items by updated time or design rules, and supporting stable selections and clear search/filter actions.
+- [ ] 5.2 Implement search input filtering in-memory conversations by conversation title, prompt text, Task ID, or Work ID matching without affecting runtime execution.
+- [ ] 5.3 Implement status filter controls matching conversations when their latest Task has the selected canonical status, ensuring empty conversations do not match status filters.
+- [ ] 5.4 Implement graceful selection handling when the active conversation is filtered out of the list, and display explicit visual notices confirming history data is session-scoped (in-memory).
+- [ ] 5.5 Implement history filtering, search matching, empty conversation filtering rules, and presentation-only scoping tests.
 
-  Suggested branch:
+## 6. Responsive, Empty, Loading and Accessibility
 
-  `feat/task-orchestration-visual-system`
+- [ ] 6.1 Polish responsive layout behaviors across desktop, tablet, and mobile viewport dimensions, pinned composers, scrollable feeds, long results, and dedicated empty states.
+- [ ] 6.2 Implement distinct visual indicators for temporary UI states including loading, submitting, reconnecting (distinct from canonical Task status), and provider unavailable states (distinct from Failed Task).
+- [ ] 6.3 Implement comprehensive accessibility polish including keyboard navigation (`Tab`/`Shift+Tab`), focus trapping in modals, keyboard-accessible dialogs and routing selectors, focus-visible styling, and accessible simulation indicators.
+- [ ] 6.4 Implement accessible status labels ensuring status is not conveyed by color alone, reduced-motion compatibility, search no-result states, and verify empty conversations display no stale task actions.
 
-  Suggested commits:
+## 7. Regression and Final Verification
 
-  `feat(task-orchestration): establish production UI visual system`
-
-* [ ] 2. Conversation Workspace Shell and Session Navigation
-
-  Scope:
-
-  * In-memory conversation collection and active conversation management.
-  * New Chat action and ordered Task IDs per conversation.
-  * Multi-turn append and previous-turn preservation.
-  * Conversation switching and minimal conversation navigation in the sidebar.
-  * Per-Task background update isolation (runtimes keyed by Task ID).
-  * Orchestration dock and Processing Details scoped to the selected conversation.
-  * Upgrade the workspace shell layout and information architecture.
-  * No backend persistence.
-  * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
-
-  Acceptance:
-
-  * Old chats are not overwritten.
-  * Second message appends to the current conversation.
-  * Earlier turns remain visible.
-  * New Chat retains previous conversations.
-  * Switching restores the correct history.
-  * Switching neither cancels nor reruns Tasks.
-  * Inactive running Tasks update the correct record.
-  * No state leakage between conversations.
-  * Empty conversation has no orchestration dock.
-  * Core Task lifecycle semantics remain strictly unchanged.
-
-  Verification:
-
-  * Add reducer/state tests.
-  * Add multi-turn rendering tests.
-  * Add switching and isolation tests.
-  * Add background completion/failure tests.
-  * Add Strict Mode tests.
-  * Run relevant frontend tests and build.
-  * Run OpenSpec validation commands.
-  * Run `git diff --check`.
-
-  Suggested branch:
-
-  `feat/task-orchestration-conversation-workspace`
-
-  Suggested commits:
-
-  `feat(task-orchestration): add in-memory conversation sessions`
-  `refactor(task-orchestration): isolate runtimes by task id`
-  `feat(task-orchestration): add conversation navigation and switching`
-  `test(task-orchestration): cover conversation history and isolation`
-
-* [ ] 3. Composer and Routing Experience
-
-  Scope:
-
-  * Polish the task composer input ergonomics, active/focus states, and submit interactions.
-  * Improve visual validation feedback for empty or whitespace-only prompts.
-  * Enhance the routing mode selector (Auto, Specific Agent, Predefined Workflow) with clear mode descriptions and target selection indicators.
-  * Retain existing in-memory submission callbacks without altering core task creation logic.
-  * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
-
-  Acceptance:
-
-  * Composer input provides smooth interactive feedback and explicit error styling upon validation failure.
-  * Routing selector clearly displays the active mode and selected target.
-  * Task creation mechanics and initial Pending status assignment remain strictly unchanged.
-  * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
-
-  Verification:
-
-  * Add composer and routing selector interaction tests.
-  * Run relevant frontend tests and build.
-  * Run OpenSpec validation commands.
-  * Run `git diff --check`.
-
-  Suggested branch:
-
-  `feat/task-orchestration-composer-experience`
-
-  Suggested commits:
-
-  `feat(task-orchestration): polish composer and routing selection experience`
-
-* [ ] 4. Execution Feed and Processing Inspector
-
-  Scope:
-
-  * Upgrade the execution feed rendering for active and completed task cards.
-  * Polish the presentation of task status badges, inline processing timelines, and simulated streaming chunks.
-  * Enhance the processing detail modal (inspector) with structured tabs or sections for metadata, step execution history, logs, and error/cancellation details.
-  * Preserve core lifecycle semantics (Tasks 1–13) without modifying state machine guards or transition logic.
-  * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
-
-  Acceptance:
-
-  * Task cards in the execution feed provide excellent legibility and clear status differentiation.
-  * Status badges include explicit text labels and do not rely on color alone.
-  * Processing inspector cleanly formats active steps, logs, error details, and cancellation markers.
-  * Terminal state guards remain fully intact.
-  * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
-
-  Verification:
-
-  * Add execution feed and processing inspector rendering tests.
-  * Run relevant frontend tests and build.
-  * Run OpenSpec validation commands.
-  * Run `git diff --check`.
-
-  Suggested branch:
-
-  `feat/task-orchestration-execution-feed`
-
-  Suggested commits:
-
-  `feat(task-orchestration): upgrade execution feed and processing inspector`
-
-* [ ] 5. Conversation History, Search, and Status Filters
-
-  Scope:
-
-  * Enhance the conversation/history navigation within the workspace sidebar area.
-  * Add search input to filter in-memory conversations by prompt text, Task ID, or Work ID matching.
-  * Add canonical status filter controls to view conversations/tasks by status (Pending, In-Progress, Completed, Failed, Canceled).
-  * Support empty search-result state.
-  * Display an explicit visual notice confirming that history data is session-scoped (in-memory) and not persistently stored in a backend database.
-  * No backend persistence.
-  * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
-
-  Acceptance:
-
-  * Users can instantly search and filter in-memory conversation history.
-  * Filter controls correctly match the five canonical task statuses.
-  * Clear UI copy informs the user that conversation history is stored in-memory for the active session only.
-  * No backend persistence or database queries are introduced.
-  * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
-
-  Verification:
-
-  * Add history filtering, search, and in-memory scoping tests.
-  * Run relevant frontend tests and build.
-  * Run OpenSpec validation commands.
-  * Run `git diff --check`.
-
-  Suggested branch:
-
-  `feat/task-orchestration-history-filters`
-
-  Suggested commits:
-
-  `feat(task-orchestration): add in-memory conversation history, search, and status filters`
-
-* [ ] 6. Responsive, Empty, Loading, and Accessibility Polish
-
-  Scope:
-
-  * Polish responsive layout behaviors across desktop, tablet, and mobile viewport dimensions.
-  * Refine the dedicated empty state for new sessions without active tasks.
-  * Implement polished UI loading indicators (`aria-busy="true"`) for asynchronous view initialization.
-  * Enforce strict semantic and visual separation between UI `Loading` states and canonical `Pending` lifecycle states.
-  * Comprehensive accessibility polish including focus trapping in modals, ARIA live regions for streaming, and explicit screen reader labels.
-  * Decompose into multiple focused review units if added code lines risk exceeding the 500-line recommendation.
-
-  Acceptance:
-
-  * Workspace layout adapts smoothly to varying viewport sizes.
-  * Empty state is visually engaging and guides new task creation.
-  * UI loading state is distinct and never conflated with canonical Pending status.
-  * Modals trap keyboard focus correctly; all interactive elements are fully accessible via keyboard and screen readers.
-  * Added implementation and test code should generally remain within 500 lines per reviewable PR or sub-issue; decompose into multiple review units when needed.
-
-  Verification:
-
-  * Add accessibility, responsive layout, and empty/loading state tests.
-  * Run relevant frontend tests and build.
-  * Run OpenSpec validation commands.
-  * Run `git diff --check`.
-
-  Suggested branch:
-
-  `feat/task-orchestration-responsive-a11y`
-
-  Suggested commits:
-
-  `feat(task-orchestration): polish responsive layouts, empty states, loading, and accessibility`
-
-* [ ] 7. Production UI Regression and Final Verification
-
-  Scope:
-
-  * Perform comprehensive regression testing across the entire Task & Orchestration production UI.
-  * Verify that all core lifecycle behaviors (Tasks 1–13 of `implement-task-orchestration`) function flawlessly within the enhanced UI shell.
-  * Verify that no backend persistence or external service calls have been introduced.
-  * Confirm that all implementation pull requests generally adhered to the 500-added-line recommendation or were appropriately decomposed.
-  * Execute final test suites, builds, and OpenSpec validation checks.
-
-  Acceptance:
-
-  * All enhanced UI components integrate seamlessly with the core in-memory lifecycle engine.
-  * Core task creation, routing, simulated processing, streaming, cancellation, and failure flows work perfectly without regression.
-  * No external dependencies or backend persistence exist.
-  * All automated tests and builds pass successfully.
-  * Strict OpenSpec validation passes for the change.
-
-  Verification:
-
-  * Execute the full frontend automated test suite.
-  * Run the workspace build.
-  * Run `openspec validate "enhance-task-orchestration-production-ui" --strict`.
-  * Run `openspec validate --all --strict`.
-  * Run `git diff --check`.
-
-  Suggested branch:
-
-  `test/task-orchestration-ui-regression`
-
-  Suggested commits:
-
-  `test(task-orchestration): perform production UI regression and final verification`
+- [ ] 7.1 Execute full presentation regression verification covering workspace shell, conversations, New Chat, composer, routing, lifecycle rendering, execution feed, processing details, history sidebar, search/filter, responsive layouts, and accessibility.
+- [ ] 7.2 Execute provider-neutral regression verification ensuring UI renders from normalized Task state, mock execution remains fully functional as a test and development adapter, presentation does not import OpenClaw-specific types or depend on provider-specific events, and no silent fallback occurs.
+- [ ] 7.3 Verify loading/reconnecting states do not distort canonical lifecycle, terminal Tasks never return to active, and multiple concurrent Tasks maintain perfect update isolation without requiring real OpenClaw integration tests.

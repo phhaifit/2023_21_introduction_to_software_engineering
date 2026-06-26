@@ -1,141 +1,161 @@
-# Design: Enhance Task & Orchestration Production UI
+## Context
 
-## 1. Context and Objectives
-
-The core Task & Orchestration prototype established a robust in-memory lifecycle engine (Pending, In-Progress, Completed, Failed, Canceled) and simulated orchestration mechanics (Tasks 1–13). This design details the production user interface enhancement required to transform the prototype into a premium, accessible, and modern conversation workspace.
-
-The design strictly preserves the existing domain model, state machine, and in-memory architecture. It introduces no backend persistence and avoids copying proprietary branding from commercial products.
-
-## 2. Design Goals
-
-1. Establish a cohesive visual design system (typography, spacing, color, elevation).
-2. Refine the conversation workspace shell, session navigation, and information architecture for superior ergonomics.
-3. Polish the composer, routing selector, execution feed, and processing inspector.
-4. Provide in-memory conversation/history navigation, search, and status filtering.
-5. Implement flawless responsive design, empty states, and accessibility primitives.
-6. Maintain strict separation between UI `Loading` states and canonical `Pending` lifecycle states.
-7. Ensure all implementation pull requests remain focused and generally within 500 added lines of code.
-
-## 3. Visual System Foundation
-
-### Typography and Hierarchy
-* Establish clear font scales for workspace headers, task prompts, status labels, and technical logs.
-* Ensure optimal line height and contrast ratios for readability.
-
-### Spacing and Layout Tokens
-* Utilize a standardized grid and spacing system (e.g., 4px/8px/16px/24px increments).
-* Define consistent padding and margin tokens across all workspace components.
-
-### Color Palette and Elevation
-* Use semantic color tokens for task statuses (Pending, In-Progress, Completed, Failed, Canceled).
-* Establish subtle background surfaces, border colors, and elevation shadows to separate the sidebar, main feed, composer, and modal inspector.
-* Strictly avoid proprietary branding or third-party color schemes.
-
-## 4. Component Architecture
-
-The enhancement refines the existing component tree in `apps/frontend/src/features/task-orchestration/components`:
-
+The Task & Orchestration module requires a production-quality conversation workspace, clear information architecture, a polished composer, an execution feed, a processing inspector, and robust history navigation. The overarching architectural vision mandates a provider-neutral boundary:
 ```text
-TaskOrchestrationPage (Workspace Shell)
-├── Sidebar
-│   ├── Workspace Introduction / Navigation Header
-│   └── ConversationHistoryNavigation (In-memory)
-│       ├── NewChatButton
-│       ├── SearchInput
-│       ├── StatusFilterBar
-│       └── ConversationList
-├── MainContentArea
-│   ├── WorkspaceTopBar
-│   ├── ExecutionFeed (Multi-turn Task Cards / Timeline / Logs)
-│   │   ├── TaskStatusBadge
-│   │   ├── TaskTimeline
-│   │   ├── StreamingResult
-│   │   └── CompletedResultView
-│   └── ComposerArea
-│       ├── TaskComposer
-│       └── RoutingSelector
-└── Modals / Dialogs
-    ├── ProcessingDetailModal (Inspector)
-    └── CancelConfirmationDialog
+Frontend
+    ↓
+Task & Orchestration application boundary
+    ↓
+TaskExecutionAdapter
+    ↓
+Externally supplied execution runtime reference
+    ↓
+OpenClaw instance managed by another module/team
 ```
+Workspace Management or the responsible infrastructure module provides a resolvable execution-runtime reference. Task & Orchestration consumes that reference to submit and monitor work.
 
-## 5. Key Architectural Rules
+**Task & Orchestration owns:** Task and TaskWork domain models, Task creation/validation, canonical Task lifecycle (Pending, In-Progress, Completed, Failed, Canceled), routing request representation (Auto, Specific Agent, Predefined Workflow), conversation and Task history, mock execution used for development and tests, provider-neutral execution contracts, consumer-side OpenClaw adapter, mapping platform Task requests to verified OpenClaw requests, mapping OpenClaw execution updates to normalized Task events, cancellation request forwarding, execution reference association, lifecycle projection, streaming/result/error/observability presentation, Task-scoped event isolation, frontend rendering and user interaction.
 
-### 5.1 Authoritative Task Collection
-* Continue using the existing Task collection: `TaskCreationState.tasks`.
-* Do not create another Task store.
+**Task & Orchestration does not own:** OpenClaw installation, OpenClaw container creation, OpenClaw start/stop/restart/delete/upgrade, workspace provisioning, CPU/RAM allocation, Standard/Premium infrastructure configuration, Gateway DNS or networking, Gateway credential creation or platform-wide secret ownership, authentication implementation, workspace membership management, RBAC ownership, subscription validation implementation, payment, Agent Management, Workflow Management, Tool Management, Knowledge Base or RAG Management, custom orchestration engine, custom LLM router, custom multi-agent collaboration engine, custom workflow runtime, OpenClaw internals.
 
-### 5.2 Conversation Session View Model
-A conversation session may contain:
+## Goals / Non-Goals
+
+**Goals:**
+- Upgrade the user interface to a premium production-style workspace.
+- Support conversation sessions containing multiple Tasks with multi-turn feeds.
+- Maintain background Task continuity across conversation navigation by immutable Task ID.
+- Display canonical Task lifecycle states accurately.
+- Ensure provider-neutral rendering using normalized Task state.
+- Retain deterministic mock execution as a legitimate Task & Orchestration test and development adapter.
+- Prepare the UI to receive real runtime updates from the platform backend in the future.
+- Clearly separate presentation state, canonical Task state, and execution-provider state.
+
+**Non-Goals:**
+- OpenClaw transport implementation or OpenClaw Gateway connection.
+- Runtime provisioning, container management, or credential management.
+- Backend adapter implementation, Agent Management, or Workflow Management implementation.
+- Custom orchestration-engine implementation.
+
+## Decisions
+
+### Decision 1: Provider-Neutral Presentation
+The user interface renders canonical Task state without knowing whether updates originate from a mock runtime, an external execution provider, or a restored Task snapshot. The UI submits Task requests through the platform Task boundary, does not connect directly to OpenClaw, does not receive or store OpenClaw credentials, does not create or manage OpenClaw instances, does not infer production completion or failure, and does not silently fall back from production execution to mock execution.
+* *Rationale*: Ensures the UI component tree remains perfectly decoupled from underlying execution engines, preventing the need for UI changes when adding or changing providers.
+* *Alternatives considered*: Branching inside React components based on `provider.type`. Rejected because it introduces provider-specific logic into presentation components and breaks encapsulation.
+
+### Decision 2: Conversation Architecture & State Ownership
+The state structure is organized around conversations referencing canonical Task records:
+```text
+TaskCreationState
+├── tasks
+├── conversations
+├── activeConversationId
+├── activeTaskId
+└── presentation state
+```
+Frontend-owned state includes: composer draft, selector state, modal state, search query, filter state, submitting, loading, reconnecting. Canonical Task state includes: status, timeline, partial output, final result, error, cancellation, timestamps.
+* *Rationale*: Ensures Task records remain the canonical source of truth while supporting multi-turn chat sessions cleanly.
+* *Alternatives considered*: Storing full Task objects directly inside conversation objects. Rejected because it duplicates authoritative data and risks state desynchronization.
+
+### Decision 3: Conversation Switching is Presentation-Only
+Switching the active conversation is strictly a presentation action. It must not cancel, restart, pause, duplicate, reset, or alter the lifecycle of any Task, nor clear the runtime or transfer runtime callbacks to the active Task. Background Task execution is preserved by immutable Task ID.
+* *Rationale*: Allows background Tasks in inactive conversations to continue executing and receiving updates under their immutable Task IDs without interruption.
+* *Alternatives considered*: Pausing background tasks when switching conversations. Rejected because users expect long-running tasks to progress asynchronously while they view other chats.
+
+### Decision 4: New Chat Behavior
+The New Chat action creates a new empty conversation and selects it as active. It preserves all existing conversations and Tasks, does not stop background Tasks, does not display stale Tasks in the empty conversation, and does not open processing details or cancellation dialogs for prior Tasks.
+* *Rationale*: Provides a clean slate for new work while safeguarding active background processing in prior chats.
+* *Alternatives considered*: Overwriting the current conversation state upon clicking New Chat. Rejected because it destroys active session history and orphans running tasks.
+
+### Decision 5: Runtime Ownership Keyed by Task ID
+In mock mode, the runtime utilizes a Task-keyed registry. All timers, schedulers, streaming controllers, cancellation handles, completion callbacks, and failure callbacks are keyed by immutable Task ID, independent of the active Task or active conversation. Mock execution is retained as a legitimate Task & Orchestration test and development adapter.
+* *Rationale*: Guarantees robust background progression and ensures terminal cleanup only disposes of the runtime resources belonging to that specific Task.
+* *Alternatives considered*: Keying runtime controllers by `activeTaskId`. Rejected because it breaks background execution whenever the user navigates away.
+
+### Decision 6: Canonical Lifecycle vs. UI State Separation
+The workspace maintains a strict visual and semantic distinction between temporary UI states (loading, submitting, reconnecting, provider unavailable) and canonical lifecycle statuses (Pending, In-Progress, Failed).
+* *Rationale*: Submitting is a UI state before/during request transmission; Pending appears only after a canonical Task is created; reconnecting does not transition a Task to Failed; provider unavailable before Task creation is not a Failed Task; and only canonical failures display Failed.
+* *Alternatives considered*: Using the Pending status badge during initial form submission. Rejected because it conflates network latency with canonical Task existence.
+
+### Decision 7: Composer and Routing Design
+The composer creates provider-neutral Task requests supporting Auto, Specific Agent, and Predefined Workflow routing modes. The UI does not analyze prompts to select agents, does not self-execute Auto-routing, does not contain provider credentials, and does not call execution providers directly; it submits routing selections via the platform Task client.
+* *Rationale*: Delegates all routing intelligence to the backend/provider while keeping the frontend clean and secure. Switching routing modes clears incompatible targets, and Specific Agent/Workflow modes require valid targets before submission.
+* *Alternatives considered*: Directly invoking OpenClaw endpoints from the composer submit handler. Rejected because it violates provider-neutral boundaries and leaks credentials.
+
+### Decision 8: Feed Rendering
+The execution feed strictly separates partial output from finalized results. Partial output is never displayed as a finalized result; Completed tasks display only finalized results; Failed tasks display errors without treating incomplete output as Completed; Canceled tasks stop receiving UI updates; delayed updates do not transition terminal Tasks back to active; each update applies to the correct Task; and inactive conversations never receive data from active Tasks.
+* *Rationale*: Assures absolute clarity and correctness in the multi-turn execution feed.
+* *Alternatives considered*: Merging partial output and finalized results into a single state field. Rejected because it prevents the UI from distinguishing active streaming from completion.
+
+### Decision 9: Processing Inspector
+The processing details modal is strictly scoped by Task ID, reading canonical steps and logs to separate technical details from the main result. Advanced Details are closed by default, raw credentials and sensitive provider payloads are excluded, and the view degrades gracefully when only lifecycle data is available without detailed execution activity.
+* *Rationale*: Provides powerful debugging capabilities without cluttering the primary UI or exposing sensitive credentials.
+* *Alternatives considered*: Displaying raw provider JSON logs directly in the main feed. Rejected because it overwhelms users and exposes sensitive data.
+
+### Decision 10: History Model
+The sidebar history is conversation-oriented rather than a flat Task list. Each item displays conversation title, updated time, latest Task status, latest prompt preview, and matching search context. Search supports conversation title, prompt, Task ID, and Work ID. Status filtering enforces a single clear rule: a conversation matches a status filter when its latest Task has the selected canonical status. Empty conversations do not match status filters.
+* *Rationale*: Organizes complex multi-task sessions intelligibly for enterprise users.
+* *Alternatives considered*: A flat list of every Task attempt in the sidebar. Rejected because it clutters navigation and loses conversation context.
+
+### Decision 11: External Dependency Contracts & Responsibility Boundaries
+The Task & Orchestration specifications define consumer-facing ports conceptually but must not claim ownership of their implementations:
 ```ts
-type TaskConversationSession = {
-  conversationId: string;
-  title: string;
-  taskIds: readonly string[];
-  createdAt: string;
-  updatedAt: string;
-};
+interface WorkspaceExecutionRuntimeResolver {
+  resolve(workspaceId: WorkspaceId): Promise<WorkspaceExecutionRuntime>;
+}
+
+interface WorkspaceExecutionRuntime {
+  provider: "openclaw";
+  instanceId: string;
+  endpointReference: string;
+  credentialReference: string;
+  status: "running" | "stopped" | "unavailable";
+}
 ```
-* Conversation records must not copy prompt, partial output, final result, errors, logs, timeline, or routing metadata.
+External dependencies are defined conceptually for:
+- Agent Management → workspace-scoped selectable agents, platform-agent to provider-agent mapping
+- Workflow Management → workspace-scoped selectable workflows, platform-workflow to provider-workflow mapping
+- Workspace User Management / Authentication → authorized principal and operation permission
+- Workspace Management → resolvable execution-runtime reference
 
-### 5.3 Active Selection
-* Define `activeConversationId`.
-* Define active Task derived from the latest Task in the selected conversation, or a consistently maintained `activeTaskId`.
-* Changing active conversation is a presentation action only. It must not restart a Task, cancel a Task, stop a Task, or change lifecycle status.
+The cross-change dependency order is documented as follows:
+```text
+enhance-task-orchestration-production-ui
+    independent presentation alignment
 
-### 5.4 Per-Task Runtime Ownership
-Current single refs and active-Task effects are not sufficient for inactive background Tasks.
-* Processing handles are keyed by Task ID.
-* Streaming handles are keyed by Task ID.
-* Completion handles are keyed by Task ID.
-* Callbacks update records by Task ID.
-* Switching conversations does not cleanup another Task’s runtime.
-* Terminal Tasks clean up their own handles.
-* Reset/unmount cleans all remaining handles.
-* No new backend service is prescribed.
+establish-openclaw-task-integration-contracts
+    defines consumer-side contracts
 
-### 5.5 New Chat versus Demo Reset
-* **New Chat:** Creates a new empty conversation, retains existing conversations and Tasks, and does not stop running Tasks.
-* **Demo Reset:** Follows the existing reset contract, clears conversation references consistently, and leaves no orphan IDs or handles.
+integrate-openclaw-task-execution
+    depends on integration contracts
+    and on an externally supplied runtime prerequisite
 
-### 5.6 Task Boundaries
-* **Task 2 owns:** Minimal conversation navigation, New Chat, active conversation, switching, multi-turn rendering, background Task continuity, and workspace shell.
-* **Task 5 owns:** Search, status filters, prompt/Task ID/Work ID discovery, advanced history browsing, and optional sorting defined by the roadmap.
-* **Task 6 owns:** Final responsive, loading, empty, no-result, and accessibility polish.
-
-### 5.7 Strict Separation of Loading vs. Pending
-* **UI Loading State:** Represents an asynchronous view state (e.g., initial module loading or component mounting). Displayed via dedicated loading spinners or skeleton screens with appropriate ARIA labels (`aria-busy="true"`).
-* **Canonical Pending State:** Represents an established `Task` record that has been successfully submitted and validated, but has not yet begun simulated orchestration. Displayed via the canonical `Pending` status badge and initial timeline steps.
-* UI Loading must never be labeled or treated as `Pending`.
-
-### 5.8 Preservation of Lifecycle Semantics
-* All UI enhancements are presentation-only.
-* Components must not directly mutate `task.status`, bypass state machine helpers (`canTransition`, `isTerminalStatus`), or modify the core logic established in Tasks 1–13.
-
-## 6. Accessibility (a11y) Design
-
-* **Keyboard Navigation:** All interactive elements (filters, search, composer buttons, task cards, modal triggers) must be fully navigable via `Tab` and `Shift+Tab`.
-* **Focus Management:** Modals and dialogs must trap focus when open and restore focus to the triggering element when closed.
-* **ARIA Attributes:** Use explicit ARIA roles and labels (e.g., `role="status"`, `aria-live="polite"`, `aria-expanded`, `aria-controls`).
-* **Color Independence:** Status badges must always include explicit text labels (e.g., "Failed", "In-Progress") and never rely on color alone to convey meaning.
-
-## 7. Code Size and Review Unit Decomposition
-
-Every task must be implemented in a dedicated pull request. To adhere to the review guideline of keeping added code within 500 lines per PR:
-* Developers must estimate added lines prior to implementation.
-* If a task (e.g., Task Workspace Shell or Execution Feed) risks exceeding 500 added lines, it must be decomposed into multiple focused review units (e.g., separating layout CSS/styles into one PR, and component markup into another).
-* Automated tests must accompany each implementation unit.
-
-## 8. Verification Strategy
-
-Every pull request must execute the following commands to verify correctness and ensure zero regression:
-
-```powershell
-npm test
-npm run build
-npx openspec validate "enhance-task-orchestration-production-ui" --strict
-npx openspec validate --all --strict
-git diff --check
+extend-openclaw-execution-observability
+    depends on task execution integration
 ```
+* *Rationale*: Prevents scope creep and enforces strict architectural boundaries across project modules.
+* *Alternatives considered*: Task & Orchestration managing container provisioning and RBAC directly. Rejected because it violates module ownership and creates unmaintainable coupling.
 
-Any known repository-wide validation failures (e.g., `spec/client-side-routing`) must be reported transparently and left unmodified if outside the active change scope.
+### Decision 12: Accessibility and Responsive Design
+The design comprehensively covers desktop, tablet, and mobile dimensions, pinned composers, scrollable feeds, long results, focus-visible styling, keyboard navigation (`Tab`/`Shift+Tab`), dialog focus management, accessible status labels, status indicators not reliant on color alone, reduced-motion compatibility, empty states, loading states, reconnecting states, and search no-result states.
+* *Rationale*: Ensures full compliance with enterprise accessibility standards and provides superior usability across all devices.
+* *Alternatives considered*: Relying solely on color-coded dots for task statuses. Rejected because it fails WCAG accessibility guidelines for colorblind users.
+
+## Risks / Trade-offs
+
+* **Risk: UI navigation interrupts active background task processing** → Mitigation: Runtime controllers and callbacks are keyed strictly by immutable Task ID rather than active conversation ID.
+* **Risk: Confusion between temporary UI states and canonical lifecycle statuses** → Mitigation: Strict semantic separation ensures temporary states (submitting, loading, reconnecting) use dedicated UI indicators (`aria-busy="true"`, skeleton screens) rather than canonical status badges.
+* **Risk: Large UI pull requests exceed the 500-line review recommendation** → Mitigation: Implementation is decomposed into focused review units (e.g., separating foundation styling from component markup), each accompanied by automated tests.
+
+## Migration Plan
+
+1. Define centralized visual system tokens and foundation styling classes.
+2. Implement in-memory conversation state structure (`TaskCreationState.conversations`, `activeConversationId`) and Task-keyed runtime registry.
+3. Update composer, routing selector, execution feed, and processing inspector components to consume normalized Task state.
+4. Implement conversation-oriented sidebar history navigation with search and latest-Task status filtering.
+5. Verify comprehensive accessibility compliance, responsive adaptations, and zero regression on core lifecycle semantics.
+
+## Open Questions
+
+1. What specific layout breaking points (in pixels) will be standardized across desktop, tablet, and mobile viewports for the workspace shell?
+2. How will the simulation mode indicator be visually styled to ensure clear differentiation without clashing with the primary workspace header?

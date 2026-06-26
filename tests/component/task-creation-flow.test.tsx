@@ -118,7 +118,8 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(screen.getByLabelText("Pending task")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
-    expect(screen.getByText("Draft the weekly report.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Draft the weekly report.")).toBeVisible();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "View processing details" }));

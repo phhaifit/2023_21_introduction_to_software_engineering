@@ -253,7 +253,8 @@ describe("Task 9B streaming UI integration", () => {
     const partial = screen.getByLabelText("Accumulated partial result");
     expect(partial).toHaveTextContent("Alpha Beta");
     expect(partial).not.toHaveTextContent("Gamma");
-    expect(screen.getByText("Keep context visible.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Keep context visible.")).toBeVisible();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "View processing details" }));
@@ -294,14 +295,15 @@ describe("Task 9B streaming UI integration", () => {
     expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Alpha");
 
     await submitPrompt("Second task.");
-    expect(screen.getByText("Second task.")).toBeVisible();
-    expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Second task.")).toBeVisible();
+    expect(screen.getByText(/Alpha/)).toBeVisible();
     // Task A streaming continues in the background
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
 
     // Flush Task 1's next background fragment (Beta)
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
-    expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+    expect(screen.getByText(/Alpha Beta/)).toBeVisible();
 
     // Advance Task 2 to execute step (Task 1 also advances in background)
     await reachExecuteStep(scheduler);
@@ -310,8 +312,9 @@ describe("Task 9B streaming UI integration", () => {
     // Now both Task 1 (Gamma) and Task 2 (Second) have pending fragments
     await act(() => { scheduler.flushNext(FRAGMENT_MS); }); // Flush Task 1 (Gamma)
     await act(() => { scheduler.flushNext(FRAGMENT_MS); }); // Flush Task 2 (Second)
-    expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Second");
-    expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+    const partials = screen.getAllByLabelText("Accumulated partial result");
+    expect(partials[0]).toHaveTextContent("Alpha Beta Gamma");
+    expect(partials[1]).toHaveTextContent("Second");
   });
 
   it("cancels pending streaming schedules on unmount and remains Strict Mode safe", async () => {
