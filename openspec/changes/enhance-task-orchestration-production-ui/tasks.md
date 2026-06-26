@@ -17,11 +17,11 @@
 
 ## 3. Composer and Routing Experience
 
-- [ ] 3.1 Polish task composer input ergonomics, active/focus states, keyboard submit interactions, double-submit prevention, and explicit visual validation feedback for empty/whitespace prompts.
-- [ ] 3.2 Enhance routing mode selector (Auto, Specific Agent, Predefined Workflow) with clear mode descriptions, selector loading/unavailable states, and target required validation before submission.
-- [ ] 3.3 Implement routing mode switching behavior that clears incompatible target values and ensures the UI does not self-analyze prompts to select agents or self-execute Auto-routing.
-- [ ] 3.4 Implement provider-neutral task submission ensuring the request contains no provider credentials or direct OpenClaw calls, and preserves user input on recoverable submission failures.
-- [ ] 3.5 Implement composer interaction, routing selector validation, submitting state distinct from Pending presentation, and successful canonical Task creation transition tests.
+- [x] 3.1 Polish task composer input ergonomics, active/focus states, keyboard submit interactions, double-submit prevention, and explicit visual validation feedback for empty/whitespace prompts.
+- [x] 3.2 Enhance routing mode selector (Auto, Specific Agent, Predefined Workflow) with clear mode descriptions, selector loading/unavailable states, and target required validation before submission.
+- [x] 3.3 Implement routing mode switching behavior that clears incompatible target values and ensures the UI does not self-analyze prompts to select agents or self-execute Auto-routing.
+- [x] 3.4 Implement provider-neutral task submission ensuring the request contains no provider credentials or direct OpenClaw calls, and preserves user input on recoverable submission failures.
+- [x] 3.5 Implement composer interaction, routing selector validation, submitting state distinct from Pending presentation, and successful canonical Task creation transition tests.
 
 ## 4. Execution Feed and Processing Inspector
 
