@@ -62,9 +62,14 @@ The backend now has an internal foundation for future runtime implementation:
 - A worker handoff skeleton that moves already-created document ingestion jobs
   through pending/ingesting/ready or pending/ingesting/failed lifecycle states
   through KB/RAG repository ports.
+- A deterministic worker-side text processing pipeline for supported
+  text/plain and markdown-style content. It reads content through an injected
+  reader, normalizes text, splits stable chunks, and persists chunks through
+  KB/RAG repository ports.
 
 The backend still does not have real upload/file adapters, embedding/vector
-adapters, full worker runtime handlers, or external sync adapters.
+adapters, PDF/DOC/DOCX/OCR parsers, full worker runtime handlers, retrieval,
+or external sync adapters.
 
 ## Required Future Workflow
 
@@ -223,6 +228,10 @@ Current foundation files include:
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
 - `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-document-content-reader.ts`
+- `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-document-text-normalizer.ts`
+- `worker/knowledge-document-text-chunker.ts`
 
 Likely future files:
 
@@ -233,12 +242,12 @@ Likely future files:
 
 Do not create worker handlers or adapters outside the selected task scope.
 
-The current worker handoff skeleton is intentionally lifecycle-only. It may
-mark pending ingestion jobs as ingesting, ready, or failed and update associated
-document ingestion/indexing status. It must not parse files, read object
-storage, create chunks, call embedding providers, write vectors, or execute
-external sync until a later adapter/runtime issue explicitly adds those
-boundaries.
+The current worker handoff plus processing pipeline may mark pending ingestion
+jobs as ingesting, ready, or failed, update associated document ingestion
+status, and persist deterministic text chunks. It must not read object storage,
+parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors,
+execute external sync, or mark vector indexing complete until a later
+adapter/runtime issue explicitly adds those boundaries.
 
 ## API Contract Boundary
 

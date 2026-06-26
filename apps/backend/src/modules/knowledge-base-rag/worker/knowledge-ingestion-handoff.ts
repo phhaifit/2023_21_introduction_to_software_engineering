@@ -20,11 +20,16 @@ export type KnowledgeIngestionEventPublisher = {
   publish(event: IngestionLifecycleEvent): Promise<void>;
 };
 
+export type KnowledgeIngestionHandoffProcessorResult = {
+  document?: KnowledgeDocument;
+  job?: KnowledgeIngestionJob;
+} | void;
+
 export type KnowledgeIngestionHandoffProcessor = (input: {
   workspaceId: EntityId<"workspaceId">;
   document: KnowledgeDocument;
   job: KnowledgeIngestionJob;
-}) => Promise<void>;
+}) => Promise<KnowledgeIngestionHandoffProcessorResult>;
 
 export type KnowledgeIngestionHandoffDependencies = {
   documentRepository: KnowledgeDocumentRepository;
@@ -115,13 +120,16 @@ export class KnowledgeIngestionHandoff {
     const events: IngestionLifecycleEvent[] = [started.event];
 
     try {
-      await (this.dependencies.processor ?? noopProcessor)({
+      const processorResult = await (this.dependencies.processor ?? noopProcessor)({
         workspaceId: input.workspaceId,
         document: started.document,
         job: started.job
       });
 
-      const completed = await this.markCompleted(started.job, started.document);
+      const completed = await this.markCompleted(
+        processorResult?.job ?? started.job,
+        processorResult?.document ?? started.document
+      );
       events.push(completed.event);
 
       await this.publishEvents(events);
@@ -207,7 +215,7 @@ export class KnowledgeIngestionHandoff {
       ...document,
       status: "ready",
       ingestionStatus: "ready",
-      indexingStatus: "ready",
+      indexingStatus: document.indexingStatus,
       updatedAt: timestamp
     });
 
