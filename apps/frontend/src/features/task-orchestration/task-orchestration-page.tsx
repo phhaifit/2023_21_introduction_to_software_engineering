@@ -591,14 +591,6 @@ export function TaskOrchestrationPage({
               />
 
               <div className="task-workspace__technical-meta sr-only">
-                <header className="task-workspace__task-header">
-                  <div>
-                    <p className="task-workspace__eyebrow">Submitted request</p>
-                    <h3>{activeTask.prompt}</h3>
-                  </div>
-                  <TaskStatusBadge status={activeTaskPresentationStatus} />
-                </header>
-
                 <dl className="task-workspace__task-meta" aria-label="Task identifiers">
                   <div>
                     <dt>Work ID</dt>
@@ -630,54 +622,6 @@ export function TaskOrchestrationPage({
                     logs={activeTask.processingSnapshot.logs}
                     ariaLabel="Orchestration processing logs"
                   />
-                ) : null}
-
-                {shouldShowPartialResult ? (
-                  <TaskPartialResult
-                    partialText={partialText}
-                    phase={activeTask.streamingSnapshot.phase}
-                  />
-                ) : null}
-
-                {activeTask.status === "succeeded" && activeTask.finalizedResult ? (
-                  <TaskCompletedResult
-                    result={activeTask.finalizedResult}
-                    clipboardWriter={completionRuntimeRef.current.clipboard}
-                  />
-                ) : null}
-
-                {activeTask.status === "cancelled" ? (
-                  <TaskCanceledState task={activeTask} />
-                ) : null}
-
-                {activeTask.status === "failed" ? (
-                  <TaskFailedState task={activeTask} />
-                ) : null}
-
-                {activeTask.status === "queued" || activeTask.status === "running" ? (
-                  <div className="task-workspace__pending-actions">
-                    <button
-                      type="button"
-                      className="task-workspace__cancel-btn"
-                      onClick={() => {
-                        if (onCancelTaskRequested) {
-                          onCancelTaskRequested(activeTask.taskId);
-                        } else {
-                          setIsCancelDialogOpen(true);
-                        }
-                      }}
-                    >
-                      Cancel task
-                    </button>
-                  </div>
-                ) : null}
-
-                {activeTask.status === "succeeded" || activeTask.status === "running" || activeTask.status === "failed" ? (
-                  <div className="task-workspace__detail-actions">
-                    <button type="button" onClick={() => setIsDetailModalOpen(true)}>
-                      View processing details
-                    </button>
-                  </div>
                 ) : null}
               </div>
             </article>

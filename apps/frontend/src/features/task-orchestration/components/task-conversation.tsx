@@ -1,6 +1,9 @@
 import type { CreatedTaskRecord } from "../model/task-types";
 import { selectAccumulatedPartialText } from "../model/task-streaming";
 import { TaskCompletedResult } from "./task-completed-result";
+import { TaskPartialResult } from "./task-partial-result";
+import { TaskFailedState } from "./task-failed-state";
+import { TaskCanceledState } from "./task-canceled-state";
 import type { TaskClipboardWriter } from "../model/task-completion-runtime";
 
 export interface TaskConversationProps {
@@ -11,6 +14,11 @@ export interface TaskConversationProps {
 export function TaskConversation({ task, clipboardWriter }: TaskConversationProps) {
   const partialText = selectAccumulatedPartialText(task.streamingSnapshot);
   const isStreaming = task.streamingSnapshot.phase === "streaming";
+  const shouldShowPartialResult =
+    task.status === "running" &&
+    task.processingSnapshot.steps.some(
+      (s) => (s.id === "execute-task" || s.id === "aggregate-result" || s.id === "finalize") && (s.status === "active" || s.status === "completed")
+    );
 
   return (
     <div className="task-conversation" aria-label="Task chat conversation">
@@ -19,6 +27,7 @@ export function TaskConversation({ task, clipboardWriter }: TaskConversationProp
         task={task}
         partialText={partialText}
         isStreaming={isStreaming}
+        shouldShowPartialResult={shouldShowPartialResult}
         clipboardWriter={clipboardWriter}
       />
     </div>
@@ -40,17 +49,18 @@ export function TaskAssistantMessage({
   task,
   partialText,
   isStreaming,
+  shouldShowPartialResult,
   clipboardWriter
 }: {
   task: CreatedTaskRecord;
   partialText: string;
   isStreaming: boolean;
+  shouldShowPartialResult: boolean;
   clipboardWriter: TaskClipboardWriter;
 }) {
   const isFailed = task.status === "failed";
   const isCanceled = task.status === "cancelled";
   const isSucceeded = task.status === "succeeded";
-  const hasPartialOutput = task.streamingSnapshot.fragments.length > 0;
 
   return (
     <div className="task-conversation__message task-conversation__message--assistant" aria-label="Assistant response">
@@ -59,19 +69,14 @@ export function TaskAssistantMessage({
         {isSucceeded && task.finalizedResult ? (
           <TaskCompletedResult result={task.finalizedResult} clipboardWriter={clipboardWriter} />
         ) : isFailed ? (
-          <div className="task-conversation__system-msg task-conversation__system-msg--failed">
-            <p className="task-type-error-text">Task failed: {task.error?.title || "Processing error"}</p>
-            {hasPartialOutput ? (
-              <div className="task-conversation__partial-backup">
-                <p className="task-type-metadata-label">Partial output before failure</p>
-                <div className="task-conversation__partial-text">{partialText}</div>
-              </div>
-            ) : null}
-          </div>
+          <TaskFailedState task={task} />
         ) : isCanceled ? (
-          <div className="task-conversation__system-msg task-conversation__system-msg--canceled">
-            <p className="task-type-result-text">Task canceled by user.</p>
-          </div>
+          <TaskCanceledState task={task} />
+        ) : shouldShowPartialResult ? (
+          <TaskPartialResult
+            partialText={partialText}
+            phase={task.streamingSnapshot.phase}
+          />
         ) : (
           <div className="task-conversation__streaming-area">
             {isStreaming ? (
