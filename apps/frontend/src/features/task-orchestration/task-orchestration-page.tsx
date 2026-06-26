@@ -74,6 +74,7 @@ import {
 } from "./model/task-types";
 
 import "./task-orchestration-page.css";
+import "./task-orchestration-tokens.css";
 
 import type { CreatedTaskRecord } from "./model/task-types";
 
@@ -557,11 +558,10 @@ export function TaskOrchestrationPage({
       <div className="task-workspace__main">
         <header className="task-workspace__header">
           <div>
-            <p className="task-workspace__eyebrow">Demo workspace</p>
+            <p className="task-workspace__eyebrow">Workspace</p>
             <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
             <p>Bring a request to your virtual team and keep the work in one conversation.</p>
           </div>
-          <span className="task-workspace__label">PA5 workspace</span>
         </header>
 
         <section
