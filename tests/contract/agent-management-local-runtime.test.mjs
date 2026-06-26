@@ -27,7 +27,7 @@ try {
     body: JSON.stringify({
       name: "Planning Agent",
       role: "Planner",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Create execution plans."
     })
   }).then((response) => response.json());

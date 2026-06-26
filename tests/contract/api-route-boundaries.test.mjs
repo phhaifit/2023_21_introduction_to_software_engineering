@@ -52,7 +52,7 @@ const expectedRoutes = [
   ["DELETE", "/api/workspaces/:workspaceId/members/:memberId", "planned"],
   ["GET", "/api/workspaces/:workspaceId/agents", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents", "implemented"],
-  ["GET", "/api/workspaces/:workspaceId/agents/models", "planned"],
+  ["GET", "/api/workspaces/:workspaceId/agents/models", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents/skill-preview", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents/assistant/draft", "planned"],
   ["POST", "/api/workspaces/:workspaceId/agents/assistant/import-skill", "provisional-existing"],
@@ -103,7 +103,7 @@ for (const [method, path, status] of expectedRoutes) {
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "implemented").length,
-  19,
+  20,
   "Implemented Agent Management and Knowledge Base / RAG routes should be marked implemented by this matrix"
 );
 

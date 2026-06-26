@@ -60,7 +60,7 @@ test.describe.serial('Agent Management E2E', () => {
     await fillAgentDialog(dialog, {
       name: e2eAgentName,
       role: 'E2E Tester',
-      model: 'gpt-4',
+      model: 'openrouter/owl-alpha',
       instructions: 'Run playwright tests automatically.'
     });
 
@@ -70,7 +70,7 @@ test.describe.serial('Agent Management E2E', () => {
     const testAgent = agentRow(page, e2eAgentName);
     await expect(testAgent).toBeVisible();
     await expect(testAgent.getByText('E2E Tester')).toBeVisible();
-    await expect(testAgent.getByText('gpt-4')).toBeVisible();
+    await expect(testAgent.getByText('openrouter/owl-alpha')).toBeVisible();
   });
 
   test('Task 1.3: invalid form shows errors', async ({ page }) => {

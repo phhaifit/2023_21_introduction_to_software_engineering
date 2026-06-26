@@ -10,7 +10,7 @@ const enabledAgent = {
   workspaceId: "workspace-a",
   name: "Research Agent",
   role: "Researcher",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   status: "enabled",
   createdAt: "2026-06-20T00:00:00.000Z",
   updatedAt: "2026-06-20T01:00:00.000Z"
@@ -29,7 +29,7 @@ const createForm = {
   values: {
     name: "",
     role: "",
-    model: "gpt-4.1-mini",
+    model: "gemini-2.5-flash",
     instructions: ""
   }
 };
@@ -66,7 +66,7 @@ const createForm = {
 
   assert.match(html, /Research Agent/);
   assert.match(html, /Researcher/);
-  assert.match(html, /gpt-4\.1-mini/);
+  assert.match(html, /gemini-2\.5-flash/);
   assert.match(html, /aria-label="Agents table"/);
   assert.match(html, /<tr class="agent-row/);
   assert.match(html, /aria-current="true"/);
@@ -110,7 +110,7 @@ const createForm = {
       values: {
         name: "Research Agent",
         role: "Analyst",
-        model: "gpt-4.1",
+        model: "gemini-2.5-flash-lite",
         instructions: "Prepare weekly analysis."
       }
     }

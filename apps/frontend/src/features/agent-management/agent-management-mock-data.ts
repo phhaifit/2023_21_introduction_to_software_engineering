@@ -12,7 +12,7 @@ export const agentManagementMockInput: AgentManagementViewInput = {
       workspaceId,
       name: "Research Agent",
       role: "Market researcher",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       status: "enabled",
       createdAt: "2026-06-20T08:00:00.000Z",
       updatedAt: "2026-06-20T08:30:00.000Z"
@@ -22,7 +22,7 @@ export const agentManagementMockInput: AgentManagementViewInput = {
       workspaceId,
       name: "Support Agent",
       role: "Customer support",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       status: "disabled",
       createdAt: "2026-06-19T09:15:00.000Z",
       updatedAt: "2026-06-20T07:45:00.000Z"
@@ -33,7 +33,7 @@ export const agentManagementMockInput: AgentManagementViewInput = {
     values: {
       name: "",
       role: "",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: ""
     }
   }

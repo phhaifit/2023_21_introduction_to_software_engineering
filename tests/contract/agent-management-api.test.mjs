@@ -112,7 +112,7 @@ function makeAgent(overrides = {}) {
     workspaceId: "workspace-a",
     name: "Research Agent",
     role: "Researcher",
-    model: "gpt-4.1-mini",
+    model: "gemini-2.5-flash",
     instructions: "Prepare market research.",
     createdAt: "2026-06-20T00:00:00.000Z",
     updatedAt: "2026-06-20T00:00:00.000Z",
@@ -131,6 +131,38 @@ function makeAgent(overrides = {}) {
     assert.deepEqual(response.body.data, []);
     assert.equal(response.body.meta.requestId, "test-request");
     assert.match(response.body.meta.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+  });
+}
+
+{
+  const { useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const response = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents/models");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.deepEqual(
+      response.body.data.map((model) => model.modelId),
+      ["gemini-2.5-flash", "gemini-2.5-flash-lite", "openrouter/owl-alpha"]
+    );
+    assert.equal(response.body.data[0].providerId, "gemini");
+    assert.equal(response.body.data[0].displayName, "Gemini 2.5 Flash");
+    assert.ok(response.body.data[0].capabilities.includes("structured-output"));
+    assert.equal(response.body.data[0].tier, "demo");
+    assert.equal(response.body.data[0].enabled, true);
+    assert.equal(response.body.data[0].credential, undefined);
+    assert.equal(response.body.data[0].apiKey, undefined);
+
+    const unauthorized = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/models",
+      { headers: { "x-test-auth": "false" } }
+    );
+
+    assert.equal(unauthorized.status, 401);
+    assert.equal(unauthorized.body.ok, false);
+    assert.equal(unauthorized.body.error.code, "auth.unauthorized");
   });
 }
 
@@ -224,7 +256,7 @@ function makeAgent(overrides = {}) {
       body: {
         name: "Planning Agent",
         role: "Planner",
-        model: "gpt-4.1-mini",
+        model: "gemini-2.5-flash",
         instructions: "Create execution plans."
       }
     });
@@ -240,6 +272,23 @@ function makeAgent(overrides = {}) {
 
     const stored = await repository.findById("workspace-created", "agent-created-1");
     assert.equal(stored.workspaceId, "workspace-created");
+
+    const invalidModel = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Invalid Model Agent",
+        role: "Planner",
+        model: "unknown-model",
+        instructions: "Create execution plans."
+      }
+    });
+
+    assert.equal(invalidModel.status, 400);
+    assert.equal(invalidModel.body.ok, false);
+    assert.equal(invalidModel.body.error.code, "validation.invalid_input");
+    assert.ok(
+      invalidModel.body.error.details.issues.includes("model must match an enabled catalog model")
+    );
   });
 }
 
@@ -251,7 +300,7 @@ function makeAgent(overrides = {}) {
       method: "POST",
       body: {
         name: "",
-        model: "gpt-4.1-mini",
+        model: "gemini-2.5-flash",
         instructions: "Missing role."
       }
     });
@@ -279,7 +328,7 @@ function makeAgent(overrides = {}) {
         method: "PATCH",
         body: {
           role: "Senior Researcher",
-          model: "gpt-4.1",
+          model: "gemini-2.5-flash-lite",
           instructions: "Prepare cited market research."
         }
       }
@@ -288,14 +337,31 @@ function makeAgent(overrides = {}) {
     assert.equal(response.status, 200);
     assert.equal(response.body.ok, true);
     assert.equal(response.body.data.role, "Senior Researcher");
-    assert.equal(response.body.data.model, "gpt-4.1");
+    assert.equal(response.body.data.model, "gemini-2.5-flash-lite");
     assert.equal(response.body.data.instructions, undefined);
     assert.equal(response.body.data.skillConfiguration, undefined);
 
     const stored = await repository.findById("workspace-a", "agent-enabled");
     assert.equal(stored.role, "Senior Researcher");
-    assert.equal(stored.model, "gpt-4.1");
+    assert.equal(stored.model, "gemini-2.5-flash-lite");
     assert.equal(stored.instructions, "Prepare cited market research.");
+
+    const invalidModel = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-enabled",
+      {
+        method: "PATCH",
+        body: {
+          role: "Senior Researcher",
+          model: "unknown-model",
+          instructions: "Prepare cited market research."
+        }
+      }
+    );
+
+    assert.equal(invalidModel.status, 400);
+    assert.equal(invalidModel.body.ok, false);
+    assert.equal(invalidModel.body.error.code, "validation.invalid_input");
   });
 }
 
@@ -310,7 +376,7 @@ function makeAgent(overrides = {}) {
         method: "PATCH",
         body: {
           role: "Researcher",
-          model: "gpt-4.1-mini",
+          model: "gemini-2.5-flash",
           instructions: "Prepare market research."
         }
       }
@@ -593,7 +659,7 @@ function makeAgent(overrides = {}) {
       body: {
         name: "Test Editor",
         role: "Test",
-        model: "test",
+        model: "gemini-2.5-flash",
         instructions: "test"
       }
     });

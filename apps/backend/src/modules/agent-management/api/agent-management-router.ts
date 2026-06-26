@@ -101,6 +101,15 @@ export function createAgentManagementRouter(
     });
   });
 
+  router.get("/models", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      return dependencies.useCases.listAgentModels(context.workspace!.workspaceId);
+    });
+  });
+
   router.get("/:agentId/skill.md", async (request, response) => {
     await handleAgentMarkdownRequest(request, response, async () => {
       const context = getRequestContext(request);

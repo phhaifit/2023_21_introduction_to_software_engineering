@@ -26,7 +26,7 @@ const enabledAgent: AgentListItem = {
   workspaceId,
   name: "Research Agent",
   role: "Researcher",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   status: "enabled",
   createdAt: "2026-06-19T00:00:00.000Z",
   updatedAt: "2026-06-20T00:00:00.000Z",
@@ -195,7 +195,7 @@ describe("AgentManagementPage API integration", () => {
     expect(client.createAgent).toHaveBeenCalledWith(workspaceId, {
       name: "Planning Agent",
       role: "Planner",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Create execution plans.",
     });
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
@@ -320,7 +320,7 @@ describe("AgentManagementPage API integration", () => {
   });
 
   it("updates an agent without sending its name and refreshes the row", async () => {
-    const updatedAgent = { ...enabledAgent, role: "Analyst", model: "gpt-4.1" };
+    const updatedAgent = { ...enabledAgent, role: "Analyst", model: "gemini-2.5-flash-lite" };
     const listAgents = vi
       .fn()
       .mockResolvedValueOnce({
@@ -344,7 +344,7 @@ describe("AgentManagementPage API integration", () => {
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Analyst");
     await user.clear(screen.getByLabelText("Model"));
-    await user.type(screen.getByLabelText("Model"), "gpt-4.1");
+    await user.type(screen.getByLabelText("Model"), "gemini-2.5-flash-lite");
 
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
@@ -361,7 +361,7 @@ describe("AgentManagementPage API integration", () => {
       enabledAgent.agentId,
       {
         role: "Analyst",
-        model: "gpt-4.1",
+        model: "gemini-2.5-flash-lite",
         instructions: "Prepare market research.",
       },
     );
