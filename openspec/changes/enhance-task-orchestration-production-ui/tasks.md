@@ -25,11 +25,11 @@
 
 ## 4. Execution Feed and Processing Inspector
 
-- [ ] 4.1 Render normalized runtime updates while retaining deterministic mock updates as a legitimate test and development adapter across Pending, In-Progress, Completed, Failed, and Canceled states.
-- [ ] 4.2 Upgrade execution feed rendering ensuring partial output is clearly distinguished from finalized results, Completed tasks display finalized results, Failed tasks display errors without treating incomplete output as Completed, and Canceled tasks stop receiving updates.
-- [ ] 4.3 Enhance processing detail modal (inspector) scoped strictly by Task ID, displaying canonical steps and logs, separating technical details from main results, with Advanced Details closed by default and excluding raw credentials or sensitive provider payloads.
-- [ ] 4.4 Implement terminal-state protection ensuring delayed non-terminal events do not transition terminal Tasks back to active, and cross-Task isolation ensuring inactive conversations never receive data from active Tasks.
-- [ ] 4.5 Implement feed rendering, partial output separation, inspector task-scoping, missing optional observability graceful handling, and terminal protection tests.
+- [x] 4.1 Render normalized runtime updates while retaining deterministic mock updates as a legitimate test and development adapter across Pending, In-Progress, Completed, Failed, and Canceled states.
+- [x] 4.2 Upgrade execution feed rendering ensuring partial output is clearly distinguished from finalized results, Completed tasks display finalized results, Failed tasks display errors without treating incomplete output as Completed, and Canceled tasks stop receiving updates.
+- [x] 4.3 Enhance processing detail modal (inspector) scoped strictly by Task ID, displaying canonical steps and logs, separating technical details from main results, with Advanced Details closed by default and excluding raw credentials or sensitive provider payloads.
+- [x] 4.4 Implement terminal-state protection ensuring delayed non-terminal events do not transition terminal Tasks back to active, and cross-Task isolation ensuring inactive conversations never receive data from active Tasks.
+- [x] 4.5 Implement feed rendering, partial output separation, inspector task-scoping, missing optional observability graceful handling, and terminal protection tests.
 
 ## 5. Conversation History, Search and Status Filters
 
