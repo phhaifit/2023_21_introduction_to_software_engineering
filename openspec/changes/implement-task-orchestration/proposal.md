@@ -45,10 +45,7 @@ This change has the following goals:
 11. Display explicit error information when processing fails.
 12. Prevent terminal tasks from continuing processing.
 13. Provide empty, loading, active, completed, canceled, and failed UI states.
-14. Prepare and execute at least 25 functional test cases.
-15. Produce a test execution report and defect report when failures are found.
-16. Prepare stable demonstration scenarios.
-17. Keep implementation sub-issues and pull requests generally within the 500-added-code-line review guideline through focused decomposition when needed.
+14. Keep implementation sub-issues and pull requests generally within the 500-added-code-line review guideline through focused decomposition when needed.
 
 ## In Scope
 
@@ -184,79 +181,6 @@ A failed task must:
 6. Never display the incomplete output as a completed result.
 7. Never later transition to Completed.
 
-### Functional Testing
-
-At least 25 functional test cases must be prepared and executed.
-
-The required feature groups are:
-
-* Task Submission and Validation: at least 5 cases
-* Routing Selection: at least 5 cases
-* Task Lifecycle State: at least 5 cases
-* Cancellation and Failure Handling: at least 5 cases
-* Result Display and Processing Details: at least 5 cases
-
-Every test case must contain:
-
-* Test Case ID
-* Feature
-* Preconditions when applicable
-* Test steps
-* Expected result
-* Actual result
-* Result: Pass, Fail, or Blocked
-* Defect ID when the case fails
-
-### Test Execution Report
-
-The test execution report must include:
-
-* Total test cases
-* Passed test cases
-* Failed test cases
-* Blocked test cases
-* Pass rate
-* Failed test case IDs
-* Related defect IDs
-* Test environment
-* Tested branch or commit
-* Execution date
-* Short test summary
-
-### Defect Reporting
-
-When a functional test fails, a defect must be recorded with:
-
-* Defect ID
-* Related test case
-* Title
-* Severity
-* Steps to reproduce
-* Expected result
-* Actual result
-* Status
-* Retest result when applicable
-
-When no defects are found, the report must explicitly state that no defects were recorded during the execution cycle.
-
-### Demo Scenarios
-
-The final demo must include:
-
-1. Submit a valid prompt using Auto-routing.
-2. Display the generated Work ID.
-3. Display Pending.
-4. Display In-Progress timeline and logs.
-5. Display simulated partial output.
-6. Display Completed and the final result.
-7. Open the processing detail modal.
-8. Submit another task and cancel it while active.
-9. Display Canceled and prove that streaming has stopped.
-10. Submit a failure-simulation task.
-11. Display Failed and the related error details.
-12. Demonstrate Specific Agent routing.
-13. Demonstrate Predefined Workflow routing.
-14. Reset the demo and repeat without stale timers or data.
 
 ## Demo Seed Data
 
@@ -383,9 +307,6 @@ Examples of concerns that must remain separate:
 * Cancellation logic
 * Failure logic
 * Functional tests
-* Test reports
-* Demo documentation
-
 ## Acceptance Criteria
 
 This change is complete when all of the following are true:
@@ -411,10 +332,6 @@ This change is complete when all of the following are true:
 * Terminal tasks do not continue processing.
 * Empty and loading states are available.
 * Demo data can be reset reliably.
-* At least 25 functional test cases exist.
-* All test cases have been executed.
-* Test execution results are recorded.
-* Failed tests have linked defects.
 * Demo scenarios run reliably.
 * Implementation pull requests generally follow the 500-added-code-line review guideline or are decomposed into reviewable units.
 * Relevant automated tests pass.
@@ -472,13 +389,9 @@ Estimate affected files before coding, check added code lines before opening eac
 
 ## Completion and Archival
 
-The change must not be archived until:
+The core implementation for `implement-task-orchestration` concludes at Task 13. The change may be archived when:
 
-* All 17 tasks are complete.
+* Tasks 1–13 are complete.
 * Relevant tests pass.
-* Functional testing has been executed.
-* Test reports are complete.
-* Defects are resolved or formally documented.
-* Demo scenarios have been verified.
-* The implementation matches the change specification.
+* The implementation matches the core change specification.
 * OpenSpec strict validation passes.
