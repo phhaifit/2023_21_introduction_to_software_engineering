@@ -6,4 +6,5 @@ export type PageKey =
   | "agents"
   | "knowledge-base-rag"
   | "billing"
-  | "settings";
+  | "settings"
+  | "authentication";

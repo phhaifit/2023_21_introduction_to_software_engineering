@@ -10,7 +10,8 @@ import {
   Home,
   Library,
   ListChecks,
-  Settings
+  Settings,
+  User
 } from "lucide-react";
 
 import type { PageKey } from "../../types/navigation";
@@ -35,7 +36,8 @@ const buildItems: NavigationItem[] = [
 
 const footerItems: NavigationItem[] = [
   { key: "billing", label: "Subscriptions & Billing", icon: CreditCard },
-  { key: "settings", label: "Settings", icon: Settings }
+  { key: "settings", label: "Settings", icon: Settings },
+  { key: "authentication", label: "Account", icon: User }
 ];
 
 export function Sidebar() {
