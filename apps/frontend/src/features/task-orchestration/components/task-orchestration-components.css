@@ -327,8 +327,10 @@
   flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
-  margin: 16px 28px 0;
+  margin: 16px 28px 16px;
   padding: 14px 20px;
+  flex-shrink: 0;
+  z-index: 5;
 }
 
 .task-orchestration-dock__status-area {
@@ -432,6 +434,7 @@
 
 .task-processing-detail-modal__primary-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 24px;
   margin-bottom: 16px;
   align-items: center;
