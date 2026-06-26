@@ -47,11 +47,45 @@ const defaultPagination = {
   currentPage: 1,
 };
 
+const modelCatalog = [
+  {
+    providerId: "gemini",
+    modelId: "gemini-2.5-flash",
+    displayName: "Gemini 2.5 Flash",
+    capabilities: ["text-generation", "structured-output"],
+    tier: "demo" as const,
+    enabled: true,
+  },
+  {
+    providerId: "openrouter",
+    modelId: "openrouter/owl-alpha",
+    displayName: "OpenRouter Owl Alpha",
+    capabilities: ["text-generation"],
+    tier: "free" as const,
+    enabled: true,
+  },
+];
+
 function createClient(overrides: Partial<AgentManagementApiClient> = {}) {
   return {
     listAgents: vi.fn(async () => ({
       items: [enabledAgent, disabledAgent],
       pagination: defaultPagination,
+    })),
+    listAgentModels: vi.fn(async () => modelCatalog),
+    previewSkillMarkdown: vi.fn(async (workspace, payload) => ({
+      markdown: [
+        `# ${payload.name}`,
+        "",
+        "## Role",
+        "",
+        payload.role,
+        "",
+        "## Instructions",
+        "",
+        payload.instructions,
+      ].join("\n"),
+      fileName: "skill.md" as const,
     })),
     createAgent: vi.fn(async () => enabledAgent),
     getAgentConfiguration: vi.fn(async () => ({
@@ -142,6 +176,54 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.getByRole("dialog", { name: "Create agent" })).toBeTruthy();
   });
 
+  it("shows guided create entry points without creating an agent", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    expect(screen.getByRole("tab", { name: "Template" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Prompt Assistant" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Import skill.md" })).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    expect(screen.getByRole("button", { name: "Generate draft" })).toBeDisabled();
+    await user.click(screen.getByRole("tab", { name: "Import skill.md" }));
+    expect(screen.getByRole("button", { name: "Analyze skill.md" })).toBeDisabled();
+    expect(client.createAgent).not.toHaveBeenCalled();
+  });
+
+  it("renders skill.md preview from the current template draft", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await fillCreateForm(user);
+
+    await waitFor(() => expect(client.previewSkillMarkdown).toHaveBeenCalled());
+    expect(
+      screen.getByText((_, element) => {
+        return (
+          element?.tagName.toLowerCase() === "pre" &&
+          element.textContent?.includes("# Planning Agent") === true &&
+          element.textContent.includes("Create execution plans.")
+        );
+      }),
+    ).toBeTruthy();
+    expect(client.previewSkillMarkdown).toHaveBeenLastCalledWith(
+      workspaceId,
+      expect.objectContaining({
+        name: "Planning Agent",
+        role: "Planner",
+        model: "gemini-2.5-flash",
+        instructions: "Create execution plans.",
+      }),
+    );
+  });
+
   it("shows an initial error and retries the list request", async () => {
     const listAgents = vi
       .fn()
@@ -201,18 +283,8 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
   });
 
-  it("maps validation errors and preserves create values", async () => {
-    const client = createClient({
-      createAgent: vi.fn(async () => {
-        throw new AgentApiClientError({
-          code: "validation.invalid_input",
-          message: "Invalid agent configuration",
-          details: { issues: ["role is required"] },
-          status: 400,
-          kind: "api",
-        });
-      }),
-    });
+  it("prevents template creation when required fields are missing", async () => {
+    const client = createClient();
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
@@ -220,9 +292,8 @@ describe("AgentManagementPage API integration", () => {
     await user.type(screen.getByLabelText("Name"), "Planning Agent");
     await user.type(screen.getByLabelText("Instructions"), "Create plans.");
 
-    await user.click(screen.getByRole("button", { name: "Create agent" }));
-
-    expect(await screen.findByText("role is required")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+    expect(client.createAgent).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Name")).toHaveValue("Planning Agent");
     expect(screen.getByLabelText("Instructions")).toHaveValue("Create plans.");
   });

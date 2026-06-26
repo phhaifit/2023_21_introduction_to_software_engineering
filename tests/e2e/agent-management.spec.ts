@@ -4,7 +4,7 @@ const e2eAgentName = `Test E2E Agent ${Date.now()}`;
 
 async function openAgentManagement(page: Page) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Agents' }).click();
+  await page.getByRole('link', { name: 'Agents' }).click();
   await expect(page.getByRole('heading', { name: 'Agents', level: 1, exact: true })).toBeVisible();
 }
 
@@ -29,7 +29,7 @@ async function fillAgentDialog(
   }
 
   if (values.model !== undefined) {
-    await dialog.getByLabel('Model', { exact: true }).fill(values.model);
+    await dialog.getByLabel('Model', { exact: true }).selectOption(values.model);
   }
 
   if (values.instructions !== undefined) {
@@ -79,11 +79,7 @@ test.describe.serial('Agent Management E2E', () => {
     await page.getByRole('button', { name: 'New Agent' }).click();
     await expect(page.getByRole('dialog', { name: 'Create agent' })).toBeVisible();
 
-    // Submit empty form
-    await page.getByRole('button', { name: 'Create agent' }).click();
-
-    const errors = page.getByRole('alert');
-    await expect(errors.first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create agent' })).toBeDisabled();
   });
 
   test('Task 1.4: edit agent', async ({ page }) => {

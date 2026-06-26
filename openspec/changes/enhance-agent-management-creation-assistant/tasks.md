@@ -34,15 +34,15 @@
 
 ## 4. Phase 3 - Guided Modal and Template Draft UI
 
-- [ ] 4.1 Replace or extend the New Agent modal with a guided creation modal that supports Template, Prompt Assistant, and Import `skill.md` entry points.
-- [ ] 4.2 Keep the existing Configure Agent flow intact for editing existing agents.
-- [ ] 4.3 Add frontend session-only draft state that is discarded when the guided modal closes before submit.
-- [ ] 4.4 Build the template draft form with editable name, role, model selector, responsibilities, instructions, constraints, escalation rules, and example tasks.
-- [ ] 4.5 Show generated `skill.md` preview from the current draft values.
-- [ ] 4.6 Prevent create submission when required draft fields are missing.
-- [ ] 4.7 Submit a valid template draft through the existing create-agent API and refresh the paginated list on success.
-- [ ] 4.8 Add component tests for modal entry points, draft discard, template validation, preview rendering, valid submit, and preservation of existing configure behavior.
-- [ ] 4.9 Run focused frontend component/API-client tests for the guided modal and template draft flow.
+- [x] 4.1 Replace or extend the New Agent modal with a guided creation modal that supports Template, Prompt Assistant, and Import `skill.md` entry points.
+- [x] 4.2 Keep the existing Configure Agent flow intact for editing existing agents.
+- [x] 4.3 Add frontend session-only draft state that is discarded when the guided modal closes before submit.
+- [x] 4.4 Build the template draft form with editable name, role, model selector, responsibilities, instructions, constraints, escalation rules, and example tasks.
+- [x] 4.5 Show generated `skill.md` preview from the current draft values.
+- [x] 4.6 Prevent create submission when required draft fields are missing.
+- [x] 4.7 Submit a valid template draft through the existing create-agent API and refresh the paginated list on success.
+- [x] 4.8 Add component tests for modal entry points, draft discard, template validation, preview rendering, valid submit, and preservation of existing configure behavior.
+- [x] 4.9 Run focused frontend component/API-client tests for the guided modal and template draft flow.
 
 ## 5. Phase 4 - LLM Provider Chain Backend
 
