@@ -73,6 +73,7 @@ import {
   type RoutingMode
 } from "./model/task-types";
 import { TaskConversation } from "./components/task-conversation";
+import { TaskOrchestrationDock } from "./components/task-orchestration-dock";
 
 import "./task-orchestration-page.css";
 import "./task-orchestration-tokens.css";
@@ -718,6 +719,20 @@ export function TaskOrchestrationPage({
               setIsCancelDialogOpen(false);
             }}
             onDismiss={() => setIsCancelDialogOpen(false)}
+          />
+        ) : null}
+
+        {activeTask ? (
+          <TaskOrchestrationDock
+            task={activeTask}
+            onOpenDetails={() => setIsDetailModalOpen(true)}
+            onCancelClick={() => {
+              if (onCancelTaskRequested) {
+                onCancelTaskRequested(activeTask.taskId);
+              } else {
+                setIsCancelDialogOpen(true);
+              }
+            }}
           />
         ) : null}
 
