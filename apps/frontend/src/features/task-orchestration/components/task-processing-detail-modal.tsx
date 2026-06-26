@@ -102,6 +102,10 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
                 <dt>Task ID</dt>
                 <dd>{detail.taskId}</dd>
               </div>
+              <div>
+                <dt>{detail.startedAt ? "Started" : "Created"}</dt>
+                <dd>{detail.startedAt ?? detail.createdAt}</dd>
+              </div>
               {detail.error ? (
                 <div>
                   <dt>Internal error code</dt>

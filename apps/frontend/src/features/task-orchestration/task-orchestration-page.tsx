@@ -589,41 +589,6 @@ export function TaskOrchestrationPage({
                 task={activeTask}
                 clipboardWriter={completionRuntimeRef.current.clipboard}
               />
-
-              <div className="task-workspace__technical-meta sr-only">
-                <dl className="task-workspace__task-meta" aria-label="Task identifiers">
-                  <div>
-                    <dt>Work ID</dt>
-                    <dd>{activeTask.workId}</dd>
-                  </div>
-                  <div>
-                    <dt>Task ID</dt>
-                    <dd>{activeTask.taskId}</dd>
-                  </div>
-                  <div>
-                    <dt>{activeTask.processingSnapshot.startedAt ? "Started" : "Created"}</dt>
-                    <dd>
-                      {activeTask.processingSnapshot.startedAt ?? activeTask.createdAt}
-                    </dd>
-                  </div>
-                </dl>
-
-                <p className="task-workspace__routing-summary">
-                  {formatRoutingSummary(activeTask.requestedRouting)}
-                </p>
-
-                <ProcessingTimeline
-                  ariaLabel={timelineAriaLabel}
-                  steps={activeTask.processingSnapshot.steps}
-                />
-
-                {activeTask.status === "running" || activeTask.status === "cancelled" || activeTask.status === "failed" ? (
-                  <TaskLogList
-                    logs={activeTask.processingSnapshot.logs}
-                    ariaLabel="Orchestration processing logs"
-                  />
-                ) : null}
-              </div>
             </article>
           ) : (
             <div className="task-workspace__empty">
