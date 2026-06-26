@@ -8,12 +8,12 @@
 
 ## 2. Conversation Workspace Shell and Session Navigation
 
-- [ ] 2.1 Implement in-memory conversation session model (`TaskConversationSession`), active conversation management (`activeConversationId`), and stable sidebar/header/feed/composer layouts.
-- [ ] 2.2 Implement multi-turn Task feed and presentation-only conversation switching without canceling, restarting, pausing, duplicating, or resetting Tasks.
-- [ ] 2.3 Implement per-Task background runtime isolation (runtimes keyed by immutable Task ID) allowing inactive tasks to progress and reach terminal states.
-- [ ] 2.4 Implement New Chat action creating a new empty conversation while preserving existing conversations/Tasks and ensuring empty conversations do not display stale Task data or open processing details/cancellation dialogs for prior Tasks.
-- [ ] 2.5 Implement strict visual separation ensuring UI loading states are distinct from canonical Pending states, and verify unmount/reset cleanup leaves no orphan runtimes.
-- [ ] 2.6 Implement reducer, multi-turn rendering, switching isolation, background completion/failure, New Chat preservation, cancellation dialog target verification, and Strict Mode tests.
+- [x] 2.1 Implement in-memory conversation session model (`TaskConversationSession`), active conversation management (`activeConversationId`), and stable sidebar/header/feed/composer layouts.
+- [x] 2.2 Implement multi-turn Task feed and presentation-only conversation switching without canceling, restarting, pausing, duplicating, or resetting Tasks.
+- [x] 2.3 Implement per-Task background runtime isolation (runtimes keyed by immutable Task ID) allowing inactive tasks to progress and reach terminal states.
+- [x] 2.4 Implement New Chat action creating a new empty conversation while preserving existing conversations/Tasks and ensuring empty conversations do not display stale Task data or open processing details/cancellation dialogs for prior Tasks.
+- [x] 2.5 Implement strict visual separation ensuring UI loading states are distinct from canonical Pending states, and verify unmount/reset cleanup leaves no orphan runtimes.
+- [x] 2.6 Implement reducer, multi-turn rendering, switching isolation, background completion/failure, New Chat preservation, cancellation dialog target verification, and Strict Mode tests.
 
 ## 3. Composer and Routing Experience
 
