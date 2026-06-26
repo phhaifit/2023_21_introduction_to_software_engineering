@@ -263,6 +263,7 @@ function WorkflowsList({
   onEdit,
   onExecutionSuccess,
   apiClient: providedApiClient,
+  onImportWorkflow
 }: {
   onCreate: () => void;
   onEdit: (id: string) => void;
@@ -420,7 +421,8 @@ function WorkflowsList({
         if (onImportWorkflow) {
           onImportWorkflow(parsed);
         }
-      } catch (err) {
+      } catch (err: any) {
+        console.error("Import error:", err);
         alert("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
       }
     };
