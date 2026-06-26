@@ -23,6 +23,36 @@ import {
   toTaskPresentationStatus,
   transitionTaskStatus
 } from "@vcp/frontend/features/task-orchestration/model/task-lifecycle.ts";
+import type { TaskProcessingRuntime } from "@vcp/frontend/features/task-orchestration/model/task-processing-runtime.ts";
+
+class FakeScheduler {
+  callbacks: (() => void)[] = [];
+  schedule(delayMs: number, callback: () => void) {
+    this.callbacks.push(callback);
+    return {
+      cancel: () => {
+        this.callbacks = this.callbacks.filter((cb) => cb !== callback);
+      }
+    };
+  }
+  advance() {
+    const cbs = [...this.callbacks];
+    this.callbacks = [];
+    cbs.forEach((cb) => cb());
+  }
+}
+
+class FakeProcessingRuntime implements TaskProcessingRuntime {
+  scheduler = new FakeScheduler();
+  clock = { now: () => "2026-06-24T12:00:00.000Z" };
+  logIdentitySource = {
+    counter: 0,
+    nextLogId() {
+      this.counter += 1;
+      return `log-${this.counter}`;
+    }
+  };
+}
 
 afterEach(cleanup);
 
@@ -75,7 +105,8 @@ async function submitPrompt(prompt = "Prepare a launch summary.") {
 describe("Task 6B task creation UI flow", () => {
   it("creates one pending auto-routed task through the public client boundary", async () => {
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("Draft the weekly report.");
 
@@ -103,12 +134,16 @@ describe("Task 6B task creation UI flow", () => {
 
     const timeline = screen.getByRole("region", { name: /processing timeline/i });
     expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);
+    expect(within(timeline).queryByText("Active")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /processing log details/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
   });
 
   it("preserves canonical specific-agent routing in the request and Pending summary", async () => {
     const user = userEvent.setup();
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await user.click(screen.getByRole("radio", { name: /Specific agent/ }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Agent" }), "AGT-CODE");
@@ -129,7 +164,8 @@ describe("Task 6B task creation UI flow", () => {
   it("preserves canonical predefined-workflow routing in the request and Pending summary", async () => {
     const user = userEvent.setup();
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await user.click(screen.getByRole("radio", { name: /Predefined workflow/ }));
     await user.selectOptions(
@@ -193,7 +229,8 @@ describe("Task 6B task creation UI flow", () => {
 
   it("keeps unique task records across multiple successful submissions", async () => {
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("First task.");
     await submitPrompt("Second task.");
@@ -252,7 +289,8 @@ describe("Task 6B task creation UI flow", () => {
         })
       )
     };
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await user.type(screen.getByRole("textbox", { name: "Request" }), "Slow task");
     await user.click(screen.getByRole("button", { name: "Send request" }));
@@ -266,7 +304,8 @@ describe("Task 6B task creation UI flow", () => {
   it("keeps the draft recoverable after client rejection", async () => {
     const client = new SpyTaskCreationClient();
     client.shouldReject = true;
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("Retry me.");
 
