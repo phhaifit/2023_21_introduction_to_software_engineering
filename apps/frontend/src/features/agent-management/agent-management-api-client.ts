@@ -1,6 +1,8 @@
 import type {
   AgentModelCatalogEntry,
-  AgentPublicSummary
+  AgentPublicSummary,
+  AgentSkillPreviewRequest,
+  AgentSkillPreviewResponse
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -47,6 +49,10 @@ export type AgentManagementApiClient = {
   listAgentModels(
     workspaceId: EntityId<"workspaceId">
   ): Promise<AgentModelCatalogEntry[]>;
+  previewSkillMarkdown(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentSkillPreviewRequest
+  ): Promise<AgentSkillPreviewResponse>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
     payload: CreateAgentPayload
@@ -202,6 +208,11 @@ export function createAgentManagementApiClient(input: {
     },
     listAgentModels: async (workspaceId) =>
       (await request<AgentModelCatalogEntry[]>(`${collectionPath(workspaceId)}/models`)).data,
+    previewSkillMarkdown: async (workspaceId, payload) =>
+      (await request<AgentSkillPreviewResponse>(`${collectionPath(workspaceId)}/skill-preview`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
     createAgent: async (workspaceId, payload) =>
       (await request<AgentPublicSummary>(collectionPath(workspaceId), {
         method: "POST",

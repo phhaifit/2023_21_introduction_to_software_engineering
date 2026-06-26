@@ -117,6 +117,36 @@ describe("Agent Management API client", () => {
     );
   });
 
+  it("previews skill markdown from a template draft", async () => {
+    const preview = {
+      markdown: "# Planning Agent\n\n## Role\n\nPlanner",
+      fileName: "skill.md"
+    };
+    const fetchImplementation = vi.fn(async () => success(preview));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+    const payload = {
+      name: "Planning Agent",
+      role: "Planner",
+      model: "gemini-2.5-flash",
+      instructions: "Create execution plans.",
+      responsibilities: ["Break goals into steps"],
+      constraints: ["Ask before changing scope"],
+      escalationRules: ["Escalate blocked work"],
+      exampleTasks: ["Build a weekly plan"]
+    };
+
+    const result = await client.previewSkillMarkdown(workspaceId, payload);
+
+    expect(result).toEqual(preview);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/agents/skill-preview",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+  });
+
   it("reads configuration and updates the selected agent", async () => {
     const configuration = { ...summary, instructions: "Prepare research." };
     const fetchImplementation = vi
@@ -233,6 +263,17 @@ describe("Agent Management API client", () => {
       code: "system.unexpected_error"
     });
     await expect(malformedClient.listAgentModels(workspaceId)).rejects.toMatchObject({
+      kind: "malformed-response",
+      code: "system.unexpected_error"
+    });
+    await expect(
+      malformedClient.previewSkillMarkdown(workspaceId, {
+        name: "Agent",
+        role: "Role",
+        model: "gemini-2.5-flash",
+        instructions: "Work."
+      })
+    ).rejects.toMatchObject({
       kind: "malformed-response",
       code: "system.unexpected_error"
     });
