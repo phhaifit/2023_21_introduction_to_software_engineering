@@ -42,12 +42,23 @@ export interface TaskCreationDraft {
   selectedWorkflowId?: string;
 }
 
+export interface TaskConversationSession {
+  readonly conversationId: string;
+  readonly title: string;
+  readonly taskIds: readonly EntityId<"taskId">[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 export interface TaskCreationState {
   tasks: CreatedTaskRecord[];
-  activeTaskId?: EntityId<"taskId">;
+  conversations: TaskConversationSession[];
+  activeConversationId?: string;
+  activeTaskId?: EntityId<"taskId"> | null;
   isSubmitting: boolean;
   validationError?: string;
   submissionError?: string;
+  conversationSequence: number;
 }
 
 export type TaskCreationAction =
@@ -58,6 +69,18 @@ export type TaskCreationAction =
       type: "task-created";
       request: CreateTaskRequest;
       response: CreateTaskResponse;
+      conversationId?: string;
+    }
+  | {
+      type: "conversation-created";
+      createdAt: string;
+    }
+  | {
+      type: "conversation-selected";
+      conversationId: string;
+    }
+  | {
+      type: "reset";
     }
   | {
       /** Transitions the canonical status from queued → running and
@@ -136,12 +159,26 @@ export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").Processin
 
 export const initialTaskCreationState: TaskCreationState = {
   tasks: [],
-  isSubmitting: false
+  conversations: [],
+  isSubmitting: false,
+  conversationSequence: 1
 };
 
 export type CreateTaskRequestResult =
   | { ok: true; request: CreateTaskRequest }
   | { ok: false; message: string };
+
+export function deriveConversationTitle(prompt: string): string {
+  const cleaned = prompt.trim().replace(/\s+/g, " ");
+  if (cleaned.length === 0) {
+    return "New conversation";
+  }
+  const MAX_LENGTH = 40;
+  if (cleaned.length > MAX_LENGTH) {
+    return cleaned.slice(0, MAX_LENGTH).trim() + "…";
+  }
+  return cleaned;
+}
 
 export function taskCreationReducer(
   state: TaskCreationState,
@@ -169,15 +206,87 @@ export function taskCreationReducer(
         validationError: undefined,
         submissionError: action.message
       };
+    case "conversation-created": {
+      const sequence = state.conversationSequence ?? 1;
+      const conversationId = `CONV-${String(sequence).padStart(6, "0")}`;
+      const newConversation: TaskConversationSession = {
+        conversationId,
+        title: "New conversation",
+        taskIds: [],
+        createdAt: action.createdAt,
+        updatedAt: action.createdAt
+      };
+      return {
+        ...state,
+        conversations: [...(state.conversations ?? []), newConversation],
+        activeConversationId: conversationId,
+        activeTaskId: null,
+        conversationSequence: sequence + 1
+      };
+    }
+    case "conversation-selected": {
+      const conversations = state.conversations ?? [];
+      const conversation = conversations.find((c) => c.conversationId === action.conversationId);
+      if (!conversation) return state;
+      const latestTaskId = conversation.taskIds.length > 0 ? conversation.taskIds[conversation.taskIds.length - 1] : null;
+      return {
+        ...state,
+        activeConversationId: conversation.conversationId,
+        activeTaskId: latestTaskId
+      };
+    }
+    case "reset":
+      return {
+        ...initialTaskCreationState,
+        tasks: [],
+        conversations: [],
+        activeConversationId: undefined,
+        activeTaskId: undefined,
+        conversationSequence: 1
+      };
     case "task-created": {
       const task = createTaskRecord(action.request, action.response);
+      const conversations = state.conversations ?? [];
+      const targetId = action.conversationId ?? state.activeConversationId;
+      let existingConv = conversations.find((c) => c.conversationId === targetId);
+
+      let sequence = state.conversationSequence ?? 1;
+      let newConvId = targetId;
+
+      if (!existingConv) {
+        newConvId = `CONV-${String(sequence).padStart(6, "0")}`;
+        sequence += 1;
+        existingConv = {
+          conversationId: newConvId,
+          title: deriveConversationTitle(task.prompt),
+          taskIds: [],
+          createdAt: task.createdAt,
+          updatedAt: task.createdAt
+        };
+      }
+
+      const isFirstTask = existingConv.taskIds.length === 0;
+      const updatedConv: TaskConversationSession = {
+        ...existingConv,
+        title: isFirstTask ? deriveConversationTitle(task.prompt) : existingConv.title,
+        taskIds: [...existingConv.taskIds, task.taskId],
+        updatedAt: task.createdAt
+      };
+
+      const updatedConversations = conversations.some((c) => c.conversationId === updatedConv.conversationId)
+        ? conversations.map((c) => (c.conversationId === updatedConv.conversationId ? updatedConv : c))
+        : [...conversations, updatedConv];
 
       return {
+        ...state,
         tasks: [...state.tasks, task],
+        conversations: updatedConversations,
+        activeConversationId: updatedConv.conversationId,
         activeTaskId: task.taskId,
         isSubmitting: false,
         validationError: undefined,
-        submissionError: undefined
+        submissionError: undefined,
+        conversationSequence: sequence
       };
     }
     case "processing-started": {
@@ -422,6 +531,53 @@ export function createTaskRecord(
     processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
     streamingSnapshot: createInitialStreamingSnapshot()
   };
+}
+
+export function getConversationById(
+  state: TaskCreationState,
+  conversationId: string
+): TaskConversationSession | undefined {
+  const conversations = state.conversations ?? [];
+  return conversations.find((c) => c.conversationId === conversationId);
+}
+
+export function getActiveConversation(
+  state: TaskCreationState
+): TaskConversationSession | undefined {
+  if (!state.activeConversationId) {
+    return undefined;
+  }
+  return getConversationById(state, state.activeConversationId);
+}
+
+export function getConversationTasks(
+  state: TaskCreationState,
+  conversationId: string
+): CreatedTaskRecord[] {
+  const conversation = getConversationById(state, conversationId);
+  if (!conversation) {
+    return [];
+  }
+  const result: CreatedTaskRecord[] = [];
+  for (const taskId of conversation.taskIds) {
+    const task = state.tasks.find((t) => t.taskId === taskId);
+    if (task) {
+      result.push(task);
+    }
+  }
+  return result;
+}
+
+export function getLatestConversationTask(
+  state: TaskCreationState,
+  conversationId: string
+): CreatedTaskRecord | undefined {
+  const conversation = getConversationById(state, conversationId);
+  if (!conversation || conversation.taskIds.length === 0) {
+    return undefined;
+  }
+  const latestTaskId = conversation.taskIds[conversation.taskIds.length - 1];
+  return state.tasks.find((t) => t.taskId === latestTaskId);
 }
 
 export function getActiveTask(
