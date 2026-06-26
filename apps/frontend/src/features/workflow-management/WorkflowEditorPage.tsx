@@ -245,9 +245,12 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
           time: scheduleTime
         } : {},
         steps: formData.steps.map(s => ({
+          workflowStepId: s.workflowStepId,
           agentId: s.agentId,
+          stepType: s.stepType,
           stepOrder: s.stepOrder,
-          nextSteps: s.nextSteps
+          nextSteps: s.nextSteps,
+          inputMapping: s.inputMapping
         }))
       };
       
