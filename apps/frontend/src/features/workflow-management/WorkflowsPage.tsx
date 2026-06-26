@@ -12,7 +12,7 @@ import { mockWorkflows } from "../../data/workflows.ts";
 import { mockExecutions } from "../../data/executions.ts";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
-import { Play, Edit2, Trash2, Loader2, Workflow as WorkflowIcon } from "lucide-react";
+import { Play, Edit2, Trash2, Loader2, Workflow as WorkflowIcon, Download, Upload } from "lucide-react";
 
 import { useEffect, useMemo } from "react";
 import {
@@ -269,6 +269,7 @@ function WorkflowsList({
   onEdit: (id: string) => void;
   onExecutionSuccess?: () => void;
   apiClient?: WorkflowManagementApiClient;
+  onImportWorkflow?: (data: any) => void;
 }) {
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
@@ -374,8 +375,59 @@ function WorkflowsList({
       alert("Xóa thành công!");
       loadWorkflows();
     } catch (err: any) {
-      alert("Lỗi khi xóa Workflow: " + (err.message || "Unknown error"));
+      alert("Error deleting Workflow: " + (err.message || "Unknown error"));
     }
+  };
+
+  const handleExport = async (workflowId: string, workflowName: string) => {
+    try {
+      const data: any = await apiClient.getWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
+      const wf = data.workflow ? data.workflow : data;
+      
+      const exportPayload = {
+        name: `${wf.name} (Imported)`,
+        description: wf.description,
+        triggerType: wf.triggerType,
+        triggerConfig: wf.triggerConfig,
+        steps: data.steps ? data.steps.map((s: any) => ({
+          agentId: s.agentId,
+          stepOrder: s.stepOrder
+        })) : []
+      };
+
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `workflow-${workflowName.toLowerCase().replace(/\s+/g, '-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export workflow");
+    }
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (onImportWorkflow) {
+          onImportWorkflow(parsed);
+        }
+      } catch (err) {
+        alert("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
+      }
+    };
+    reader.readAsText(file);
+    // Reset the input value so the same file can be selected again if needed
+    event.target.value = "";
   };
 
   return (
@@ -397,9 +449,15 @@ function WorkflowsList({
           value={search}
           onChange={setSearch}
         />
-        <button onClick={onCreate} className="primary-action">
-          Tạo Workflow
-        </button>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <label className="secondary-action" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", margin: 0, padding: "8px 16px" }}>
+            <Upload size={16} /> Import Workflow
+            <input type="file" accept=".json" style={{ display: "none" }} onChange={handleFileImport} />
+          </label>
+          <button onClick={onCreate} className="primary-action">
+            Create Workflow
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -549,7 +607,14 @@ function WorkflowsList({
                       </button>
                       <button
                         className="icon-button"
-                        title="Chỉnh sửa Workflow"
+                        title="Export Workflow"
+                        onClick={() => handleExport(w.workflowId, w.name)}
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        title="Edit Workflow"
                         onClick={() => onEdit(w.workflowId)}
                       >
                         <Edit2 size={16} />
@@ -588,6 +653,7 @@ export function WorkflowsPage({
 }) {
   const [activeTab, setActiveTab] = useState<SubTab>("dashboard");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [importedData, setImportedData] = useState<any>(null);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -598,10 +664,17 @@ export function WorkflowsPage({
           <WorkflowsList
             onCreate={() => {
               setEditingId(null);
+              setImportedData(null);
               setActiveTab("editor");
             }}
             onEdit={(id) => {
               setEditingId(id);
+              setImportedData(null);
+              setActiveTab("editor");
+            }}
+            onImportWorkflow={(data) => {
+              setEditingId(null);
+              setImportedData(data);
               setActiveTab("editor");
             }}
             onExecutionSuccess={() => setActiveTab("executions")}
@@ -613,6 +686,7 @@ export function WorkflowsPage({
           <WorkflowEditorPage
             apiClient={apiClient}
             workflowId={editingId}
+            importedData={importedData}
             onExecutionSuccess={() => setActiveTab("executions")}
             onCancel={() => setActiveTab("list")}
           />
