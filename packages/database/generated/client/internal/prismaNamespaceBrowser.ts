@@ -248,6 +248,8 @@ export const WorkflowScalarFieldEnum = {
   status: 'status',
   triggerType: 'triggerType',
   triggerConfig: 'triggerConfig',
+  version: 'version',
+  parentWorkflowId: 'parentWorkflowId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -260,8 +262,10 @@ export const WorkflowStepScalarFieldEnum = {
   workspaceId: 'workspaceId',
   workflowId: 'workflowId',
   agentId: 'agentId',
+  stepType: 'stepType',
   stepOrder: 'stepOrder',
   nextSteps: 'nextSteps',
+  inputMapping: 'inputMapping',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

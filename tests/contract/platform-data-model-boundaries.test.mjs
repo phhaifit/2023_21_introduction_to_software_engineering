@@ -288,7 +288,7 @@ const expectedModels = {
       workflowStepId: "String",
       workspaceId: "String",
       workflowId: "String",
-      agentId: "String",
+      agentId: "String?",
       stepOrder: "Int",
       createdAt: "String",
       updatedAt: "String"

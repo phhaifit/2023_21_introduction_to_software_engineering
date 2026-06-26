@@ -178,9 +178,11 @@ model Workflow {
   workspaceId String
   name        String
   description   String?
-  status        String @default("draft")
+  status        String @default("published")
   triggerType   String @default("manual")
   triggerConfig Json?
+  version       Int    @default(1)
+  parentWorkflowId String?
   createdAt     String
   updatedAt   String
 
@@ -189,6 +191,7 @@ model Workflow {
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+  @@index([parentWorkflowId])
   @@map("workflows")
 }
 
@@ -196,9 +199,11 @@ model WorkflowStep {
   workflowStepId String   @id
   workspaceId    String
   workflowId     String
-  agentId        String
+  agentId        String?
+  stepType       String   @default("agent")
   stepOrder      Int
   nextSteps      Json?
+  inputMapping   Json?
   createdAt      String
   updatedAt      String
 

@@ -84,7 +84,7 @@ export async function validateWorkflowAgents(
   steps: WorkflowStepDto[],
   agentProvider: AgentSummaryProvider
 ): Promise<void> {
-  const requiredAgentIds = [...new Set(steps.map((s) => s.agentId))];
+  const requiredAgentIds = [...new Set(steps.map((s) => s.agentId).filter((id): id is EntityId<"agentId"> => id !== null && id !== undefined))];
   
   if (requiredAgentIds.length === 0) {
     return;

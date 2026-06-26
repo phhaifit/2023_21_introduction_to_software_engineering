@@ -137,11 +137,11 @@ async function runTests() {
   const res7 = await fetch(`http://localhost:3333/api/workspaces/ws-1/workflows/${workflowId}`, {
     method: "PATCH",
     headers: { "Authorization": "Bearer VALID", "Content-Type": "application/json" },
-    body: JSON.stringify({ status: "active" })
+    body: JSON.stringify({ status: "published" })
   });
   assert.equal(res7.status, 200);
   const body7 = await res7.json();
-  assert.equal(body7.data.workflow.status, "active");
+  assert.strictEqual(body7.data.workflow.status, "published");
   console.log("Passed: Update workflow success");
 
   console.log("All API tests passed!");

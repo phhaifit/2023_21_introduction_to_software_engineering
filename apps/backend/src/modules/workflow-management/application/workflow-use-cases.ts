@@ -17,7 +17,7 @@ export interface CreateWorkflowCommand {
   description?: string;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
-  steps: { agentId: string; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null }[];
+  steps: { agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
 }
 
 export interface UpdateWorkflowCommand {
@@ -28,7 +28,7 @@ export interface UpdateWorkflowCommand {
   status?: WorkflowStatus;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
-  steps?: { agentId: string; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null }[];
+  steps?: { agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
 }
 
 export interface ExecuteWorkflowCommand {
@@ -57,9 +57,11 @@ export class WorkflowUseCases {
         `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">,
         command.workspaceId,
         workflowId,
-        step.agentId as EntityId<"agentId">,
+        step.agentId ? (step.agentId as EntityId<"agentId">) : null,
+        step.stepType ?? "agent",
         step.stepOrder,
-        step.nextSteps
+        step.nextSteps,
+        step.inputMapping
       )
     );
 
@@ -85,53 +87,74 @@ export class WorkflowUseCases {
       throw new Error("Workflow not found");
     }
 
-    if (command.name !== undefined) {
-      workflow.name = command.name;
-    }
+    // Handle Versioning: if the workflow is published, we don't mutate it. We create a new version.
+    let targetWorkflow = workflow;
+    if (workflow.status === "published") {
+      // Archive old one
+      workflow.status = "archived";
+      await this.repository.save(workflow);
 
-    if (command.status !== undefined) {
-      workflow.status = command.status;
-    }
-
-    if (command.description !== undefined) {
-      workflow.description = command.description;
-    }
-
-    if (command.triggerType !== undefined) {
-      workflow.triggerType = command.triggerType;
-    }
-
-    if (command.triggerConfig !== undefined) {
-      workflow.triggerConfig = command.triggerConfig;
+      // Create new version
+      targetWorkflow = createWorkflow(
+        `wf_${crypto.randomUUID()}` as EntityId<"workflowId">,
+        workflow.workspaceId,
+        command.name ?? workflow.name,
+        command.description ?? workflow.description,
+        command.triggerType ?? workflow.triggerType,
+        command.triggerConfig ?? workflow.triggerConfig,
+        []
+      );
+      targetWorkflow.version = workflow.version + 1;
+      targetWorkflow.parentWorkflowId = workflow.workflowId;
+      targetWorkflow.status = command.status ?? "draft";
+    } else {
+      if (command.name !== undefined) targetWorkflow.name = command.name;
+      if (command.status !== undefined) targetWorkflow.status = command.status;
+      if (command.description !== undefined) targetWorkflow.description = command.description;
+      if (command.triggerType !== undefined) targetWorkflow.triggerType = command.triggerType;
+      if (command.triggerConfig !== undefined) targetWorkflow.triggerConfig = command.triggerConfig;
     }
 
     if (command.steps !== undefined) {
-      workflow.steps = command.steps.map((step) =>
+      targetWorkflow.steps = command.steps.map((step) =>
         createWorkflowStep(
           `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">,
           command.workspaceId,
-          workflow.workflowId,
-          step.agentId as EntityId<"agentId">,
+          targetWorkflow.workflowId,
+          step.agentId ? (step.agentId as EntityId<"agentId">) : null,
+          step.stepType ?? "agent",
           step.stepOrder,
-          step.nextSteps
+          step.nextSteps,
+          step.inputMapping
+        )
+      );
+    } else if (targetWorkflow !== workflow && workflow.steps) {
+      // Copy steps to new version if steps not provided in command
+      targetWorkflow.steps = workflow.steps.map(step => 
+        createWorkflowStep(
+          `wfs_${crypto.randomUUID()}` as EntityId<"workflowStepId">,
+          targetWorkflow.workspaceId,
+          targetWorkflow.workflowId,
+          step.agentId ? (step.agentId as EntityId<"agentId">) : null,
+          step.stepType ?? "agent",
+          step.stepOrder,
+          step.nextSteps,
+          step.inputMapping
         )
       );
     }
 
-    // Ensure we update timestamp
-    workflow.updatedAt = new Date().toISOString();
+    targetWorkflow.updatedAt = new Date().toISOString();
 
-    // Re-validate agents on update to ensure no disabled agents are persisted if status is active, 
-    // or simply just ensure the workflow remains valid.
-    const stepDtos = workflow.steps.map(toWorkflowStepDto);
-    await validateWorkflowAgents(workflow.workspaceId, stepDtos, this.agentProvider);
+    const stepDtos = targetWorkflow.steps.map(toWorkflowStepDto);
+    await validateWorkflowAgents(targetWorkflow.workspaceId, stepDtos, this.agentProvider);
     validateWorkflowDAG(stepDtos);
 
-    await this.repository.save(workflow);
+    await this.repository.save(targetWorkflow);
 
     return {
-      workflow: toWorkflowSummary(workflow),
-      steps: workflow.steps.map(toWorkflowStepDto),
+      workflow: toWorkflowSummary(targetWorkflow),
+      steps: targetWorkflow.steps.map(toWorkflowStepDto),
     };
   }
 
@@ -159,7 +182,7 @@ export class WorkflowUseCases {
       throw new Error("Workflow not found");
     }
 
-    if (workflow.status !== "active") {
+    if (workflow.status !== "published") {
       throw new Error("Cannot execute inactive workflow");
     }
 
