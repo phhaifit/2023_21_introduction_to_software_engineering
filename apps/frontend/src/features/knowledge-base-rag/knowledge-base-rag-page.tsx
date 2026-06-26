@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+
 import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
+import {
+  createKnowledgeBaseRagApiClient,
+  type KnowledgeBaseRagApiClient
+} from "./knowledge-base-rag-api-client.ts";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
 
@@ -93,8 +100,17 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   }
 ];
 
-export function KnowledgeBaseRagPage() {
+const defaultApiClient = createKnowledgeBaseRagApiClient();
+
+export type KnowledgeBaseRagPageProps = {
+  apiClient?: KnowledgeBaseRagApiClient;
+  workspaceId?: EntityId<"workspaceId">;
+};
+
+export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
+  const { apiClient = defaultApiClient, workspaceId = DEMO_WORKSPACE_ID } = props;
   const [activeViewId, setActiveViewId] = useState<KnowledgeBaseRagViewId>("documents");
+  const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
 
   const activeView = useMemo(
     () =>
@@ -152,8 +168,20 @@ export function KnowledgeBaseRagPage() {
           </div>
         </header>
 
-        {activeView.id === "documents" && <KnowledgeBaseDocumentsScreen />}
-        {activeView.id === "upload-documents" && <KnowledgeBaseUploadScreen />}
+        {activeView.id === "documents" && (
+          <KnowledgeBaseDocumentsScreen
+            apiClient={apiClient}
+            refreshKey={documentsRefreshKey}
+            workspaceId={workspaceId}
+          />
+        )}
+        {activeView.id === "upload-documents" && (
+          <KnowledgeBaseUploadScreen
+            apiClient={apiClient}
+            onUploadPrepared={() => setDocumentsRefreshKey((current) => current + 1)}
+            workspaceId={workspaceId}
+          />
+        )}
         {activeView.id !== "documents" && activeView.id !== "upload-documents" && (
           <section className="knowledge-base-rag-content-card">
             <div className="knowledge-base-rag-content-header">

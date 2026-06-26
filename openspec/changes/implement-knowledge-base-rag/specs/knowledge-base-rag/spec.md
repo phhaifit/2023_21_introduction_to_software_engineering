@@ -106,11 +106,19 @@ The system SHALL provide a typed frontend KB/RAG API client before existing UI s
 - **THEN** the client parses shared success and paginated success envelopes into shared DTOs
 - **AND** API, network, and malformed-response failures are exposed through a typed frontend client error
 
-#### Scenario: Client remains a boundary, not UI integration
+#### Scenario: Client rejects unsafe frontend request payloads
 - **WHEN** the frontend API client boundary is added
-- **THEN** existing Documents and Upload screens continue using local mock data until a scoped integration issue connects them
-- **AND** the client rejects unsafe request-body fields such as `workspaceId`, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, passwords, raw embeddings, or vector configuration before fetch
+- **THEN** the client rejects unsafe request-body fields such as `workspaceId`, actor/user IDs, generated IDs, lifecycle statuses, timestamps, storage keys, vector references, queue payloads, credentials, tokens, passwords, raw embeddings, or vector configuration before fetch
 - **AND** frontend code does not import backend modules, worker runtime, Prisma/database code, or another module's private internals
+
+#### Scenario: Documents and Upload screens use the API client
+- **WHEN** the Documents screen is opened
+- **THEN** it loads workspace documents through `listDocuments(workspaceId)` and renders shared document DTO data with loading, error, and empty states
+- **WHEN** files are selected in the Upload Documents screen
+- **THEN** the screen sends metadata-only upload candidates through `validateUploadCandidates(workspaceId, request)`
+- **AND** it calls `prepareUpload(workspaceId, request)` only for validation-accepted candidates
+- **AND** it does not send raw file bytes, `workspaceId` in the request body, actor/user IDs, generated IDs, lifecycle status, timestamps, storage keys, vector refs, queue payloads, credentials, secrets, tokens, passwords, raw embeddings, or vector configuration
+- **AND** this integration does not wire Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, or vector databases
 
 ### Requirement: Application Use Cases
 The system SHALL provide KB/RAG application use cases that future API routers and workers can call without importing repositories or infrastructure directly.

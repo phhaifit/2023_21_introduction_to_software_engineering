@@ -19,17 +19,20 @@ The feature currently has a local PA5 prototype:
 - `knowledge-base-rag-view.ts`: local mock/view types.
 - `knowledge-base-rag-mock-data.ts`: deterministic mock documents, upload
   candidates, ingestion jobs, external data sources, sync scope, and sync jobs.
-- `knowledge-base-rag-documents.tsx`: Documents screen with mock document
-  metrics and list rendering.
-- `knowledge-base-rag-upload.tsx`: Upload Documents screen with mock candidate
-  file validation display.
+- `knowledge-base-rag-documents.tsx`: Documents screen wired to
+  `listDocuments` through the typed KB/RAG API client.
+- `knowledge-base-rag-upload.tsx`: Upload Documents screen wired to
+  metadata-only upload validation and prepare flows through the typed KB/RAG
+  API client.
 - `knowledge-base-rag-api-client.ts`: typed frontend API client for the
   workspace-scoped KB/RAG backend route family.
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
-Documents and Upload screens still use local mock data. Current local view
-types are prototype presentation types, not public DTOs.
+Documents and Upload screens now use the API client as their runtime source of
+truth. The Data Sources, Synchronization Scope, and Processing Status views are
+still placeholder-only. Current local view types are presentation types used to
+render shared DTOs, not public contracts.
 
 ## Frontend Scope
 
@@ -76,8 +79,9 @@ Future UI integration should align with shared DTOs such as:
 - `SyncJobDto`
 
 Keep mock/view types module-local and avoid exporting them as cross-module
-contracts. The next integration issue should map the existing Documents and
-Upload screens to the shared DTOs through `knowledge-base-rag-api-client.ts`.
+contracts. Documents and Upload map shared DTOs through
+`knowledge-base-rag-api-client.ts`; future integration should follow the same
+pattern for Data Sources, Synchronization Scope, and Processing Status.
 
 ## Implementation Rules
 
