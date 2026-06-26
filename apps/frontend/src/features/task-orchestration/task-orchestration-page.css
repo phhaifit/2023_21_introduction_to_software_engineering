@@ -197,6 +197,15 @@
   padding: 18px 28px 22px;
 }
 
+.task-workspace__feed {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 820px;
+  width: 100%;
+}
+
 .task-workspace__task-view,
 .task-workspace__pending {
   align-self: stretch;

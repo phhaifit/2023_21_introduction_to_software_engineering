@@ -15,6 +15,9 @@ import {
 import {
   buildCreateTaskRequest,
   getActiveTask,
+  getActiveConversation,
+  getConversationTasks,
+  getLatestConversationTask,
   initialTaskCreationState,
   taskCreationReducer
 } from "./model/task-creation-state";
@@ -166,7 +169,15 @@ export function TaskOrchestrationPage({
     return registry;
   }
 
-  const activeTask = getActiveTask(taskState);
+  const activeConversation = getActiveConversation(taskState);
+  const activeConversationTasks = taskState.activeConversationId
+    ? getConversationTasks(taskState, taskState.activeConversationId)
+    : [];
+  const latestActiveConversationTask = taskState.activeConversationId
+    ? getLatestConversationTask(taskState, taskState.activeConversationId)
+    : undefined;
+
+  const activeTask = latestActiveConversationTask;
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
     : null;
@@ -224,7 +235,8 @@ export function TaskOrchestrationPage({
       dispatchTaskAction({
         type: "task-created",
         request: requestResult.request,
-        response
+        response,
+        conversationId: taskState.activeConversationId
       });
       setPrompt("");
     } catch {
@@ -234,17 +246,6 @@ export function TaskOrchestrationPage({
       });
     }
   }
-
-  const taskArticleLabel =
-    activeTask?.status === "running"
-      ? "In-progress task"
-      : activeTask?.status === "cancelled"
-      ? "Canceled task"
-      : activeTask?.status === "failed"
-      ? "Failed task"
-      : activeTask?.status === "succeeded"
-      ? "Completed task"
-      : "Pending task";
 
   return (
     <section className="task-workspace" aria-labelledby="task-workspace-title">
@@ -284,18 +285,37 @@ export function TaskOrchestrationPage({
                 <p>Loading local conversation controls and suggestions.</p>
               </div>
             </div>
-          ) : activeTask && activeTaskPresentationStatus ? (
-            <article
-              className={`task-workspace__task-view${
-                activeTask.status === "running" ? " task-workspace__task-view--in-progress" : ""
-              }`}
-              aria-label={taskArticleLabel}
-            >
-              <TaskConversation
-                task={activeTask}
-                clipboardWriter={completionRuntimeRef.current.clipboard}
-              />
-            </article>
+          ) : activeConversation && activeConversationTasks.length > 0 ? (
+            <div className="task-workspace__feed" aria-label="Conversation task feed">
+              {activeConversationTasks.map((task) => {
+                const isRunning = task.status === "running";
+                const articleLabel =
+                  task.status === "running"
+                    ? "In-progress task"
+                    : task.status === "cancelled"
+                    ? "Canceled task"
+                    : task.status === "failed"
+                    ? "Failed task"
+                    : task.status === "succeeded"
+                    ? "Completed task"
+                    : "Pending task";
+
+                return (
+                  <article
+                    key={task.taskId as string}
+                    className={`task-workspace__task-view${
+                      isRunning ? " task-workspace__task-view--in-progress" : ""
+                    }`}
+                    aria-label={articleLabel}
+                  >
+                    <TaskConversation
+                      task={task}
+                      clipboardWriter={completionRuntimeRef.current.clipboard}
+                    />
+                  </article>
+                );
+              })}
+            </div>
           ) : (
             <div className="task-workspace__empty">
               <span className="task-workspace__empty-mark" aria-hidden="true">✦</span>
