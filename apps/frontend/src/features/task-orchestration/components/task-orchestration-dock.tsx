@@ -33,13 +33,7 @@ export function TaskOrchestrationDock({
             </span>
           ) : isQueued ? (
             <span className="task-orchestration-dock__step-info">Queued for processing</span>
-          ) : task.status === "succeeded" ? (
-            <span className="task-orchestration-dock__terminal-info">Completed</span>
-          ) : task.status === "failed" ? (
-            <span className="task-orchestration-dock__terminal-info">Failed</span>
-          ) : (
-            <span className="task-orchestration-dock__terminal-info">Canceled</span>
-          )}
+          ) : null}
         </div>
       </div>
 

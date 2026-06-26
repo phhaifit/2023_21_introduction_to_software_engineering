@@ -225,7 +225,7 @@ describe("Compact Orchestration Dock & Expandable Details", () => {
     expect(within(dock).getByText("In Progress")).toBeVisible();
 
     // 9. Running dock shows current step
-    expect(within(dock).getByText(/validate-input/)).toBeVisible();
+    expect(within(dock).getByText(/Validate input/i)).toBeVisible();
 
     // 10. Running dock shows meaningful progress
     expect(within(dock).getByText(/0\/6 steps/)).toBeVisible();
@@ -309,8 +309,9 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
   it("22: Cancel appears only when allowed", async () => {
     const client = new ConfigurableClient("queued");
     const pRuntime = new FakeProcessingRuntime();
+    const sRuntime = new FakeStreamingRuntime();
     const cRuntime = new FakeCompletionRuntime();
-    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} completionRuntime={cRuntime} />);
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} streamingRuntime={sRuntime} completionRuntime={cRuntime} />);
 
     await submitPrompt("Check cancel button");
     
@@ -321,6 +322,9 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
     for (let i = 0; i < 6; i++) {
       act(() => { pRuntime.scheduler.advance(); });
     }
+    act(() => { sRuntime.scheduler.advance(); });
+    act(() => { sRuntime.scheduler.advance(); });
+    act(() => { sRuntime.scheduler.advance(); });
     act(() => { cRuntime.scheduler.advance(); });
 
     expect(within(dock).getByText("Completed")).toBeVisible();
