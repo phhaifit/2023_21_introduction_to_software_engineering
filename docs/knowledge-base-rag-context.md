@@ -52,18 +52,23 @@ The backend now has an internal module foundation under
 - Deterministic in-memory repositories for future use-case tests.
 - A thin workspace-scoped HTTP API router under `api/` that maps shared route
   contracts to application use cases and shared `ApiResponse` envelopes.
+- A worker handoff skeleton that transitions already-created document ingestion
+  jobs through pending/ingesting/ready or pending/ingesting/failed lifecycle
+  states using KB/RAG repository ports.
 
 Runtime implementation still needs:
 
 - Upload parsing, object storage, embedding, vector indexing, and external
   source adapters.
-- Worker ingestion/sync runtime handoff.
+- Full worker ingestion/sync runtime adapters for parsing, chunking,
+  embedding, vector writes, and external sync.
 - Frontend API integration for Processing Status.
 - Worker tests, frontend integration tests, and functional PA5 tests.
 
-The worker path `apps/workers/src/jobs/document-ingestion` currently contains
-README/context only. The queue type already reserves `document.ingest`, but no
-handler or adapter implementation exists.
+The queue type already reserves `document.ingest`. The current worker handoff
+skeleton is module-local under the KB/RAG backend boundary and can be called by
+a later worker entrypoint. It does not parse files, create chunks, call storage,
+call embedding providers, write vectors, or execute external sync.
 
 ## Modular Monolith Alignment
 

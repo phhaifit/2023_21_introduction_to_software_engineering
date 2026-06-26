@@ -12,11 +12,12 @@ Foundation reference: see `docs/module-ownership.md`,
 
 This backend module now contains the internal backend foundation for domain
 models, application repository ports, application use cases, safe DTO mappers,
-Prisma repository adapters, deterministic in-memory repositories, and a thin
-workspace-scoped HTTP API router.
+Prisma repository adapters, deterministic in-memory repositories, a thin
+workspace-scoped HTTP API router, and a worker handoff skeleton for document
+ingestion lifecycle updates.
 
 It still does not contain real file parsing, file storage adapters,
-vector/embedding adapters, worker handlers, or frontend API-client
+vector/embedding adapters, full worker runtime handlers, or retrieval
 implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
@@ -205,6 +206,7 @@ Current backend foundation:
 - `domain/knowledge-sync.ts`
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+- `worker/knowledge-ingestion-handoff.ts`
 
 Likely future files:
 
@@ -231,6 +233,20 @@ chunk reads, ingestion-job reads, data-source placeholder connection, sync-scope
 updates, and queued manual sync-job creation. They do not parse files, upload
 to storage, enqueue real workers, call embedding providers, or write vectors.
 
+The worker handoff skeleton processes an already-created pending ingestion job
+at the lifecycle level only:
+
+```text
+pending -> ingesting -> ready
+pending -> ingesting -> failed
+```
+
+It updates KB/RAG-owned document and ingestion-job status through repository
+ports, creates safe ingestion started/completed/failed events through existing
+event contracts, and returns/publishes only public lifecycle payloads. It does
+not parse documents, read file bytes, create chunks, call object storage,
+generate embeddings, write vectors, or run external sync.
+
 ## Worker Handoff
 
 Long-running ingestion and synchronization must run through workers, not inside
@@ -241,10 +257,11 @@ Expected flow:
 1. Validate upload candidates.
 2. Prepare valid uploads into document metadata.
 3. Queue a document ingestion job.
-4. Worker parses, chunks, embeds, and indexes through adapters.
-5. Update ingestion and indexing status.
-6. Emit public domain events.
-7. UI reads document, ingestion, and sync status through API routes.
+4. Worker handoff marks the job/document as processing.
+5. Future adapters parse, chunk, embed, and index through explicit boundaries.
+6. Update ingestion and indexing status.
+7. Emit public domain events.
+8. UI reads document, ingestion, and sync status through API routes.
 
 ## Testing Roadmap
 

@@ -59,9 +59,12 @@ The backend now has an internal foundation for future runtime implementation:
 - Deterministic in-memory repositories for future use-case tests.
 - A thin workspace-scoped HTTP API router that maps shared route contracts to
   application use cases and shared API envelopes.
+- A worker handoff skeleton that moves already-created document ingestion jobs
+  through pending/ingesting/ready or pending/ingesting/failed lifecycle states
+  through KB/RAG repository ports.
 
 The backend still does not have real upload/file adapters, embedding/vector
-adapters, or worker handlers.
+adapters, full worker runtime handlers, or external sync adapters.
 
 ## Required Future Workflow
 
@@ -219,6 +222,7 @@ Current foundation files include:
 - `domain/knowledge-sync.ts`
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+- `worker/knowledge-ingestion-handoff.ts`
 
 Likely future files:
 
@@ -228,6 +232,13 @@ Likely future files:
 - `infrastructure/*-adapter.ts`
 
 Do not create worker handlers or adapters outside the selected task scope.
+
+The current worker handoff skeleton is intentionally lifecycle-only. It may
+mark pending ingestion jobs as ingesting, ready, or failed and update associated
+document ingestion/indexing status. It must not parse files, read object
+storage, create chunks, call embedding providers, write vectors, or execute
+external sync until a later adapter/runtime issue explicitly adds those
+boundaries.
 
 ## API Contract Boundary
 

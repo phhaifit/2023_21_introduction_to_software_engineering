@@ -160,6 +160,13 @@ The system SHALL provide a configurable boundary for external knowledge sources.
 ### Requirement: Document Ingestion and Vectorization
 The system SHALL process documents into searchable vector chunks asynchronously.
 
+#### Scenario: Worker handoff updates ingestion lifecycle safely
+- **WHEN** a worker handoff receives an already-created pending ingestion job for a workspace document
+- **THEN** it marks the ingestion job as ingesting and updates the associated document ingestion/indexing state through KB/RAG repository ports
+- **AND** after the skeleton processor succeeds it marks the job and document ready and records safe ingestion completed event payloads
+- **AND** after the skeleton processor fails it marks the job and document failed and stores only safe error code/message fields
+- **AND** the handoff does not parse files, read object storage, create chunks, call embedding providers, write vectors, execute external sync, import Prisma directly, import frontend code, or import another module's private internals
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata

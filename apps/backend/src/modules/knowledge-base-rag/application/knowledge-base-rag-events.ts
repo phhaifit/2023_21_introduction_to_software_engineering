@@ -54,6 +54,71 @@ export function createIngestionQueuedEvent(input: KnowledgeBaseRagEventContext &
   };
 }
 
+export function createIngestionStartedEvent(input: KnowledgeBaseRagEventContext & {
+  documentId: EntityId<"documentId">;
+  jobId: EntityId<"jobId">;
+  status: KnowledgeIndexStatus;
+}): DomainEvent<"knowledge.document.ingestionStarted"> {
+  return {
+    name: "knowledge.document.ingestionStarted",
+    eventId: input.eventId,
+    occurredAt: input.occurredAt,
+    payload: {
+      eventType: "knowledge.document.ingestionStarted",
+      workspaceId: input.workspaceId,
+      documentId: input.documentId,
+      jobId: input.jobId,
+      status: input.status
+    }
+  };
+}
+
+export function createIngestionCompletedEvent(input: KnowledgeBaseRagEventContext & {
+  documentId: EntityId<"documentId">;
+  jobId: EntityId<"jobId">;
+  status: KnowledgeIndexStatus;
+  chunkCount: number;
+  indexedChunkCount: number;
+}): DomainEvent<"knowledge.document.ingestionCompleted"> {
+  return {
+    name: "knowledge.document.ingestionCompleted",
+    eventId: input.eventId,
+    occurredAt: input.occurredAt,
+    payload: {
+      eventType: "knowledge.document.ingestionCompleted",
+      workspaceId: input.workspaceId,
+      documentId: input.documentId,
+      jobId: input.jobId,
+      status: input.status,
+      chunkCount: input.chunkCount,
+      indexedChunkCount: input.indexedChunkCount
+    }
+  };
+}
+
+export function createIngestionFailedEvent(input: KnowledgeBaseRagEventContext & {
+  documentId: EntityId<"documentId">;
+  jobId: EntityId<"jobId">;
+  status: KnowledgeIndexStatus;
+  errorCode: string;
+  errorMessage: string;
+}): DomainEvent<"knowledge.document.ingestionFailed"> {
+  return {
+    name: "knowledge.document.ingestionFailed",
+    eventId: input.eventId,
+    occurredAt: input.occurredAt,
+    payload: {
+      eventType: "knowledge.document.ingestionFailed",
+      workspaceId: input.workspaceId,
+      documentId: input.documentId,
+      jobId: input.jobId,
+      status: input.status,
+      errorCode: input.errorCode,
+      errorMessage: input.errorMessage
+    }
+  };
+}
+
 export function createDataSourceConnectedEvent(input: KnowledgeBaseRagEventContext & {
   sourceId: string;
   status: KnowledgeDataSourceStatus;
@@ -120,4 +185,3 @@ function requireActorId(
 
   return actorId;
 }
-
