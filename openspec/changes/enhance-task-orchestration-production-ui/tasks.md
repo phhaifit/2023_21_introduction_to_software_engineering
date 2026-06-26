@@ -33,11 +33,11 @@
 
 ## 5. Conversation History, Search and Status Filters
 
-- [ ] 5.1 Implement conversation-oriented history navigation within the workspace sidebar area, ordering items by updated time or design rules, and supporting stable selections and clear search/filter actions.
-- [ ] 5.2 Implement search input filtering in-memory conversations by conversation title, prompt text, Task ID, or Work ID matching without affecting runtime execution.
-- [ ] 5.3 Implement status filter controls matching conversations when their latest Task has the selected canonical status, ensuring empty conversations do not match status filters.
-- [ ] 5.4 Implement graceful selection handling when the active conversation is filtered out of the list, and display explicit visual notices confirming history data is session-scoped (in-memory).
-- [ ] 5.5 Implement history filtering, search matching, empty conversation filtering rules, and presentation-only scoping tests.
+- [x] 5.1 Implement conversation-oriented history navigation within the workspace sidebar area, ordering items by updated time or design rules, and supporting stable selections and clear search/filter actions.
+- [x] 5.2 Implement search input filtering in-memory conversations by conversation title, prompt text, Task ID, or Work ID matching without affecting runtime execution.
+- [x] 5.3 Implement status filter controls matching conversations when their latest Task has the selected canonical status, ensuring empty conversations do not match status filters.
+- [x] 5.4 Implement graceful selection handling when the active conversation is filtered out of the list, and display explicit visual notices confirming history data is session-scoped (in-memory).
+- [x] 5.5 Implement history filtering, search matching, empty conversation filtering rules, and presentation-only scoping tests.
 
 ## 6. Responsive, Empty, Loading and Accessibility
 

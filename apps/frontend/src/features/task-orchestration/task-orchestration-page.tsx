@@ -189,10 +189,12 @@ export function TaskOrchestrationPage({
 
   const navigationItems: TaskConversationNavigationItem[] = taskState.conversations.map((conv) => {
     const latestTask = getLatestConversationTask(taskState, conv.conversationId);
+    const convTasks = getConversationTasks(taskState, conv.conversationId);
     return {
       conversationId: conv.conversationId,
       title: conv.title,
-      latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined
+      latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined,
+      tasks: convTasks
     };
   });
 

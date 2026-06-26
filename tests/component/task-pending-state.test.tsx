@@ -389,8 +389,9 @@ describe("14. Pending view does not show streaming, completed result, or error",
 
     await submitPrompt("No extras.");
 
-    expect(screen.queryByText(/Completed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Failed/i)).not.toBeInTheDocument();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // No streaming indicator
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
