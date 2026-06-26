@@ -223,4 +223,90 @@ describe("Conversation Navigation & Switching", () => {
     await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
     expect(screen.queryByRole("button", { name: "View processing details" })).not.toBeInTheDocument();
   });
+
+  it("Test 5 — History filtering, search matching, empty conversation filtering rules, and presentation-only scoping", async () => {
+    const user = userEvent.setup();
+    const client = new ConfigurableClient("queued");
+    const runtime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={runtime} />);
+
+    // Create Conversation A (Task 1)
+    await submitPrompt("Unique Alpha Prompt");
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    expect(within(navigation).getByText("Unique Alpha Prompt")).toBeVisible();
+
+    // Create Conversation B (Task 2) via New Chat
+    await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
+    await submitPrompt("Distinct Beta Request");
+    expect(within(navigation).getByText("Distinct Beta Request")).toBeVisible();
+
+    // Create Conversation C (empty) via New Chat
+    await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
+    expect(within(navigation).getByText("New conversation")).toBeVisible();
+
+    // Verify explicit visual notice confirming history data is session-scoped
+    expect(within(navigation).getByText("History data is session-scoped (in-memory).")).toBeVisible();
+
+    // 1. Search input filtering by prompt text
+    const searchInput = within(navigation).getByRole("searchbox", { name: /search conversations/i });
+    await user.type(searchInput, "Alpha");
+    expect(within(navigation).getByText("Unique Alpha Prompt")).toBeVisible();
+    expect(within(navigation).queryByText("Distinct Beta Request")).not.toBeInTheDocument();
+    expect(within(navigation).queryByText("New conversation")).not.toBeInTheDocument();
+
+    // Clear search
+    const clearBtn = within(navigation).getByRole("button", { name: /^clear filters$/i });
+    await user.click(clearBtn);
+    expect(within(navigation).getByText("Distinct Beta Request")).toBeVisible();
+
+    // 2. Search input filtering by Task ID (e.g. TASK-000002)
+    await user.type(searchInput, "TASK-000002");
+    expect(within(navigation).getByText("Distinct Beta Request")).toBeVisible();
+    expect(within(navigation).queryByText("Unique Alpha Prompt")).not.toBeInTheDocument();
+    await user.click(within(navigation).getByRole("button", { name: /^clear filters$/i }));
+
+    // 3. Status filter controls (filter by Pending, empty conversation should NOT match)
+    const statusSelect = within(navigation).getByRole("combobox", { name: /filter by status/i });
+    await user.selectOptions(statusSelect, "pending");
+    expect(within(navigation).getByText("Unique Alpha Prompt")).toBeVisible();
+    expect(within(navigation).getByText("Distinct Beta Request")).toBeVisible();
+    expect(within(navigation).queryByText("New conversation")).not.toBeInTheDocument();
+
+    // 4. Graceful selection handling when active conversation is filtered out
+    // Currently active conversation is C (empty), which is filtered out by 'pending'
+    expect(within(navigation).getByText("Active conversation is hidden by current filters.")).toBeVisible();
+    const restoreBtn = within(navigation).getByRole("button", { name: /clear filters to view active conversation/i });
+    await user.click(restoreBtn);
+    expect(within(navigation).getByText("New conversation")).toBeVisible();
+  });
+
+  it("Test 6 — Conversation containing multiple Tasks correctly matches status of the latest Task", async () => {
+    const user = userEvent.setup();
+    const client = new ConfigurableClient("queued");
+    const runtime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={runtime} />);
+
+    // Create Task 1 (queued -> pending) in Conversation A
+    await submitPrompt("First task prompt");
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    expect(within(navigation).getByText("First task prompt")).toBeVisible();
+
+    // Now change client status to succeeded (completed) and submit Task 2 in the SAME conversation
+    client.status = "succeeded";
+    await submitPrompt("Second task prompt");
+
+    // Filter by 'completed' (status of the latest Task in Conversation A)
+    const statusSelect = within(navigation).getByRole("combobox", { name: /filter by status/i });
+    await user.selectOptions(statusSelect, "completed");
+
+    // Conversation A should remain visible because its latest Task is completed
+    expect(within(navigation).getByText("First task prompt")).toBeVisible();
+
+    // Filter by 'pending' (status of the older Task in Conversation A)
+    await user.selectOptions(statusSelect, "pending");
+
+    // Conversation A should be hidden because 'pending' is NOT the latest Task status
+    expect(within(navigation).queryByText("First task prompt")).not.toBeInTheDocument();
+  });
 });
+

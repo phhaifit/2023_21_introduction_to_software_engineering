@@ -39,7 +39,8 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(screen.getByRole("complementary", { name: "Task workspace sidebar" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Task & Orchestration" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Main conversation region" })).toBeVisible();
+    const main = screen.getByRole("region", { name: "Main conversation region" });
+    expect(main).toBeVisible();
     expect(screen.getByRole("heading", {
       name: "What should your virtual team work on?"
     })).toBeVisible();
@@ -49,7 +50,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.queryByText(/Task ID/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Work ID/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/timeline/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Pending/i)).not.toBeInTheDocument();
+    expect(within(main).queryByText(/Pending/i)).not.toBeInTheDocument();
   });
 
   it("renders a distinct accessible loading state without implying a task", () => {
@@ -58,7 +59,8 @@ describe("TaskOrchestrationPage base workspace", () => {
     const loadingState = screen.getByRole("status");
     expect(loadingState).toHaveTextContent("Preparing your workspace");
     expect(loadingState).toHaveTextContent("Loading local conversation controls");
-    expect(screen.queryByText(/Pending/i)).not.toBeInTheDocument();
+    const main = screen.getByRole("region", { name: "Main conversation region" });
+    expect(within(main).queryByText(/Pending/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", {
       name: "What should your virtual team work on?"
     })).not.toBeInTheDocument();
@@ -73,7 +75,8 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
     expect(screen.getByLabelText("Request")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send request" })).toBeEnabled();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    const composer = screen.getByRole("region", { name: "Task composer area" });
+    expect(within(composer).queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("uses deterministic suggestions and renders Pending after accepted submit", async () => {

@@ -8,36 +8,36 @@
 
 ## 2. Conversation Workspace Shell and Session Navigation
 
-- [ ] 2.1 Implement in-memory conversation session model (`TaskConversationSession`), active conversation management (`activeConversationId`), and stable sidebar/header/feed/composer layouts.
-- [ ] 2.2 Implement multi-turn Task feed and presentation-only conversation switching without canceling, restarting, pausing, duplicating, or resetting Tasks.
-- [ ] 2.3 Implement per-Task background runtime isolation (runtimes keyed by immutable Task ID) allowing inactive tasks to progress and reach terminal states.
-- [ ] 2.4 Implement New Chat action creating a new empty conversation while preserving existing conversations/Tasks and ensuring empty conversations do not display stale Task data or open processing details/cancellation dialogs for prior Tasks.
-- [ ] 2.5 Implement strict visual separation ensuring UI loading states are distinct from canonical Pending states, and verify unmount/reset cleanup leaves no orphan runtimes.
-- [ ] 2.6 Implement reducer, multi-turn rendering, switching isolation, background completion/failure, New Chat preservation, cancellation dialog target verification, and Strict Mode tests.
+- [x] 2.1 Implement in-memory conversation session model (`TaskConversationSession`), active conversation management (`activeConversationId`), and stable sidebar/header/feed/composer layouts.
+- [x] 2.2 Implement multi-turn Task feed and presentation-only conversation switching without canceling, restarting, pausing, duplicating, or resetting Tasks.
+- [x] 2.3 Implement per-Task background runtime isolation (runtimes keyed by immutable Task ID) allowing inactive tasks to progress and reach terminal states.
+- [x] 2.4 Implement New Chat action creating a new empty conversation while preserving existing conversations/Tasks and ensuring empty conversations do not display stale Task data or open processing details/cancellation dialogs for prior Tasks.
+- [x] 2.5 Implement strict visual separation ensuring UI loading states are distinct from canonical Pending states, and verify unmount/reset cleanup leaves no orphan runtimes.
+- [x] 2.6 Implement reducer, multi-turn rendering, switching isolation, background completion/failure, New Chat preservation, cancellation dialog target verification, and Strict Mode tests.
 
 ## 3. Composer and Routing Experience
 
-- [ ] 3.1 Polish task composer input ergonomics, active/focus states, keyboard submit interactions, double-submit prevention, and explicit visual validation feedback for empty/whitespace prompts.
-- [ ] 3.2 Enhance routing mode selector (Auto, Specific Agent, Predefined Workflow) with clear mode descriptions, selector loading/unavailable states, and target required validation before submission.
-- [ ] 3.3 Implement routing mode switching behavior that clears incompatible target values and ensures the UI does not self-analyze prompts to select agents or self-execute Auto-routing.
-- [ ] 3.4 Implement provider-neutral task submission ensuring the request contains no provider credentials or direct OpenClaw calls, and preserves user input on recoverable submission failures.
-- [ ] 3.5 Implement composer interaction, routing selector validation, submitting state distinct from Pending presentation, and successful canonical Task creation transition tests.
+- [x] 3.1 Polish task composer input ergonomics, active/focus states, keyboard submit interactions, double-submit prevention, and explicit visual validation feedback for empty/whitespace prompts.
+- [x] 3.2 Enhance routing mode selector (Auto, Specific Agent, Predefined Workflow) with clear mode descriptions, selector loading/unavailable states, and target required validation before submission.
+- [x] 3.3 Implement routing mode switching behavior that clears incompatible target values and ensures the UI does not self-analyze prompts to select agents or self-execute Auto-routing.
+- [x] 3.4 Implement provider-neutral task submission ensuring the request contains no provider credentials or direct OpenClaw calls, and preserves user input on recoverable submission failures.
+- [x] 3.5 Implement composer interaction, routing selector validation, submitting state distinct from Pending presentation, and successful canonical Task creation transition tests.
 
 ## 4. Execution Feed and Processing Inspector
 
-- [ ] 4.1 Render normalized runtime updates while retaining deterministic mock updates as a legitimate test and development adapter across Pending, In-Progress, Completed, Failed, and Canceled states.
-- [ ] 4.2 Upgrade execution feed rendering ensuring partial output is clearly distinguished from finalized results, Completed tasks display finalized results, Failed tasks display errors without treating incomplete output as Completed, and Canceled tasks stop receiving updates.
-- [ ] 4.3 Enhance processing detail modal (inspector) scoped strictly by Task ID, displaying canonical steps and logs, separating technical details from main results, with Advanced Details closed by default and excluding raw credentials or sensitive provider payloads.
-- [ ] 4.4 Implement terminal-state protection ensuring delayed non-terminal events do not transition terminal Tasks back to active, and cross-Task isolation ensuring inactive conversations never receive data from active Tasks.
-- [ ] 4.5 Implement feed rendering, partial output separation, inspector task-scoping, missing optional observability graceful handling, and terminal protection tests.
+- [x] 4.1 Render normalized runtime updates while retaining deterministic mock updates as a legitimate test and development adapter across Pending, In-Progress, Completed, Failed, and Canceled states.
+- [x] 4.2 Upgrade execution feed rendering ensuring partial output is clearly distinguished from finalized results, Completed tasks display finalized results, Failed tasks display errors without treating incomplete output as Completed, and Canceled tasks stop receiving updates.
+- [x] 4.3 Enhance processing detail modal (inspector) scoped strictly by Task ID, displaying canonical steps and logs, separating technical details from main results, with Advanced Details closed by default and excluding raw credentials or sensitive provider payloads.
+- [x] 4.4 Implement terminal-state protection ensuring delayed non-terminal events do not transition terminal Tasks back to active, and cross-Task isolation ensuring inactive conversations never receive data from active Tasks.
+- [x] 4.5 Implement feed rendering, partial output separation, inspector task-scoping, missing optional observability graceful handling, and terminal protection tests.
 
 ## 5. Conversation History, Search and Status Filters
 
-- [ ] 5.1 Implement conversation-oriented history navigation within the workspace sidebar area, ordering items by updated time or design rules, and supporting stable selections and clear search/filter actions.
-- [ ] 5.2 Implement search input filtering in-memory conversations by conversation title, prompt text, Task ID, or Work ID matching without affecting runtime execution.
-- [ ] 5.3 Implement status filter controls matching conversations when their latest Task has the selected canonical status, ensuring empty conversations do not match status filters.
-- [ ] 5.4 Implement graceful selection handling when the active conversation is filtered out of the list, and display explicit visual notices confirming history data is session-scoped (in-memory).
-- [ ] 5.5 Implement history filtering, search matching, empty conversation filtering rules, and presentation-only scoping tests.
+- [x] 5.1 Implement conversation-oriented history navigation within the workspace sidebar area, ordering items by updated time or design rules, and supporting stable selections and clear search/filter actions.
+- [x] 5.2 Implement search input filtering in-memory conversations by conversation title, prompt text, Task ID, or Work ID matching without affecting runtime execution.
+- [x] 5.3 Implement status filter controls matching conversations when their latest Task has the selected canonical status, ensuring empty conversations do not match status filters.
+- [x] 5.4 Implement graceful selection handling when the active conversation is filtered out of the list, and display explicit visual notices confirming history data is session-scoped (in-memory).
+- [x] 5.5 Implement history filtering, search matching, empty conversation filtering rules, and presentation-only scoping tests.
 
 ## 6. Responsive, Empty, Loading and Accessibility
 

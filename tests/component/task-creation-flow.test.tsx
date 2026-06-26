@@ -130,8 +130,8 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Completed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Failed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
 
     const timeline = screen.getByRole("region", { name: /processing timeline/i });
     expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);
