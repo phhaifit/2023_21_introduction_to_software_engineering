@@ -32,8 +32,10 @@ The frontend currently has a PA5 prototype under
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration. Documents and Upload screens still render local mock
-data; API client wiring is intentionally left for a later integration slice.
+change that integration. Documents and Upload screens now use the typed
+frontend KB/RAG API client as their runtime source of truth. The remaining Data
+Sources, Synchronization Scope, and Processing Status views are still
+placeholder-only and should be integrated in later scoped slices.
 
 The backend now has an internal module foundation under
 `apps/backend/src/modules/knowledge-base-rag`:
@@ -56,7 +58,8 @@ Runtime implementation still needs:
 - Upload parsing, object storage, embedding, vector indexing, and external
   source adapters.
 - Worker ingestion/sync runtime handoff.
-- Frontend UI integration with the KB/RAG API client.
+- Frontend API integration for Data Sources, Synchronization Scope, and
+  Processing Status.
 - Worker tests, frontend integration tests, and functional PA5 tests.
 
 The worker path `apps/workers/src/jobs/document-ingestion` currently contains
@@ -252,9 +255,9 @@ embedding-provider internals, object-storage private paths, or server-owned
 mutation fields.
 
 The frontend API client now uses these shared DTOs. Frontend local mock/view
-types should be mapped toward these DTOs when the Documents and Upload screens
-are connected to live API data. Prototype-only view models may remain
-module-local when they are purely presentation-specific.
+types are mapped toward these DTOs for the Documents and Upload API-integrated
+screens. Prototype-only view models may remain module-local when they are
+purely presentation-specific.
 
 ## Proposed Domain Events Roadmap
 
@@ -386,8 +389,7 @@ Future KB/RAG work should add focused tests with each implemented behavior:
   envelope behavior.
 - Frontend API client tests for routes, envelope parsing, API errors, network
   errors, and malformed responses.
-- Component tests for existing Documents and Upload screens once behavior
-  moves beyond static mock display.
+- Component tests for existing Documents and Upload API integration behavior.
 - Import-boundary tests to prevent private cross-module imports.
 - Worker handoff tests for queue payloads, handler registration, adapter usage,
   success, and failure.

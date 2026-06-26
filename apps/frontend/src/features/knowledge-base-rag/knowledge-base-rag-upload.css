@@ -23,6 +23,16 @@
   background: #eef2ff;
 }
 
+.knowledge-base-rag-upload-zone__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .knowledge-base-rag-upload-zone h2,
 .knowledge-base-rag-upload-action h2 {
   margin: 0;
@@ -46,13 +56,35 @@
   border-radius: 0.5rem;
   background: #4f46e5;
   color: #ffffff;
-  cursor: not-allowed;
+  cursor: pointer;
   font: inherit;
   font-size: 0.875rem;
   font-weight: 700;
-  opacity: 0.65;
   padding: 0.625rem 0.875rem;
   white-space: nowrap;
+}
+
+.knowledge-base-rag-upload-zone button:disabled,
+.knowledge-base-rag-upload-action button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.knowledge-base-rag-upload-feedback {
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 0.875rem 1rem;
+}
+
+.knowledge-base-rag-upload-feedback--success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
 }
 
 .knowledge-base-rag-upload-metrics {
@@ -79,6 +111,10 @@
 
 .knowledge-base-rag-upload-file--invalid {
   border-left-color: #ef4444;
+}
+
+.knowledge-base-rag-upload-file--pending {
+  border-left-color: #f59e0b;
 }
 
 .knowledge-base-rag-upload-file__main {

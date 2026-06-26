@@ -73,7 +73,12 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 
 13. Add a frontend API client boundary before wiring UI screens.
    - Rationale: Documents and Upload screens should connect to live data through a typed client that uses the finalized shared DTOs and route family, rather than embedding fetch logic in components or continuing to evolve mock view types as contracts.
-   - Boundary: The client builds `/api/workspaces/:workspaceId/knowledge/...` URLs, parses shared API envelopes, maps API/network/malformed response errors consistently, and rejects unsafe request-body fields before fetch. It does not replace mock data in existing screens, parse files, upload to storage, call worker runtimes, call embedding/vector providers, or introduce new dependencies.
+   - Boundary: The client builds `/api/workspaces/:workspaceId/knowledge/...` URLs, parses shared API envelopes, maps API/network/malformed response errors consistently, and rejects unsafe request-body fields before fetch. It does not parse files, upload to storage, call worker runtimes, call embedding/vector providers, or introduce new dependencies.
+   - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
+
+14. Wire Documents and Upload screens through the frontend API client in a scoped slice.
+   - Rationale: Runtime screens should stop treating local mock data as the source of truth once backend routes and the typed frontend API client exist.
+   - Boundary: Documents loads `KnowledgeDocumentDto` values through `listDocuments`; Upload converts selected `File` objects to metadata-only `UploadCandidateFileDto` values, validates candidates through the API client, and prepares only accepted candidates. This slice does not integrate Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, vector databases, or new dependencies.
    - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
 
 ## Risks / Trade-offs
@@ -81,5 +86,5 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
 - Embedding services may be unavailable -> Provide mock/local adapter mode for demos and tests.
 - Access control is security-sensitive -> Check agent knowledge assignment before retrieval, not only during upload.
-- Public contracts can drift from prototype UI mocks -> Map or adapt frontend mock data to `@vcp/shared` DTOs before adding API-client work.
+- Public contracts can drift from prototype UI mocks -> Keep runtime Documents and Upload flows mapped to shared DTOs through the API client, and keep any remaining mock data isolated to placeholder/test use.
 - KB/RAG persistence can outgrow the initial additive schema -> Add later migrations only through focused OpenSpec-backed issues and keep vector/embedding provider internals behind adapters.
