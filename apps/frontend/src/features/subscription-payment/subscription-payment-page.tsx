@@ -5,6 +5,9 @@ import type {
   SubscriptionPublicSummary,
   TransactionPublicSummary
 } from "@vcp/shared/contracts/subscription-payment.ts";
+import { PLAN_ENTITLEMENTS, PLAN_PRICES } from "@vcp/shared/contracts/plans.ts";
+
+type ViewState = "dashboard" | "upgrade" | "checkout" | "success";
 
 export function SubscriptionPaymentPage() {
   const [loading, setLoading] = useState(true);
@@ -12,13 +15,39 @@ export function SubscriptionPaymentPage() {
   const [subscription, setSubscription] = useState<SubscriptionPublicSummary | null>(null);
   const [transactions, setTransactions] = useState<TransactionPublicSummary[]>([]);
   
-  // Local state for sandbox checkout flow
-  const [activeCheckout, setActiveCheckout] = useState<{
+  // State quản lý View chuyển màn hình
+  const [view, setView] = useState<ViewState>("dashboard");
+
+  // State cho quá trình checkout hiện tại
+  const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<"standard" | "premium">("standard");
+  const [checkoutData, setCheckoutData] = useState<{
     transactionId: string;
+    subscriptionId: string;
+    checkoutUrl: string;
     amount: number;
-    plan: string;
   } | null>(null);
 
+  // State cho phương thức thanh toán và form
+  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "momo" | "stripe" | "simulated">("stripe");
+  const [cardDetails, setCardDetails] = useState({
+    number: "4242 4242 4242 4242",
+    expiry: "12/28",
+    cvv: "•••",
+    name: "Admin Wu"
+  });
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [autoRenew, setAutoRenew] = useState(true);
+
+  // State lưu hóa đơn thành công vừa thanh toán để hiển thị màn hình Success
+  const [lastSuccessPayment, setLastSuccessPayment] = useState<{
+    paymentId: string;
+    invoiceId: string;
+    plan: string;
+    amountPaid: number;
+    nextRenewal: string;
+  } | null>(null);
+
+  // Fetch dữ liệu thật từ API backend
   const fetchDetails = async () => {
     try {
       setLoading(true);
@@ -27,7 +56,7 @@ export function SubscriptionPaymentPage() {
       setSubscription(data.subscription);
       setTransactions(data.transactions);
     } catch (err: any) {
-      setError(err.message || "Failed to fetch billing details.");
+      setError(err.message || "Không thể tải thông tin thanh toán từ API.");
     } finally {
       setLoading(false);
     }
@@ -37,251 +66,949 @@ export function SubscriptionPaymentPage() {
     fetchDetails();
   }, []);
 
-  const handleCheckout = async (plan: "standard" | "premium") => {
+  // Khởi tạo Checkout (Đăng ký mới hoặc gia hạn)
+  const handleInitiateCheckout = async (plan: "standard" | "premium") => {
     try {
-      setError(null);
-      const res = await subscriptionPaymentApiClient.initiateCheckout(plan);
-      setActiveCheckout({
-        transactionId: res.transactionId,
-        amount: plan === "standard" ? 10 : 30,
-        plan
-      });
-    } catch (err: any) {
-      setError(err.message || "Checkout initiation failed.");
-    }
-  };
-
-  const handleUpgrade = async () => {
-    if (!subscription) return;
-    try {
-      setError(null);
-      const res = await subscriptionPaymentApiClient.initiateUpgrade(subscription.subscriptionId);
-      setActiveCheckout({
-        transactionId: res.transactionId,
-        amount: 20, // Upgrade price difference
-        plan: "premium"
-      });
-    } catch (err: any) {
-      setError(err.message || "Upgrade initiation failed.");
-    }
-  };
-
-  const handleSandboxPayment = async (status: "success" | "failed") => {
-    if (!activeCheckout) return;
-    try {
-      setError(null);
       setLoading(true);
-      await subscriptionPaymentApiClient.sendMockCallback(activeCheckout.transactionId, status);
-      setActiveCheckout(null);
-      await fetchDetails();
+      setError(null);
+      setSelectedPlanForCheckout(plan);
+      const res = await subscriptionPaymentApiClient.initiateCheckout(plan);
+      setCheckoutData({
+        transactionId: res.transactionId,
+        subscriptionId: res.subscriptionId,
+        checkoutUrl: res.checkoutUrl,
+        amount: PLAN_PRICES[plan]
+      });
+      setView("checkout");
     } catch (err: any) {
-      setError(err.message || "Sandbox payment confirmation failed.");
+      setError(err.message || "Khởi tạo checkout thất bại.");
+    } finally {
       setLoading(false);
     }
   };
 
-  if (loading && !activeCheckout) {
-    return (
-      <div className="billing-container">
-        <p>Đang tải dữ liệu thanh toán...</p>
-      </div>
-    );
-  }
+  // Khởi tạo Upgrade từ Standard lên Premium
+  const handleInitiateUpgrade = async () => {
+    if (!subscription) return;
+    try {
+      setLoading(true);
+      setError(null);
+      setSelectedPlanForCheckout("premium");
+      const res = await subscriptionPaymentApiClient.initiateUpgrade(subscription.subscriptionId);
+      setCheckoutData({
+        transactionId: res.transactionId,
+        subscriptionId: res.subscriptionId,
+        checkoutUrl: res.checkoutUrl,
+        amount: PLAN_PRICES["premium"] - PLAN_PRICES["standard"] // Phí nâng cấp ($50)
+      });
+      setView("checkout");
+    } catch (err: any) {
+      setError(err.message || "Khởi tạo nâng cấp thất bại.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // 1. Sandbox Checkout Screen
-  if (activeCheckout) {
+  // Gửi callback thật lên API backend để đối soát giao dịch
+  const handleProcessPayment = async (status: "success" | "failed") => {
+    if (!checkoutData) return;
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Gọi API mock-callback thực tế của dự án để update DB
+      await subscriptionPaymentApiClient.sendMockCallback(checkoutData.transactionId, status);
+      
+      if (status === "success") {
+        const nextRenewalDate = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString("vi-VN", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        });
+        
+        setLastSuccessPayment({
+          paymentId: `PAY-${checkoutData.transactionId.substring(0, 8).toUpperCase()}`,
+          invoiceId: `INV-2026-${checkoutData.transactionId.substring(checkoutData.transactionId.length - 4).toUpperCase()}`,
+          plan: selectedPlanForCheckout === "premium" ? "Premium Plan" : "Standard Plan",
+          amountPaid: checkoutData.amount,
+          nextRenewal: nextRenewalDate
+        });
+        
+        setView("success");
+      } else {
+        throw new Error("Giao dịch giả lập đã bị hủy bỏ hoặc thất bại.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Thanh toán thất bại.");
+      setView("dashboard"); // Quay về Dashboard nếu thanh toán lỗi
+    } finally {
+      // Reload dữ liệu thật từ API
+      await fetchDetails();
+    }
+  };
+
+  // Định dạng ngày hiển thị
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("vi-VN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+  };
+
+  if (loading && view === "dashboard") {
     return (
       <div className="billing-container">
-        <div className="billing-title-section">
-          <h2>Cổng Thanh Toán Giả Lập (Sandbox Checkout)</h2>
-          <p>Mô phỏng thanh toán an toàn mà không phát sinh giao dịch tiền thật.</p>
-        </div>
-        <div className="sandbox-checkout">
-          <p className="sandbox-title">Thanh toán gói {activeCheckout.plan.toUpperCase()}</p>
-          <div className="sandbox-amount">
-            ${activeCheckout.amount} <span style={{ fontSize: "1rem", color: "#64748b" }}>USD</span>
-          </div>
-          <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-            Giao dịch ID: <code>{activeCheckout.transactionId}</code>
-          </p>
-          <div className="sandbox-actions">
-            <button
-              onClick={() => handleSandboxPayment("success")}
-              className="sandbox-btn sandbox-btn--success"
-            >
-              Thanh Toán Thành Công
-            </button>
-            <button
-              onClick={() => handleSandboxPayment("failed")}
-              className="sandbox-btn sandbox-btn--fail"
-            >
-              Thanh Toán Thất Bại
-            </button>
-          </div>
-          <button
-            onClick={() => setActiveCheckout(null)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#64748b",
-              textDecoration: "underline",
-              cursor: "pointer",
-              fontSize: "0.85rem"
-            }}
-          >
-            Hủy bỏ và Quay lại
-          </button>
-        </div>
+        <p>Đang tải dữ liệu hóa đơn và gói dịch vụ từ API...</p>
       </div>
     );
   }
 
   const isSubActive = subscription && (subscription.status === "active" || subscription.status === "expiring_soon");
 
-  return (
-    <div className="billing-container">
-      <div className="billing-title-section">
-        <h2>Thông tin Gói & Thanh toán</h2>
-        <p>Chọn cấu hình gói dịch vụ phù hợp và nâng cấp tài nguyên cho các Workspace.</p>
-      </div>
+  // =========================================================================
+  // VIEW 1: BILLING DASHBOARD (MÀN HÌNH CHÍNH)
+  // =========================================================================
+  if (view === "dashboard") {
+    // Thông số entitlements cho progress bars
+    const currentPlan = subscription?.plan || "none";
+    const cpuMax = currentPlan === "premium" ? 32 : currentPlan === "standard" ? 8 : 2;
+    const cpuUsed = currentPlan === "premium" ? 12 : currentPlan === "standard" ? 6 : 0;
+    
+    const ramMax = currentPlan === "premium" ? 64 : currentPlan === "standard" ? 16 : 4;
+    const ramUsed = currentPlan === "premium" ? 24 : currentPlan === "standard" ? 10 : 0;
+    
+    const agentsMax = currentPlan === "premium" ? 50 : currentPlan === "standard" ? 10 : 2;
+    const agentsUsed = currentPlan === "premium" ? 15 : currentPlan === "standard" ? 7 : 0;
+    
+    const storageMax = currentPlan === "premium" ? 500 : currentPlan === "standard" ? 50 : 10;
+    const storageUsed = currentPlan === "premium" ? 120 : currentPlan === "standard" ? 42 : 0;
 
-      {error && (
-        <div
-          style={{
-            background: "#fee2e2",
-            border: "1px solid #fca5a5",
-            color: "#b91c1c",
-            padding: "12px",
-            borderRadius: "8px",
-            fontSize: "0.9rem"
-          }}
-        >
-          {error}
+    return (
+      <div className="billing-container">
+        <div className="billing-title-section">
+          <h2>Billing & Subscription</h2>
+          <p className="subtitle">Manage your workspace plan, payments, invoices, and renewal settings.</p>
         </div>
-      )}
 
-      {/* 2. Show Active Subscription Status if active */}
-      {isSubActive && subscription ? (
-        <div className="status-card">
-          <div className="status-info">
-            <div className="status-plan">
-              Gói hiện tại: {subscription.plan}
-              <span className={`status-badge status-badge--${subscription.status}`}>
-                {subscription.status}
+        {error && (
+          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", padding: "12px", borderRadius: "8px", fontSize: "0.9rem" }}>
+            {error}
+          </div>
+        )}
+
+        <div className="grid-2col">
+          {/* CỘT TRÁI: Gói hiện tại */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Current Subscription</h3>
+              {isSubActive && (
+                <span className={`status-badge status-badge--${subscription?.status}`}>
+                  {subscription?.status}
+                </span>
+              )}
+            </div>
+            
+            <div className="card-price-box">
+              <span className="price-val">
+                ${subscription ? PLAN_PRICES[subscription.plan] : 0}
+              </span>
+              <span className="price-unit"> / month</span>
+            </div>
+
+            <div className="info-sub-grid">
+              <div className="info-item">
+                <span className="info-label">Plan</span>
+                <span className="info-value">
+                  {subscription ? `${subscription.plan.toUpperCase()} Plan` : "No Active Plan"}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Start Date</span>
+                <span className="info-value">
+                  {subscription ? formatDate(subscription.createdAt) : "—"}
+                </span>
+              </div>
+              <div className="info-item" style={{ gridColumn: "span 2" }}>
+                <span className="info-label">Renewal Date</span>
+                <span className="info-value">
+                  {subscription ? formatDate(subscription.expiresAt) : "—"}
+                </span>
+              </div>
+            </div>
+
+            {isSubActive && (
+              <div className="auto-renewal-row">
+                <div className="toggle-container">
+                  <span className="toggle-label">Auto-Renewal</span>
+                  <span className="toggle-sub">Gói sẽ tự động gia hạn vào ngày {formatDate(subscription.expiresAt)}</span>
+                </div>
+                <label className="switch">
+                  <input 
+                    type="checkbox" 
+                    checked={autoRenew} 
+                    onChange={(e) => setAutoRenew(e.target.checked)} 
+                  />
+                  <span className="slider"></span>
+                </label>
+              </div>
+            )}
+
+            <div className="btn-group">
+              {isSubActive && (
+                <button 
+                  onClick={() => alert("Chức năng hủy gia hạn đang được phát triển.")}
+                  className="btn btn--secondary"
+                >
+                  Cancel Auto-Renewal
+                </button>
+              )}
+              {subscription?.plan === "standard" ? (
+                <button onClick={() => setView("upgrade")} className="btn btn--primary">
+                  Upgrade Plan
+                </button>
+              ) : !subscription ? (
+                <button onClick={() => setView("upgrade")} className="btn btn--primary">
+                  Select a Plan
+                </button>
+              ) : (
+                <button disabled className="btn btn--primary" style={{ opacity: 0.6 }}>
+                  Premium Active
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* CỘT PHẢI: Phương thức thanh toán */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Payment Method</h3>
+            </div>
+
+            <div className="virtual-card">
+              <div className="card-header-row">
+                <span className="card-type">VIRTUAL CARD</span>
+                <div className="card-chip"></div>
+              </div>
+              <div className="card-number-display">•••• •••• •••• 4242</div>
+              <div className="card-footer-row">
+                <div className="card-holder">
+                  <div style={{ opacity: 0.6, fontSize: "0.6rem", marginBottom: "2px" }}>CARD HOLDER</div>
+                  <span className="card-holder-name">Admin Wu</span>
+                </div>
+                <div className="card-expiry">
+                  <div style={{ opacity: 0.6, fontSize: "0.6rem", marginBottom: "2px" }}>EXPIRES</div>
+                  <span className="card-expiry-val">12/28</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-meta-email">
+              <span>Billing email</span>
+              <strong style={{ color: "#334155" }}>dev@local.test</strong>
+            </div>
+
+            <button 
+              onClick={() => alert("Thông tin phương thức thanh toán là cố định ở Sandbox local dev.")} 
+              className="btn btn--secondary" 
+              style={{ marginTop: "16px" }}
+            >
+              Change Payment Method
+            </button>
+          </div>
+        </div>
+
+        {/* THÔNG SỐ TÀI NGUYÊN & PLAN COMPARISON */}
+        <div className="grid-2col">
+          {/* Cột trái: Quota bars */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Resource Usage</h3>
+              <span className="quota-badge">
+                {subscription ? `${subscription.plan.toUpperCase()} Quota` : "Free Trial Quota"}
               </span>
             </div>
-            <div className="status-expires">
-              Hạn dùng đến: {new Date(subscription.expiresAt).toLocaleString("vi-VN")}
-            </div>
-            <div style={{ fontSize: "0.85rem", color: "#cbd5e1", marginTop: "4px" }}>
-              Workspace ID liên kết: <code>{subscription.workspaceId || "Chưa tạo workspace"}</code>
+            
+            <div className="resource-list">
+              {/* CPU */}
+              <div className="resource-bar-container">
+                <div className="resource-info-row">
+                  <span className="resource-name">CPU</span>
+                  <span className="resource-values">{cpuUsed} / {cpuMax} vCPUs</span>
+                </div>
+                <div className="progress-track">
+                  <div 
+                    className="progress-bar progress-bar--blue" 
+                    style={{ width: `${(cpuUsed / cpuMax) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* RAM */}
+              <div className="resource-bar-container">
+                <div className="resource-info-row">
+                  <span className="resource-name">RAM</span>
+                  <span className="resource-values">{ramUsed} / {ramMax} GB</span>
+                </div>
+                <div className="progress-track">
+                  <div 
+                    className="progress-bar progress-bar--blue" 
+                    style={{ width: `${(ramUsed / ramMax) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* AI Agents */}
+              <div className="resource-bar-container">
+                <div className="resource-info-row">
+                  <span className="resource-name">AI Agents</span>
+                  <span className="resource-values">{agentsUsed} / {agentsMax} agents</span>
+                </div>
+                <div className="progress-track">
+                  <div 
+                    className="progress-bar progress-bar--blue" 
+                    style={{ width: `${(agentsUsed / agentsMax) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Storage */}
+              <div className="resource-bar-container">
+                <div className="resource-info-row">
+                  <span className="resource-name">Storage</span>
+                  <span className="resource-values">{storageUsed} / {storageMax} GB</span>
+                </div>
+                <div className="progress-track">
+                  <div 
+                    className="progress-bar progress-bar--orange" 
+                    style={{ width: `${(storageUsed / storageMax) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
           </div>
-          
-          {subscription.plan === "standard" && (
-            <button
-              onClick={handleUpgrade}
-              className="pricing-btn pricing-btn--primary"
-              style={{ width: "auto", padding: "12px 24px" }}
-            >
-              Nâng cấp lên Premium (+$20)
-            </button>
+
+          {/* Cột phải: So sánh nhanh các Plan */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Plan Comparison</h3>
+            </div>
+
+            <div className="plan-mini-grid">
+              <div className={`plan-mini-item ${subscription?.plan === "standard" ? "plan-mini-item--active" : ""}`}>
+                <div>
+                  <div className="plan-mini-name">
+                    Standard Plan
+                    {subscription?.plan === "standard" && <span className="plan-mini-badge">Current</span>}
+                  </div>
+                  <div className="plan-mini-price">$29 / month — 8 vCPUs, 16GB RAM, 10 Agents, 50GB Storage</div>
+                </div>
+                {!subscription && (
+                  <button onClick={() => handleInitiateCheckout("standard")} className="btn btn--secondary" style={{ width: "auto" }}>Buy</button>
+                )}
+              </div>
+
+              <div className={`plan-mini-item ${subscription?.plan === "premium" ? "plan-mini-item--active" : ""}`}>
+                <div>
+                  <div className="plan-mini-name">
+                    Premium Plan
+                    {subscription?.plan === "premium" && <span className="plan-mini-badge">Current</span>}
+                  </div>
+                  <div className="plan-mini-price">$79 / month — 32 vCPUs, 64GB RAM, 50 Agents, 500GB Storage</div>
+                </div>
+                {subscription?.plan === "standard" ? (
+                  <button onClick={() => setView("upgrade")} className="btn btn--primary" style={{ width: "auto" }}>Upgrade</button>
+                ) : !subscription ? (
+                  <button onClick={() => handleInitiateCheckout("premium")} className="btn btn--primary" style={{ width: "auto" }}>Buy</button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* LỊCH SỬ HÓA ĐƠN (INVOICE HISTORY) */}
+        <div className="billing-card">
+          <div className="invoice-header">
+            <h3>Invoice History</h3>
+            <span className="invoice-count-badge">{transactions.length} invoices</span>
+          </div>
+
+          {transactions.length > 0 ? (
+            <div className="table-responsive" style={{ marginTop: "16px" }}>
+              <table className="invoice-table">
+                <thead>
+                  <tr>
+                    <th>Invoice ID</th>
+                    <th>Billing Date</th>
+                    <th>Plan</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((tx) => (
+                    <tr key={tx.transactionId}>
+                      <td><code>INV-2026-{tx.transactionId.substring(0, 4).toUpperCase()}</code></td>
+                      <td>{formatDate(tx.createdAt)}</td>
+                      <td>
+                        {tx.amount === 29 ? "Standard Plan" : tx.amount === 50 ? "Upgrade to Premium" : tx.amount === 79 ? "Premium Plan" : "Subscription"}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>${tx.amount}.00</td>
+                      <td>
+                        <span className={`tx-status-badge tx-status-badge--${tx.status}`}>
+                          {tx.status === "success" ? "Paid" : tx.status === "pending" ? "Pending" : "Failed"}
+                        </span>
+                      </td>
+                      <td>
+                        <button 
+                          onClick={() => alert(`Đang tải hóa đơn INV-2026-${tx.transactionId.substring(0, 4).toUpperCase()}`)}
+                          className="action-btn-download"
+                        >
+                          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "16px" }}>Không có lịch sử hóa đơn nào.</p>
           )}
         </div>
-      ) : (
-        /* 3. Pricing Plans Selection */
-        <div>
-          <h3 style={{ margin: "0 0 16px 0", color: "#1e293b" }}>Chọn gói đăng ký dịch vụ</h3>
-          <div className="pricing-grid">
-            {/* Standard Plan */}
-            <div className="pricing-card">
-              <div className="pricing-card__name">Standard Plan</div>
-              <div className="pricing-card__price">
-                $10 <span>/ tháng</span>
-              </div>
-              <ul className="pricing-card__features">
-                <li>Cấp phát CPU / RAM ở mức trung bình</li>
-                <li>Hỗ trợ tối đa 10 Agents</li>
-                <li>Hỗ trợ tối đa 100 tài liệu Knowledge Base</li>
-                <li>Cập nhật định kỳ, phản hồi tiêu chuẩn</li>
-              </ul>
-              <button
-                onClick={() => handleCheckout("standard")}
-                className="pricing-btn"
-              >
-                Mua gói Standard
-              </button>
-            </div>
+      </div>
+    );
+  }
 
-            {/* Premium Plan */}
-            <div className="pricing-card pricing-card--popular">
-              <div className="pricing-card__badge">Phổ biến</div>
-              <div className="pricing-card__name">Premium Plan</div>
-              <div className="pricing-card__price">
-                $30 <span>/ tháng</span>
-              </div>
-              <ul className="pricing-card__features">
-                <li>Cấp phát tài nguyên CPU / RAM mạnh mẽ</li>
-                <li>Hỗ trợ tối đa 30 Agents</li>
-                <li>Hỗ trợ tối đa 1000 tài liệu Knowledge Base</li>
-                <li>Ưu tiên xử lý tác vụ, phản hồi tức thời</li>
-              </ul>
-              <button
-                onClick={() => handleCheckout("premium")}
-                className="pricing-btn pricing-btn--primary"
-              >
-                Mua gói Premium
-              </button>
-            </div>
+  // =========================================================================
+  // VIEW 2: UPGRADE PLAN SELECTION (MÀN HÌNH SO SÁNH NÂNG CẤP)
+  // =========================================================================
+  if (view === "upgrade") {
+    const isUpgrading = subscription?.plan === "standard";
+    const premiumPrice = 79;
+    const standardCredit = isUpgrading ? 29 : 0;
+    const upgradeFee = premiumPrice - standardCredit;
+
+    return (
+      <div className="billing-container">
+        <button onClick={() => setView("dashboard")} className="back-btn">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Billing
+        </button>
+
+        <div className="billing-title-section">
+          <h2>Upgrade Subscription Plan</h2>
+          <p className="subtitle">Unlock more resources and features for your workspace.</p>
+        </div>
+
+        <div className="upgrade-cards-grid">
+          {/* Card Standard Plan */}
+          <div className="upgrade-plan-card">
+            <div className="upgrade-plan-title">Standard Plan</div>
+            <div className="upgrade-plan-price">$29<span>/month</span></div>
+            <ul className="features-checklist">
+              {Object.entries(PLAN_ENTITLEMENTS.standard).map(([key, val]) => (
+                <li key={key}>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `50 GB Storage`}
+                </li>
+              ))}
+              <li>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Standard email support
+              </li>
+            </ul>
+            {isUpgrading && <span className="plan-mini-badge" style={{ alignSelf: "flex-start", padding: "4px 10px" }}>Current Plan</span>}
+          </div>
+
+          {/* Card Premium Plan */}
+          <div className="upgrade-plan-card upgrade-plan-card--recommended">
+            <span className="card-badge-pop">Recommended</span>
+            <div className="upgrade-plan-title">Premium Plan</div>
+            <div className="upgrade-plan-price">$79<span>/month</span></div>
+            <ul className="features-checklist">
+              {Object.entries(PLAN_ENTITLEMENTS.premium).map(([key, val]) => (
+                <li key={key}>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `500 GB Storage`}
+                </li>
+              ))}
+              <li>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Priority Support 24/7
+              </li>
+            </ul>
           </div>
         </div>
-      )}
 
-      {/* 4. Transactions History */}
-      {transactions.length > 0 && (
-        <div className="history-section">
-          <h3>Lịch sử giao dịch</h3>
-          <div className="history-table-wrapper">
-            <table className="history-table">
-              <thead>
-                <tr>
-                  <th>Mã giao dịch</th>
-                  <th>Số tiền</th>
-                  <th>Loại</th>
-                  <th>Trạng thái</th>
-                  <th>Ngày thanh toán</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => (
-                  <tr key={tx.transactionId}>
-                    <td>
-                      <code>{tx.transactionId.substring(0, 18)}...</code>
-                    </td>
-                    <td>
-                      ${tx.amount} {tx.currency}
-                    </td>
-                    <td>
-                      {tx.amount === 20 ? "Nâng cấp gói" : "Đăng ký mới / Gia hạn"}
-                    </td>
-                    <td>
-                      <span className={`tx-status tx-status--${tx.status}`}>
-                        {tx.status === "success"
-                          ? "Thành công"
-                          : tx.status === "pending"
-                          ? "Đang chờ"
-                          : "Thất bại"}
-                      </span>
-                    </td>
-                    <td>{new Date(tx.createdAt).toLocaleString("vi-VN")}</td>
+        <div className="grid-2col" style={{ marginTop: "24px" }}>
+          {/* Tính toán chi phí */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Upgrade Cost</h3>
+            </div>
+            
+            <div className="cost-calc-container">
+              <div className="calc-row">
+                <span>Premium plan price</span>
+                <span>$79.00</span>
+              </div>
+              {isUpgrading && (
+                <div className="calc-row calc-row--minus">
+                  <span>Standard plan credit</span>
+                  <span>-$29.00</span>
+                </div>
+              )}
+              <div className="calc-row">
+                <span>Upgrade fee</span>
+                <span>${upgradeFee.toFixed(2)}</span>
+              </div>
+              <div className="promo-row">
+                <input type="text" placeholder="e.g. VCP10" className="promo-input" />
+                <button onClick={() => alert("Mã giảm giá không hợp lệ hoặc đã hết hạn.")} className="promo-btn">Apply</button>
+              </div>
+              
+              <div className="due-block">
+                <div className="due-title">
+                  <span>Total Due Today</span>
+                  <span>${upgradeFee.toFixed(2)}</span>
+                </div>
+                <div className="due-sub">Then $79.00/month starting next billing cycle</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bảng so sánh chi tiết tính năng */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Feature Comparison</h3>
+            </div>
+            <div className="comparison-table-wrapper">
+              <table className="comparison-table">
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Standard</th>
+                    <th style={{ color: "#2563eb", fontWeight: 700 }}>Premium ★</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CPU</td>
+                    <td>8 vCPUs</td>
+                    <td>32 vCPUs</td>
+                  </tr>
+                  <tr>
+                    <td>RAM</td>
+                    <td>16 GB</td>
+                    <td>64 GB</td>
+                  </tr>
+                  <tr>
+                    <td>Max Agents</td>
+                    <td>10 Agents</td>
+                    <td>50 Agents</td>
+                  </tr>
+                  <tr>
+                    <td>Workflow Executions</td>
+                    <td>5,000 / mo</td>
+                    <td>Unlimited</td>
+                  </tr>
+                  <tr>
+                    <td>Storage</td>
+                    <td>50 GB</td>
+                    <td>500 GB</td>
+                  </tr>
+                  <tr>
+                    <td>Support Level</td>
+                    <td>Standard</td>
+                    <td>Priority 24/7</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+
+        {/* Nút bấm xác nhận nâng cấp ở bottom */}
+        <div className="billing-card" style={{ marginTop: "24px" }}>
+          <div className="confirm-box-row">
+            <input 
+              type="checkbox" 
+              id="confirmUpgrade" 
+              className="confirm-checkbox"
+              checked={agreeToTerms}
+              onChange={(e) => setAgreeToTerms(e.target.checked)}
+            />
+            <label htmlFor="confirmUpgrade" className="confirm-box-text">
+              Tôi xác nhận rằng tài nguyên workspace sẽ được nâng cấp lên gói Premium ngay lập tức sau khi quá trình thanh toán thành công, và tổng phí là <strong>${upgradeFee.toFixed(2)}</strong> sẽ được áp dụng cho phương thức thanh toán được chọn.
+            </label>
+          </div>
+
+          <div className="btn-group" style={{ maxWidth: "400px", alignSelf: "flex-end" }}>
+            <button onClick={() => setView("dashboard")} className="btn btn--secondary">
+              Cancel
+            </button>
+            <button 
+              onClick={isUpgrading ? handleInitiateUpgrade : () => handleInitiateCheckout("premium")} 
+              disabled={!agreeToTerms}
+              className="btn btn--primary"
+            >
+              Confirm & Proceed to Payment →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 3: PAYMENT CHECKOUT (MÀN HÌNH CHỌN PHƯƠNG THỨC & THANH TOÁN)
+  // =========================================================================
+  if (view === "checkout") {
+    return (
+      <div className="billing-container">
+        <button onClick={() => setView(subscription ? "upgrade" : "dashboard")} className="back-btn">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Billing
+        </button>
+
+        <div className="billing-title-section">
+          <h2>Payment Checkout</h2>
+          <p className="subtitle">Hoàn tất thủ tục đăng ký nâng cấp gói của bạn.</p>
+        </div>
+
+        {error && (
+          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", padding: "12px", borderRadius: "8px", fontSize: "0.9rem" }}>
+            {error}
+          </div>
+        )}
+
+        <div className="grid-2col">
+          {/* CỘT TRÁI: Phương thức thanh toán */}
+          <div className="billing-card">
+            <div className="card-title-row">
+              <h3>Select Payment Method</h3>
+            </div>
+
+            <div className="method-list">
+              {/* VNPay */}
+              <div 
+                className={`method-item ${paymentMethod === "vnpay" ? "method-item--selected" : ""}`}
+                onClick={() => setPaymentMethod("vnpay")}
+              >
+                <input 
+                  type="radio" 
+                  name="pm" 
+                  checked={paymentMethod === "vnpay"} 
+                  onChange={() => setPaymentMethod("vnpay")}
+                  className="method-radio" 
+                />
+                <span className="method-logo method-logo--vnpay">VNPay</span>
+                <div className="method-info">
+                  <span className="method-name">VNPay</span>
+                  <span className="method-desc">Vietnam Payment Gateway</span>
+                </div>
+              </div>
+
+              {/* MoMo */}
+              <div 
+                className={`method-item ${paymentMethod === "momo" ? "method-item--selected" : ""}`}
+                onClick={() => setPaymentMethod("momo")}
+              >
+                <input 
+                  type="radio" 
+                  name="pm" 
+                  checked={paymentMethod === "momo"} 
+                  onChange={() => setPaymentMethod("momo")}
+                  className="method-radio" 
+                />
+                <span className="method-logo method-logo--momo">MoMo</span>
+                <div className="method-info">
+                  <span className="method-name">MoMo</span>
+                  <span className="method-desc">MoMo e-Wallet</span>
+                </div>
+              </div>
+
+              {/* Stripe */}
+              <div 
+                className={`method-item ${paymentMethod === "stripe" ? "method-item--selected" : ""}`}
+                onClick={() => setPaymentMethod("stripe")}
+              >
+                <input 
+                  type="radio" 
+                  name="pm" 
+                  checked={paymentMethod === "stripe"} 
+                  onChange={() => setPaymentMethod("stripe")}
+                  className="method-radio" 
+                />
+                <span className="method-logo method-logo--stripe">Stripe</span>
+                <div className="method-info">
+                  <span className="method-name">Stripe</span>
+                  <span className="method-desc">International Card Payment</span>
+                </div>
+                <span className="method-badge">Selected</span>
+              </div>
+
+              {/* simulated payment (Thêm phương thức mô phỏng) */}
+              <div 
+                className={`method-item ${paymentMethod === "simulated" ? "method-item--selected" : ""}`}
+                onClick={() => setPaymentMethod("simulated")}
+              >
+                <input 
+                  type="radio" 
+                  name="pm" 
+                  checked={paymentMethod === "simulated"} 
+                  onChange={() => setPaymentMethod("simulated")}
+                  className="method-radio" 
+                />
+                <span className="method-logo method-logo--simulated">Mô phỏng</span>
+                <div className="method-info">
+                  <span className="method-name">Phương thức thanh toán mô phỏng</span>
+                  <span className="method-desc">Giả lập thanh toán Sandbox qua API backend</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Form điền thông tin thẻ nếu chọn Stripe */}
+            {paymentMethod === "stripe" && (
+              <div>
+                <h4 style={{ margin: "24px 0 12px 0", fontSize: "0.95rem" }}>Card Details</h4>
+                <div className="form-grid">
+                  <div className="form-group form-group--full">
+                    <label>Card Number</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={cardDetails.number}
+                      onChange={(e) => setCardDetails({ ...cardDetails, number: e.target.value })} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Expiry Date</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={cardDetails.expiry} 
+                      onChange={(e) => setCardDetails({ ...cardDetails, expiry: e.target.value })} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>CVV</label>
+                    <input 
+                      type="password" 
+                      className="form-input" 
+                      value={cardDetails.cvv} 
+                      onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value })} 
+                    />
+                  </div>
+                  <div className="form-group form-group--full">
+                    <label>Name on Card</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={cardDetails.name} 
+                      onChange={(e) => setCardDetails({ ...cardDetails, name: e.target.value })} 
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Thông báo nếu chọn Mô phỏng */}
+            {paymentMethod === "simulated" && (
+              <div className="secure-notice" style={{ backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46" }}>
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <strong>Chế độ thanh toán mô phỏng (Sandbox Mode) đang bật.</strong>
+                  <br />
+                  Giao dịch sẽ được gọi thực tế qua API `mock-callback` của backend để cập nhật cơ sở dữ liệu thật mà không tốn tiền mặt.
+                </div>
+              </div>
+            )}
+
+            <div className="secure-notice">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span>
+                <strong>Secure Payment.</strong>
+                <br />
+                Mọi thông tin thanh toán được mã hóa bảo mật. Nền tảng không lưu trữ thông tin số thẻ hoặc mã CVV của bạn.
+              </span>
+            </div>
+          </div>
+
+          {/* CỘT PHẢI: Order Summary */}
+          <div className="order-summary-box">
+            <div className="summary-profile-row">
+              <div className="profile-icon">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div className="profile-info">
+                <span className="profile-name">Acme Corp</span>
+                <span className="profile-email">dev@local.test</span>
+              </div>
+            </div>
+
+            <div className="cost-calc-container">
+              <div className="calc-row">
+                <span>Selected Plan</span>
+                <span style={{ fontWeight: 600, color: "#0f172a" }}>
+                  {selectedPlanForCheckout === "premium" ? "Premium" : "Standard"}
+                </span>
+              </div>
+              <div className="calc-row">
+                <span>Billing Cycle</span>
+                <span>Monthly</span>
+              </div>
+              <div className="calc-row">
+                <span>{selectedPlanForCheckout === "premium" ? "Premium plan" : "Standard plan"}</span>
+                <span>${PLAN_PRICES[selectedPlanForCheckout]}.00</span>
+              </div>
+              {checkoutData && checkoutData.amount === 50 && (
+                <div className="calc-row calc-row--minus">
+                  <span>Standard credit</span>
+                  <span>-$29.00</span>
+                </div>
+              )}
+              
+              <div className="calc-row calc-row--total" style={{ borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
+                <span>Total Due Today</span>
+                <span>${checkoutData?.amount}.00</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
+              <button 
+                onClick={() => handleProcessPayment("success")}
+                className="btn btn--primary"
+                style={{ padding: "14px 20px" }}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Pay Now - ${checkoutData?.amount}.00
+              </button>
+
+              <button 
+                onClick={() => handleProcessPayment("failed")}
+                className="btn btn--secondary"
+                style={{ color: "#b91c1c", borderColor: "#fca5a5" }}
+              >
+                Simulate Failed Payment
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setView("dashboard")}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#64748b",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                textAlign: "center",
+                textDecoration: "underline",
+                marginTop: "12px"
+              }}
+            >
+              ← Back to Billing
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 4: PAYMENT SUCCESSFUL (MÀN HÌNH THANH TOÁN THÀNH CÔNG)
+  // =========================================================================
+  if (view === "success" && lastSuccessPayment) {
+    return (
+      <div className="billing-container">
+        <div className="billing-card success-card">
+          <div className="success-icon-circle">
+            <svg width="32" height="32" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          </div>
+
+          <h2>Payment Successful</h2>
+          <p>Gói đăng ký dịch vụ của bạn đã được cập nhật thành công và đang hoạt động.</p>
+
+          <div className="success-table-box">
+            <div className="success-row">
+              <span className="success-label">PAYMENT ID</span>
+              <span className="success-value">{lastSuccessPayment.paymentId}</span>
+            </div>
+            <div className="success-row">
+              <span className="success-label">INVOICE ID</span>
+              <span className="success-value">{lastSuccessPayment.invoiceId}</span>
+            </div>
+            <div className="success-row">
+              <span className="success-label">PLAN</span>
+              <span className="success-value">{lastSuccessPayment.plan}</span>
+            </div>
+            <div className="success-row">
+              <span className="success-label">AMOUNT PAID</span>
+              <span className="success-value">${lastSuccessPayment.amountPaid}.00</span>
+            </div>
+            <div className="success-row">
+              <span className="success-label">SUBSCRIPTION STATUS</span>
+              <span className="success-value">
+                <span className="status-badge status-badge--active">Active</span>
+              </span>
+            </div>
+            <div className="success-row">
+              <span className="success-label">NEXT RENEWAL</span>
+              <span className="success-value">{lastSuccessPayment.nextRenewal}</span>
+            </div>
+          </div>
+
+          <div className="btn-group">
+            <button 
+              onClick={() => {
+                setView("dashboard");
+                setLastSuccessPayment(null);
+                setCheckoutData(null);
+              }} 
+              className="btn btn--secondary"
+            >
+              Go to Billing Dashboard
+            </button>
+            <button 
+              onClick={() => alert(`Đang tải xuống hóa đơn ${lastSuccessPayment.invoiceId}`)}
+              className="btn btn--primary"
+            >
+              Download Invoice
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
+
 export default SubscriptionPaymentPage;

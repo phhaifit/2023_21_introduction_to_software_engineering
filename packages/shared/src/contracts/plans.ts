@@ -11,21 +11,22 @@ export type ResourceEntitlement = {
 
 export const PLAN_ENTITLEMENTS: Record<SubscriptionPlan, ResourceEntitlement> = {
   standard: {
-    cpuCores: 2,
-    memoryGb: 4,
+    cpuCores: 8,
+    memoryGb: 16,
     maxAgents: 10,
     maxDocuments: 100
   },
   premium: {
-    cpuCores: 4,
-    memoryGb: 8,
-    maxAgents: 30,
+    cpuCores: 32,
+    memoryGb: 64,
+    maxAgents: 50,
     maxDocuments: 1000
   }
 };
 
 export const PLAN_PRICES: Record<SubscriptionPlan, number> = {
-  standard: 10,
-  premium: 30
+  standard: 29,
+  premium: 79
 };
+
 

@@ -47,7 +47,7 @@ async function runTests() {
   assert.equal(checkoutRes.transactionId, "tx-1");
   assert.ok(checkoutRes.checkoutUrl.includes("sandbox-checkout"));
   assert.ok(checkoutRes.checkoutUrl.includes("plan=standard"));
-  assert.ok(checkoutRes.checkoutUrl.includes("amount=10"));
+  assert.ok(checkoutRes.checkoutUrl.includes("amount=29"));
 
   const subPending = await repository.findSubscriptionById("sub-1");
   assert.ok(subPending);
@@ -57,7 +57,7 @@ async function runTests() {
   const txPending = await repository.findTransactionById("tx-1");
   assert.ok(txPending);
   assert.equal(txPending.status, "pending");
-  assert.equal(txPending.amount, 10);
+  assert.equal(txPending.amount, 29);
 
   // Scenario 2: Try to checkout standard again when standard is pending -> should throw error
   await assert.rejects(
@@ -88,11 +88,11 @@ async function runTests() {
   assert.equal(upgradeRes.subscriptionId, "sub-1");
   assert.equal(upgradeRes.transactionId, "tx-2");
   assert.ok(upgradeRes.checkoutUrl.includes("plan=premium"));
-  assert.ok(upgradeRes.checkoutUrl.includes("amount=20")); // 30 - 10 = 20
+  assert.ok(upgradeRes.checkoutUrl.includes("amount=50")); // 79 - 29 = 50
 
   const txUpgradePending = await repository.findTransactionById("tx-2");
   assert.equal(txUpgradePending.status, "pending");
-  assert.equal(txUpgradePending.amount, 20);
+  assert.equal(txUpgradePending.amount, 50);
 
   // Scenario 5: Webhook Upgrade successful callback
   const reconcileUpgradeRes = await useCases.reconcilePayment("tx-2", "success");
