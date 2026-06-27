@@ -106,26 +106,29 @@ export function SubscriptionPaymentPage() {
     amount: number;
   } | null>(null);
 
-  interface CardInfo {
+  interface PaymentMethodInfo {
     id: string;
+    type: "card" | "momo" | "vnpay";
+    brand?: "visa" | "mastercard" | "jcb" | "amex";
     last4: string;
-    brand: "visa" | "mastercard" | "jcb" | "amex";
-    expiry: string;
+    expiry?: string;
     holder: string;
     isDefault: boolean;
   }
 
-  // State danh sách các phương thức thanh toán đã lưu (mảng các thẻ)
-  const [savedCards, setSavedCards] = useState<CardInfo[]>([]);
+  // State danh sách các phương thức thanh toán đã lưu (thẻ, ví MoMo, ví VNPay)
+  const [savedCards, setSavedCards] = useState<PaymentMethodInfo[]>([]);
 
   // State phương thức thanh toán đang chọn trên màn hình checkout
   const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "momo" | "stripe" | "simulated">("stripe");
 
-  // State Modal thêm/đổi thẻ
+  // State Modal thêm/đổi phương thức thanh toán
   const [showCardModal, setShowCardModal] = useState(false);
+  const [newMethodType, setNewMethodType] = useState<"card" | "momo" | "vnpay">("card");
   const [newCardNumber, setNewCardNumber] = useState("");
   const [newCardHolder, setNewCardHolder] = useState("");
   const [newCardExpiry, setNewCardExpiry] = useState("");
+  const [newPhone, setNewPhone] = useState("");
   const [cardFormError, setCardFormError] = useState<string | null>(null);
 
   // State lưu thông tin thẻ nhập vào trong form thanh toán Stripe
@@ -170,19 +173,23 @@ export function SubscriptionPaymentPage() {
       setResourceUsage(usageData);
       setPlansConfig(plansData);
 
-      // Đồng bộ danh sách thẻ nhiều loại từ localStorage theo Workspace
+      // Đồng bộ danh sách phương thức thanh toán nhiều loại từ localStorage theo Workspace
       const localCardsKey = `vcp_cards_${wsId}`;
       const cached = localStorage.getItem(localCardsKey);
-      let list: CardInfo[] = cached ? JSON.parse(cached) : [];
+      let list: PaymentMethodInfo[] = cached ? JSON.parse(cached) : [];
 
       // Nếu localStorage trống nhưng DB backend lại có thẻ đã mua gói
       if (list.length === 0 && detailsData.subscription?.cardNumber) {
         const rawNum = detailsData.subscription.cardNumber.replace(/\s/g, "");
-        const dbCard: CardInfo = {
+        const isWalletMomo = detailsData.subscription.cardNumber.toLowerCase().includes("momo");
+        const isWalletVnpay = detailsData.subscription.cardNumber.toLowerCase().includes("vnpay");
+        
+        const dbCard: PaymentMethodInfo = {
           id: `card_${Date.now()}`,
+          type: isWalletMomo ? "momo" : isWalletVnpay ? "vnpay" : "card",
           last4: rawNum.slice(-4),
-          brand: detectBrand(detailsData.subscription.cardNumber),
-          expiry: detailsData.subscription.cardExpiry || "12/28",
+          brand: isWalletMomo || isWalletVnpay ? undefined : detectBrand(detailsData.subscription.cardNumber),
+          expiry: isWalletMomo || isWalletVnpay ? undefined : (detailsData.subscription.cardExpiry || "12/28"),
           holder: detailsData.subscription.cardHolder || "Admin Wu",
           isDefault: true
         };
@@ -208,7 +215,27 @@ export function SubscriptionPaymentPage() {
   useEffect(() => {
     fetchDetails(currentWorkspaceId);
   }, [currentWorkspaceId]);
-
+  // Tự động điền thông tin thẻ mặc định khi chuyển sang view checkout
+  useEffect(() => {
+    if (view === "checkout") {
+      const defaultMethod = savedCards.find(c => c.isDefault);
+      if (defaultMethod && defaultMethod.type === "card") {
+        setCardDetails({
+          number: `•••• •••• •••• ${defaultMethod.last4}`,
+          expiry: defaultMethod.expiry || "12/28",
+          cvv: "•••",
+          name: defaultMethod.holder
+        });
+      } else {
+        setCardDetails({
+          number: "",
+          expiry: "",
+          cvv: "",
+          name: ""
+        });
+      }
+    }
+  }, [view, savedCards]);
   // Thay đổi Auto-Renewal qua API thật
   const handleToggleAutoRenew = async (checked: boolean) => {
     try {
@@ -240,69 +267,104 @@ export function SubscriptionPaymentPage() {
   };
 
 
-  // Thêm thẻ mới vào danh sách
+  // Thêm phương thức thanh toán mới vào danh sách
   const handleSaveCard = async (e: React.FormEvent) => {
     e.preventDefault();
     setCardFormError(null);
-    const digits = newCardNumber.replace(/\s/g, "");
-    if (digits.length < 13 || digits.length > 19) {
-      setCardFormError("Số thẻ không hợp lệ (13–19 chữ số).");
-      return;
-    }
-    if (!newCardHolder.trim()) {
-      setCardFormError("Vui lòng nhập tên chủ thẻ.");
-      return;
-    }
-    if (!/^\d{2}\/\d{2}$/.test(newCardExpiry)) {
-      setCardFormError("Định dạng MM/YY không hợp lệ.");
-      return;
+
+    // Validate theo loại hình thức thanh toán
+    if (newMethodType === "card") {
+      const digits = newCardNumber.replace(/\s/g, "");
+      if (digits.length < 13 || digits.length > 19) {
+        setCardFormError("Số thẻ không hợp lệ (13–19 chữ số).");
+        return;
+      }
+      if (!newCardHolder.trim()) {
+        setCardFormError("Vui lòng nhập tên chủ thẻ.");
+        return;
+      }
+      if (!/^\d{2}\/\d{2}$/.test(newCardExpiry)) {
+        setCardFormError("Định dạng MM/YY không hợp lệ.");
+        return;
+      }
+    } else {
+      // MoMo / VNPay
+      const phoneDigits = newPhone.replace(/\s/g, "");
+      if (phoneDigits.length < 9 || phoneDigits.length > 11) {
+        setCardFormError("Số điện thoại liên kết ví không hợp lệ.");
+        return;
+      }
+      if (!newCardHolder.trim()) {
+        setCardFormError("Vui lòng nhập tên chủ tài khoản ví.");
+        return;
+      }
     }
 
     try {
       setLoading(true);
       const localCardsKey = `vcp_cards_${currentWorkspaceId}`;
       const cached = localStorage.getItem(localCardsKey);
-      const currentList: CardInfo[] = cached ? JSON.parse(cached) : [];
+      const currentList: PaymentMethodInfo[] = cached ? JSON.parse(cached) : [];
 
-      // Thẻ đầu tiên tự động làm mặc định
+      // Phương thức đầu tiên tự động làm mặc định
       const isDefault = currentList.length === 0;
 
-      const newCard: CardInfo = {
-        id: `card_${Date.now()}`,
-        last4: digits.slice(-4),
-        brand: detectBrand(newCardNumber),
-        expiry: newCardExpiry,
-        holder: newCardHolder.trim(),
-        isDefault
-      };
+      let newMethod: PaymentMethodInfo;
+      if (newMethodType === "card") {
+        const digits = newCardNumber.replace(/\s/g, "");
+        newMethod = {
+          id: `card_${Date.now()}`,
+          type: "card",
+          last4: digits.slice(-4),
+          brand: detectBrand(newCardNumber),
+          expiry: newCardExpiry,
+          holder: newCardHolder.trim(),
+          isDefault
+        };
+      } else {
+        const phoneDigits = newPhone.replace(/\s/g, "");
+        newMethod = {
+          id: `card_${Date.now()}`,
+          type: newMethodType,
+          last4: phoneDigits.slice(-4),
+          holder: newCardHolder.trim(),
+          isDefault
+        };
+      }
 
-      const updatedList = [...currentList, newCard];
+      const updatedList = [...currentList, newMethod];
       localStorage.setItem(localCardsKey, JSON.stringify(updatedList));
       setSavedCards(updatedList);
 
-      // Nếu là thẻ mặc định, đồng bộ thông tin lên DB backend
+      // Nếu là phương thức mặc định, đồng bộ thông tin lên DB backend
       if (isDefault) {
+        const dbCardNumber = newMethod.type === "card" 
+          ? newCardNumber 
+          : `${newMethod.type === "momo" ? "MoMo" : "VNPay"}: •••• •••• •••• ${newMethod.last4}`;
+
         await subscriptionPaymentApiClient.updatePaymentMethod(
           currentWorkspaceId,
-          newCardNumber,
-          newCardHolder.trim(),
-          newCardExpiry
+          dbCardNumber,
+          newMethod.holder,
+          newMethod.expiry || ""
         );
       }
 
+      // Reset states
       setShowCardModal(false);
       setNewCardNumber("");
       setNewCardHolder("");
       setNewCardExpiry("");
-      showSuccess("Đã thêm thẻ thanh toán mới.");
+      setNewPhone("");
+      showSuccess(`Đã thêm phương thức thanh toán ${newMethodType === "card" ? "thẻ" : newMethodType.toUpperCase()} mới.`);
     } catch (err: any) {
-      showError(err.message || "Không thể thêm thẻ thanh toán.");
+      showError(err.message || "Không thể thêm phương thức thanh toán.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Đặt thẻ làm mặc định
+  // Đặt phương thức thanh toán làm mặc định
   const handleSetDefaultCard = async (cardId: string) => {
     try {
       setLoading(true);
@@ -310,7 +372,7 @@ export function SubscriptionPaymentPage() {
       const cached = localStorage.getItem(localCardsKey);
       if (!cached) return;
 
-      let currentList: CardInfo[] = JSON.parse(cached);
+      let currentList: PaymentMethodInfo[] = JSON.parse(cached);
       const targetCard = currentList.find(c => c.id === cardId);
       if (!targetCard) return;
 
@@ -323,28 +385,29 @@ export function SubscriptionPaymentPage() {
       localStorage.setItem(localCardsKey, JSON.stringify(currentList));
       setSavedCards(currentList);
 
-      // Đồng bộ thông tin thẻ mặc định mới lên DB backend
-      // Vì chúng ta chỉ lưu số masked ở client, khi đặt default ta truyền placeholder tương ứng hoặc số tượng trưng
-      // để backend lưu trữ (hoặc backend ghi nhận thay đổi thẻ default).
-      // Ở đây ta mô phỏng bằng cách truyền số thẻ che để backend cập nhật hiển thị.
+      // Đồng bộ thông tin mặc định mới lên DB backend
+      const dbCardNumber = targetCard.type === "card"
+        ? `•••• •••• •••• ${targetCard.last4}`
+        : `${targetCard.type === "momo" ? "MoMo" : "VNPay"}: •••• •••• •••• ${targetCard.last4}`;
+
       await subscriptionPaymentApiClient.updatePaymentMethod(
         currentWorkspaceId,
-        `•••• •••• •••• ${targetCard.last4}`,
+        dbCardNumber,
         targetCard.holder,
-        targetCard.expiry
+        targetCard.expiry || ""
       );
 
-      showSuccess(`Đã đặt thẻ đuôi ${targetCard.last4} làm mặc định.`);
+      showSuccess(`Đã đặt phương thức ${targetCard.type === "card" ? "thẻ" : targetCard.type.toUpperCase()} làm mặc định.`);
     } catch (err: any) {
-      showError(err.message || "Không thể đặt thẻ làm mặc định.");
+      showError(err.message || "Không thể đặt làm mặc định.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Xóa thẻ khỏi danh sách
+  // Xóa phương thức thanh toán khỏi danh sách
   const handleRemoveCard = async (cardId: string) => {
-    if (!window.confirm("Bạn có chắc muốn xóa thẻ này không?")) return;
+    if (!window.confirm("Bạn có chắc muốn xóa phương thức thanh toán này không?")) return;
 
     try {
       setLoading(true);
@@ -352,25 +415,29 @@ export function SubscriptionPaymentPage() {
       const cached = localStorage.getItem(localCardsKey);
       if (!cached) return;
 
-      const currentList: CardInfo[] = JSON.parse(cached);
+      const currentList: PaymentMethodInfo[] = JSON.parse(cached);
       const targetCard = currentList.find(c => c.id === cardId);
       if (!targetCard) return;
 
       const updatedList = currentList.filter(c => c.id !== cardId);
 
-      // Nếu thẻ bị xóa là thẻ mặc định, và vẫn còn các thẻ khác
+      // Nếu bị xóa là mặc định, và vẫn còn các phương thức khác
       if (targetCard.isDefault && updatedList.length > 0) {
-        // Tự động chọn thẻ đầu tiên còn lại làm mặc định
+        // Tự động chọn cái đầu tiên còn lại làm mặc định
         updatedList[0].isDefault = true;
         
+        const dbCardNumber = updatedList[0].type === "card"
+          ? `•••• •••• •••• ${updatedList[0].last4}`
+          : `${updatedList[0].type === "momo" ? "MoMo" : "VNPay"}: •••• •••• •••• ${updatedList[0].last4}`;
+
         await subscriptionPaymentApiClient.updatePaymentMethod(
           currentWorkspaceId,
-          `•••• •••• •••• ${updatedList[0].last4}`,
+          dbCardNumber,
           updatedList[0].holder,
-          updatedList[0].expiry
+          updatedList[0].expiry || ""
         );
       } else if (updatedList.length === 0) {
-        // Nếu không còn thẻ nào, xóa hẳn trên backend
+        // Nếu không còn gì, xóa hẳn trên backend
         await subscriptionPaymentApiClient.updatePaymentMethod(
           currentWorkspaceId,
           "",
@@ -381,7 +448,7 @@ export function SubscriptionPaymentPage() {
 
       localStorage.setItem(localCardsKey, JSON.stringify(updatedList));
       setSavedCards(updatedList);
-      showSuccess(`Đã xóa thẻ đuôi ${targetCard.last4}.`);
+      showSuccess("Đã xóa phương thức thanh toán thành công.");
     } catch (err: any) {
       showError(err.message || "Không thể xóa thẻ.");
     } finally {
@@ -423,6 +490,15 @@ export function SubscriptionPaymentPage() {
         checkoutUrl: res.checkoutUrl,
         amount: actualAmount
       });
+
+      // Tự động chọn phương thức mặc định đã lưu
+      const defaultMethod = savedCards.find(c => c.isDefault);
+      if (defaultMethod) {
+        if (defaultMethod.type === "momo") setPaymentMethod("momo");
+        else if (defaultMethod.type === "vnpay") setPaymentMethod("vnpay");
+        else setPaymentMethod("stripe");
+      }
+
       setView("checkout");
     } catch (err: any) {
       showError(err.message || "Khởi tạo checkout thất bại.");
@@ -449,6 +525,15 @@ export function SubscriptionPaymentPage() {
         checkoutUrl: res.checkoutUrl,
         amount: actualUpgrade
       });
+
+      // Tự động chọn phương thức mặc định đã lưu
+      const defaultMethod = savedCards.find(c => c.isDefault);
+      if (defaultMethod) {
+        if (defaultMethod.type === "momo") setPaymentMethod("momo");
+        else if (defaultMethod.type === "vnpay") setPaymentMethod("vnpay");
+        else setPaymentMethod("stripe");
+      }
+
       setView("checkout");
     } catch (err: any) {
       showError(err.message || "Khởi tạo nâng cấp thất bại.");
@@ -686,6 +771,15 @@ export function SubscriptionPaymentPage() {
                         checkoutUrl: `/sandbox-checkout?transactionId=${tx.transactionId}`,
                         amount: tx.amount
                       });
+
+                      // Tự động chọn phương thức mặc định đã lưu
+                      const defaultMethod = savedCards.find(c => c.isDefault);
+                      if (defaultMethod) {
+                        if (defaultMethod.type === "momo") setPaymentMethod("momo");
+                        else if (defaultMethod.type === "vnpay") setPaymentMethod("vnpay");
+                        else setPaymentMethod("stripe");
+                      }
+
                       setView("checkout");
                     } else {
                       setView("upgrade");
@@ -733,17 +827,19 @@ export function SubscriptionPaymentPage() {
                     setNewCardNumber("");
                     setNewCardHolder("");
                     setNewCardExpiry("");
+                    setNewPhone("");
+                    setNewMethodType("card");
                     setCardFormError(null);
                     setShowCardModal(true);
                   }}
                 >
-                  + Thêm thẻ
+                  + Thêm phương thức
                 </button>
               )}
             </div>
 
             {savedCards.length > 0 ? (
-              /* === HIỂN THỊ DANH SÁCH THẺ === */
+              /* === HIỂN THỊ DANH SÁCH PHƯƠNG THỨC THANH TOÁN === */
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 {savedCards.map((card) => (
                   <div
@@ -759,14 +855,26 @@ export function SubscriptionPaymentPage() {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                      <div className="saved-card-brand-row">
-                        {card.brand === "visa" && <div className="card-brand-badge card-brand-badge--visa">VISA</div>}
-                        {card.brand === "mastercard" && <div className="card-brand-badge card-brand-badge--mc">MC</div>}
-                        {card.brand === "jcb" && <div className="card-brand-badge card-brand-badge--jcb">JCB</div>}
-                        {card.brand === "amex" && <div className="card-brand-badge card-brand-badge--amex">AMEX</div>}
-                        <span className="saved-card-masked">
-                          •••• {card.last4}
-                        </span>
+                      <div className="saved-card-brand-row" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        {card.type === "card" ? (
+                          <>
+                            {card.brand === "visa" && <div className="card-brand-badge card-brand-badge--visa">VISA</div>}
+                            {card.brand === "mastercard" && <div className="card-brand-badge card-brand-badge--mc">MC</div>}
+                            {card.brand === "jcb" && <div className="card-brand-badge card-brand-badge--jcb">JCB</div>}
+                            {card.brand === "amex" && <div className="card-brand-badge card-brand-badge--amex">AMEX</div>}
+                            <span className="saved-card-masked">•••• {card.last4}</span>
+                          </>
+                        ) : card.type === "momo" ? (
+                          <>
+                            <div style={{ background: "#d53f8c", color: "#ffffff", fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>MOMO</div>
+                            <span className="saved-card-masked">•••• •••• •••• {card.last4}</span>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ background: "#2b6cb0", color: "#ffffff", fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>VNPAY</div>
+                            <span className="saved-card-masked">•••• •••• •••• {card.last4}</span>
+                          </>
+                        )}
                       </div>
                       
                       {card.isDefault ? (
@@ -794,16 +902,20 @@ export function SubscriptionPaymentPage() {
 
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "#64748b" }}>
                       <div>
-                        <span style={{ display: "block", fontSize: "0.6rem", color: "#94a3b8", textTransform: "uppercase" }}>Chủ thẻ</span>
+                        <span style={{ display: "block", fontSize: "0.6rem", color: "#94a3b8", textTransform: "uppercase" }}>
+                          {card.type === "card" ? "Chủ thẻ" : "Chủ ví"}
+                        </span>
                         <strong style={{ color: "#334155" }}>{card.holder}</strong>
                       </div>
-                      <div style={{ textAlign: "right" }}>
-                        <span style={{ display: "block", fontSize: "0.6rem", color: "#94a3b8", textTransform: "uppercase" }}>Hết hạn</span>
-                        <strong style={{ color: "#334155" }}>{card.expiry}</strong>
-                      </div>
+                      {card.type === "card" && (
+                        <div style={{ textAlign: "right" }}>
+                          <span style={{ display: "block", fontSize: "0.6rem", color: "#94a3b8", textTransform: "uppercase" }}>Hết hạn</span>
+                          <strong style={{ color: "#334155" }}>{card.expiry}</strong>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Nút xóa thẻ góc dưới hoặc kế bên */}
+                    {/* Nút xóa phương thức thanh toán */}
                     <button
                       type="button"
                       style={{
@@ -818,8 +930,8 @@ export function SubscriptionPaymentPage() {
                         display: card.isDefault && savedCards.length === 1 ? "none" : "block"
                       }}
                       onClick={() => handleRemoveCard(card.id)}
-                      aria-label="Xóa thẻ"
-                      title="Xóa thẻ"
+                      aria-label="Xóa phương thức"
+                      title="Xóa phương thức"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" />
@@ -838,19 +950,21 @@ export function SubscriptionPaymentPage() {
                     <path d="M6 15h4" strokeLinecap="round" />
                   </svg>
                 </div>
-                <p className="no-card-title">Chưa có thẻ thanh toán</p>
-                <p className="no-card-sub">Thêm thẻ để thanh toán gói dịch vụ tự động và dễ dàng hơn.</p>
+                <p className="no-card-title">Chưa có phương thức thanh toán</p>
+                <p className="no-card-sub">Thêm thẻ hoặc liên kết ví để thanh toán tự động dễ dàng hơn.</p>
                 <button
                   className="btn btn--primary"
                   onClick={() => {
                     setNewCardNumber("");
                     setNewCardHolder("");
                     setNewCardExpiry("");
+                    setNewPhone("");
+                    setNewMethodType("card");
                     setCardFormError(null);
                     setShowCardModal(true);
                   }}
                 >
-                  + Thêm thẻ
+                  + Thêm phương thức
                 </button>
               </div>
             )}
@@ -1038,7 +1152,7 @@ export function SubscriptionPaymentPage() {
           <div className="card-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowCardModal(false); }}>
             <div className="card-modal-content">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <h3 style={{ margin: 0 }}>{savedCards.length > 0 ? "Thêm thẻ thanh toán mới" : "Thêm thẻ thanh toán"}</h3>
+                <h3 style={{ margin: 0 }}>Liên kết phương thức thanh toán</h3>
                 <button
                   type="button"
                   onClick={() => setShowCardModal(false)}
@@ -1050,7 +1164,47 @@ export function SubscriptionPaymentPage() {
                   </svg>
                 </button>
               </div>
-              <p className="card-modal-sub">Thông tin thẻ chỉ được lưu trên hệ thống mô phỏng, không xử lý thanh toán thực tế.</p>
+              <p className="card-modal-sub">Chọn hình thức thanh toán và nhập thông tin để liên kết tài khoản.</p>
+
+              {/* Selector chọn Loại hình thức thanh toán */}
+              <div className="method-selector-tabs" style={{ display: "flex", gap: "8px", marginBottom: "16px", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => { setNewMethodType("card"); setCardFormError(null); }}
+                  className={`tab-btn ${newMethodType === "card" ? "tab-btn--active" : ""}`}
+                  style={{
+                    flex: 1, padding: "8px", borderRadius: "6px", border: newMethodType === "card" ? "1.5px solid #2563eb" : "1.5px solid #cbd5e1",
+                    background: newMethodType === "card" ? "#eff6ff" : "transparent", color: newMethodType === "card" ? "#1e40af" : "#64748b",
+                    fontWeight: 600, fontSize: "0.8rem", cursor: "pointer"
+                  }}
+                >
+                  💳 Thẻ Visa/Master
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setNewMethodType("momo"); setCardFormError(null); }}
+                  className={`tab-btn ${newMethodType === "momo" ? "tab-btn--active" : ""}`}
+                  style={{
+                    flex: 1, padding: "8px", borderRadius: "6px", border: newMethodType === "momo" ? "1.5px solid #d53f8c" : "1.5px solid #cbd5e1",
+                    background: newMethodType === "momo" ? "#fdf2f8" : "transparent", color: newMethodType === "momo" ? "#9d174d" : "#64748b",
+                    fontWeight: 600, fontSize: "0.8rem", cursor: "pointer"
+                  }}
+                >
+                  🌸 Ví MoMo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setNewMethodType("vnpay"); setCardFormError(null); }}
+                  className={`tab-btn ${newMethodType === "vnpay" ? "tab-btn--active" : ""}`}
+                  style={{
+                    flex: 1, padding: "8px", borderRadius: "6px", border: newMethodType === "vnpay" ? "1.5px solid #2b6cb0" : "1.5px solid #cbd5e1",
+                    background: newMethodType === "vnpay" ? "#ebf8ff" : "transparent", color: newMethodType === "vnpay" ? "#2b6cb0" : "#64748b",
+                    fontWeight: 600, fontSize: "0.8rem", cursor: "pointer"
+                  }}
+                >
+                  🔵 Ví VNPay
+                </button>
+              </div>
 
               {cardFormError && (
                 <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", fontSize: "0.85rem", color: "#dc2626" }}>
@@ -1059,52 +1213,89 @@ export function SubscriptionPaymentPage() {
               )}
 
               <form onSubmit={handleSaveCard}>
-                <div className="form-group" style={{ marginBottom: "14px" }}>
-                  <label>Số thẻ</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="1234 5678 9012 3456"
-                    className="form-input"
-                    maxLength={19}
-                    value={newCardNumber}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "").slice(0, 16);
-                      setNewCardNumber(val.replace(/(\d{4})(?=\d)/g, "$1 ").trim());
-                    }}
-                  />
-                </div>
+                {newMethodType === "card" ? (
+                  /* Form nhập Thẻ Visa/Master */
+                  <>
+                    <div className="form-group" style={{ marginBottom: "14px" }}>
+                      <label>Số thẻ</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="1234 5678 9012 3456"
+                        className="form-input"
+                        maxLength={19}
+                        value={newCardNumber}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 16);
+                          setNewCardNumber(val.replace(/(\d{4})(?=\d)/g, "$1 ").trim());
+                        }}
+                      />
+                    </div>
 
-                <div className="form-group" style={{ marginBottom: "14px" }}>
-                  <label>Tên chủ thẻ</label>
-                  <input
-                    type="text"
-                    placeholder="NGUYEN VAN A"
-                    className="form-input"
-                    value={newCardHolder}
-                    onChange={(e) => setNewCardHolder(e.target.value.toUpperCase())}
-                  />
-                </div>
+                    <div className="form-group" style={{ marginBottom: "14px" }}>
+                      <label>Tên chủ thẻ</label>
+                      <input
+                        type="text"
+                        placeholder="NGUYEN VAN A"
+                        className="form-input"
+                        value={newCardHolder}
+                        onChange={(e) => setNewCardHolder(e.target.value.toUpperCase())}
+                      />
+                    </div>
 
-                <div className="form-group" style={{ marginBottom: "20px" }}>
-                  <label>Ngày hết hạn (MM/YY)</label>
-                  <input
-                    type="text"
-                    placeholder="MM/YY"
-                    className="form-input"
-                    maxLength={5}
-                    value={newCardExpiry}
-                    onChange={(e) => {
-                      let val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                      if (val.length >= 3) val = val.slice(0, 2) + "/" + val.slice(2);
-                      setNewCardExpiry(val);
-                    }}
-                  />
-                </div>
+                    <div className="form-group" style={{ marginBottom: "20px" }}>
+                      <label>Ngày hết hạn (MM/YY)</label>
+                      <input
+                        type="text"
+                        placeholder="MM/YY"
+                        className="form-input"
+                        maxLength={5}
+                        value={newCardExpiry}
+                        onChange={(e) => {
+                          let val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                          if (val.length >= 3) val = val.slice(0, 2) + "/" + val.slice(2);
+                          setNewCardExpiry(val);
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  /* Form nhập số điện thoại MoMo / VNPay */
+                  <>
+                    <div className="form-group" style={{ marginBottom: "14px" }}>
+                      <label>Số điện thoại liên kết ví</label>
+                      <input
+                        type="text"
+                        inputMode="tel"
+                        placeholder="0987 654 321"
+                        className="form-input"
+                        maxLength={12}
+                        value={newPhone}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                          setNewPhone(val.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3").trim());
+                        }}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: "20px" }}>
+                      <label>Tên chủ tài khoản ví</label>
+                      <input
+                        type="text"
+                        placeholder="NGUYEN VAN A"
+                        className="form-input"
+                        value={newCardHolder}
+                        onChange={(e) => setNewCardHolder(e.target.value.toUpperCase())}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="btn-group">
                   <button type="button" className="btn btn--secondary" onClick={() => setShowCardModal(false)}>Hủy</button>
-                  <button type="submit" className="btn btn--primary">Lưu thẻ</button>
+                  <button type="submit" className="btn btn--primary">
+                    {newMethodType === "card" ? "Lưu thẻ" : "Liên kết ví"}
+                  </button>
                 </div>
               </form>
             </div>
@@ -1527,6 +1718,98 @@ export function SubscriptionPaymentPage() {
                 </div>
               </div>
             )}
+
+            {/* Thông báo hoặc Form nhập Ví MoMo */}
+            {paymentMethod === "momo" && (() => {
+              const defaultMomo = savedCards.find(c => c.type === "momo" && c.isDefault);
+              return defaultMomo ? (
+                <div style={{ backgroundColor: "#fdf2f8", border: "1.5px solid #fbcfe8", borderRadius: "10px", padding: "16px", marginTop: "24px", color: "#9d174d" }}>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontWeight: 700 }}>
+                    <span>🌸 Ví MoMo liên kết hoạt động</span>
+                  </div>
+                  <div style={{ fontSize: "0.85rem" }}>
+                    Tài khoản: <strong>•••• •••• •••• {defaultMomo.last4}</strong>
+                    <br />
+                    Tên chủ ví: <strong>{defaultMomo.holder}</strong>
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "#be185d", marginTop: "10px", marginBottom: 0 }}>
+                    Hệ thống sẽ tiến hành trừ phí dịch vụ từ ví MoMo đã liên kết này sau khi xác nhận.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ marginTop: "24px" }}>
+                  <h4 style={{ margin: "0 0 12px 0", fontSize: "0.95rem" }}>MoMo Wallet Details</h4>
+                  <div className="form-grid">
+                    <div className="form-group form-group--full">
+                      <label>Số điện thoại liên kết ví</label>
+                      <input 
+                        type="text" 
+                        placeholder="0987 654 321"
+                        className="form-input" 
+                        value={newPhone}
+                        onChange={(e) => setNewPhone(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group form-group--full">
+                      <label>Tên chủ tài khoản ví</label>
+                      <input 
+                        type="text" 
+                        placeholder="NGUYEN VAN A"
+                        className="form-input" 
+                        value={newCardHolder}
+                        onChange={(e) => setNewCardHolder(e.target.value.toUpperCase())} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Thông báo hoặc Form nhập Ví VNPay */}
+            {paymentMethod === "vnpay" && (() => {
+              const defaultVnpay = savedCards.find(c => c.type === "vnpay" && c.isDefault);
+              return defaultVnpay ? (
+                <div style={{ backgroundColor: "#ebf8ff", border: "1.5px solid #bee3f8", borderRadius: "10px", padding: "16px", marginTop: "24px", color: "#2b6cb0" }}>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontWeight: 700 }}>
+                    <span>🔵 Ví VNPay liên kết hoạt động</span>
+                  </div>
+                  <div style={{ fontSize: "0.85rem" }}>
+                    Tài khoản: <strong>•••• •••• •••• {defaultVnpay.last4}</strong>
+                    <br />
+                    Tên chủ ví: <strong>{defaultVnpay.holder}</strong>
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "#2b6cb0", marginTop: "10px", marginBottom: 0 }}>
+                    Hệ thống sẽ tiến hành trừ phí dịch vụ từ ví VNPay đã liên kết này sau khi xác nhận.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ marginTop: "24px" }}>
+                  <h4 style={{ margin: "0 0 12px 0", fontSize: "0.95rem" }}>VNPay Details</h4>
+                  <div className="form-grid">
+                    <div className="form-group form-group--full">
+                      <label>Số điện thoại liên kết ví</label>
+                      <input 
+                        type="text" 
+                        placeholder="0987 654 321"
+                        className="form-input" 
+                        value={newPhone}
+                        onChange={(e) => setNewPhone(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group form-group--full">
+                      <label>Tên chủ tài khoản ví</label>
+                      <input 
+                        type="text" 
+                        placeholder="NGUYEN VAN A"
+                        className="form-input" 
+                        value={newCardHolder}
+                        onChange={(e) => setNewCardHolder(e.target.value.toUpperCase())} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Thông báo nếu chọn Mô phỏng */}
             {paymentMethod === "simulated" && (
