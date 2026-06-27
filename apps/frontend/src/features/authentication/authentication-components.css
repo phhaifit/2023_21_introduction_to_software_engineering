@@ -458,3 +458,19 @@
   margin: 0 0 4px;
   padding: 10px 14px;
 }
+
+/* --------------------------------------------------------------------------
+   Info banner — shown when redirected from invitation link
+   -------------------------------------------------------------------------- */
+
+.auth-info-banner {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  color: #1d4ed8;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  line-height: 1.4;
+}
