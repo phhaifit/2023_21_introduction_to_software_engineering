@@ -300,6 +300,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   }
 
   const app = express();
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-mock-role, x-mock-user, x-request-id");
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
   app.use(express.json());
 
   // Fake Auth Middleware for local development
