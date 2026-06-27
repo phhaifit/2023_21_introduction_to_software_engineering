@@ -18,11 +18,14 @@ export function createTaskOrchestrationRouter(
   const router = Router({ mergeParams: true });
 
   router.post("/start", async (request, response) => {
+    console.log(`\n[Backend API] 📥 Received POST /api/workspaces/${request.params.workspaceId}/executions/start`);
+    console.log(`[Backend API] Request Body:`, JSON.stringify(request.body));
     try {
       const context = getRequestContext(request);
       const command = request.body as StartExecutionCommand;
       const result = await dependencies.orchestrator.execute10StepStartFlow(context as any, command);
 
+      console.log(`[Backend API] ✓ Successfully executed 10-step start flow for Task ID: ${command.taskId}`);
       response.status(200).json({
         ok: true,
         data: result,
@@ -32,6 +35,7 @@ export function createTaskOrchestrationRouter(
         }
       });
     } catch (error: any) {
+      console.error(`[Backend API] ❌ Failed to start execution:`, error.message);
       response.status(400).json({
         ok: false,
         error: {
@@ -47,11 +51,13 @@ export function createTaskOrchestrationRouter(
   });
 
   router.post("/:taskId/cancel", async (request, response) => {
+    console.log(`\n[Backend API] 📥 Received POST /api/workspaces/${request.params.workspaceId}/executions/${request.params.taskId}/cancel`);
     try {
       const context = getRequestContext(request);
       const { taskId, workspaceId } = request.params;
       await dependencies.orchestrator.forwardCancellation(context as any, taskId as any, workspaceId as any);
 
+      console.log(`[Backend API] ✓ Successfully forwarded cancellation for Task ID: ${taskId}`);
       response.status(200).json({
         ok: true,
         data: { taskId, status: "canceled" },
@@ -61,6 +67,7 @@ export function createTaskOrchestrationRouter(
         }
       });
     } catch (error: any) {
+      console.error(`[Backend API] ❌ Failed to cancel execution:`, error.message);
       response.status(400).json({
         ok: false,
         error: {
@@ -105,7 +112,8 @@ export function createTaskOrchestrationRouter(
   });
 
   router.get("/:taskId/stream", (request, response) => {
-    const { taskId } = request.params;
+    const { taskId, workspaceId } = request.params;
+    console.log(`\n[Backend API] 🔌 Client connected to SSE stream for Task ID: ${taskId} (Workspace: ${workspaceId})`);
 
     response.setHeader("Content-Type", "text/event-stream");
     response.setHeader("Cache-Control", "no-cache");
@@ -113,12 +121,14 @@ export function createTaskOrchestrationRouter(
     response.flushHeaders();
 
     const onEvent = (event: NormalizedRuntimeEvent) => {
+      console.log(`[Backend API] 📤 Streaming event to client:`, JSON.stringify(event));
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
     dependencies.adapter.subscribe(taskId as any, onEvent);
 
     request.on("close", () => {
+      console.log(`[Backend API] 🔌 Client disconnected from SSE stream for Task ID: ${taskId}`);
       dependencies.adapter.unsubscribe(taskId as any, onEvent);
     });
   });
