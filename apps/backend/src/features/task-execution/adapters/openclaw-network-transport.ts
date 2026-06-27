@@ -245,7 +245,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         this.activeControllers.set(providerExecutionReference, abortController);
       } else if (typeof response.json === "function") {
         try {
-          const data = await response.json();
+          const data = await response.json() as any;
           if (data && data.providerExecutionReference) {
             providerExecutionReference = data.providerExecutionReference;
           }
