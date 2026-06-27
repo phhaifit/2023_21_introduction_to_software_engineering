@@ -581,7 +581,7 @@ input:checked + .slider:before {
 /* Upgrade Detail Page */
 .upgrade-cards-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 24px;
 }
 
