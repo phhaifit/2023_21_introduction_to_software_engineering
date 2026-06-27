@@ -82,17 +82,31 @@ export type LocalAgentManagementRuntime = {
 };
 
 let cachedPrisma: any = null;
+let prismaAttempted = false;
 
 async function getPrismaClient(): Promise<any> {
-  if (cachedPrisma) return cachedPrisma;
+  if (prismaAttempted) return cachedPrisma;
+  prismaAttempted = true;
+
   if (process.env.DATABASE_URL) {
-    const { PrismaClient, PrismaPg } = await import("@vcp/database");
-    const pg = await import("pg");
-    const Pool = pg.default ? pg.default.Pool : pg.Pool;
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaPg(pool);
-    cachedPrisma = new PrismaClient({ adapter });
-    return cachedPrisma;
+    try {
+      const { PrismaClient, PrismaPg } = await import("@vcp/database");
+      const pg = await import("pg");
+      const Pool = pg.default ? pg.default.Pool : pg.Pool;
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const adapter = new PrismaPg(pool);
+      const prisma = new PrismaClient({ adapter });
+      
+      // Thử kết nối vật lý với DB bằng truy vấn SQL thô
+      await prisma.$executeRawUnsafe("SELECT 1;");
+      console.log("Database connection established successfully via Prisma.");
+      cachedPrisma = prisma;
+      return cachedPrisma;
+    } catch (err) {
+      console.warn("Could not connect to database via Prisma, fallback to InMemory repositories.");
+      cachedPrisma = null;
+      return null;
+    }
   }
   return null;
 }
