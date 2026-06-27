@@ -5,7 +5,8 @@ import type {
   AgentSkillPreviewResponse,
   AgentCreationAssistantDraftRequest,
   AgentCreationAssistantDraftResponse,
-  AgentSkillImportAnalysisRequest
+  AgentSkillImportAnalysisRequest,
+  CreateAgentRequest
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -26,12 +27,7 @@ export type AgentEditableConfiguration = {
   updatedAt: string;
 };
 
-export type CreateAgentPayload = {
-  name: string;
-  role: string;
-  model: string;
-  instructions: string;
-};
+export type CreateAgentPayload = CreateAgentRequest;
 
 export type UpdateAgentPayload = Omit<CreateAgentPayload, "name">;
 

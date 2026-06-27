@@ -298,8 +298,85 @@ describe("AgentManagementPage API integration", () => {
       role: "Planner",
       model: "gemini-2.5-flash",
       instructions: "Create execution plans.",
+      responsibilities: [],
+      operatingContext: undefined,
+      requestedTools: undefined,
+      requestedKnowledge: undefined,
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: [],
     });
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
+  });
+
+  it("shows blocking capability warnings and allows submit after resolution", async () => {
+    const createAgent = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Invalid agent configuration: requestedTools"), {
+          code: "validation.invalid_input",
+          kind: "api",
+          status: 400,
+          details: {
+            issues: [
+              'requestedTools: Requested tool "PagerDuty" is not connected in this workspace.',
+            ],
+            warnings: [
+              {
+                code: "tool.missing",
+                message: 'Requested tool "PagerDuty" is not connected in this workspace.',
+                severity: "blocking",
+                field: "requestedTools",
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(enabledAgent);
+    const client = createClient({ createAgent });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await fillCreateForm(user);
+    await user.type(screen.getByLabelText("Requested tools"), "PagerDuty");
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    await waitFor(() => expect(createAgent).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("alert").some((alert) =>
+          alert.textContent?.includes('Requested tool "PagerDuty"'),
+        ),
+      ).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+
+    await user.clear(screen.getByLabelText("Requested tools"));
+    await user.type(screen.getByLabelText("Requested tools"), "Slack: Notify owners");
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(createAgent).toHaveBeenLastCalledWith(workspaceId, {
+      name: "Planning Agent",
+      role: "Planner",
+      model: "gemini-2.5-flash",
+      instructions: [
+        "Instructions:",
+        "Create execution plans.",
+        "",
+        "Requested Tools:",
+        "- Slack: Notify owners",
+      ].join("\n"),
+      responsibilities: [],
+      operatingContext: undefined,
+      requestedTools: [{ name: "Slack", reason: "Notify owners" }],
+      requestedKnowledge: undefined,
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: [],
+    });
   });
 
   it("prevents template creation when required fields are missing", async () => {

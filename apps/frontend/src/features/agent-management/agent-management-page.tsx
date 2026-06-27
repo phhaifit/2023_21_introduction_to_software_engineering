@@ -96,7 +96,10 @@ type TemplateDraftField =
 type TemplateDraftState = Record<TemplateDraftField, string>;
 
 type TemplateDraftErrors = Partial<
-  Record<"name" | "role" | "model" | "instructions" | "form", string>
+  Record<
+    "name" | "role" | "model" | "instructions" | "requestedTools" | "requestedKnowledge" | "form",
+    string
+  >
 >;
 
 const templateDraftValues: TemplateDraftState = {
@@ -459,6 +462,13 @@ export function AgentManagementPage({
           role: templateDraft.role.trim(),
           model: templateDraft.model,
           instructions: buildCreateInstructionsFromDraft(templateDraft),
+          responsibilities: splitDraftLines(templateDraft.responsibilities),
+          operatingContext: templateDraft.operatingContext.trim() || undefined,
+          requestedTools: parseToolReferences(templateDraft.requestedTools),
+          requestedKnowledge: parseKnowledgeReferences(templateDraft.requestedKnowledge),
+          constraints: splitDraftLines(templateDraft.constraints),
+          escalationRules: splitDraftLines(templateDraft.escalationRules),
+          exampleTasks: splitDraftLines(templateDraft.exampleTasks),
         });
         await replaceAgents();
         closeForm(true);
@@ -1038,6 +1048,7 @@ function GuidedCreateDialog({
     disabled ||
     isModelCatalogLoading ||
     Boolean(modelCatalogError) ||
+    hasBlockingDraftErrors(errors) ||
     !selectedModelAvailable ||
     Object.keys(requiredErrors).length > 0;
 
@@ -1572,6 +1583,7 @@ function TemplateDraftForm({
           field="requestedTools"
           label="Requested tools"
           value={draft.requestedTools}
+          error={errors.requestedTools}
           multiline
           disabled={disabled}
           onDraftChange={onDraftChange}
@@ -1580,6 +1592,7 @@ function TemplateDraftForm({
           field="requestedKnowledge"
           label="Requested knowledge"
           value={draft.requestedKnowledge}
+          error={errors.requestedKnowledge}
           multiline
           disabled={disabled}
           onDraftChange={onDraftChange}
@@ -2206,21 +2219,32 @@ function validateTemplateDraft(draft: TemplateDraftState): TemplateDraftErrors {
 }
 
 function templateDraftErrorsFor(error: unknown): TemplateDraftErrors {
-  if (
-    error instanceof AgentApiClientError &&
-    error.code === "validation.invalid_input"
-  ) {
-    const issues = Array.isArray(error.details?.issues)
-      ? error.details.issues
+  const apiError = readAgentApiError(error);
+  if (apiError?.code === "validation.invalid_input") {
+    const issues = Array.isArray(apiError.details?.issues)
+      ? apiError.details.issues
       : [];
     const errors: TemplateDraftErrors = {};
+
+    for (const warning of blockingWarningsFor(apiError)) {
+      if (warning.field === "requestedTools" || warning.field === "requestedKnowledge") {
+        errors[warning.field] = warning.message;
+      }
+    }
 
     for (const issue of issues) {
       if (typeof issue !== "string") {
         continue;
       }
 
-      const field = (["name", "role", "model", "instructions"] as const).find(
+      const field = ([
+        "name",
+        "role",
+        "model",
+        "instructions",
+        "requestedTools",
+        "requestedKnowledge",
+      ] as const).find(
         (candidate) => issue.startsWith(candidate),
       );
       if (field) {
@@ -2228,10 +2252,63 @@ function templateDraftErrorsFor(error: unknown): TemplateDraftErrors {
       }
     }
 
-    return Object.keys(errors).length > 0 ? errors : { form: error.message };
+    return Object.keys(errors).length > 0 ? errors : { form: apiError.message };
   }
 
   return { form: messageFor(error, "Unable to create the agent.") };
+}
+
+function hasBlockingDraftErrors(errors: TemplateDraftErrors): boolean {
+  return Boolean(errors.form || errors.requestedTools || errors.requestedKnowledge);
+}
+
+function blockingWarningsFor(error: { details?: Record<string, unknown> }): Array<{
+  field?: string;
+  message: string;
+  severity?: string;
+}> {
+  const warnings = Array.isArray(error.details?.warnings)
+    ? error.details.warnings
+    : [];
+
+  return warnings.filter((warning): warning is {
+    field?: string;
+    message: string;
+    severity?: string;
+  } => {
+    return (
+      typeof warning === "object" &&
+      warning !== null &&
+      typeof (warning as { message?: unknown }).message === "string" &&
+      (warning as { severity?: unknown }).severity === "blocking"
+    );
+  });
+}
+
+function readAgentApiError(error: unknown): {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+} | null {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    "message" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    const details = (error as { details?: unknown }).details;
+    return {
+      code: (error as { code: string }).code,
+      message: (error as { message: string }).message,
+      details: details && typeof details === "object" && !Array.isArray(details)
+        ? details as Record<string, unknown>
+        : undefined,
+    };
+  }
+
+  return null;
 }
 
 function templateDraftToSkillPreviewInput(

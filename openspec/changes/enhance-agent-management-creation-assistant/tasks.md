@@ -83,29 +83,29 @@
 
 ## 8. Phase 7 - Tool and Knowledge Recommendation Validation
 
-- [ ] 8.1 Add Agent Management application ports for connected tool catalog lookup and ready KB/RAG document lookup.
-- [ ] 8.2 Implement mock public connected-tool catalog adapter for the first demo without importing Tools Integration private code.
-- [ ] 8.3 Implement mock public ready-knowledge catalog adapter for the first demo without importing KB/RAG private code.
-- [ ] 8.4 Validate requested tools from prompt/import/template drafts against the connected-tool catalog.
-- [ ] 8.5 Validate requested knowledge references from prompt/import/template drafts against ready documents in the knowledge catalog.
-- [ ] 8.6 Add blocking warnings for missing tools, disconnected tools, missing documents, and unready documents.
-- [ ] 8.7 Prevent agent creation while blocking warnings remain.
-- [ ] 8.8 Add backend tests for valid connected tool, disconnected tool warning, valid ready document, missing document warning, unready document warning, and no assignment/grant mutation.
-- [ ] 8.9 Add frontend tests for warning display, disabled create button, warning resolution, and valid draft submission after resolution.
-- [ ] 8.10 Run focused backend and frontend tests for capability validation.
+- [x] 8.1 Add Agent Management application ports for connected tool catalog lookup and ready KB/RAG document lookup.
+- [x] 8.2 Implement mock public connected-tool catalog adapter for the first demo without importing Tools Integration private code.
+- [x] 8.3 Implement mock public ready-knowledge catalog adapter for the first demo without importing KB/RAG private code.
+- [x] 8.4 Validate requested tools from prompt/import/template drafts against the connected-tool catalog.
+- [x] 8.5 Validate requested knowledge references from prompt/import/template drafts against ready documents in the knowledge catalog.
+- [x] 8.6 Add blocking warnings for missing tools, disconnected tools, missing documents, and unready documents.
+- [x] 8.7 Prevent agent creation while blocking warnings remain.
+- [x] 8.8 Add backend tests for valid connected tool, disconnected tool warning, valid ready document, missing document warning, unready document warning, and no assignment/grant mutation.
+- [x] 8.9 Add frontend tests for warning display, disabled create button, warning resolution, and valid draft submission after resolution.
+- [x] 8.10 Run focused backend and frontend tests for capability validation.
 
 ## 9. Phase 8 - OpenClaw Runtime-Ready Agent Output
 
-- [ ] 9.1 Add caller-safe shared DTOs for an Agent Management runtime profile that includes agent identity, workspace identity, runnable status, catalog model id, role, instructions, approved non-permission runtime sections, canonical `skill.md`, requested tool intent, requested knowledge intent, and OpenClaw materialization hints.
-- [ ] 9.2 Persist approved non-permission runtime configuration from template, prompt assistant, and `skill.md` import submissions after the manager creates an agent, without persisting unsubmitted draft sessions.
-- [ ] 9.3 Preserve compatibility for existing basic agents by rendering missing runtime sections as empty or `_Not specified._` in runtime profile and `skill.md` output.
-- [ ] 9.4 Add a server-side public Agent Management runtime profile boundary for Task Orchestration / OpenClaw integration without importing Agent Management private repositories from other modules.
-- [ ] 9.5 Ensure the runtime profile boundary rejects disabled, deleted, missing, and cross-workspace agents for runnable OpenClaw execution.
-- [ ] 9.6 Ensure runtime profile output excludes credentials, raw provider payloads, raw provider errors, real tool assignment authority, real knowledge grant authority, OpenClaw Gateway tokens, runtime URLs, container ids, terminal commands, and task manifests.
-- [ ] 9.7 Keep existing create, update, rename, duplicate, enable, disable, delete, `skill.md` preview, and `skill.md` download behavior compatible with the new runtime configuration fields.
-- [ ] 9.8 Add backend tests for runtime profile success, disabled/deleted/cross-workspace rejection, rich draft field persistence, existing basic agent compatibility, no permission mutation, and secret/runtime-field redaction.
-- [ ] 9.9 Add focused contract tests for runtime profile DTO exposure rules and forbidden fields.
-- [ ] 9.10 Run focused backend and contract tests for runtime-ready Agent Management output.
+- [x] 9.1 Add caller-safe shared DTOs for an Agent Management runtime profile that includes agent identity, workspace identity, runnable status, catalog model id, role, instructions, approved non-permission runtime sections, canonical `skill.md`, requested tool intent, requested knowledge intent, and OpenClaw materialization hints.
+- [x] 9.2 Persist approved non-permission runtime configuration from template, prompt assistant, and `skill.md` import submissions after the manager creates an agent, without persisting unsubmitted draft sessions.
+- [x] 9.3 Preserve compatibility for existing basic agents by rendering missing runtime sections as empty or `_Not specified._` in runtime profile and `skill.md` output.
+- [x] 9.4 Add a server-side public Agent Management runtime profile boundary for Task Orchestration / OpenClaw integration without importing Agent Management private repositories from other modules.
+- [x] 9.5 Ensure the runtime profile boundary rejects disabled, deleted, missing, and cross-workspace agents for runnable OpenClaw execution.
+- [x] 9.6 Ensure runtime profile output excludes credentials, raw provider payloads, raw provider errors, real tool assignment authority, real knowledge grant authority, OpenClaw Gateway tokens, runtime URLs, container ids, terminal commands, and task manifests.
+- [x] 9.7 Keep existing create, update, rename, duplicate, enable, disable, delete, `skill.md` preview, and `skill.md` download behavior compatible with the new runtime configuration fields.
+- [x] 9.8 Add backend tests for runtime profile success, disabled/deleted/cross-workspace rejection, rich draft field persistence, existing basic agent compatibility, no permission mutation, and secret/runtime-field redaction.
+- [x] 9.9 Add focused contract tests for runtime profile DTO exposure rules and forbidden fields.
+- [x] 9.10 Run focused backend and contract tests for runtime-ready Agent Management output.
 
 ## 10. Phase 9 - Integration, E2E, and Handoff
 
