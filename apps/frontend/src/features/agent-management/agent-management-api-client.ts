@@ -4,7 +4,8 @@ import type {
   AgentSkillPreviewRequest,
   AgentSkillPreviewResponse,
   AgentCreationAssistantDraftRequest,
-  AgentCreationAssistantDraftResponse
+  AgentCreationAssistantDraftResponse,
+  AgentSkillImportAnalysisRequest
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -58,6 +59,10 @@ export type AgentManagementApiClient = {
   createAssistantDraft(
     workspaceId: EntityId<"workspaceId">,
     payload: AgentCreationAssistantDraftRequest
+  ): Promise<AgentCreationAssistantDraftResponse>;
+  analyzeSkillImport(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentSkillImportAnalysisRequest
   ): Promise<AgentCreationAssistantDraftResponse>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
@@ -221,6 +226,11 @@ export function createAgentManagementApiClient(input: {
       })).data,
     createAssistantDraft: async (workspaceId, payload) =>
       (await request<AgentCreationAssistantDraftResponse>(`${collectionPath(workspaceId)}/assistant/draft`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
+    analyzeSkillImport: async (workspaceId, payload) =>
+      (await request<AgentCreationAssistantDraftResponse>(`${collectionPath(workspaceId)}/assistant/import-skill`, {
         method: "POST",
         body: JSON.stringify(payload)
       })).data,

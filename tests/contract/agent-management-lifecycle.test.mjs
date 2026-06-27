@@ -229,7 +229,7 @@ function makeAgent(overrides = {}) {
       markdown: "# Imported Agent\n\n## Role\nSupport",
       fileName: "skill.md"
     }),
-    { accepted: true, fileName: "skill.md" }
+    { markdown: "# Imported Agent\n\n## Role\nSupport", fileName: "skill.md" }
   );
 
   assert.throws(

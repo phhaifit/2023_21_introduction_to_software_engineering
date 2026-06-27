@@ -71,15 +71,15 @@
 
 ## 7. Phase 6 - Free-Form Skill Markdown Import Through LLM
 
-- [ ] 7.1 Add the workspace-scoped skill import analysis API route for free-form Markdown content.
-- [ ] 7.2 Require `agents:manage` permission for skill import analysis.
-- [ ] 7.3 Use the LLM provider chain to extract an editable draft from arbitrary Markdown `skill.md` content.
-- [ ] 7.4 Return extracted draft fields, requested tools, requested knowledge, warnings, and provider metadata without creating an agent.
-- [ ] 7.5 Add backend tests for empty import rejection, valid Markdown extraction, provider fallback, all-provider failure, and no agent persistence.
-- [ ] 7.6 Add frontend API client support for skill import analysis.
-- [ ] 7.7 Build the import view for paste/upload Markdown, import loading, extracted draft review, invalid import error, and retry handling.
-- [ ] 7.8 Add component tests for paste import, file import, invalid import, extracted draft review, and retryable provider failure.
-- [ ] 7.9 Run focused backend and frontend tests for skill import flow.
+- [x] 7.1 Add the workspace-scoped skill import analysis API route for free-form Markdown content.
+- [x] 7.2 Require `agents:manage` permission for skill import analysis.
+- [x] 7.3 Use the LLM provider chain to extract an editable draft from arbitrary Markdown `skill.md` content.
+- [x] 7.4 Return extracted draft fields, requested tools, requested knowledge, warnings, and provider metadata without creating an agent.
+- [x] 7.5 Add backend tests for empty import rejection, valid Markdown extraction, provider fallback, all-provider failure, and no agent persistence.
+- [x] 7.6 Add frontend API client support for skill import analysis.
+- [x] 7.7 Build the import view for paste/upload Markdown, import loading, extracted draft review, invalid import error, and retry handling.
+- [x] 7.8 Add component tests for paste import, file import, invalid import, extracted draft review, and retryable provider failure.
+- [x] 7.9 Run focused backend and frontend tests for skill import flow.
 
 ## 8. Phase 7 - Tool and Knowledge Recommendation Validation
 
