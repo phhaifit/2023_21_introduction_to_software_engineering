@@ -440,7 +440,11 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   }
 }
 
-export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = { type: "mock" };
+export const DEFAULT_PROVIDER_CONFIG: ProviderConfig =
+  (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") ||
+  (typeof (import.meta as any) !== "undefined" && (import.meta as any).env && (import.meta as any).env.MODE === "test")
+    ? { type: "mock" }
+    : { type: "http", baseUrl: "http://127.0.0.1:3001" };
 
 export function resolveTaskOrchestrationProvider(
   config: ProviderConfig = DEFAULT_PROVIDER_CONFIG,
