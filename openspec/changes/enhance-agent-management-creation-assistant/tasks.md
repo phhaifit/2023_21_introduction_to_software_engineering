@@ -46,16 +46,16 @@
 
 ## 5. Phase 4 - LLM Provider Chain Backend
 
-- [ ] 5.1 Add an `LlmAgentDraftingPort` or equivalent Agent Management application port for prompt draft generation and `skill.md` import extraction.
-- [ ] 5.2 Define the structured LLM output schema for draft fields, requested tools, requested knowledge, clarifying questions, and warnings.
-- [ ] 5.3 Implement provider output validation that treats malformed or incomplete structured output as provider failure.
-- [ ] 5.4 Implement the Gemini provider adapter using server-side environment configuration, defaulting `GEMINI_MODEL_ID` to `gemini-2.5-flash`.
-- [ ] 5.5 Implement the OpenRouter provider adapter using server-side environment configuration, defaulting `OPENROUTER_MODEL_ID` to `openrouter/owl-alpha`.
-- [ ] 5.6 Implement provider fallback orchestration: call Gemini first, call OpenRouter only after Gemini failure, and fail the request if both providers fail.
-- [ ] 5.7 Ensure raw provider errors, API keys, credentials, and private provider payloads are never returned to the frontend.
-- [ ] 5.8 Keep deterministic mock provider support for automated tests only.
-- [ ] 5.9 Add backend unit tests for Gemini success, Gemini failure with OpenRouter success, both providers failing, invalid structured output, missing API key handling, and mock-provider test injection.
-- [ ] 5.10 Run focused backend tests for LLM provider chain behavior.
+- [x] 5.1 Add an `LlmAgentDraftingPort` or equivalent Agent Management application port for prompt draft generation and `skill.md` import extraction.
+- [x] 5.2 Define the structured LLM output schema for draft fields, requested tools, requested knowledge, clarifying questions, and warnings.
+- [x] 5.3 Implement provider output validation that treats malformed or incomplete structured output as provider failure.
+- [x] 5.4 Implement the Gemini provider adapter using server-side environment configuration, defaulting `GEMINI_MODEL_ID` to `gemini-2.5-flash`.
+- [x] 5.5 Implement the OpenRouter provider adapter using server-side environment configuration, defaulting `OPENROUTER_MODEL_ID` to `openrouter/owl-alpha`.
+- [x] 5.6 Implement provider fallback orchestration: call Gemini first, call OpenRouter only after Gemini failure, and fail the request if both providers fail.
+- [x] 5.7 Ensure raw provider errors, API keys, credentials, and private provider payloads are never returned to the frontend.
+- [x] 5.8 Keep deterministic mock provider support for automated tests only.
+- [x] 5.9 Add backend unit tests for Gemini success, Gemini failure with OpenRouter success, both providers failing, invalid structured output, missing API key handling, and mock-provider test injection.
+- [x] 5.10 Run focused backend tests for LLM provider chain behavior.
 
 ## 6. Phase 5 - Prompt Assistant Flow
 
