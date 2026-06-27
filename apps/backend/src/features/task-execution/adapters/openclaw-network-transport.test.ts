@@ -8,12 +8,14 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
   describe("OpenClawRawEventMapper", () => {
     it("should map valid progress event (started)", () => {
       const rawPayload = {
-        eventType: "progress",
+        object: "chat.completion.chunk",
         executionId: "exec-1",
-        stepId: "step-1",
-        stepName: "Validation",
-        status: "started",
-        timestamp: 1672531199000
+        timestamp: 1672531199000,
+        openclaw_extension: {
+          stepId: "step-1",
+          stepName: "Validation",
+          status: "started"
+        }
       };
 
       const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
@@ -29,12 +31,13 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
     it("should map valid progress event (completed)", () => {
       const rawPayload = {
-        eventType: "progress",
+        object: "chat.completion.chunk",
         executionId: "exec-1",
-        stepId: "step-1",
-        stepName: "Validation",
-        status: "success",
-        timestamp: 1672531199000
+        timestamp: 1672531199000,
+        openclaw_extension: {
+          stepId: "step-1",
+          status: "success"
+        }
       };
 
       const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
@@ -50,10 +53,14 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
     it("should map partial output event with security redaction", () => {
       const rawPayload = {
-        eventType: "partial_output",
+        object: "chat.completion.chunk",
         executionId: "exec-1",
-        chunk: "Here is the result and the secret token Bearer secret_abcdef",
-        timestamp: 1672531199000
+        timestamp: 1672531199000,
+        choices: [
+          {
+            delta: { content: "Here is the result and the secret token Bearer secret_abcdef" }
+          }
+        ]
       };
 
       const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
@@ -68,10 +75,15 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
     it("should map completion event with security redaction", () => {
       const rawPayload = {
-        eventType: "completion",
+        object: "chat.completion.chunk",
         executionId: "exec-1",
+        timestamp: 1672531199000,
         finalOutput: "Completed successfully. Config at C:\\Users\\admin\\config.json",
-        timestamp: 1672531199000
+        choices: [
+          {
+            finish_reason: "stop"
+          }
+        ]
       };
 
       const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
@@ -86,11 +98,13 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
     it("should map failure event with security redaction", () => {
       const rawPayload = {
-        eventType: "failure",
+        object: "chat.completion.chunk",
         executionId: "exec-1",
-        errorCode: "AUTH_FAIL",
-        errorMessage: "Failed to connect using apiKey AIzaSyD-12345",
-        timestamp: 1672531199000
+        timestamp: 1672531199000,
+        error: {
+          code: "AUTH_FAIL",
+          message: "Failed to connect using apiKey AIzaSyD-12345"
+        }
       };
 
       const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
@@ -108,9 +122,12 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
     it("should map cancellation event", () => {
       const rawPayload = {
-        eventType: "cancellation",
+        object: "chat.completion.chunk",
         executionId: "exec-1",
-        timestamp: 1672531199000
+        timestamp: 1672531199000,
+        openclaw_extension: {
+          status: "canceled"
+        }
       };
 
       const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
@@ -125,13 +142,12 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
     it("should return null for malformed or unknown payloads", () => {
       expect(OpenClawRawEventMapper.mapRawEvent(taskId, null)).toBeNull();
       expect(OpenClawRawEventMapper.mapRawEvent(taskId, "not-an-object")).toBeNull();
-      expect(OpenClawRawEventMapper.mapRawEvent(taskId, { eventType: "unknown", executionId: "exec-1", timestamp: 123 })).toBeNull();
-      expect(OpenClawRawEventMapper.mapRawEvent(taskId, { eventType: "progress" })).toBeNull(); // Missing executionId and timestamp
+      expect(OpenClawRawEventMapper.mapRawEvent(taskId, { object: "unknown", executionId: "exec-1", timestamp: 123 })).toBeNull();
     });
   });
 
   describe("OpenClawHttpSSETransport", () => {
-    it("should successfully start execution via HTTP POST", async () => {
+    it("should successfully start execution via OpenAI-compatible HTTP POST", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -143,22 +159,26 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         taskId: "task-123",
         prompt: "Hello",
         target: "coordinator",
-        mode: "auto"
+        mode: "auto",
+        conversationId: "session-123"
       });
 
       expect(resp.providerExecutionReference).toBe("exec-http-1");
-      expect(mockFetch).toHaveBeenCalledWith("https://openclaw.internal/executions/start", {
+      expect(mockFetch).toHaveBeenCalledWith("https://openclaw.internal/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer cred-123"
+          "Authorization": "Bearer cred-123",
+          "x-openclaw-model": "gemini-3.1-flash-lite",
+          "x-openclaw-session-key": "session-123"
         },
         body: JSON.stringify({
-          taskId: "task-123",
-          prompt: "Hello",
-          target: "coordinator",
-          mode: "auto"
-        })
+          model: "coordinator",
+          messages: [{ role: "user", content: "Hello" }],
+          stream: true,
+          user: "session-123"
+        }),
+        signal: expect.any(AbortSignal)
       });
     });
 
@@ -179,13 +199,8 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       ).rejects.toThrow(/provider-authentication-rejected/);
     });
 
-    it("should successfully cancel execution via HTTP POST", async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ providerExecutionReference: "exec-http-1", status: "canceled", canceledAt: "2023-01-01" })
-      });
-
+    it("should successfully cancel execution via AbortController without outgoing HTTP call", async () => {
+      const mockFetch = vi.fn();
       const transport = new OpenClawHttpSSETransport(mockFetch as any);
       const resp = await transport.cancelExecution("https://openclaw.internal", "cred-123", {
         providerExecutionReference: "exec-http-1",
@@ -193,17 +208,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       });
 
       expect(resp.status).toBe("canceled");
-      expect(mockFetch).toHaveBeenCalledWith("https://openclaw.internal/executions/exec-http-1/cancel", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer cred-123"
-        },
-        body: JSON.stringify({
-          providerExecutionReference: "exec-http-1",
-          taskId: "task-123"
-        })
-      });
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("should handle event stream subscription and mock stream errors", async () => {
@@ -216,7 +221,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       sub.unsubscribe();
     });
 
-    it("should successfully get snapshot", async () => {
+    it("should successfully get snapshot via v1/models", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -226,6 +231,11 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       const transport = new OpenClawHttpSSETransport(mockFetch as any);
       const snap = await transport.getSnapshot("https://openclaw.internal", "cred-123", "exec-1");
       expect(snap).toEqual({ status: "in-progress" });
+      expect(mockFetch).toHaveBeenCalledWith("https://openclaw.internal/v1/models", {
+        headers: {
+          "Authorization": "Bearer cred-123"
+        }
+      });
     });
   });
 });
