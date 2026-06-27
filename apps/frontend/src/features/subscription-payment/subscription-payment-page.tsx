@@ -128,6 +128,14 @@ export function SubscriptionPaymentPage() {
   const [newCardExpiry, setNewCardExpiry] = useState("");
   const [cardFormError, setCardFormError] = useState<string | null>(null);
 
+  // State lưu thông tin thẻ nhập vào trong form thanh toán Stripe
+  const [cardDetails, setCardDetails] = useState({
+    number: "",
+    expiry: "",
+    cvv: "",
+    name: ""
+  });
+
   // Các state khác liên quan đến checkout & plan
   const [agreeToTerms, setAgreeToTerms] = useState(true);
   const [autoRenew, setAutoRenew] = useState(true);
