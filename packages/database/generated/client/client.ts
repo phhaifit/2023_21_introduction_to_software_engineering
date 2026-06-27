@@ -176,3 +176,8 @@ export type KnowledgeAccessGrant = Prisma.KnowledgeAccessGrantModel
  * 
  */
 export type Job = Prisma.JobModel
+/**
+ * Model PaymentMethod
+ * 
+ */
+export type PaymentMethod = Prisma.PaymentMethodModel

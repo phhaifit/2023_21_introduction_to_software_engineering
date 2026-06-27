@@ -151,17 +151,31 @@ export type LocalAgentManagementRuntime = {
 };
 
 let cachedPrisma: any = null;
+let prismaAttempted = false;
 
 async function getPrismaClient(): Promise<any> {
-  if (cachedPrisma) return cachedPrisma;
+  if (prismaAttempted) return cachedPrisma;
+  prismaAttempted = true;
+
   if (process.env.DATABASE_URL) {
-    const { PrismaClient, PrismaPg } = await import("@vcp/database");
-    const pg = await import("pg");
-    const Pool = pg.default ? pg.default.Pool : pg.Pool;
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaPg(pool);
-    cachedPrisma = new PrismaClient({ adapter });
-    return cachedPrisma;
+    try {
+      const { PrismaClient, PrismaPg } = await import("@vcp/database");
+      const pg = await import("pg");
+      const Pool = pg.default ? pg.default.Pool : pg.Pool;
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const adapter = new PrismaPg(pool);
+      const prisma = new PrismaClient({ adapter });
+      
+      // Thử kết nối vật lý với DB bằng truy vấn SQL thô
+      await prisma.$executeRawUnsafe("SELECT 1;");
+      console.log("Database connection established successfully via Prisma.");
+      cachedPrisma = prisma;
+      return cachedPrisma;
+    } catch (err) {
+      console.warn("Could not connect to database via Prisma, fallback to InMemory repositories.");
+      cachedPrisma = null;
+      return null;
+    }
   }
   return null;
 }
@@ -235,21 +249,23 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
 
-  const checkoutUseCases = new CheckoutUseCases({
-    repository: subscriptionRepository,
-    paymentAdapter: new MockPaymentAdapter(frontendUrl),
-    eventBus,
-    now: () => new Date().toISOString(),
-    generateSubscriptionId: () => randomUUID() as any,
-    generateTransactionId: () => randomUUID() as any,
-    generateEventId: () => randomUUID() as any
-  });
-
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
   const knowledgeDocumentRepository = prisma
     ? new PrismaKnowledgeDocumentRepository(prisma)
     : new InMemoryKnowledgeDocumentRepository();
+
+  const checkoutUseCases = new CheckoutUseCases({
+    repository: subscriptionRepository,
+    paymentAdapter: new MockPaymentAdapter(frontendUrl),
+    eventBus,
+    agentRepository: repository,
+    documentRepository: knowledgeDocumentRepository,
+    now: () => new Date().toISOString(),
+    generateSubscriptionId: () => randomUUID() as any,
+    generateTransactionId: () => randomUUID() as any,
+    generateEventId: () => randomUUID() as any
+  });
   const knowledgeIngestionJobRepository = prisma
     ? new PrismaKnowledgeIngestionJobRepository(prisma)
     : new InMemoryKnowledgeIngestionJobRepository();
@@ -310,6 +326,20 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);
+    await subscriptionRepository.saveSubscription({
+      subscriptionId: "demo-subscription-id" as any,
+      userId: "local-dev-user" as any,
+      workspaceId: DEMO_WORKSPACE_ID,
+      plan: "premium",
+      status: "active",
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      autoRenew: true,
+      cardNumber: null,
+      cardHolder: null,
+      cardExpiry: null
+    });
   }
 
   const app = express();
@@ -354,7 +384,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   app.use(
     "/api/workspaces/:workspaceId/agents",
-    createAgentManagementRouter({ useCases })
+    createAgentManagementRouter({ useCases, checkoutUseCases })
   );
 
   app.use(
@@ -392,7 +422,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter })
   );
 
-  app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));
+  app.use(createKnowledgeBaseRagRouter({
+    ...knowledgeBaseRagUseCases,
+    checkoutUseCases
+  }));
 
   const authUserRepository = await createAuthUserRepository();
   const authSessionRepository = await createAuthSessionRepository();
