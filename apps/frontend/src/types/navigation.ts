@@ -1,5 +1,6 @@
 export type PageKey =
   | "dashboard"
+  | "workspaces"
   | "workflows"
   | "workflow-editor"
   | "executions"

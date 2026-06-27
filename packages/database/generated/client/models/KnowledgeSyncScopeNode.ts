@@ -491,10 +491,6 @@ export type KnowledgeSyncScopeNodeUncheckedUpdateManyWithoutDataSourceNestedInpu
   deleteMany?: Prisma.KnowledgeSyncScopeNodeScalarWhereInput | Prisma.KnowledgeSyncScopeNodeScalarWhereInput[]
 }
 
-export type BoolFieldUpdateOperationsInput = {
-  set?: boolean
-}
-
 export type KnowledgeSyncScopeNodeCreateWithoutDataSourceInput = {
   scopeNodeId: string
   workspaceId: string

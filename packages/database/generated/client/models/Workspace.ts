@@ -20,15 +20,54 @@ export type WorkspaceModel = runtime.Types.Result.DefaultSelection<Prisma.$Works
 
 export type AggregateWorkspace = {
   _count: WorkspaceCountAggregateOutputType | null
+  _avg: WorkspaceAvgAggregateOutputType | null
+  _sum: WorkspaceSumAggregateOutputType | null
   _min: WorkspaceMinAggregateOutputType | null
   _max: WorkspaceMaxAggregateOutputType | null
+}
+
+export type WorkspaceAvgAggregateOutputType = {
+  lifecycleVersion: number | null
+  eventSequence: number | null
+  ownerBootstrapAttemptVersion: number | null
+}
+
+export type WorkspaceSumAggregateOutputType = {
+  lifecycleVersion: number | null
+  eventSequence: number | null
+  ownerBootstrapAttemptVersion: number | null
 }
 
 export type WorkspaceMinAggregateOutputType = {
   workspaceId: string | null
   userId: string | null
+  createdByUserId: string | null
   name: string | null
+  normalizedName: string | null
   status: string | null
+  lifecycleVersion: number | null
+  eventSequence: number | null
+  ownerBootstrapState: string | null
+  ownerBootstrapAttemptId: string | null
+  ownerBootstrapAttemptVersion: number | null
+  ownerBootstrapRequestedAt: string | null
+  ownerBootstrapExpiresAt: string | null
+  ownerMembershipEstablishedAt: string | null
+  ownerBootstrapFailureCode: string | null
+  ownerBootstrapFailureMessage: string | null
+  requestedProfile: string | null
+  provisioningProfileSource: string | null
+  migrationOrigin: string | null
+  runtimeVerificationState: string | null
+  provider: string | null
+  runtimeRef: string | null
+  runtimeUrl: string | null
+  provisioningRequestedAt: string | null
+  provisionedAt: string | null
+  deletionRequestedAt: string | null
+  deletedAt: string | null
+  failureCode: string | null
+  failureMessage: string | null
   createdAt: string | null
   updatedAt: string | null
 }
@@ -36,8 +75,33 @@ export type WorkspaceMinAggregateOutputType = {
 export type WorkspaceMaxAggregateOutputType = {
   workspaceId: string | null
   userId: string | null
+  createdByUserId: string | null
   name: string | null
+  normalizedName: string | null
   status: string | null
+  lifecycleVersion: number | null
+  eventSequence: number | null
+  ownerBootstrapState: string | null
+  ownerBootstrapAttemptId: string | null
+  ownerBootstrapAttemptVersion: number | null
+  ownerBootstrapRequestedAt: string | null
+  ownerBootstrapExpiresAt: string | null
+  ownerMembershipEstablishedAt: string | null
+  ownerBootstrapFailureCode: string | null
+  ownerBootstrapFailureMessage: string | null
+  requestedProfile: string | null
+  provisioningProfileSource: string | null
+  migrationOrigin: string | null
+  runtimeVerificationState: string | null
+  provider: string | null
+  runtimeRef: string | null
+  runtimeUrl: string | null
+  provisioningRequestedAt: string | null
+  provisionedAt: string | null
+  deletionRequestedAt: string | null
+  deletedAt: string | null
+  failureCode: string | null
+  failureMessage: string | null
   createdAt: string | null
   updatedAt: string | null
 }
@@ -45,19 +109,82 @@ export type WorkspaceMaxAggregateOutputType = {
 export type WorkspaceCountAggregateOutputType = {
   workspaceId: number
   userId: number
+  createdByUserId: number
   name: number
+  normalizedName: number
   status: number
+  lifecycleVersion: number
+  eventSequence: number
+  ownerBootstrapState: number
+  ownerBootstrapAttemptId: number
+  ownerBootstrapAttemptVersion: number
+  ownerBootstrapRequestedAt: number
+  ownerBootstrapExpiresAt: number
+  ownerMembershipEstablishedAt: number
+  ownerBootstrapFailureCode: number
+  ownerBootstrapFailureMessage: number
+  requestedProfile: number
+  resolvedProvisioningProfile: number
+  provisioningProfileSource: number
+  migrationOrigin: number
+  runtimeVerificationState: number
+  provider: number
+  runtimeRef: number
+  runtimeUrl: number
+  provisioningRequestedAt: number
+  provisionedAt: number
+  deletionRequestedAt: number
+  deletedAt: number
+  failureCode: number
+  failureMessage: number
   createdAt: number
   updatedAt: number
   _all: number
 }
 
 
+export type WorkspaceAvgAggregateInputType = {
+  lifecycleVersion?: true
+  eventSequence?: true
+  ownerBootstrapAttemptVersion?: true
+}
+
+export type WorkspaceSumAggregateInputType = {
+  lifecycleVersion?: true
+  eventSequence?: true
+  ownerBootstrapAttemptVersion?: true
+}
+
 export type WorkspaceMinAggregateInputType = {
   workspaceId?: true
   userId?: true
+  createdByUserId?: true
   name?: true
+  normalizedName?: true
   status?: true
+  lifecycleVersion?: true
+  eventSequence?: true
+  ownerBootstrapState?: true
+  ownerBootstrapAttemptId?: true
+  ownerBootstrapAttemptVersion?: true
+  ownerBootstrapRequestedAt?: true
+  ownerBootstrapExpiresAt?: true
+  ownerMembershipEstablishedAt?: true
+  ownerBootstrapFailureCode?: true
+  ownerBootstrapFailureMessage?: true
+  requestedProfile?: true
+  provisioningProfileSource?: true
+  migrationOrigin?: true
+  runtimeVerificationState?: true
+  provider?: true
+  runtimeRef?: true
+  runtimeUrl?: true
+  provisioningRequestedAt?: true
+  provisionedAt?: true
+  deletionRequestedAt?: true
+  deletedAt?: true
+  failureCode?: true
+  failureMessage?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -65,8 +192,33 @@ export type WorkspaceMinAggregateInputType = {
 export type WorkspaceMaxAggregateInputType = {
   workspaceId?: true
   userId?: true
+  createdByUserId?: true
   name?: true
+  normalizedName?: true
   status?: true
+  lifecycleVersion?: true
+  eventSequence?: true
+  ownerBootstrapState?: true
+  ownerBootstrapAttemptId?: true
+  ownerBootstrapAttemptVersion?: true
+  ownerBootstrapRequestedAt?: true
+  ownerBootstrapExpiresAt?: true
+  ownerMembershipEstablishedAt?: true
+  ownerBootstrapFailureCode?: true
+  ownerBootstrapFailureMessage?: true
+  requestedProfile?: true
+  provisioningProfileSource?: true
+  migrationOrigin?: true
+  runtimeVerificationState?: true
+  provider?: true
+  runtimeRef?: true
+  runtimeUrl?: true
+  provisioningRequestedAt?: true
+  provisionedAt?: true
+  deletionRequestedAt?: true
+  deletedAt?: true
+  failureCode?: true
+  failureMessage?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -74,8 +226,34 @@ export type WorkspaceMaxAggregateInputType = {
 export type WorkspaceCountAggregateInputType = {
   workspaceId?: true
   userId?: true
+  createdByUserId?: true
   name?: true
+  normalizedName?: true
   status?: true
+  lifecycleVersion?: true
+  eventSequence?: true
+  ownerBootstrapState?: true
+  ownerBootstrapAttemptId?: true
+  ownerBootstrapAttemptVersion?: true
+  ownerBootstrapRequestedAt?: true
+  ownerBootstrapExpiresAt?: true
+  ownerMembershipEstablishedAt?: true
+  ownerBootstrapFailureCode?: true
+  ownerBootstrapFailureMessage?: true
+  requestedProfile?: true
+  resolvedProvisioningProfile?: true
+  provisioningProfileSource?: true
+  migrationOrigin?: true
+  runtimeVerificationState?: true
+  provider?: true
+  runtimeRef?: true
+  runtimeUrl?: true
+  provisioningRequestedAt?: true
+  provisionedAt?: true
+  deletionRequestedAt?: true
+  deletedAt?: true
+  failureCode?: true
+  failureMessage?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -119,6 +297,18 @@ export type WorkspaceAggregateArgs<ExtArgs extends runtime.Types.Extensions.Inte
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: WorkspaceAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: WorkspaceSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: WorkspaceMinAggregateInputType
@@ -149,6 +339,8 @@ export type WorkspaceGroupByArgs<ExtArgs extends runtime.Types.Extensions.Intern
   take?: number
   skip?: number
   _count?: WorkspaceCountAggregateInputType | true
+  _avg?: WorkspaceAvgAggregateInputType
+  _sum?: WorkspaceSumAggregateInputType
   _min?: WorkspaceMinAggregateInputType
   _max?: WorkspaceMaxAggregateInputType
 }
@@ -156,11 +348,39 @@ export type WorkspaceGroupByArgs<ExtArgs extends runtime.Types.Extensions.Intern
 export type WorkspaceGroupByOutputType = {
   workspaceId: string
   userId: string
+  createdByUserId: string
   name: string
+  normalizedName: string
   status: string
+  lifecycleVersion: number
+  eventSequence: number
+  ownerBootstrapState: string
+  ownerBootstrapAttemptId: string | null
+  ownerBootstrapAttemptVersion: number
+  ownerBootstrapRequestedAt: string | null
+  ownerBootstrapExpiresAt: string | null
+  ownerMembershipEstablishedAt: string | null
+  ownerBootstrapFailureCode: string | null
+  ownerBootstrapFailureMessage: string | null
+  requestedProfile: string | null
+  resolvedProvisioningProfile: runtime.JsonValue | null
+  provisioningProfileSource: string
+  migrationOrigin: string
+  runtimeVerificationState: string
+  provider: string | null
+  runtimeRef: string | null
+  runtimeUrl: string | null
+  provisioningRequestedAt: string | null
+  provisionedAt: string | null
+  deletionRequestedAt: string | null
+  deletedAt: string | null
+  failureCode: string | null
+  failureMessage: string | null
   createdAt: string
   updatedAt: string
   _count: WorkspaceCountAggregateOutputType | null
+  _avg: WorkspaceAvgAggregateOutputType | null
+  _sum: WorkspaceSumAggregateOutputType | null
   _min: WorkspaceMinAggregateOutputType | null
   _max: WorkspaceMaxAggregateOutputType | null
 }
@@ -186,19 +406,77 @@ export type WorkspaceWhereInput = {
   NOT?: Prisma.WorkspaceWhereInput | Prisma.WorkspaceWhereInput[]
   workspaceId?: Prisma.StringFilter<"Workspace"> | string
   userId?: Prisma.StringFilter<"Workspace"> | string
+  createdByUserId?: Prisma.StringFilter<"Workspace"> | string
   name?: Prisma.StringFilter<"Workspace"> | string
+  normalizedName?: Prisma.StringFilter<"Workspace"> | string
   status?: Prisma.StringFilter<"Workspace"> | string
+  lifecycleVersion?: Prisma.IntFilter<"Workspace"> | number
+  eventSequence?: Prisma.IntFilter<"Workspace"> | number
+  ownerBootstrapState?: Prisma.StringFilter<"Workspace"> | string
+  ownerBootstrapAttemptId?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFilter<"Workspace"> | number
+  ownerBootstrapRequestedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapExpiresAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerMembershipEstablishedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapFailureCode?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapFailureMessage?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  requestedProfile?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  resolvedProvisioningProfile?: Prisma.JsonNullableFilter<"Workspace">
+  provisioningProfileSource?: Prisma.StringFilter<"Workspace"> | string
+  migrationOrigin?: Prisma.StringFilter<"Workspace"> | string
+  runtimeVerificationState?: Prisma.StringFilter<"Workspace"> | string
+  provider?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  runtimeRef?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  runtimeUrl?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  provisioningRequestedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  provisionedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  deletionRequestedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  deletedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  failureCode?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  failureMessage?: Prisma.StringNullableFilter<"Workspace"> | string | null
   createdAt?: Prisma.StringFilter<"Workspace"> | string
   updatedAt?: Prisma.StringFilter<"Workspace"> | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationListRelationFilter
+  commandReceipts?: Prisma.WorkspaceCommandReceiptListRelationFilter
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionListRelationFilter
 }
 
 export type WorkspaceOrderByWithRelationInput = {
   workspaceId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  createdByUserId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  normalizedName?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapState?: Prisma.SortOrder
+  ownerBootstrapAttemptId?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
+  ownerBootstrapRequestedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapExpiresAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerMembershipEstablishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapFailureCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapFailureMessage?: Prisma.SortOrderInput | Prisma.SortOrder
+  requestedProfile?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolvedProvisioningProfile?: Prisma.SortOrderInput | Prisma.SortOrder
+  provisioningProfileSource?: Prisma.SortOrder
+  migrationOrigin?: Prisma.SortOrder
+  runtimeVerificationState?: Prisma.SortOrder
+  provider?: Prisma.SortOrderInput | Prisma.SortOrder
+  runtimeRef?: Prisma.SortOrderInput | Prisma.SortOrder
+  runtimeUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  provisioningRequestedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  provisionedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  deletionRequestedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  failureCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  failureMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationOrderByRelationAggregateInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptOrderByRelationAggregateInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionOrderByRelationAggregateInput
 }
 
 export type WorkspaceWhereUniqueInput = Prisma.AtLeast<{
@@ -207,22 +485,79 @@ export type WorkspaceWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.WorkspaceWhereInput[]
   NOT?: Prisma.WorkspaceWhereInput | Prisma.WorkspaceWhereInput[]
   userId?: Prisma.StringFilter<"Workspace"> | string
+  createdByUserId?: Prisma.StringFilter<"Workspace"> | string
   name?: Prisma.StringFilter<"Workspace"> | string
+  normalizedName?: Prisma.StringFilter<"Workspace"> | string
   status?: Prisma.StringFilter<"Workspace"> | string
+  lifecycleVersion?: Prisma.IntFilter<"Workspace"> | number
+  eventSequence?: Prisma.IntFilter<"Workspace"> | number
+  ownerBootstrapState?: Prisma.StringFilter<"Workspace"> | string
+  ownerBootstrapAttemptId?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFilter<"Workspace"> | number
+  ownerBootstrapRequestedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapExpiresAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerMembershipEstablishedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapFailureCode?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  ownerBootstrapFailureMessage?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  requestedProfile?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  resolvedProvisioningProfile?: Prisma.JsonNullableFilter<"Workspace">
+  provisioningProfileSource?: Prisma.StringFilter<"Workspace"> | string
+  migrationOrigin?: Prisma.StringFilter<"Workspace"> | string
+  runtimeVerificationState?: Prisma.StringFilter<"Workspace"> | string
+  provider?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  runtimeRef?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  runtimeUrl?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  provisioningRequestedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  provisionedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  deletionRequestedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  deletedAt?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  failureCode?: Prisma.StringNullableFilter<"Workspace"> | string | null
+  failureMessage?: Prisma.StringNullableFilter<"Workspace"> | string | null
   createdAt?: Prisma.StringFilter<"Workspace"> | string
   updatedAt?: Prisma.StringFilter<"Workspace"> | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationListRelationFilter
+  commandReceipts?: Prisma.WorkspaceCommandReceiptListRelationFilter
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionListRelationFilter
 }, "workspaceId">
 
 export type WorkspaceOrderByWithAggregationInput = {
   workspaceId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  createdByUserId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  normalizedName?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapState?: Prisma.SortOrder
+  ownerBootstrapAttemptId?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
+  ownerBootstrapRequestedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapExpiresAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerMembershipEstablishedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapFailureCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  ownerBootstrapFailureMessage?: Prisma.SortOrderInput | Prisma.SortOrder
+  requestedProfile?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolvedProvisioningProfile?: Prisma.SortOrderInput | Prisma.SortOrder
+  provisioningProfileSource?: Prisma.SortOrder
+  migrationOrigin?: Prisma.SortOrder
+  runtimeVerificationState?: Prisma.SortOrder
+  provider?: Prisma.SortOrderInput | Prisma.SortOrder
+  runtimeRef?: Prisma.SortOrderInput | Prisma.SortOrder
+  runtimeUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  provisioningRequestedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  provisionedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  deletionRequestedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  failureCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  failureMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.WorkspaceCountOrderByAggregateInput
+  _avg?: Prisma.WorkspaceAvgOrderByAggregateInput
   _max?: Prisma.WorkspaceMaxOrderByAggregateInput
   _min?: Prisma.WorkspaceMinOrderByAggregateInput
+  _sum?: Prisma.WorkspaceSumOrderByAggregateInput
 }
 
 export type WorkspaceScalarWhereWithAggregatesInput = {
@@ -231,8 +566,34 @@ export type WorkspaceScalarWhereWithAggregatesInput = {
   NOT?: Prisma.WorkspaceScalarWhereWithAggregatesInput | Prisma.WorkspaceScalarWhereWithAggregatesInput[]
   workspaceId?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
   userId?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  createdByUserId?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
   name?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  normalizedName?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
   status?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  lifecycleVersion?: Prisma.IntWithAggregatesFilter<"Workspace"> | number
+  eventSequence?: Prisma.IntWithAggregatesFilter<"Workspace"> | number
+  ownerBootstrapState?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  ownerBootstrapAttemptId?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntWithAggregatesFilter<"Workspace"> | number
+  ownerBootstrapRequestedAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  ownerBootstrapExpiresAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  ownerMembershipEstablishedAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  ownerBootstrapFailureCode?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  ownerBootstrapFailureMessage?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  requestedProfile?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  resolvedProvisioningProfile?: Prisma.JsonNullableWithAggregatesFilter<"Workspace">
+  provisioningProfileSource?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  migrationOrigin?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  runtimeVerificationState?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
+  provider?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  runtimeRef?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  runtimeUrl?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  provisioningRequestedAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  provisionedAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  deletionRequestedAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  deletedAt?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  failureCode?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
+  failureMessage?: Prisma.StringNullableWithAggregatesFilter<"Workspace"> | string | null
   createdAt?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
   updatedAt?: Prisma.StringWithAggregatesFilter<"Workspace"> | string
 }
@@ -240,44 +601,186 @@ export type WorkspaceScalarWhereWithAggregatesInput = {
 export type WorkspaceCreateInput = {
   workspaceId: string
   userId: string
+  createdByUserId: string
   name: string
+  normalizedName: string
   status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
   createdAt: string
   updatedAt: string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationCreateNestedManyWithoutWorkspaceInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptCreateNestedManyWithoutWorkspaceInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionCreateNestedManyWithoutWorkspaceInput
 }
 
 export type WorkspaceUncheckedCreateInput = {
   workspaceId: string
   userId: string
+  createdByUserId: string
   name: string
+  normalizedName: string
   status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
   createdAt: string
   updatedAt: string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUncheckedCreateNestedManyWithoutWorkspaceInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUncheckedCreateNestedManyWithoutWorkspaceInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUncheckedCreateNestedManyWithoutWorkspaceInput
 }
 
 export type WorkspaceUpdateInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUpdateManyWithoutWorkspaceNestedInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUpdateManyWithoutWorkspaceNestedInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUpdateManyWithoutWorkspaceNestedInput
 }
 
 export type WorkspaceUncheckedUpdateInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUncheckedUpdateManyWithoutWorkspaceNestedInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUncheckedUpdateManyWithoutWorkspaceNestedInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUncheckedUpdateManyWithoutWorkspaceNestedInput
 }
 
 export type WorkspaceCreateManyInput = {
   workspaceId: string
   userId: string
+  createdByUserId: string
   name: string
+  normalizedName: string
   status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -285,8 +788,34 @@ export type WorkspaceCreateManyInput = {
 export type WorkspaceUpdateManyMutationInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -294,8 +823,34 @@ export type WorkspaceUpdateManyMutationInput = {
 export type WorkspaceUncheckedUpdateManyInput = {
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -303,17 +858,74 @@ export type WorkspaceUncheckedUpdateManyInput = {
 export type WorkspaceCountOrderByAggregateInput = {
   workspaceId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  createdByUserId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  normalizedName?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapState?: Prisma.SortOrder
+  ownerBootstrapAttemptId?: Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
+  ownerBootstrapRequestedAt?: Prisma.SortOrder
+  ownerBootstrapExpiresAt?: Prisma.SortOrder
+  ownerMembershipEstablishedAt?: Prisma.SortOrder
+  ownerBootstrapFailureCode?: Prisma.SortOrder
+  ownerBootstrapFailureMessage?: Prisma.SortOrder
+  requestedProfile?: Prisma.SortOrder
+  resolvedProvisioningProfile?: Prisma.SortOrder
+  provisioningProfileSource?: Prisma.SortOrder
+  migrationOrigin?: Prisma.SortOrder
+  runtimeVerificationState?: Prisma.SortOrder
+  provider?: Prisma.SortOrder
+  runtimeRef?: Prisma.SortOrder
+  runtimeUrl?: Prisma.SortOrder
+  provisioningRequestedAt?: Prisma.SortOrder
+  provisionedAt?: Prisma.SortOrder
+  deletionRequestedAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrder
+  failureCode?: Prisma.SortOrder
+  failureMessage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type WorkspaceAvgOrderByAggregateInput = {
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
 }
 
 export type WorkspaceMaxOrderByAggregateInput = {
   workspaceId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  createdByUserId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  normalizedName?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapState?: Prisma.SortOrder
+  ownerBootstrapAttemptId?: Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
+  ownerBootstrapRequestedAt?: Prisma.SortOrder
+  ownerBootstrapExpiresAt?: Prisma.SortOrder
+  ownerMembershipEstablishedAt?: Prisma.SortOrder
+  ownerBootstrapFailureCode?: Prisma.SortOrder
+  ownerBootstrapFailureMessage?: Prisma.SortOrder
+  requestedProfile?: Prisma.SortOrder
+  provisioningProfileSource?: Prisma.SortOrder
+  migrationOrigin?: Prisma.SortOrder
+  runtimeVerificationState?: Prisma.SortOrder
+  provider?: Prisma.SortOrder
+  runtimeRef?: Prisma.SortOrder
+  runtimeUrl?: Prisma.SortOrder
+  provisioningRequestedAt?: Prisma.SortOrder
+  provisionedAt?: Prisma.SortOrder
+  deletionRequestedAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrder
+  failureCode?: Prisma.SortOrder
+  failureMessage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -321,28 +933,709 @@ export type WorkspaceMaxOrderByAggregateInput = {
 export type WorkspaceMinOrderByAggregateInput = {
   workspaceId?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  createdByUserId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  normalizedName?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapState?: Prisma.SortOrder
+  ownerBootstrapAttemptId?: Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
+  ownerBootstrapRequestedAt?: Prisma.SortOrder
+  ownerBootstrapExpiresAt?: Prisma.SortOrder
+  ownerMembershipEstablishedAt?: Prisma.SortOrder
+  ownerBootstrapFailureCode?: Prisma.SortOrder
+  ownerBootstrapFailureMessage?: Prisma.SortOrder
+  requestedProfile?: Prisma.SortOrder
+  provisioningProfileSource?: Prisma.SortOrder
+  migrationOrigin?: Prisma.SortOrder
+  runtimeVerificationState?: Prisma.SortOrder
+  provider?: Prisma.SortOrder
+  runtimeRef?: Prisma.SortOrder
+  runtimeUrl?: Prisma.SortOrder
+  provisioningRequestedAt?: Prisma.SortOrder
+  provisionedAt?: Prisma.SortOrder
+  deletionRequestedAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrder
+  failureCode?: Prisma.SortOrder
+  failureMessage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
+export type WorkspaceSumOrderByAggregateInput = {
+  lifecycleVersion?: Prisma.SortOrder
+  eventSequence?: Prisma.SortOrder
+  ownerBootstrapAttemptVersion?: Prisma.SortOrder
+}
+
+export type WorkspaceScalarRelationFilter = {
+  is?: Prisma.WorkspaceWhereInput
+  isNot?: Prisma.WorkspaceWhereInput
+}
+
+export type IntFieldUpdateOperationsInput = {
+  set?: number
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
+export type WorkspaceCreateNestedOneWithoutProvisioningOperationsInput = {
+  create?: Prisma.XOR<Prisma.WorkspaceCreateWithoutProvisioningOperationsInput, Prisma.WorkspaceUncheckedCreateWithoutProvisioningOperationsInput>
+  connectOrCreate?: Prisma.WorkspaceCreateOrConnectWithoutProvisioningOperationsInput
+  connect?: Prisma.WorkspaceWhereUniqueInput
+}
+
+export type WorkspaceUpdateOneRequiredWithoutProvisioningOperationsNestedInput = {
+  create?: Prisma.XOR<Prisma.WorkspaceCreateWithoutProvisioningOperationsInput, Prisma.WorkspaceUncheckedCreateWithoutProvisioningOperationsInput>
+  connectOrCreate?: Prisma.WorkspaceCreateOrConnectWithoutProvisioningOperationsInput
+  upsert?: Prisma.WorkspaceUpsertWithoutProvisioningOperationsInput
+  connect?: Prisma.WorkspaceWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.WorkspaceUpdateToOneWithWhereWithoutProvisioningOperationsInput, Prisma.WorkspaceUpdateWithoutProvisioningOperationsInput>, Prisma.WorkspaceUncheckedUpdateWithoutProvisioningOperationsInput>
+}
+
+export type WorkspaceCreateNestedOneWithoutCommandReceiptsInput = {
+  create?: Prisma.XOR<Prisma.WorkspaceCreateWithoutCommandReceiptsInput, Prisma.WorkspaceUncheckedCreateWithoutCommandReceiptsInput>
+  connectOrCreate?: Prisma.WorkspaceCreateOrConnectWithoutCommandReceiptsInput
+  connect?: Prisma.WorkspaceWhereUniqueInput
+}
+
+export type WorkspaceUpdateOneRequiredWithoutCommandReceiptsNestedInput = {
+  create?: Prisma.XOR<Prisma.WorkspaceCreateWithoutCommandReceiptsInput, Prisma.WorkspaceUncheckedCreateWithoutCommandReceiptsInput>
+  connectOrCreate?: Prisma.WorkspaceCreateOrConnectWithoutCommandReceiptsInput
+  upsert?: Prisma.WorkspaceUpsertWithoutCommandReceiptsInput
+  connect?: Prisma.WorkspaceWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.WorkspaceUpdateToOneWithWhereWithoutCommandReceiptsInput, Prisma.WorkspaceUpdateWithoutCommandReceiptsInput>, Prisma.WorkspaceUncheckedUpdateWithoutCommandReceiptsInput>
+}
+
+export type WorkspaceCreateNestedOneWithoutVisibilityProjectionsInput = {
+  create?: Prisma.XOR<Prisma.WorkspaceCreateWithoutVisibilityProjectionsInput, Prisma.WorkspaceUncheckedCreateWithoutVisibilityProjectionsInput>
+  connectOrCreate?: Prisma.WorkspaceCreateOrConnectWithoutVisibilityProjectionsInput
+  connect?: Prisma.WorkspaceWhereUniqueInput
+}
+
+export type WorkspaceUpdateOneRequiredWithoutVisibilityProjectionsNestedInput = {
+  create?: Prisma.XOR<Prisma.WorkspaceCreateWithoutVisibilityProjectionsInput, Prisma.WorkspaceUncheckedCreateWithoutVisibilityProjectionsInput>
+  connectOrCreate?: Prisma.WorkspaceCreateOrConnectWithoutVisibilityProjectionsInput
+  upsert?: Prisma.WorkspaceUpsertWithoutVisibilityProjectionsInput
+  connect?: Prisma.WorkspaceWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.WorkspaceUpdateToOneWithWhereWithoutVisibilityProjectionsInput, Prisma.WorkspaceUpdateWithoutVisibilityProjectionsInput>, Prisma.WorkspaceUncheckedUpdateWithoutVisibilityProjectionsInput>
+}
+
+export type WorkspaceCreateWithoutProvisioningOperationsInput = {
+  workspaceId: string
+  userId: string
+  createdByUserId: string
+  name: string
+  normalizedName: string
+  status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  commandReceipts?: Prisma.WorkspaceCommandReceiptCreateNestedManyWithoutWorkspaceInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionCreateNestedManyWithoutWorkspaceInput
+}
+
+export type WorkspaceUncheckedCreateWithoutProvisioningOperationsInput = {
+  workspaceId: string
+  userId: string
+  createdByUserId: string
+  name: string
+  normalizedName: string
+  status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUncheckedCreateNestedManyWithoutWorkspaceInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUncheckedCreateNestedManyWithoutWorkspaceInput
+}
+
+export type WorkspaceCreateOrConnectWithoutProvisioningOperationsInput = {
+  where: Prisma.WorkspaceWhereUniqueInput
+  create: Prisma.XOR<Prisma.WorkspaceCreateWithoutProvisioningOperationsInput, Prisma.WorkspaceUncheckedCreateWithoutProvisioningOperationsInput>
+}
+
+export type WorkspaceUpsertWithoutProvisioningOperationsInput = {
+  update: Prisma.XOR<Prisma.WorkspaceUpdateWithoutProvisioningOperationsInput, Prisma.WorkspaceUncheckedUpdateWithoutProvisioningOperationsInput>
+  create: Prisma.XOR<Prisma.WorkspaceCreateWithoutProvisioningOperationsInput, Prisma.WorkspaceUncheckedCreateWithoutProvisioningOperationsInput>
+  where?: Prisma.WorkspaceWhereInput
+}
+
+export type WorkspaceUpdateToOneWithWhereWithoutProvisioningOperationsInput = {
+  where?: Prisma.WorkspaceWhereInput
+  data: Prisma.XOR<Prisma.WorkspaceUpdateWithoutProvisioningOperationsInput, Prisma.WorkspaceUncheckedUpdateWithoutProvisioningOperationsInput>
+}
+
+export type WorkspaceUpdateWithoutProvisioningOperationsInput = {
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUpdateManyWithoutWorkspaceNestedInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUpdateManyWithoutWorkspaceNestedInput
+}
+
+export type WorkspaceUncheckedUpdateWithoutProvisioningOperationsInput = {
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUncheckedUpdateManyWithoutWorkspaceNestedInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUncheckedUpdateManyWithoutWorkspaceNestedInput
+}
+
+export type WorkspaceCreateWithoutCommandReceiptsInput = {
+  workspaceId: string
+  userId: string
+  createdByUserId: string
+  name: string
+  normalizedName: string
+  status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationCreateNestedManyWithoutWorkspaceInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionCreateNestedManyWithoutWorkspaceInput
+}
+
+export type WorkspaceUncheckedCreateWithoutCommandReceiptsInput = {
+  workspaceId: string
+  userId: string
+  createdByUserId: string
+  name: string
+  normalizedName: string
+  status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUncheckedCreateNestedManyWithoutWorkspaceInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUncheckedCreateNestedManyWithoutWorkspaceInput
+}
+
+export type WorkspaceCreateOrConnectWithoutCommandReceiptsInput = {
+  where: Prisma.WorkspaceWhereUniqueInput
+  create: Prisma.XOR<Prisma.WorkspaceCreateWithoutCommandReceiptsInput, Prisma.WorkspaceUncheckedCreateWithoutCommandReceiptsInput>
+}
+
+export type WorkspaceUpsertWithoutCommandReceiptsInput = {
+  update: Prisma.XOR<Prisma.WorkspaceUpdateWithoutCommandReceiptsInput, Prisma.WorkspaceUncheckedUpdateWithoutCommandReceiptsInput>
+  create: Prisma.XOR<Prisma.WorkspaceCreateWithoutCommandReceiptsInput, Prisma.WorkspaceUncheckedCreateWithoutCommandReceiptsInput>
+  where?: Prisma.WorkspaceWhereInput
+}
+
+export type WorkspaceUpdateToOneWithWhereWithoutCommandReceiptsInput = {
+  where?: Prisma.WorkspaceWhereInput
+  data: Prisma.XOR<Prisma.WorkspaceUpdateWithoutCommandReceiptsInput, Prisma.WorkspaceUncheckedUpdateWithoutCommandReceiptsInput>
+}
+
+export type WorkspaceUpdateWithoutCommandReceiptsInput = {
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUpdateManyWithoutWorkspaceNestedInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUpdateManyWithoutWorkspaceNestedInput
+}
+
+export type WorkspaceUncheckedUpdateWithoutCommandReceiptsInput = {
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUncheckedUpdateManyWithoutWorkspaceNestedInput
+  visibilityProjections?: Prisma.WorkspaceVisibilityProjectionUncheckedUpdateManyWithoutWorkspaceNestedInput
+}
+
+export type WorkspaceCreateWithoutVisibilityProjectionsInput = {
+  workspaceId: string
+  userId: string
+  createdByUserId: string
+  name: string
+  normalizedName: string
+  status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationCreateNestedManyWithoutWorkspaceInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptCreateNestedManyWithoutWorkspaceInput
+}
+
+export type WorkspaceUncheckedCreateWithoutVisibilityProjectionsInput = {
+  workspaceId: string
+  userId: string
+  createdByUserId: string
+  name: string
+  normalizedName: string
+  status?: string
+  lifecycleVersion?: number
+  eventSequence?: number
+  ownerBootstrapState?: string
+  ownerBootstrapAttemptId?: string | null
+  ownerBootstrapAttemptVersion?: number
+  ownerBootstrapRequestedAt?: string | null
+  ownerBootstrapExpiresAt?: string | null
+  ownerMembershipEstablishedAt?: string | null
+  ownerBootstrapFailureCode?: string | null
+  ownerBootstrapFailureMessage?: string | null
+  requestedProfile?: string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: string
+  migrationOrigin?: string
+  runtimeVerificationState?: string
+  provider?: string | null
+  runtimeRef?: string | null
+  runtimeUrl?: string | null
+  provisioningRequestedAt?: string | null
+  provisionedAt?: string | null
+  deletionRequestedAt?: string | null
+  deletedAt?: string | null
+  failureCode?: string | null
+  failureMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUncheckedCreateNestedManyWithoutWorkspaceInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUncheckedCreateNestedManyWithoutWorkspaceInput
+}
+
+export type WorkspaceCreateOrConnectWithoutVisibilityProjectionsInput = {
+  where: Prisma.WorkspaceWhereUniqueInput
+  create: Prisma.XOR<Prisma.WorkspaceCreateWithoutVisibilityProjectionsInput, Prisma.WorkspaceUncheckedCreateWithoutVisibilityProjectionsInput>
+}
+
+export type WorkspaceUpsertWithoutVisibilityProjectionsInput = {
+  update: Prisma.XOR<Prisma.WorkspaceUpdateWithoutVisibilityProjectionsInput, Prisma.WorkspaceUncheckedUpdateWithoutVisibilityProjectionsInput>
+  create: Prisma.XOR<Prisma.WorkspaceCreateWithoutVisibilityProjectionsInput, Prisma.WorkspaceUncheckedCreateWithoutVisibilityProjectionsInput>
+  where?: Prisma.WorkspaceWhereInput
+}
+
+export type WorkspaceUpdateToOneWithWhereWithoutVisibilityProjectionsInput = {
+  where?: Prisma.WorkspaceWhereInput
+  data: Prisma.XOR<Prisma.WorkspaceUpdateWithoutVisibilityProjectionsInput, Prisma.WorkspaceUncheckedUpdateWithoutVisibilityProjectionsInput>
+}
+
+export type WorkspaceUpdateWithoutVisibilityProjectionsInput = {
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUpdateManyWithoutWorkspaceNestedInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUpdateManyWithoutWorkspaceNestedInput
+}
+
+export type WorkspaceUncheckedUpdateWithoutVisibilityProjectionsInput = {
+  workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdByUserId?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  normalizedName?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  lifecycleVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  eventSequence?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapState?: Prisma.StringFieldUpdateOperationsInput | string
+  ownerBootstrapAttemptId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapAttemptVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  ownerBootstrapRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapExpiresAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerMembershipEstablishedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerBootstrapFailureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  requestedProfile?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  resolvedProvisioningProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  provisioningProfileSource?: Prisma.StringFieldUpdateOperationsInput | string
+  migrationOrigin?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeVerificationState?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  runtimeUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisioningRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  provisionedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionRequestedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  failureMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.StringFieldUpdateOperationsInput | string
+  updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+  provisioningOperations?: Prisma.WorkspaceProvisioningOperationUncheckedUpdateManyWithoutWorkspaceNestedInput
+  commandReceipts?: Prisma.WorkspaceCommandReceiptUncheckedUpdateManyWithoutWorkspaceNestedInput
+}
+
+
+/**
+ * Count Type WorkspaceCountOutputType
+ */
+
+export type WorkspaceCountOutputType = {
+  provisioningOperations: number
+  commandReceipts: number
+  visibilityProjections: number
+}
+
+export type WorkspaceCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  provisioningOperations?: boolean | WorkspaceCountOutputTypeCountProvisioningOperationsArgs
+  commandReceipts?: boolean | WorkspaceCountOutputTypeCountCommandReceiptsArgs
+  visibilityProjections?: boolean | WorkspaceCountOutputTypeCountVisibilityProjectionsArgs
+}
+
+/**
+ * WorkspaceCountOutputType without action
+ */
+export type WorkspaceCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the WorkspaceCountOutputType
+   */
+  select?: Prisma.WorkspaceCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * WorkspaceCountOutputType without action
+ */
+export type WorkspaceCountOutputTypeCountProvisioningOperationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.WorkspaceProvisioningOperationWhereInput
+}
+
+/**
+ * WorkspaceCountOutputType without action
+ */
+export type WorkspaceCountOutputTypeCountCommandReceiptsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.WorkspaceCommandReceiptWhereInput
+}
+
+/**
+ * WorkspaceCountOutputType without action
+ */
+export type WorkspaceCountOutputTypeCountVisibilityProjectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.WorkspaceVisibilityProjectionWhereInput
+}
 
 
 export type WorkspaceSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   workspaceId?: boolean
   userId?: boolean
+  createdByUserId?: boolean
   name?: boolean
+  normalizedName?: boolean
   status?: boolean
+  lifecycleVersion?: boolean
+  eventSequence?: boolean
+  ownerBootstrapState?: boolean
+  ownerBootstrapAttemptId?: boolean
+  ownerBootstrapAttemptVersion?: boolean
+  ownerBootstrapRequestedAt?: boolean
+  ownerBootstrapExpiresAt?: boolean
+  ownerMembershipEstablishedAt?: boolean
+  ownerBootstrapFailureCode?: boolean
+  ownerBootstrapFailureMessage?: boolean
+  requestedProfile?: boolean
+  resolvedProvisioningProfile?: boolean
+  provisioningProfileSource?: boolean
+  migrationOrigin?: boolean
+  runtimeVerificationState?: boolean
+  provider?: boolean
+  runtimeRef?: boolean
+  runtimeUrl?: boolean
+  provisioningRequestedAt?: boolean
+  provisionedAt?: boolean
+  deletionRequestedAt?: boolean
+  deletedAt?: boolean
+  failureCode?: boolean
+  failureMessage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  provisioningOperations?: boolean | Prisma.Workspace$provisioningOperationsArgs<ExtArgs>
+  commandReceipts?: boolean | Prisma.Workspace$commandReceiptsArgs<ExtArgs>
+  visibilityProjections?: boolean | Prisma.Workspace$visibilityProjectionsArgs<ExtArgs>
+  _count?: boolean | Prisma.WorkspaceCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["workspace"]>
 
 export type WorkspaceSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   workspaceId?: boolean
   userId?: boolean
+  createdByUserId?: boolean
   name?: boolean
+  normalizedName?: boolean
   status?: boolean
+  lifecycleVersion?: boolean
+  eventSequence?: boolean
+  ownerBootstrapState?: boolean
+  ownerBootstrapAttemptId?: boolean
+  ownerBootstrapAttemptVersion?: boolean
+  ownerBootstrapRequestedAt?: boolean
+  ownerBootstrapExpiresAt?: boolean
+  ownerMembershipEstablishedAt?: boolean
+  ownerBootstrapFailureCode?: boolean
+  ownerBootstrapFailureMessage?: boolean
+  requestedProfile?: boolean
+  resolvedProvisioningProfile?: boolean
+  provisioningProfileSource?: boolean
+  migrationOrigin?: boolean
+  runtimeVerificationState?: boolean
+  provider?: boolean
+  runtimeRef?: boolean
+  runtimeUrl?: boolean
+  provisioningRequestedAt?: boolean
+  provisionedAt?: boolean
+  deletionRequestedAt?: boolean
+  deletedAt?: boolean
+  failureCode?: boolean
+  failureMessage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["workspace"]>
@@ -350,8 +1643,34 @@ export type WorkspaceSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
 export type WorkspaceSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   workspaceId?: boolean
   userId?: boolean
+  createdByUserId?: boolean
   name?: boolean
+  normalizedName?: boolean
   status?: boolean
+  lifecycleVersion?: boolean
+  eventSequence?: boolean
+  ownerBootstrapState?: boolean
+  ownerBootstrapAttemptId?: boolean
+  ownerBootstrapAttemptVersion?: boolean
+  ownerBootstrapRequestedAt?: boolean
+  ownerBootstrapExpiresAt?: boolean
+  ownerMembershipEstablishedAt?: boolean
+  ownerBootstrapFailureCode?: boolean
+  ownerBootstrapFailureMessage?: boolean
+  requestedProfile?: boolean
+  resolvedProvisioningProfile?: boolean
+  provisioningProfileSource?: boolean
+  migrationOrigin?: boolean
+  runtimeVerificationState?: boolean
+  provider?: boolean
+  runtimeRef?: boolean
+  runtimeUrl?: boolean
+  provisioningRequestedAt?: boolean
+  provisionedAt?: boolean
+  deletionRequestedAt?: boolean
+  deletedAt?: boolean
+  failureCode?: boolean
+  failureMessage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["workspace"]>
@@ -359,22 +1678,86 @@ export type WorkspaceSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
 export type WorkspaceSelectScalar = {
   workspaceId?: boolean
   userId?: boolean
+  createdByUserId?: boolean
   name?: boolean
+  normalizedName?: boolean
   status?: boolean
+  lifecycleVersion?: boolean
+  eventSequence?: boolean
+  ownerBootstrapState?: boolean
+  ownerBootstrapAttemptId?: boolean
+  ownerBootstrapAttemptVersion?: boolean
+  ownerBootstrapRequestedAt?: boolean
+  ownerBootstrapExpiresAt?: boolean
+  ownerMembershipEstablishedAt?: boolean
+  ownerBootstrapFailureCode?: boolean
+  ownerBootstrapFailureMessage?: boolean
+  requestedProfile?: boolean
+  resolvedProvisioningProfile?: boolean
+  provisioningProfileSource?: boolean
+  migrationOrigin?: boolean
+  runtimeVerificationState?: boolean
+  provider?: boolean
+  runtimeRef?: boolean
+  runtimeUrl?: boolean
+  provisioningRequestedAt?: boolean
+  provisionedAt?: boolean
+  deletionRequestedAt?: boolean
+  deletedAt?: boolean
+  failureCode?: boolean
+  failureMessage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type WorkspaceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"workspaceId" | "userId" | "name" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["workspace"]>
+export type WorkspaceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"workspaceId" | "userId" | "createdByUserId" | "name" | "normalizedName" | "status" | "lifecycleVersion" | "eventSequence" | "ownerBootstrapState" | "ownerBootstrapAttemptId" | "ownerBootstrapAttemptVersion" | "ownerBootstrapRequestedAt" | "ownerBootstrapExpiresAt" | "ownerMembershipEstablishedAt" | "ownerBootstrapFailureCode" | "ownerBootstrapFailureMessage" | "requestedProfile" | "resolvedProvisioningProfile" | "provisioningProfileSource" | "migrationOrigin" | "runtimeVerificationState" | "provider" | "runtimeRef" | "runtimeUrl" | "provisioningRequestedAt" | "provisionedAt" | "deletionRequestedAt" | "deletedAt" | "failureCode" | "failureMessage" | "createdAt" | "updatedAt", ExtArgs["result"]["workspace"]>
+export type WorkspaceInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  provisioningOperations?: boolean | Prisma.Workspace$provisioningOperationsArgs<ExtArgs>
+  commandReceipts?: boolean | Prisma.Workspace$commandReceiptsArgs<ExtArgs>
+  visibilityProjections?: boolean | Prisma.Workspace$visibilityProjectionsArgs<ExtArgs>
+  _count?: boolean | Prisma.WorkspaceCountOutputTypeDefaultArgs<ExtArgs>
+}
+export type WorkspaceIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
+export type WorkspaceIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
 
 export type $WorkspacePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Workspace"
-  objects: {}
+  objects: {
+    provisioningOperations: Prisma.$WorkspaceProvisioningOperationPayload<ExtArgs>[]
+    commandReceipts: Prisma.$WorkspaceCommandReceiptPayload<ExtArgs>[]
+    visibilityProjections: Prisma.$WorkspaceVisibilityProjectionPayload<ExtArgs>[]
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     workspaceId: string
     userId: string
+    createdByUserId: string
     name: string
+    normalizedName: string
     status: string
+    lifecycleVersion: number
+    eventSequence: number
+    ownerBootstrapState: string
+    ownerBootstrapAttemptId: string | null
+    ownerBootstrapAttemptVersion: number
+    ownerBootstrapRequestedAt: string | null
+    ownerBootstrapExpiresAt: string | null
+    ownerMembershipEstablishedAt: string | null
+    ownerBootstrapFailureCode: string | null
+    ownerBootstrapFailureMessage: string | null
+    requestedProfile: string | null
+    resolvedProvisioningProfile: runtime.JsonValue | null
+    provisioningProfileSource: string
+    migrationOrigin: string
+    runtimeVerificationState: string
+    provider: string | null
+    runtimeRef: string | null
+    runtimeUrl: string | null
+    provisioningRequestedAt: string | null
+    provisionedAt: string | null
+    deletionRequestedAt: string | null
+    deletedAt: string | null
+    failureCode: string | null
+    failureMessage: string | null
     createdAt: string
     updatedAt: string
   }, ExtArgs["result"]["workspace"]>
@@ -771,6 +2154,9 @@ readonly fields: WorkspaceFieldRefs;
  */
 export interface Prisma__WorkspaceClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  provisioningOperations<T extends Prisma.Workspace$provisioningOperationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Workspace$provisioningOperationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WorkspaceProvisioningOperationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  commandReceipts<T extends Prisma.Workspace$commandReceiptsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Workspace$commandReceiptsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WorkspaceCommandReceiptPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  visibilityProjections<T extends Prisma.Workspace$visibilityProjectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Workspace$visibilityProjectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WorkspaceVisibilityProjectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -802,8 +2188,34 @@ export interface Prisma__WorkspaceClient<T, Null = never, ExtArgs extends runtim
 export interface WorkspaceFieldRefs {
   readonly workspaceId: Prisma.FieldRef<"Workspace", 'String'>
   readonly userId: Prisma.FieldRef<"Workspace", 'String'>
+  readonly createdByUserId: Prisma.FieldRef<"Workspace", 'String'>
   readonly name: Prisma.FieldRef<"Workspace", 'String'>
+  readonly normalizedName: Prisma.FieldRef<"Workspace", 'String'>
   readonly status: Prisma.FieldRef<"Workspace", 'String'>
+  readonly lifecycleVersion: Prisma.FieldRef<"Workspace", 'Int'>
+  readonly eventSequence: Prisma.FieldRef<"Workspace", 'Int'>
+  readonly ownerBootstrapState: Prisma.FieldRef<"Workspace", 'String'>
+  readonly ownerBootstrapAttemptId: Prisma.FieldRef<"Workspace", 'String'>
+  readonly ownerBootstrapAttemptVersion: Prisma.FieldRef<"Workspace", 'Int'>
+  readonly ownerBootstrapRequestedAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly ownerBootstrapExpiresAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly ownerMembershipEstablishedAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly ownerBootstrapFailureCode: Prisma.FieldRef<"Workspace", 'String'>
+  readonly ownerBootstrapFailureMessage: Prisma.FieldRef<"Workspace", 'String'>
+  readonly requestedProfile: Prisma.FieldRef<"Workspace", 'String'>
+  readonly resolvedProvisioningProfile: Prisma.FieldRef<"Workspace", 'Json'>
+  readonly provisioningProfileSource: Prisma.FieldRef<"Workspace", 'String'>
+  readonly migrationOrigin: Prisma.FieldRef<"Workspace", 'String'>
+  readonly runtimeVerificationState: Prisma.FieldRef<"Workspace", 'String'>
+  readonly provider: Prisma.FieldRef<"Workspace", 'String'>
+  readonly runtimeRef: Prisma.FieldRef<"Workspace", 'String'>
+  readonly runtimeUrl: Prisma.FieldRef<"Workspace", 'String'>
+  readonly provisioningRequestedAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly provisionedAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly deletionRequestedAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly deletedAt: Prisma.FieldRef<"Workspace", 'String'>
+  readonly failureCode: Prisma.FieldRef<"Workspace", 'String'>
+  readonly failureMessage: Prisma.FieldRef<"Workspace", 'String'>
   readonly createdAt: Prisma.FieldRef<"Workspace", 'String'>
   readonly updatedAt: Prisma.FieldRef<"Workspace", 'String'>
 }
@@ -823,6 +2235,10 @@ export type WorkspaceFindUniqueArgs<ExtArgs extends runtime.Types.Extensions.Int
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
+  /**
    * Filter, which Workspace to fetch.
    */
   where: Prisma.WorkspaceWhereUniqueInput
@@ -841,6 +2257,10 @@ export type WorkspaceFindUniqueOrThrowArgs<ExtArgs extends runtime.Types.Extensi
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
+  /**
    * Filter, which Workspace to fetch.
    */
   where: Prisma.WorkspaceWhereUniqueInput
@@ -858,6 +2278,10 @@ export type WorkspaceFindFirstArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * Omit specific fields from the Workspace
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
   /**
    * Filter, which Workspace to fetch.
    */
@@ -907,6 +2331,10 @@ export type WorkspaceFindFirstOrThrowArgs<ExtArgs extends runtime.Types.Extensio
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
+  /**
    * Filter, which Workspace to fetch.
    */
   where?: Prisma.WorkspaceWhereInput
@@ -954,6 +2382,10 @@ export type WorkspaceFindManyArgs<ExtArgs extends runtime.Types.Extensions.Inter
    * Omit specific fields from the Workspace
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
   /**
    * Filter, which Workspaces to fetch.
    */
@@ -1003,6 +2435,10 @@ export type WorkspaceCreateArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
+  /**
    * The data needed to create a Workspace.
    */
   data: Prisma.XOR<Prisma.WorkspaceCreateInput, Prisma.WorkspaceUncheckedCreateInput>
@@ -1050,6 +2486,10 @@ export type WorkspaceUpdateArgs<ExtArgs extends runtime.Types.Extensions.Interna
    * Omit specific fields from the Workspace
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
   /**
    * The data needed to update a Workspace.
    */
@@ -1117,6 +2557,10 @@ export type WorkspaceUpsertArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
+  /**
    * The filter to search for the Workspace to update in case it exists.
    */
   where: Prisma.WorkspaceWhereUniqueInput
@@ -1143,6 +2587,10 @@ export type WorkspaceDeleteArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
+  /**
    * Filter which Workspace to delete.
    */
   where: Prisma.WorkspaceWhereUniqueInput
@@ -1163,6 +2611,78 @@ export type WorkspaceDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Int
 }
 
 /**
+ * Workspace.provisioningOperations
+ */
+export type Workspace$provisioningOperationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the WorkspaceProvisioningOperation
+   */
+  select?: Prisma.WorkspaceProvisioningOperationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the WorkspaceProvisioningOperation
+   */
+  omit?: Prisma.WorkspaceProvisioningOperationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceProvisioningOperationInclude<ExtArgs> | null
+  where?: Prisma.WorkspaceProvisioningOperationWhereInput
+  orderBy?: Prisma.WorkspaceProvisioningOperationOrderByWithRelationInput | Prisma.WorkspaceProvisioningOperationOrderByWithRelationInput[]
+  cursor?: Prisma.WorkspaceProvisioningOperationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.WorkspaceProvisioningOperationScalarFieldEnum | Prisma.WorkspaceProvisioningOperationScalarFieldEnum[]
+}
+
+/**
+ * Workspace.commandReceipts
+ */
+export type Workspace$commandReceiptsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the WorkspaceCommandReceipt
+   */
+  select?: Prisma.WorkspaceCommandReceiptSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the WorkspaceCommandReceipt
+   */
+  omit?: Prisma.WorkspaceCommandReceiptOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceCommandReceiptInclude<ExtArgs> | null
+  where?: Prisma.WorkspaceCommandReceiptWhereInput
+  orderBy?: Prisma.WorkspaceCommandReceiptOrderByWithRelationInput | Prisma.WorkspaceCommandReceiptOrderByWithRelationInput[]
+  cursor?: Prisma.WorkspaceCommandReceiptWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.WorkspaceCommandReceiptScalarFieldEnum | Prisma.WorkspaceCommandReceiptScalarFieldEnum[]
+}
+
+/**
+ * Workspace.visibilityProjections
+ */
+export type Workspace$visibilityProjectionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the WorkspaceVisibilityProjection
+   */
+  select?: Prisma.WorkspaceVisibilityProjectionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the WorkspaceVisibilityProjection
+   */
+  omit?: Prisma.WorkspaceVisibilityProjectionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceVisibilityProjectionInclude<ExtArgs> | null
+  where?: Prisma.WorkspaceVisibilityProjectionWhereInput
+  orderBy?: Prisma.WorkspaceVisibilityProjectionOrderByWithRelationInput | Prisma.WorkspaceVisibilityProjectionOrderByWithRelationInput[]
+  cursor?: Prisma.WorkspaceVisibilityProjectionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.WorkspaceVisibilityProjectionScalarFieldEnum | Prisma.WorkspaceVisibilityProjectionScalarFieldEnum[]
+}
+
+/**
  * Workspace without action
  */
 export type WorkspaceDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1174,4 +2694,8 @@ export type WorkspaceDefaultArgs<ExtArgs extends runtime.Types.Extensions.Intern
    * Omit specific fields from the Workspace
    */
   omit?: Prisma.WorkspaceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WorkspaceInclude<ExtArgs> | null
 }

@@ -25,6 +25,7 @@ type NavigationItem = {
 
 const primaryItems: NavigationItem[] = [
   { key: "dashboard", label: "Home", icon: Home },
+  { key: "workspaces", label: "Workspaces", icon: Library },
   { key: "executions", label: "Tasks", ariaLabel: "Công việc", icon: ListChecks }
 ];
 

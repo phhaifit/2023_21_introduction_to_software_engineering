@@ -57,6 +57,31 @@ export type Session = Prisma.SessionModel
  */
 export type Workspace = Prisma.WorkspaceModel
 /**
+ * Model WorkspaceProvisioningOperation
+ * 
+ */
+export type WorkspaceProvisioningOperation = Prisma.WorkspaceProvisioningOperationModel
+/**
+ * Model OutboxMessage
+ * 
+ */
+export type OutboxMessage = Prisma.OutboxMessageModel
+/**
+ * Model WorkspaceCommandReceipt
+ * 
+ */
+export type WorkspaceCommandReceipt = Prisma.WorkspaceCommandReceiptModel
+/**
+ * Model WorkspaceVisibilityProjection
+ * 
+ */
+export type WorkspaceVisibilityProjection = Prisma.WorkspaceVisibilityProjectionModel
+/**
+ * Model ProcessedDomainEvent
+ * 
+ */
+export type ProcessedDomainEvent = Prisma.ProcessedDomainEventModel
+/**
  * Model WorkspaceMember
  * 
  */

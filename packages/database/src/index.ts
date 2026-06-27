@@ -14,6 +14,8 @@ export type {
   KnowledgeSyncJob,
   KnowledgeSyncJobEvent,
   KnowledgeSyncScopeNode,
+  OutboxMessage,
+  ProcessedDomainEvent,
   Session,
   Subscription,
   Task,
@@ -25,5 +27,8 @@ export type {
   Workflow,
   WorkflowStep,
   Workspace,
-  WorkspaceMember
+  WorkspaceCommandReceipt,
+  WorkspaceMember,
+  WorkspaceProvisioningOperation,
+  WorkspaceVisibilityProjection
 } from "../generated/client/client.ts";

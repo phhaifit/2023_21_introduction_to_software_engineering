@@ -1,8 +1,9 @@
 export const WORKSPACE_STATUSES = [
-  "pending",
-  "running",
+  "provisioning",
+  "active",
   "failed",
-  "stopping",
+  "deleting",
+  "delete_failed",
   "deleted"
 ] as const;
 

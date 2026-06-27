@@ -54,6 +54,11 @@ export const ModelName = {
   User: 'User',
   Session: 'Session',
   Workspace: 'Workspace',
+  WorkspaceProvisioningOperation: 'WorkspaceProvisioningOperation',
+  OutboxMessage: 'OutboxMessage',
+  WorkspaceCommandReceipt: 'WorkspaceCommandReceipt',
+  WorkspaceVisibilityProjection: 'WorkspaceVisibilityProjection',
+  ProcessedDomainEvent: 'ProcessedDomainEvent',
   WorkspaceMember: 'WorkspaceMember',
   Invitation: 'Invitation',
   Agent: 'Agent',
@@ -124,13 +129,157 @@ export type SessionScalarFieldEnum = (typeof SessionScalarFieldEnum)[keyof typeo
 export const WorkspaceScalarFieldEnum = {
   workspaceId: 'workspaceId',
   userId: 'userId',
+  createdByUserId: 'createdByUserId',
   name: 'name',
+  normalizedName: 'normalizedName',
   status: 'status',
+  lifecycleVersion: 'lifecycleVersion',
+  eventSequence: 'eventSequence',
+  ownerBootstrapState: 'ownerBootstrapState',
+  ownerBootstrapAttemptId: 'ownerBootstrapAttemptId',
+  ownerBootstrapAttemptVersion: 'ownerBootstrapAttemptVersion',
+  ownerBootstrapRequestedAt: 'ownerBootstrapRequestedAt',
+  ownerBootstrapExpiresAt: 'ownerBootstrapExpiresAt',
+  ownerMembershipEstablishedAt: 'ownerMembershipEstablishedAt',
+  ownerBootstrapFailureCode: 'ownerBootstrapFailureCode',
+  ownerBootstrapFailureMessage: 'ownerBootstrapFailureMessage',
+  requestedProfile: 'requestedProfile',
+  resolvedProvisioningProfile: 'resolvedProvisioningProfile',
+  provisioningProfileSource: 'provisioningProfileSource',
+  migrationOrigin: 'migrationOrigin',
+  runtimeVerificationState: 'runtimeVerificationState',
+  provider: 'provider',
+  runtimeRef: 'runtimeRef',
+  runtimeUrl: 'runtimeUrl',
+  provisioningRequestedAt: 'provisioningRequestedAt',
+  provisionedAt: 'provisionedAt',
+  deletionRequestedAt: 'deletionRequestedAt',
+  deletedAt: 'deletedAt',
+  failureCode: 'failureCode',
+  failureMessage: 'failureMessage',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type WorkspaceScalarFieldEnum = (typeof WorkspaceScalarFieldEnum)[keyof typeof WorkspaceScalarFieldEnum]
+
+
+export const WorkspaceProvisioningOperationScalarFieldEnum = {
+  operationId: 'operationId',
+  workspaceId: 'workspaceId',
+  operationType: 'operationType',
+  operationFamily: 'operationFamily',
+  status: 'status',
+  executionPhase: 'executionPhase',
+  requestFingerprint: 'requestFingerprint',
+  idempotencyKeyHash: 'idempotencyKeyHash',
+  provider: 'provider',
+  providerRequestKey: 'providerRequestKey',
+  runtimeRef: 'runtimeRef',
+  runtimeFinalityProof: 'runtimeFinalityProof',
+  dependsOnOperationId: 'dependsOnOperationId',
+  supersedesOperationId: 'supersedesOperationId',
+  cancellationRequestedAt: 'cancellationRequestedAt',
+  claimedByWorkerId: 'claimedByWorkerId',
+  leaseToken: 'leaseToken',
+  leaseExpiresAt: 'leaseExpiresAt',
+  attemptCount: 'attemptCount',
+  maxAttempts: 'maxAttempts',
+  nextAttemptAt: 'nextAttemptAt',
+  lastAttemptAt: 'lastAttemptAt',
+  lastErrorCode: 'lastErrorCode',
+  lastErrorMessage: 'lastErrorMessage',
+  unknownOutcomeAt: 'unknownOutcomeAt',
+  reconciliationRequiredAt: 'reconciliationRequiredAt',
+  completedAt: 'completedAt',
+  failedAt: 'failedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  version: 'version'
+} as const
+
+export type WorkspaceProvisioningOperationScalarFieldEnum = (typeof WorkspaceProvisioningOperationScalarFieldEnum)[keyof typeof WorkspaceProvisioningOperationScalarFieldEnum]
+
+
+export const OutboxMessageScalarFieldEnum = {
+  outboxMessageId: 'outboxMessageId',
+  eventId: 'eventId',
+  aggregateType: 'aggregateType',
+  aggregateId: 'aggregateId',
+  eventType: 'eventType',
+  eventVersion: 'eventVersion',
+  eventSequence: 'eventSequence',
+  lifecycleVersion: 'lifecycleVersion',
+  payload: 'payload',
+  status: 'status',
+  attemptCount: 'attemptCount',
+  maxAttempts: 'maxAttempts',
+  nextAttemptAt: 'nextAttemptAt',
+  lastAttemptAt: 'lastAttemptAt',
+  publishedAt: 'publishedAt',
+  deadLetteredAt: 'deadLetteredAt',
+  lastErrorCode: 'lastErrorCode',
+  lastErrorMessage: 'lastErrorMessage',
+  leaseToken: 'leaseToken',
+  leaseExpiresAt: 'leaseExpiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  version: 'version'
+} as const
+
+export type OutboxMessageScalarFieldEnum = (typeof OutboxMessageScalarFieldEnum)[keyof typeof OutboxMessageScalarFieldEnum]
+
+
+export const WorkspaceCommandReceiptScalarFieldEnum = {
+  commandReceiptId: 'commandReceiptId',
+  actorUserId: 'actorUserId',
+  commandType: 'commandType',
+  commandTarget: 'commandTarget',
+  workspaceId: 'workspaceId',
+  idempotencyKeyHash: 'idempotencyKeyHash',
+  requestFingerprint: 'requestFingerprint',
+  responseStatusCode: 'responseStatusCode',
+  responseBody: 'responseBody',
+  responseHeaders: 'responseHeaders',
+  operationId: 'operationId',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  expiresAt: 'expiresAt',
+  completedAt: 'completedAt'
+} as const
+
+export type WorkspaceCommandReceiptScalarFieldEnum = (typeof WorkspaceCommandReceiptScalarFieldEnum)[keyof typeof WorkspaceCommandReceiptScalarFieldEnum]
+
+
+export const WorkspaceVisibilityProjectionScalarFieldEnum = {
+  projectionId: 'projectionId',
+  userId: 'userId',
+  workspaceId: 'workspaceId',
+  canRead: 'canRead',
+  canDelete: 'canDelete',
+  membershipVersion: 'membershipVersion',
+  projectionUpdatedAt: 'projectionUpdatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WorkspaceVisibilityProjectionScalarFieldEnum = (typeof WorkspaceVisibilityProjectionScalarFieldEnum)[keyof typeof WorkspaceVisibilityProjectionScalarFieldEnum]
+
+
+export const ProcessedDomainEventScalarFieldEnum = {
+  consumerName: 'consumerName',
+  eventId: 'eventId',
+  eventType: 'eventType',
+  aggregateType: 'aggregateType',
+  aggregateId: 'aggregateId',
+  processedAt: 'processedAt',
+  resultStatus: 'resultStatus',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProcessedDomainEventScalarFieldEnum = (typeof ProcessedDomainEventScalarFieldEnum)[keyof typeof ProcessedDomainEventScalarFieldEnum]
 
 
 export const WorkspaceMemberScalarFieldEnum = {
@@ -549,6 +698,13 @@ export const NullableJsonNullValueInput = {
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {

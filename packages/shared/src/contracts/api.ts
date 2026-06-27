@@ -6,6 +6,9 @@ export const ERROR_CODES = [
   "validation.invalid_input",
   "workspace.not_found",
   "workspace.not_ready",
+  "workspace.lifecycle_conflict",
+  "workspace.idempotency_conflict",
+  "workspace.entitlement_denied",
   "subscription.required",
   "subscription.payment_failed",
   "agent.not_available",
@@ -13,6 +16,7 @@ export const ERROR_CODES = [
   "workflow.invalid_definition",
   "task.execution_failed",
   "knowledge.access_denied",
+  "system.unavailable",
   "system.unexpected_error"
 ] as const;
 
@@ -53,6 +57,11 @@ export type ApiPaginationMeta = {
   hasPreviousPage: boolean;
 };
 
+export type ApiCursorPaginationMeta = {
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
 export type ApiMeta = {
   requestId: string;
   timestamp: string;
@@ -76,5 +85,11 @@ export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
 export type ApiPaginatedSuccess<T> = ApiSuccess<T[]> & {
   meta: ApiMeta & {
     pagination: ApiPaginationMeta;
+  };
+};
+
+export type ApiCursorPaginatedSuccess<T> = ApiSuccess<T[]> & {
+  meta: ApiMeta & {
+    cursor: ApiCursorPaginationMeta;
   };
 };

@@ -27,23 +27,203 @@ model Session {
   expiresAt String
   revokedAt String?
 
-  @@map("sessions")
+  @@unique([tokenHash])
   @@index([userId])
   @@index([expiresAt])
-  @@unique([tokenHash])
+  @@map("sessions")
 }
 
 model Workspace {
-  workspaceId String @id
-  userId      String
-  name        String
-  status      String @default("pending")
-  createdAt   String
-  updatedAt   String
+  workspaceId                  String  @id
+  userId                       String
+  createdByUserId              String
+  name                         String
+  normalizedName               String
+  status                       String  @default("provisioning")
+  lifecycleVersion             Int     @default(1)
+  eventSequence                Int     @default(0)
+  ownerBootstrapState          String  @default("not_applicable")
+  ownerBootstrapAttemptId      String?
+  ownerBootstrapAttemptVersion Int     @default(0)
+  ownerBootstrapRequestedAt    String?
+  ownerBootstrapExpiresAt      String?
+  ownerMembershipEstablishedAt String?
+  ownerBootstrapFailureCode    String?
+  ownerBootstrapFailureMessage String?
+  requestedProfile             String?
+  resolvedProvisioningProfile  Json?
+  provisioningProfileSource    String  @default("legacy_unknown")
+  migrationOrigin              String  @default("legacy_import")
+  runtimeVerificationState     String  @default("unknown")
+  provider                     String?
+  runtimeRef                   String?
+  runtimeUrl                   String?
+  provisioningRequestedAt      String?
+  provisionedAt                String?
+  deletionRequestedAt          String?
+  deletedAt                    String?
+  failureCode                  String?
+  failureMessage               String?
+  createdAt                    String
+  updatedAt                    String
+
+  provisioningOperations WorkspaceProvisioningOperation[]
+  commandReceipts        WorkspaceCommandReceipt[]
+  visibilityProjections  WorkspaceVisibilityProjection[]
 
   @@index([userId])
+  @@index([createdByUserId])
   @@index([status])
+  @@index([status, updatedAt, workspaceId])
+  @@index([createdByUserId, ownerBootstrapState, ownerBootstrapExpiresAt, updatedAt, workspaceId])
+  @@index([provider])
+  @@index([runtimeRef])
+  @@index([migrationOrigin])
+  @@index([runtimeVerificationState])
   @@map("workspaces")
+}
+
+model WorkspaceProvisioningOperation {
+  operationId              String  @id
+  workspaceId              String
+  operationType            String
+  operationFamily          String
+  status                   String  @default("queued")
+  executionPhase           String  @default("queued")
+  requestFingerprint       String
+  idempotencyKeyHash       String?
+  provider                 String?
+  providerRequestKey       String
+  runtimeRef               String?
+  runtimeFinalityProof     String  @default("unknown")
+  dependsOnOperationId     String?
+  supersedesOperationId    String?
+  cancellationRequestedAt  String?
+  claimedByWorkerId        String?
+  leaseToken               String?
+  leaseExpiresAt           String?
+  attemptCount             Int     @default(0)
+  maxAttempts              Int     @default(5)
+  nextAttemptAt            String?
+  lastAttemptAt            String?
+  lastErrorCode            String?
+  lastErrorMessage         String?
+  unknownOutcomeAt         String?
+  reconciliationRequiredAt String?
+  completedAt              String?
+  failedAt                 String?
+  createdAt                String
+  updatedAt                String
+  version                  Int     @default(1)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [workspaceId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([providerRequestKey])
+  @@index([workspaceId])
+  @@index([workspaceId, operationFamily, status])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([dependsOnOperationId])
+  @@index([supersedesOperationId])
+  @@index([leaseExpiresAt])
+  @@map("workspace_provisioning_operations")
+}
+
+model OutboxMessage {
+  outboxMessageId  String  @id
+  eventId          String
+  aggregateType    String
+  aggregateId      String
+  eventType        String
+  eventVersion     Int     @default(1)
+  eventSequence    Int
+  lifecycleVersion Int?
+  payload          Json
+  status           String  @default("pending")
+  attemptCount     Int     @default(0)
+  maxAttempts      Int     @default(10)
+  nextAttemptAt    String?
+  lastAttemptAt    String?
+  publishedAt      String?
+  deadLetteredAt   String?
+  lastErrorCode    String?
+  lastErrorMessage String?
+  leaseToken       String?
+  leaseExpiresAt   String?
+  createdAt        String
+  updatedAt        String
+  version          Int     @default(1)
+
+  @@unique([eventId])
+  @@unique([aggregateType, aggregateId, eventSequence])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([aggregateType, aggregateId, eventSequence])
+  @@index([leaseExpiresAt])
+  @@map("outbox_messages")
+}
+
+model WorkspaceCommandReceipt {
+  commandReceiptId   String  @id
+  actorUserId        String
+  commandType        String
+  commandTarget      String
+  workspaceId        String
+  idempotencyKeyHash String
+  requestFingerprint String
+  responseStatusCode Int?
+  responseBody       Json?
+  responseHeaders    Json?
+  operationId        String?
+  status             String  @default("pending")
+  createdAt          String
+  updatedAt          String
+  expiresAt          String
+  completedAt        String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [workspaceId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([actorUserId, commandType, commandTarget, idempotencyKeyHash], map: "wcr_idem_scope_key")
+  @@index([actorUserId, commandType, commandTarget], map: "wcr_scope_lookup_idx")
+  @@index([workspaceId], map: "wcr_workspace_idx")
+  @@index([operationId], map: "wcr_operation_idx")
+  @@index([expiresAt], map: "wcr_expires_idx")
+  @@map("workspace_command_receipts")
+}
+
+model WorkspaceVisibilityProjection {
+  projectionId        String  @id
+  userId              String
+  workspaceId         String
+  canRead             Boolean @default(false)
+  canDelete           Boolean @default(false)
+  membershipVersion   Int     @default(0)
+  projectionUpdatedAt String
+  createdAt           String
+  updatedAt           String
+
+  workspace Workspace @relation(fields: [workspaceId], references: [workspaceId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([userId, workspaceId])
+  @@index([userId, canRead, projectionUpdatedAt, workspaceId])
+  @@index([workspaceId])
+  @@map("workspace_visibility_projections")
+}
+
+model ProcessedDomainEvent {
+  consumerName  String
+  eventId       String
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  processedAt   String
+  resultStatus  String
+  createdAt     String
+  updatedAt     String
+
+  @@id([consumerName, eventId])
+  @@index([consumerName])
+  @@index([aggregateType, aggregateId])
+  @@index([eventType])
+  @@map("processed_domain_events")
 }
 
 model WorkspaceMember {
@@ -55,10 +235,10 @@ model WorkspaceMember {
   createdAt   String
   updatedAt   String
 
+  @@unique([workspaceId, userId])
   @@index([workspaceId])
   @@index([userId])
   @@index([workspaceId, status])
-  @@unique([workspaceId, userId])
   @@map("workspace_members")
 }
 
@@ -72,10 +252,10 @@ model Invitation {
   createdAt       String
   updatedAt       String
 
+  @@unique([workspaceId, email, status])
   @@index([workspaceId])
   @@index([invitedByUserId])
   @@index([workspaceId, status])
-  @@unique([workspaceId, email, status])
   @@map("invitations")
 }
 
@@ -90,9 +270,9 @@ model Agent {
   createdAt    String
   updatedAt    String
 
+  @@unique([workspaceId, name])
   @@index([workspaceId])
   @@index([workspaceId, status])
-  @@unique([workspaceId, name])
   @@map("agents")
 }
 
@@ -150,10 +330,10 @@ model ToolConnection {
   createdAt        String
   updatedAt        String
 
+  @@unique([workspaceId, toolId])
   @@index([workspaceId])
   @@index([toolId])
   @@index([workspaceId, status])
-  @@unique([workspaceId, toolId])
   @@map("tool_connections")
 }
 
@@ -166,11 +346,11 @@ model AgentToolAssignment {
   createdAt    String
   updatedAt    String
 
+  @@unique([workspaceId, agentId, toolId])
   @@index([workspaceId])
   @@index([agentId])
   @@index([toolId])
   @@index([workspaceId, status])
-  @@unique([workspaceId, agentId, toolId])
   @@map("agent_tool_assignments")
 }
 
@@ -187,8 +367,8 @@ model Workflow {
   createdAt     String
   updatedAt   String
 
-  steps         WorkflowStep[]
-  executions    WorkflowExecution[]
+  steps      WorkflowStep[]
+  executions WorkflowExecution[]
 
   @@index([workspaceId])
   @@index([workspaceId, status])
@@ -197,7 +377,7 @@ model Workflow {
 }
 
 model WorkflowStep {
-  workflowStepId String   @id
+  workflowStepId String @id
   workspaceId    String
   workflowId     String
   agentId        String?
@@ -208,9 +388,10 @@ model WorkflowStep {
   createdAt      String
   updatedAt      String
 
-  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
-  logs          WorkflowStepLog[]
+  workflow Workflow          @relation(fields: [workflowId], references: [workflowId])
+  logs     WorkflowStepLog[]
 
+  @@unique([workflowId, stepOrder])
   @@index([workspaceId])
   @@index([workflowId])
   @@index([agentId])
@@ -218,16 +399,16 @@ model WorkflowStep {
 }
 
 model WorkflowExecution {
-  executionId   String   @id
-  workspaceId   String
-  workflowId    String
-  status        String   @default("Pending")
-  triggeredBy   String
-  startedAt     String
-  completedAt   String?
+  executionId String  @id
+  workspaceId String
+  workflowId  String
+  status      String  @default("Pending")
+  triggeredBy String
+  startedAt   String
+  completedAt String?
 
-  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
-  logs          WorkflowStepLog[]
+  workflow Workflow          @relation(fields: [workflowId], references: [workflowId])
+  logs     WorkflowStepLog[]
 
   @@index([workspaceId])
   @@index([workflowId])
@@ -235,19 +416,19 @@ model WorkflowExecution {
 }
 
 model WorkflowStepLog {
-  logId           String   @id
-  workspaceId     String
-  executionId     String
-  workflowStepId  String
-  status          String
-  inputData       Json?
-  outputData      Json?
-  errorMsg        String?
-  startedAt       String
-  completedAt     String?
+  logId          String  @id
+  workspaceId    String
+  executionId    String
+  workflowStepId String
+  status         String
+  inputData      Json?
+  outputData     Json?
+  errorMsg       String?
+  startedAt      String
+  completedAt    String?
 
-  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId])
-  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId])
+  execution WorkflowExecution @relation(fields: [executionId], references: [executionId])
+  step      WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId])
 
   @@index([workspaceId])
   @@index([executionId])
@@ -309,32 +490,32 @@ model TaskRun {
 }
 
 model Document {
-  documentId       String @id
-  workspaceId      String
-  uploadedByUserId String
-  displayName      String
-  fileName         String
-  mimeType         String @default("application/octet-stream")
-  fileType         String @default("unknown")
-  sizeBytes        Int    @default(0)
-  sourceType       String @default("upload")
-  sourceId         String?
-  storageKey       String?
-  contentHash      String?
-  status           String @default("pending")
-  ingestionStatus  String @default("pending")
-  indexingStatus   String @default("pending")
-  chunkCount       Int    @default(0)
-  indexedChunkCount Int   @default(0)
-  deletedAt        String?
-  createdAt        String
-  updatedAt        String
+  documentId        String  @id
+  workspaceId       String
+  uploadedByUserId  String
+  displayName       String
+  fileName          String
+  mimeType          String  @default("application/octet-stream")
+  fileType          String  @default("unknown")
+  sizeBytes         Int     @default(0)
+  sourceType        String  @default("upload")
+  sourceId          String?
+  storageKey        String?
+  contentHash       String?
+  status            String  @default("pending")
+  ingestionStatus   String  @default("pending")
+  indexingStatus    String  @default("pending")
+  chunkCount        Int     @default(0)
+  indexedChunkCount Int     @default(0)
+  deletedAt         String?
+  createdAt         String
+  updatedAt         String
 
-  source         KnowledgeDataSource?     @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
-  indexes        KnowledgeIndex[]
-  chunks         KnowledgeDocumentChunk[]
-  ingestionJobs  KnowledgeIngestionJob[]
-  accessGrants   KnowledgeAccessGrant[]
+  source        KnowledgeDataSource?     @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+  indexes       KnowledgeIndex[]
+  chunks        KnowledgeDocumentChunk[]
+  ingestionJobs KnowledgeIngestionJob[]
+  accessGrants  KnowledgeAccessGrant[]
 
   @@index([workspaceId])
   @@index([uploadedByUserId])
@@ -348,12 +529,12 @@ model Document {
 }
 
 model KnowledgeIndex {
-  knowledgeIndexId String @id
+  knowledgeIndexId  String  @id
   workspaceId       String
   documentId        String
-  status            String @default("pending")
-  chunkCount        Int    @default(0)
-  indexedChunkCount Int    @default(0)
+  status            String  @default("pending")
+  chunkCount        Int     @default(0)
+  indexedChunkCount Int     @default(0)
   lastIndexedAt     String?
   errorCode         String?
   errorMessage      String?
@@ -369,18 +550,18 @@ model KnowledgeIndex {
 }
 
 model KnowledgeDocumentChunk {
-  chunkId         String @id
-  workspaceId    String
-  documentId     String
-  chunkIndex     Int
-  contentText    String
-  contentHash    String?
-  tokenCount     Int?
-  embeddingStatus String @default("pending")
-  vectorRef      String?
-  sourceLocator  String?
-  createdAt      String
-  updatedAt      String
+  chunkId         String  @id
+  workspaceId     String
+  documentId      String
+  chunkIndex      Int
+  contentText     String
+  contentHash     String?
+  tokenCount      Int?
+  embeddingStatus String  @default("pending")
+  vectorRef       String?
+  sourceLocator   String?
+  createdAt       String
+  updatedAt       String
 
   document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
 
@@ -393,11 +574,11 @@ model KnowledgeDocumentChunk {
 }
 
 model KnowledgeIngestionJob {
-  jobId             String @id
+  jobId             String  @id
   workspaceId       String
   documentId        String?
-  status            String @default("pending")
-  progress          Int    @default(0)
+  status            String  @default("pending")
+  progress          Int     @default(0)
   queuedAt          String
   startedAt         String?
   completedAt       String?
@@ -418,16 +599,16 @@ model KnowledgeIngestionJob {
 }
 
 model KnowledgeDataSource {
-  sourceId           String @id
-  workspaceId        String
-  provider           String
-  displayName        String
-  connectionStatus   String @default("not_connected")
-  lastSyncAt         String?
-  connectedByUserId  String?
-  safeMetadata       Json?
-  createdAt          String
-  updatedAt          String
+  sourceId          String  @id
+  workspaceId       String
+  provider          String
+  displayName       String
+  connectionStatus  String  @default("not_connected")
+  lastSyncAt        String?
+  connectedByUserId String?
+  safeMetadata      Json?
+  createdAt         String
+  updatedAt         String
 
   documents      Document[]
   syncScopeNodes KnowledgeSyncScopeNode[]
@@ -441,7 +622,7 @@ model KnowledgeDataSource {
 }
 
 model KnowledgeSyncScopeNode {
-  scopeNodeId       String @id
+  scopeNodeId       String  @id
   workspaceId       String
   sourceId          String
   parentScopeNodeId String?
@@ -464,10 +645,10 @@ model KnowledgeSyncScopeNode {
 }
 
 model KnowledgeSyncJob {
-  jobId             String @id
+  jobId             String  @id
   workspaceId       String
   sourceId          String?
-  status            String @default("pending")
+  status            String  @default("pending")
   requestedByUserId String?
   queuedAt          String
   startedAt         String?
@@ -481,7 +662,7 @@ model KnowledgeSyncJob {
   createdAt         String
   updatedAt         String
 
-  dataSource KnowledgeDataSource? @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+  dataSource KnowledgeDataSource?    @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
   events     KnowledgeSyncJobEvent[]
 
   @@index([workspaceId])
@@ -492,7 +673,7 @@ model KnowledgeSyncJob {
 }
 
 model KnowledgeSyncJobEvent {
-  syncJobEventId String @id
+  syncJobEventId String  @id
   workspaceId    String
   jobId          String
   eventType      String
@@ -512,20 +693,20 @@ model KnowledgeSyncJobEvent {
 
 model KnowledgeAccessGrant {
   knowledgeAccessGrantId String @id
-  workspaceId             String
-  documentId              String
-  agentId                 String
-  status                  String @default("active")
-  createdAt               String
-  updatedAt               String
+  workspaceId            String
+  documentId             String
+  agentId                String
+  status                 String @default("active")
+  createdAt              String
+  updatedAt              String
 
   document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
 
+  @@unique([workspaceId, documentId, agentId])
   @@index([workspaceId])
   @@index([documentId])
   @@index([agentId])
   @@index([workspaceId, status])
-  @@unique([workspaceId, documentId, agentId])
   @@map("knowledge_access_grants")
 }
 
