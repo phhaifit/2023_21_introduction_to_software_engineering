@@ -720,6 +720,12 @@ export function SubscriptionPaymentPage() {
           <p className="subtitle">Unlock more resources and features for your workspace.</p>
         </div>
 
+        {error && (
+          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", padding: "12px", borderRadius: "8px", fontSize: "0.9rem", marginBottom: "24px" }}>
+            {error}
+          </div>
+        )}
+
         <div className="upgrade-cards-grid">
           {/* Card Standard Plan */}
           <div 
@@ -905,10 +911,10 @@ export function SubscriptionPaymentPage() {
                   }
                 }
               }} 
-              disabled={!agreeToTerms}
+              disabled={!agreeToTerms || loading}
               className="btn btn--primary"
             >
-              Confirm & Proceed to Payment →
+              {loading ? "Processing..." : "Confirm & Proceed to Payment →"}
             </button>
           </div>
         </div>
