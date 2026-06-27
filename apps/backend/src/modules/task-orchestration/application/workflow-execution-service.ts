@@ -211,7 +211,19 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
             }
             
             if (state.status === "completed") {
-              outputData = `Result from Agent ${step.agentId} (Task ${command.taskId})`;
+              const completedEvent = state.events.find(e => e.type === "execution-completed") as any;
+              if (completedEvent && completedEvent.finalOutput) {
+                outputData = completedEvent.finalOutput;
+              } else {
+                const chunks = state.events
+                  .filter(e => e.type === "partial-output-received")
+                  .map((e: any) => e.outputChunk);
+                if (chunks.length > 0) {
+                  outputData = chunks.join("");
+                } else {
+                  outputData = `Result from Agent ${step.agentId} (Task ${command.taskId})`;
+                }
+              }
             } else {
               throw new Error(`Task did not complete successfully. Final status: ${state.status}`);
             }
