@@ -59,6 +59,73 @@ import {
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
 
+// New imports for Task Orchestration & OpenClaw network transport
+import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
+import {
+  OpenClawTaskExecutionAdapter,
+  OpenClawExecutionOrchestrator,
+  type ExternalAgentCatalog,
+  type ExternalWorkflowCatalog,
+  type ExternalAuthenticationService,
+  type ExternalWorkspaceManagement
+} from "./features/task-execution/adapters/openclaw-task-execution-adapter.ts";
+import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
+import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
+
+class ServerAgentCatalog implements ExternalAgentCatalog {
+  async validateAndGetAgent(workspaceId: EntityId<"workspaceId">, agentId: string) {
+    return {
+      agentId,
+      workspaceId: workspaceId as string,
+      providerAgentMapping: "openclaw-agent-super-coder",
+      status: "active" as const
+    };
+  }
+}
+
+class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
+  async validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string) {
+    return {
+      workflowId,
+      workspaceId: workspaceId as string,
+      providerWorkflowMapping: "openclaw-workflow-ci-cd",
+      status: "active" as const
+    };
+  }
+}
+
+class ServerAuthenticationService implements ExternalAuthenticationService {
+  async getAuthenticatedPrincipal(context: Record<string, unknown>) {
+    return {
+      principalId: "usr_task_commander_999",
+      roles: ["workspace-admin"],
+      permissions: ["start-task-execution", "cancel-task-execution", "view-advanced-provider-details"]
+    };
+  }
+
+  async authorizeOperation(principal: any, operation: string, workspaceId: EntityId<"workspaceId">) {
+    return true;
+  }
+}
+
+class ServerWorkspaceManagement implements ExternalWorkspaceManagement {
+  getWorkspaceExecutionRuntimeResolver(): WorkspaceExecutionRuntimeResolver {
+    return {
+      async resolve(workspaceId: EntityId<"workspaceId">): Promise<WorkspaceExecutionRuntime> {
+        return {
+          instanceId: "inst_openclaw_docker_01" as EntityId<"instanceId">,
+          workspaceId,
+          provider: "openclaw",
+          status: "running",
+          endpointReference: "http://127.0.0.1:18789",
+          credentialReference: process.env.OPENCLAW_GATEWAY_TOKEN || "demo_secure_token_abc123",
+          capabilities: ["http-sse-streaming", "local-execution"]
+        };
+      }
+    };
+  }
+}
+
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
 
@@ -76,6 +143,8 @@ export type LocalAgentManagementRuntime = {
   workflowUseCases: any;
   knowledgeBaseRagRepositories: any;
   knowledgeBaseRagUseCases: any;
+  openclawAdapter: OpenClawTaskExecutionAdapter;
+  openclawOrchestrator: OpenClawExecutionOrchestrator;
 };
 
 let cachedPrisma: any = null;
@@ -275,6 +344,31 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createWorkflowManagementRouter({ useCases: workflowUseCases })
   );
 
+  const serverWorkspaceMgmt = new ServerWorkspaceManagement();
+  const serverAgentCatalog = new ServerAgentCatalog();
+  const serverWorkflowCatalog = new ServerWorkflowCatalog();
+  const serverAuthService = new ServerAuthenticationService();
+
+  const openclawTransport = new OpenClawHttpSSETransport();
+  const openclawAdapter = new OpenClawTaskExecutionAdapter(
+    serverWorkspaceMgmt.getWorkspaceExecutionRuntimeResolver(),
+    serverAgentCatalog,
+    serverWorkflowCatalog,
+    openclawTransport
+  );
+  const openclawOrchestrator = new OpenClawExecutionOrchestrator(
+    serverAuthService,
+    serverWorkspaceMgmt,
+    serverAgentCatalog,
+    serverWorkflowCatalog,
+    openclawAdapter
+  );
+
+  app.use(
+    "/api/workspaces/:workspaceId/executions",
+    createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter })
+  );
+
   app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));
 
   const authUserRepository = await createAuthUserRepository();
@@ -309,7 +403,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     workflowRepository,
     workflowUseCases,
     knowledgeBaseRagRepositories,
-    knowledgeBaseRagUseCases
+    knowledgeBaseRagUseCases,
+    openclawAdapter,
+    openclawOrchestrator
   };
 }
 

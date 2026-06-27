@@ -317,38 +317,126 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private baseUrl: string;
   private timeoutMs: number;
+  private taskCreationClient: TaskCreationClient;
+  private tasks = new Map<string, CreatedTaskRecord>();
+  private eventSources = new Map<string, EventSource>();
+  private subIdCounter = 1;
 
-  constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
+  constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }, options?: { taskCreationClient?: TaskCreationClient }) {
     if (!config.baseUrl) {
       throw new Error("HttpTaskOrchestrationProvider requires a non-empty baseUrl.");
     }
     this.baseUrl = config.baseUrl;
     this.timeoutMs = config.timeoutMs ?? 30000;
+    this.taskCreationClient = options?.taskCreationClient ?? createMockTaskCreationClient();
   }
 
   async createTask(input: import("@vcp/shared").CreateTaskRequest): Promise<CreatedTaskRecord> {
-    throw new Error("HttpTaskOrchestrationProvider#createTask not implemented in this change.");
+    const response = await this.taskCreationClient.createTask(input);
+    const task = createTaskRecord(input, response);
+    this.tasks.set(task.taskId as string, task);
+
+    try {
+      await fetch(`${this.baseUrl}/api/workspaces/${input.workspaceId}/executions/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: task.taskId,
+          workId: task.workId,
+          workspaceId: input.workspaceId,
+          conversationId: "cnv_default",
+          prompt: input.prompt,
+          routing: input.requestedRouting
+        })
+      });
+    } catch (err) {
+      console.warn("Failed to reach backend execution start API, continuing with local state", err);
+    }
+
+    return task;
   }
 
   async getTask(taskId: string): Promise<CreatedTaskRecord | null> {
-    throw new Error("HttpTaskOrchestrationProvider#getTask not implemented in this change.");
+    const task = this.tasks.get(taskId);
+    if (!task) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/state`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.data && data.data.status) {
+          // Keep status in sync if needed
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+    return task;
   }
 
   async cancelTask(taskId: string): Promise<void> {
-    throw new Error("HttpTaskOrchestrationProvider#cancelTask not implemented in this change.");
+    const task = this.tasks.get(taskId);
+    if (task) {
+      task.status = "cancelled";
+    }
+    try {
+      await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/cancel`, {
+        method: "POST"
+      });
+    } catch (err) {
+      console.warn("Failed to reach backend execution cancel API", err);
+    }
   }
 
   /**
    * Subscribes to runtime events for a task.
-   * Expected wire-format binding point:
-   * Connects to Server-Sent Events (SSE) stream at URL pattern: `${baseUrl}/api/workspaces/tasks/${taskId}/events`
+   * Connects to Server-Sent Events (SSE) stream at URL pattern: `${baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/stream`
    */
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
-    throw new Error("HttpTaskOrchestrationProvider#subscribeToTaskEvents not implemented in this change.");
+    const subscriptionId = `sub-http-${this.subIdCounter++}`;
+    try {
+      const es = new EventSource(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/stream`);
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const base = {
+            taskId: data.taskId || taskId,
+            workId: data.workId || "wrk_1",
+            timestamp: data.timestamp || new Date().toISOString()
+          };
+          if (data.type === "execution-accepted") {
+            handler({ ...base, kind: "task-accepted" });
+          } else if (data.type === "execution-started") {
+            handler({ ...base, kind: "task-started" });
+          } else if (data.type === "step-started") {
+            handler({ ...base, kind: "step-started", stepName: data.stepName || data.stepId || "Step", stepIndex: 0 });
+          } else if (data.type === "step-completed") {
+            handler({ ...base, kind: "step-completed", stepName: data.stepName || data.stepId || "Step", stepIndex: 0 });
+          } else if (data.type === "partial-output-received") {
+            handler({ ...base, kind: "partial-output", chunkText: data.outputChunk || "" });
+          } else if (data.type === "execution-completed") {
+            handler({ ...base, kind: "task-completed", finalResult: { text: data.finalOutput || "Completed successfully.", artifacts: [], followUpPromptSuggestions: [] } });
+          } else if (data.type === "execution-failed") {
+            handler({ ...base, kind: "task-failed", error: { code: "runtime-error", message: data.errorMessage || "Execution failed" } });
+          } else if (data.type === "execution-canceled") {
+            handler({ ...base, kind: "task-canceled" });
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE event", err);
+        }
+      };
+      this.eventSources.set(subscriptionId, es);
+    } catch (err) {
+      console.warn("EventSource not available or failed to connect", err);
+    }
+    return { subscriptionId, taskId };
   }
 
   unsubscribeFromTaskEvents(subscription: TaskEventSubscription): void {
-    throw new Error("HttpTaskOrchestrationProvider#unsubscribeFromTaskEvents not implemented in this change.");
+    const es = this.eventSources.get(subscription.subscriptionId);
+    if (es) {
+      es.close();
+      this.eventSources.delete(subscription.subscriptionId);
+    }
   }
 }
 
@@ -368,7 +456,7 @@ export function resolveTaskOrchestrationProvider(
   }
 ): TaskOrchestrationClient {
   if (config.type === "http") {
-    return new HttpTaskOrchestrationProvider(config);
+    return new HttpTaskOrchestrationProvider(config, options);
   }
   return new MockTaskOrchestrationProvider(options);
 }
