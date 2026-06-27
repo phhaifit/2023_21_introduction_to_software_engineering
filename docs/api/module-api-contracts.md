@@ -114,6 +114,8 @@ Owner module: `apps/backend/src/modules/workflow-management`
 
 Owner module: `apps/backend/src/modules/task-orchestration`
 
+> **Architectural Boundary & Execution Contracts**: For detailed technical documentation regarding `TaskExecutionAdapter`, `OpenClawTaskExecutionAdapter`, DTO contracts (`StartExecutionCommand`, `ExecutionBinding`, `NormalizedRuntimeEvent`), the 10-step start flow, cancellation forwarding, and external dependency catalogs (`WorkspaceExecutionRuntimeResolver`, `ExternalAgentCatalog`, `ExternalWorkflowCatalog`), see the [Task & Orchestration Module README](../../apps/backend/src/modules/task-orchestration/README.md).
+
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `POST` | `/api/workspaces/:workspaceId/tasks` | Workspace member | Route `workspaceId` | `CreateTaskRequest` prompt plus routing input | `ApiResponse` `CreateTaskResponse` | `planned` | Workspace and submitter identity come from route and authenticated context. |
