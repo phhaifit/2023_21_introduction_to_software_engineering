@@ -387,55 +387,62 @@ export function SubscriptionPaymentPage() {
 
     return (
       <div className="billing-container">
-        <div className="billing-title-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
+        <div className="billing-title-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <h2>Billing & Subscription</h2>
-            <p className="subtitle">Quản lý định mức tài nguyên, phương thức thanh toán và lịch sử hóa đơn thực tế của Workspace.</p>
+            <p className="subtitle">Quản lý gói dịch vụ, tài nguyên và thanh toán của Workspace.</p>
           </div>
           
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.03em" }}>WORKSPACE</span>
-            <div
-              ref={selectRef}
-              className={`custom-select-container ${isDropdownOpen ? "is-open" : ""}`}
-              onKeyDown={handleDropdownKeyDown}
+          <div
+            ref={selectRef}
+            className={`custom-select-container ${isDropdownOpen ? "is-open" : ""}`}
+            onKeyDown={handleDropdownKeyDown}
+          >
+            <button
+              type="button"
+              className="custom-select-trigger"
+              onClick={() => {
+                setIsDropdownOpen(prev => !prev);
+                if (!isDropdownOpen) {
+                  setFocusedIndex(AVAILABLE_WORKSPACES.findIndex(ws => ws.id === currentWorkspaceId));
+                }
+              }}
+              aria-haspopup="listbox"
+              aria-expanded={isDropdownOpen}
             >
-              <button
-                type="button"
-                className="custom-select-trigger"
-                onClick={() => {
-                  setIsDropdownOpen(prev => !prev);
-                  if (!isDropdownOpen) {
-                    setFocusedIndex(AVAILABLE_WORKSPACES.findIndex(ws => ws.id === currentWorkspaceId));
-                  }
-                }}
-                aria-haspopup="listbox"
-                aria-expanded={isDropdownOpen}
-              >
-                <span>{AVAILABLE_WORKSPACES.find(ws => ws.id === currentWorkspaceId)?.name ?? currentWorkspaceId}</span>
-                <svg className="custom-select-arrow" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              {/* Workspace icon */}
+              <div className="custom-select-trigger-icon">
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                 </svg>
-              </button>
-
-              <div className="custom-select-options" role="listbox" aria-label="Chọn workspace">
-                {AVAILABLE_WORKSPACES.map((ws, idx) => (
-                  <div
-                    key={ws.id}
-                    role="option"
-                    aria-selected={ws.id === currentWorkspaceId}
-                    className={`custom-select-option ${ws.id === currentWorkspaceId ? "is-selected" : ""} ${focusedIndex === idx ? "is-focused" : ""}`}
-                    onClick={() => {
-                      setCurrentWorkspaceId(ws.id);
-                      setIsDropdownOpen(false);
-                      setFocusedIndex(-1);
-                    }}
-                    onMouseEnter={() => setFocusedIndex(idx)}
-                  >
-                    {ws.name}
-                  </div>
-                ))}
               </div>
+              <span style={{ flex: 1, textAlign: "left" }}>
+                {AVAILABLE_WORKSPACES.find(ws => ws.id === currentWorkspaceId)?.name ?? currentWorkspaceId}
+              </span>
+              <svg className="custom-select-arrow" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            <div className="custom-select-options" role="listbox" aria-label="Chọn workspace">
+              <div className="custom-select-options-header">Workspaces</div>
+              {AVAILABLE_WORKSPACES.map((ws, idx) => (
+                <div
+                  key={ws.id}
+                  role="option"
+                  aria-selected={ws.id === currentWorkspaceId}
+                  className={`custom-select-option ${ws.id === currentWorkspaceId ? "is-selected" : ""} ${focusedIndex === idx ? "is-focused" : ""}`}
+                  onClick={() => {
+                    setCurrentWorkspaceId(ws.id);
+                    setIsDropdownOpen(false);
+                    setFocusedIndex(-1);
+                  }}
+                  onMouseEnter={() => setFocusedIndex(idx)}
+                >
+                  <span className="custom-select-option-dot" />
+                  {ws.name}
+                </div>
+              ))}
             </div>
           </div>
         </div>

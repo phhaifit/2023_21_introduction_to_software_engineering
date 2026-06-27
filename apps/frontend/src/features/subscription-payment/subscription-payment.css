@@ -2,28 +2,29 @@
 .billing-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 20px 24px;
   font-family: "Outfit", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   color: #1e293b;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .billing-title-section {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .billing-title-section h2 {
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 6px 0;
+  margin: 0 0 3px 0;
+  letter-spacing: -0.02em;
 }
 
 .billing-title-section .subtitle {
-  font-size: 0.95rem;
-  color: #64748b;
+  font-size: 0.875rem;
+  color: #94a3b8;
   margin: 0;
 }
 
@@ -65,10 +66,10 @@
 /* Cards & Containers */
 .billing-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e8eef4;
   border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -78,11 +79,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .card-title-row h3 {
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #0f172a;
   margin: 0;
@@ -1094,41 +1095,61 @@ input:checked + .slider:before {
   margin-bottom: 20px;
 }
 
-/* Custom Workspace Selector Styles */
+/* ============================================================
+   Custom Workspace Selector — Modern Pill Design
+   ============================================================ */
 .custom-select-container {
   position: relative;
-  width: 320px;
+  width: 260px;
   font-family: "Outfit", "Inter", sans-serif;
   text-align: left;
 }
 
 .custom-select-trigger {
   width: 100%;
-  padding: 10px 16px;
-  background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #1e293b;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: none;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   cursor: pointer;
   outline: none;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+  letter-spacing: 0.01em;
 }
 
-.custom-select-trigger:focus,
 .custom-select-trigger:hover {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.35);
+  transform: translateY(-1px);
+}
+
+.custom-select-trigger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.45);
+}
+
+.custom-select-trigger-icon {
+  width: 22px;
+  height: 22px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .custom-select-arrow {
-  color: #64748b;
-  transition: transform 0.2s ease;
+  color: rgba(255,255,255,0.7);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
 }
 
 .custom-select-container.is-open .custom-select-arrow {
@@ -1137,48 +1158,72 @@ input:checked + .slider:before {
 
 .custom-select-options {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 0;
   right: 0;
-  background-color: #ffffff;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  z-index: 50;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.06);
+  z-index: 100;
   overflow: hidden;
-  max-height: 250px;
-  overflow-y: auto;
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-6px) scale(0.98);
   pointer-events: none;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .custom-select-container.is-open .custom-select-options {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 
+.custom-select-options-header {
+  padding: 10px 14px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #f1f5f9;
+}
+
 .custom-select-option {
-  padding: 10px 16px;
-  font-size: 0.9rem;
+  padding: 10px 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #334155;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.12s ease;
 }
 
 .custom-select-option:hover,
 .custom-select-option.is-focused {
-  background-color: #f1f5f9;
+  background-color: #f8fafc;
   color: #1e293b;
-  outline: none;
 }
 
 .custom-select-option.is-selected {
   background-color: #eff6ff;
   color: #2563eb;
   font-weight: 600;
+}
+
+.custom-select-option-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.custom-select-option.is-selected .custom-select-option-dot {
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
 }
 
