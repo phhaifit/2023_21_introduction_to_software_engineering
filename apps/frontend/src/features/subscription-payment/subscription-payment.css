@@ -3,7 +3,7 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px 24px;
-  font-family: "Outfit", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   color: #1e293b;
   display: flex;
   flex-direction: column;
@@ -17,9 +17,10 @@
 .billing-title-section h2 {
   font-size: 1.6rem;
   font-weight: 700;
+  font-family: "Plus Jakarta Sans", sans-serif;
   color: #0f172a;
   margin: 0 0 3px 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .billing-title-section .subtitle {
@@ -1101,7 +1102,7 @@ input:checked + .slider:before {
 .custom-select-container {
   position: relative;
   width: 260px;
-  font-family: "Outfit", "Inter", sans-serif;
+  font-family: "Inter", "Plus Jakarta Sans", sans-serif;
   text-align: left;
 }
 
@@ -1113,7 +1114,7 @@ input:checked + .slider:before {
   border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 500;
-  font-family: "Inter", "Outfit", -apple-system, sans-serif;
+  font-family: "Inter", sans-serif;
   color: #334155;
   display: flex;
   justify-content: space-between;
@@ -1123,7 +1124,7 @@ input:checked + .slider:before {
   outline: none;
   transition: all 0.2s ease;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.07);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   min-width: 0;
 }
 
@@ -1202,6 +1203,7 @@ input:checked + .slider:before {
   padding: 10px 14px;
   font-size: 0.875rem;
   font-weight: 500;
+  font-family: "Inter", sans-serif;
   color: #334155;
   cursor: pointer;
   display: flex;
