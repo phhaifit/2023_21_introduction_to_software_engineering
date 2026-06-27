@@ -26,7 +26,7 @@ bash scripts/docker/setup.sh
 
 ### Thông số Binding
 - **Host & Port**: Container OpenClaw Gateway sẽ lắng nghe trên địa chỉ `http://127.0.0.1:18789`.
-- **Backend Transport**: Server Backend (thông qua `OpenClawHttpSSETransport`) sẽ kết nối trực tiếp đến cổng `18789` này để khởi tạo task (`/start`), gửi yêu cầu hủy (`/cancel`), và theo dõi luồng sự kiện qua Server-Sent Events (SSE).
+- **Backend Transport**: Server Backend (thông qua `OpenClawHttpSSETransport`) sẽ kết nối trực tiếp đến cổng `18789` này thông qua giao thức chuẩn OpenAI-compatible HTTP API (`POST /v1/chat/completions`) để khởi tạo task và nhận luồng dữ liệu Server-Sent Events (SSE) (`chat.completion.chunk`). Việc hủy stream được xử lý hoàn toàn cục bộ thông qua `AbortController.abort()`.
 
 ---
 
@@ -42,7 +42,7 @@ Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider
 |       Provider)       |         SSE GET /stream          +--------------------------------+
 +-----------------------+                                                  |
                                                                            |
-                                              HTTP POST & SSE Streaming    |
+                                              POST /v1/chat/completions    |
                                              (OpenClawHttpSSETransport)    |
                                                                            v
                                                            +--------------------------------+
@@ -51,8 +51,8 @@ Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider
                                                            +--------------------------------+
 ```
 
-- **Task & Orchestration (Consumer)**: Chỉ chịu trách nhiệm quản lý mô hình dữ liệu (`Task`, `TaskWork`), gửi yêu cầu thực thi, xử lý lỗi chuẩn hóa và hiển thị luồng dữ liệu (fragments, logs).
-- **OpenClaw Container (Provider)**: Chịu trách nhiệm thực thi LLM routing, quản lý sandbox và cung cấp luồng sự kiện thô (raw events). Backend hoàn toàn không quản lý việc tự động cài đặt hay cấp phát CPU/RAM cho container.
+- **Task & Orchestration (Consumer)**: Chỉ chịu trách nhiệm quản lý mô hình dữ liệu (`Task`, `TaskRun`), gửi yêu cầu thực thi không đồng bộ (non-blocking start), xử lý lỗi chuẩn hóa và hiển thị luồng dữ liệu (fragments, logs).
+- **OpenClaw Container (Provider)**: Chịu trách nhiệm thực thi LLM routing, quản lý sandbox và cung cấp luồng sự kiện chuẩn OpenAI (`chat.completion.chunk`). Backend hoàn toàn không quản lý việc tự động cài đặt hay cấp phát CPU/RAM cho container.
 
 ---
 
