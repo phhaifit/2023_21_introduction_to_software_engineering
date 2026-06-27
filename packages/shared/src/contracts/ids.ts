@@ -16,7 +16,8 @@ export const ENTITY_ID_KINDS = [
   "executionId",
   "workflowStepId",
   "conversationId",
-  "logId"
+  "logId",
+  "messageId"
 ] as const;
 
 export type EntityIdKind = (typeof ENTITY_ID_KINDS)[number];

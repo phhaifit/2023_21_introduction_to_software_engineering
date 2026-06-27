@@ -212,6 +212,14 @@ export function TaskOrchestrationPage({
     const client = clientRef.current;
     const subs = subscriptionsRef.current;
 
+    if (client.fetchConversations) {
+      client.fetchConversations("demo_workspace_1").then((conversations) => {
+        if (mountedRef.current && conversations && conversations.length > 0) {
+          dispatchRef.current({ type: "conversations-restored", conversations });
+        }
+      });
+    }
+
     return () => {
       mountedRef.current = false;
       for (const sub of subs.values()) {

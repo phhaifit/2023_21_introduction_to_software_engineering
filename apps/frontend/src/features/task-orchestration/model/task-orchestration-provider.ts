@@ -103,6 +103,7 @@ export interface TaskOrchestrationClient {
     handler: (event: TaskRuntimeEvent) => void
   ): TaskEventSubscription;
   unsubscribeFromTaskEvents(subscription: TaskEventSubscription): void;
+  fetchConversations(workspaceId: string): Promise<import("@vcp/shared").Conversation[]>;
 }
 
 export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
@@ -173,6 +174,10 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 
   async getTask(taskId: string): Promise<CreatedTaskRecord | null> {
     return this.tasks.get(taskId) ?? null;
+  }
+
+  async fetchConversations(workspaceId: string): Promise<import("@vcp/shared").Conversation[]> {
+    return [];
   }
 
   cancelTask(taskId: string): Promise<void> {
@@ -375,6 +380,21 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       // ignore
     }
     return task;
+  }
+
+  async fetchConversations(workspaceId: string): Promise<import("@vcp/shared").Conversation[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/workspaces/${workspaceId}/conversations`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.data) {
+          return data.data;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to reach backend fetch conversations API", err);
+    }
+    return [];
   }
 
   async cancelTask(taskId: string): Promise<void> {
