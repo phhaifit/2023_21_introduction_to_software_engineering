@@ -3,7 +3,6 @@ import type {
   AgentModelCatalogEntry,
   AgentPublicSummary,
   AgentSkillImportAnalysisRequest,
-  AgentSkillImportValidationResponse,
   AgentSkillPreviewRequest,
   AgentSkillPreviewResponse
 } from "@vcp/shared/contracts/agent-management.ts";
@@ -231,7 +230,7 @@ export class AgentLifecycleUseCases {
 
   validateSkillMarkdownImport(
     input: AgentSkillImportAnalysisRequest
-  ): AgentSkillImportValidationResponse {
+  ): { markdown: string; fileName?: string } {
     const markdown = typeof input.markdown === "string" ? input.markdown.trim() : "";
     const fileName = input.fileName?.trim();
     const issues: string[] = [];
@@ -253,9 +252,26 @@ export class AgentLifecycleUseCases {
     }
 
     return {
-      accepted: true,
-      fileName: "skill.md"
+      markdown,
+      fileName: fileName || undefined
     };
+  }
+
+  async analyzeSkillMarkdownImport(
+    workspaceId: EntityId<"workspaceId">,
+    input: AgentSkillImportAnalysisRequest
+  ): Promise<AgentCreationAssistantDraftResponse> {
+    if (!this.dependencies.draftingPort) {
+      throw new Error("LlmAgentDraftingPort is not configured");
+    }
+
+    const validated = this.validateSkillMarkdownImport(input);
+
+    return this.dependencies.draftingPort.extractDraftFromSkillMarkdown({
+      workspaceId,
+      markdown: validated.markdown,
+      fileName: validated.fileName
+    });
   }
 
   async createAgent(input: CreateAgentInput): Promise<AgentMutationResult> {

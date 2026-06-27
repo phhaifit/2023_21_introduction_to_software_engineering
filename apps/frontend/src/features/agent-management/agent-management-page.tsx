@@ -85,7 +85,10 @@ type TemplateDraftField =
   | "role"
   | "model"
   | "responsibilities"
+  | "operatingContext"
   | "instructions"
+  | "requestedTools"
+  | "requestedKnowledge"
   | "constraints"
   | "escalationRules"
   | "exampleTasks";
@@ -101,7 +104,10 @@ const templateDraftValues: TemplateDraftState = {
   role: "",
   model: "gemini-2.5-flash",
   responsibilities: "",
+  operatingContext: "",
   instructions: "",
+  requestedTools: "",
+  requestedKnowledge: "",
   constraints: "",
   escalationRules: "",
   exampleTasks: "",
@@ -635,6 +641,8 @@ export function AgentManagementPage({
       instructions: draft.instructions,
       responsibilities: draft.responsibilities?.join("\n") || "",
       operatingContext: draft.operatingContext || "",
+      requestedTools: formatToolReferences(draft.requestedTools),
+      requestedKnowledge: formatKnowledgeReferences(draft.requestedKnowledge),
       constraints: draft.constraints?.join("\n") || "",
       escalationRules: draft.escalationRules?.join("\n") || "",
       exampleTasks: draft.exampleTasks?.join("\n") || "",
@@ -1108,7 +1116,11 @@ function GuidedCreateDialog({
               onAccept={onAcceptAssistantDraft}
             />
           ) : (
-            <DeferredGuidedPanel mode={activeMode} />
+            <SkillImportPanel
+              workspaceId={workspaceId}
+              apiClient={apiClient}
+              onAccept={onAcceptAssistantDraft}
+            />
           )}
         </div>
       </div>
@@ -1121,7 +1133,7 @@ function PromptAssistantPanel({
   apiClient,
   onAccept,
 }: {
-  workspaceId: string;
+  workspaceId: EntityId<"workspaceId">;
   apiClient: AgentManagementApiClient;
   onAccept: (draft: AgentCreationAssistantDraft) => void;
 }) {
@@ -1146,50 +1158,14 @@ function PromptAssistantPanel({
   };
 
   if (draftResult?.draft) {
-    const provider = draftResult.provider;
     return (
-      <section className="agent-guided__deferred agent-guided__prompt-review" aria-live="polite">
-        <Brain size={24} aria-hidden="true" />
-        <h3>Draft Ready</h3>
-        {provider && provider.fallbackUsed && (
-          <p className="agent-warning-text">
-            Note: Primary provider failed. Used fallback provider: {provider.modelId}
-          </p>
-        )}
-        <div className="agent-draft-preview">
-          <h4>{draftResult.draft.name}</h4>
-          <p><strong>Role:</strong> {draftResult.draft.role}</p>
-          <p><strong>Model:</strong> {draftResult.draft.model}</p>
-        </div>
-        
-        {draftResult.warnings.length > 0 && (
-          <div className="agent-draft-warnings">
-            <h4>Warnings</h4>
-            <ul>
-              {draftResult.warnings.map((w, i) => (
-                <li key={i}>{w.message}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        
-        <div className="agent-form__actions">
-          <button
-            type="button"
-            className="agent-secondary-button"
-            onClick={() => setDraftResult(null)}
-          >
-            Discard
-          </button>
-          <button
-            type="button"
-            className="agent-primary-button"
-            onClick={() => onAccept(draftResult.draft!)}
-          >
-            Edit in Template
-          </button>
-        </div>
-      </section>
+      <AssistantDraftReview
+        icon={<Brain size={24} aria-hidden="true" />}
+        title="Draft Ready"
+        result={draftResult}
+        onDiscard={() => setDraftResult(null)}
+        onAccept={onAccept}
+      />
     );
   }
 
@@ -1232,6 +1208,210 @@ function PromptAssistantPanel({
         {isGenerating ? "Generating..." : (draftResult ? "Retry" : "Generate draft")}
       </button>
     </section>
+  );
+}
+
+function SkillImportPanel({
+  workspaceId,
+  apiClient,
+  onAccept,
+}: {
+  workspaceId: EntityId<"workspaceId">;
+  apiClient: AgentManagementApiClient;
+  onAccept: (draft: AgentCreationAssistantDraft) => void;
+}) {
+  const [markdown, setMarkdown] = useState("");
+  const [fileName, setFileName] = useState<string | undefined>(undefined);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [draftResult, setDraftResult] =
+    useState<AgentCreationAssistantDraftResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setFileName(file.name);
+    setError(null);
+    setDraftResult(null);
+    setMarkdown(await file.text());
+  };
+
+  const handleAnalyze = async () => {
+    if (!markdown.trim()) {
+      setError("Markdown content is required.");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+    setDraftResult(null);
+
+    try {
+      const response = await apiClient.analyzeSkillImport(workspaceId, {
+        markdown,
+        fileName,
+      });
+      setDraftResult(response);
+    } catch (err) {
+      setError(messageFor(err, "Unable to analyze skill.md. Please try again."));
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  if (draftResult?.draft) {
+    return (
+      <AssistantDraftReview
+        icon={<Upload size={24} aria-hidden="true" />}
+        title="Imported Draft Ready"
+        result={draftResult}
+        onDiscard={() => setDraftResult(null)}
+        onAccept={onAccept}
+      />
+    );
+  }
+
+  return (
+    <section className="agent-guided__deferred" aria-live="polite">
+      <Upload size={24} aria-hidden="true" />
+      <h3>Import skill.md</h3>
+      <p>Paste Markdown or select a skill.md file to extract an editable draft.</p>
+
+      <div className="agent-form__field">
+        <label htmlFor="agent-skill-import-file">Markdown file</label>
+        <input
+          id="agent-skill-import-file"
+          type="file"
+          accept=".md,.markdown,text/markdown,text/plain"
+          disabled={isAnalyzing}
+          onChange={(event) => void handleFileChange(event)}
+        />
+      </div>
+
+      <div className="agent-form__field">
+        <label htmlFor="agent-skill-import-markdown">Markdown content</label>
+        <textarea
+          id="agent-skill-import-markdown"
+          className="agent-form__textarea"
+          value={markdown}
+          onChange={(event) => {
+            setMarkdown(event.target.value);
+            setDraftResult(null);
+            setError(null);
+          }}
+          placeholder="# Support Agent&#10;&#10;## Role&#10;Customer support specialist"
+          disabled={isAnalyzing}
+          rows={8}
+        />
+      </div>
+
+      {error ? (
+        <p className="agent-form__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {draftResult?.clarifyingQuestions.length ? (
+        <ClarifyingQuestions questions={draftResult.clarifyingQuestions} />
+      ) : null}
+
+      <button
+        type="button"
+        className="agent-primary-button"
+        disabled={isAnalyzing}
+        onClick={handleAnalyze}
+      >
+        {isAnalyzing ? "Analyzing..." : error ? "Retry analysis" : "Analyze skill.md"}
+      </button>
+    </section>
+  );
+}
+
+function AssistantDraftReview({
+  icon,
+  title,
+  result,
+  onDiscard,
+  onAccept,
+}: {
+  icon: ReactNode;
+  title: string;
+  result: AgentCreationAssistantDraftResponse & { draft: AgentCreationAssistantDraft };
+  onDiscard: () => void;
+  onAccept: (draft: AgentCreationAssistantDraft) => void;
+}) {
+  const draft = result.draft;
+  const provider = result.provider;
+
+  return (
+    <section className="agent-guided__deferred agent-guided__prompt-review" aria-live="polite">
+      {icon}
+      <h3>{title}</h3>
+      {provider && provider.fallbackUsed ? (
+        <p className="agent-warning-text">
+          Note: Primary provider failed. Used fallback provider: {provider.modelId}
+        </p>
+      ) : null}
+      <div className="agent-draft-preview">
+        <h4>{draft.name}</h4>
+        <p><strong>Role:</strong> {draft.role}</p>
+        <p><strong>Model:</strong> {draft.model}</p>
+        {draft.requestedTools?.length ? (
+          <p><strong>Requested tools:</strong> {draft.requestedTools.map((tool) => tool.name).join(", ")}</p>
+        ) : null}
+        {draft.requestedKnowledge?.length ? (
+          <p><strong>Requested knowledge:</strong> {draft.requestedKnowledge.map((item) => item.title).join(", ")}</p>
+        ) : null}
+      </div>
+
+      {result.warnings.length > 0 ? (
+        <div className="agent-draft-warnings">
+          <h4>Warnings</h4>
+          <ul>
+            {result.warnings.map((warning) => (
+              <li key={`${warning.code}-${warning.message}`}>{warning.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {result.clarifyingQuestions.length > 0 ? (
+        <ClarifyingQuestions questions={result.clarifyingQuestions} />
+      ) : null}
+
+      <div className="agent-form__actions">
+        <button
+          type="button"
+          className="agent-secondary-button"
+          onClick={onDiscard}
+        >
+          Discard
+        </button>
+        <button
+          type="button"
+          className="agent-primary-button"
+          onClick={() => onAccept(draft)}
+        >
+          Edit in Template
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ClarifyingQuestions({ questions }: { questions: string[] }) {
+  return (
+    <div className="agent-draft-questions">
+      <h4>Clarifying Questions</h4>
+      <ul>
+        {questions.map((question) => (
+          <li key={question}>{question}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -1371,11 +1551,35 @@ function TemplateDraftForm({
           onDraftChange={onDraftChange}
         />
         <DraftField
+          field="operatingContext"
+          label="Operating context"
+          value={draft.operatingContext}
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
           field="instructions"
           label="Instructions"
           value={draft.instructions}
           error={errors.instructions}
           required
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="requestedTools"
+          label="Requested tools"
+          value={draft.requestedTools}
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="requestedKnowledge"
+          label="Requested knowledge"
+          value={draft.requestedKnowledge}
           multiline
           disabled={disabled}
           onDraftChange={onDraftChange}
@@ -1488,29 +1692,6 @@ function DraftField({
         </span>
       ) : null}
     </div>
-  );
-}
-
-function DeferredGuidedPanel({ mode }: { mode: Exclude<GuidedCreateMode, "template"> }) {
-  const isPrompt = mode === "prompt";
-
-  return (
-    <section className="agent-guided__deferred" aria-live="polite">
-      {isPrompt ? (
-        <Brain size={24} aria-hidden="true" />
-      ) : (
-        <Upload size={24} aria-hidden="true" />
-      )}
-      <h3>{isPrompt ? "Prompt Assistant" : "Import skill.md"}</h3>
-      <p>
-        {isPrompt
-          ? "Prompt drafting will connect to the provider chain in the next phase."
-          : "Markdown import extraction will connect to the import analysis flow in a later phase."}
-      </p>
-      <button type="button" className="agent-secondary-button" disabled>
-        {isPrompt ? "Generate draft" : "Analyze skill.md"}
-      </button>
-    </section>
   );
 }
 
@@ -2062,6 +2243,9 @@ function templateDraftToSkillPreviewInput(
     model: draft.model,
     instructions: draft.instructions.trim(),
     responsibilities: splitDraftLines(draft.responsibilities),
+    operatingContext: draft.operatingContext.trim() || undefined,
+    requestedTools: parseToolReferences(draft.requestedTools),
+    requestedKnowledge: parseKnowledgeReferences(draft.requestedKnowledge),
     constraints: splitDraftLines(draft.constraints),
     escalationRules: splitDraftLines(draft.escalationRules),
     exampleTasks: splitDraftLines(draft.exampleTasks),
@@ -2071,6 +2255,9 @@ function templateDraftToSkillPreviewInput(
 function buildCreateInstructionsFromDraft(draft: TemplateDraftState): string {
   const optionalSections = [
     draft.responsibilities,
+    draft.operatingContext,
+    draft.requestedTools,
+    draft.requestedKnowledge,
     draft.constraints,
     draft.escalationRules,
     draft.exampleTasks,
@@ -2082,9 +2269,14 @@ function buildCreateInstructionsFromDraft(draft: TemplateDraftState): string {
 
   const sections = [
     formatDraftSection("Responsibilities", draft.responsibilities),
+    draft.operatingContext.trim()
+      ? `Operating Context:\n${draft.operatingContext.trim()}`
+      : "",
     draft.instructions.trim()
       ? `Instructions:\n${draft.instructions.trim()}`
       : "",
+    formatDraftSection("Requested Tools", draft.requestedTools),
+    formatDraftSection("Requested Knowledge", draft.requestedKnowledge),
     formatDraftSection("Constraints", draft.constraints),
     formatDraftSection("Escalation Rules", draft.escalationRules),
     formatDraftSection("Example Tasks", draft.exampleTasks),
@@ -2107,6 +2299,46 @@ function splitDraftLines(value: string): string[] {
     .split(/\r?\n/)
     .map((line) => line.replace(/^[-*]\s*/, "").trim())
     .filter(Boolean);
+}
+
+function parseToolReferences(value: string) {
+  const references = splitDraftLines(value).map((line) => {
+    const [name, ...reasonParts] = line.split(":");
+    return {
+      name: name.trim(),
+      reason: reasonParts.join(":").trim() || undefined,
+    };
+  }).filter((reference) => reference.name);
+
+  return references.length > 0 ? references : undefined;
+}
+
+function parseKnowledgeReferences(value: string) {
+  const references = splitDraftLines(value).map((line) => {
+    const [title, ...reasonParts] = line.split(":");
+    return {
+      title: title.trim(),
+      reason: reasonParts.join(":").trim() || undefined,
+    };
+  }).filter((reference) => reference.title);
+
+  return references.length > 0 ? references : undefined;
+}
+
+function formatToolReferences(
+  references: AgentCreationAssistantDraft["requestedTools"],
+): string {
+  return (references ?? [])
+    .map((tool) => (tool.reason ? `${tool.name}: ${tool.reason}` : tool.name))
+    .join("\n");
+}
+
+function formatKnowledgeReferences(
+  references: AgentCreationAssistantDraft["requestedKnowledge"],
+): string {
+  return (references ?? [])
+    .map((item) => (item.reason ? `${item.title}: ${item.reason}` : item.title))
+    .join("\n");
 }
 
 function formErrorsFor(error: unknown): AgentFormState["errors"] {
