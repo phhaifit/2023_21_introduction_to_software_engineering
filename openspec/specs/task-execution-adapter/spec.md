@@ -171,11 +171,11 @@ The Task & Orchestration module SHALL define `OpenClawNetworkTransport` as a con
 
 ---
 
-### Requirement: OpenClaw Raw Provider DTO Contracts
-The system SHALL define internal data transfer object schemas representing the raw payloads expected from OpenClaw, including start request/response, cancel request/response, raw progress event, raw partial output event, raw completion event, raw failure event, and raw cancellation event.
+### Requirement: OpenClaw OpenAI-Compatible DTO Contracts
+The system SHALL define internal data transfer object schemas representing the raw payloads expected from the OpenClaw Gateway OpenAI-compatible HTTP API, including `chat.completion.chunk` SSE stream responses. It SHALL eliminate legacy custom execution webhook DTO definitions (`OpenClawStartRequestDTO`, `OpenClawCancelRequestDTO`, `OpenClawRawProgressEvent`).
 
-#### Scenario: Structure raw provider requests and responses
-* **GIVEN** the network transport communicates with an OpenClaw runtime
-* **WHEN** data is serialized or deserialized
-* **THEN** it SHALL conform to defined internal raw provider DTO schemas
-* **AND** it SHALL provide structured representations for all execution lifecycle milestones
+#### Scenario: Structure OpenAI-compatible provider responses
+* **GIVEN** the network transport communicates with an OpenClaw Gateway runtime
+* **WHEN** data is deserialized from the SSE stream
+* **THEN** it SHALL conform to defined internal OpenAI-compatible chunk schemas (`chat.completion.chunk`)
+* **AND** it SHALL provide structured representations for execution lifecycle milestones without requiring intermediary legacy DTO wrappers
