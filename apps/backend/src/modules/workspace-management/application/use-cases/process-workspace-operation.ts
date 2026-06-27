@@ -475,7 +475,7 @@ export class ProcessWorkspaceOperationUseCase {
       });
 
       await this.enqueueEvent(workspace, "workspace.deleted.v1",
-        { workspaceId: workspace.workspaceId, deletedAt: now }, now, tx);
+        { workspaceId: workspace.workspaceId, deletedAt: now, cleanupAuthorized: true }, now, tx);
 
       return markedOp;
     });
