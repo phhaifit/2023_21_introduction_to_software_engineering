@@ -11,7 +11,7 @@ import type {
   NormalizedRuntimeError
 } from "@vcp/shared";
 import { validateStartExecutionCommand, validateExecutionBinding, mapRuntimeObservationToTaskStatus } from "@vcp/shared";
-import { OpenClawNetworkTransport, OpenClawRawEventMapper } from "./openclaw-network-transport.ts";
+import { OpenClawRawEventMapper, type OpenClawNetworkTransport } from "./openclaw-network-transport.ts";
 
 // Conceptual Consumer Ports for External Dependencies (Agent Management, Workflow Management, Authentication, Workspace Management)
 export interface ExternalAgentContract {
