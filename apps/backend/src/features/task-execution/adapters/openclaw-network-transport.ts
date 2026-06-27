@@ -194,7 +194,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     // Check if this is a real OpenClaw gateway runtime vs mock/unit-test environment
     if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
       console.log(`\n[OpenClaw Transport] === STARTING EXECUTION REQUEST ===`);
-      console.log(`[OpenClaw Transport] Target Gateway Endpoint: ${endpoint}/v1/responses`);
+      console.log(`[OpenClaw Transport] Target Gateway Endpoint: ${endpoint}/v1/chat/completions`);
       console.log(`[OpenClaw Transport] Authorization Bearer Token: ${credentialReference.substring(0, 8)}... (Length: ${credentialReference.length})`);
       console.log(`[OpenClaw Transport] Request Payload Prompt: "${request.prompt}"`);
 
@@ -245,6 +245,9 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         };
       } catch (err: any) {
         console.error(`[OpenClaw Transport] ❌ Network/Execution failure:`, err.message);
+        if (err.cause) {
+          console.error(`[OpenClaw Transport] ❌ Error Cause:`, err.cause);
+        }
         if (err.message && err.message.includes("code")) {
           throw err;
         }
@@ -349,6 +352,8 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       const reader = stream.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let accumulatedOutput = "";
+      let started = false;
 
       const readStream = async () => {
         try {
@@ -356,6 +361,15 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
             const { done, value } = await reader.read();
             if (done) {
               console.log(`[OpenClaw Transport] SSE stream reader finished [DONE].`);
+              if (started) {
+                onEvent({
+                  eventType: "completion",
+                  executionId: providerExecutionReference,
+                  finalOutput: accumulatedOutput,
+                  timestamp: Date.now()
+                });
+                started = false;
+              }
               break;
             }
             buffer += decoder.decode(value, { stream: true });
@@ -371,7 +385,49 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
                   const data = JSON.parse(dataStr);
                   const now = Date.now();
 
-                  if (data.type === "response.created" || data.type === "response.in_progress") {
+                  // 1. OpenAI Chat Completion chunk format
+                  if (data.object === "chat.completion.chunk") {
+                    if (!started) {
+                      started = true;
+                      console.log(`[OpenClaw Transport] 📥 Received SSE Event: Chat started`);
+                      onEvent({
+                        eventType: "progress",
+                        executionId: providerExecutionReference,
+                        stepId: "step-1",
+                        stepName: "Agent Execution",
+                        status: "started",
+                        timestamp: now
+                      });
+                    }
+
+                    const choice = data.choices?.[0];
+                    if (choice) {
+                      if (choice.delta?.content) {
+                        const content = choice.delta.content;
+                        accumulatedOutput += content;
+                        console.log(`[OpenClaw Transport] 📥 Received SSE Event: delta chunk "${content.replace(/\n/g, '\\n')}"`);
+                        onEvent({
+                          eventType: "partial_output",
+                          executionId: providerExecutionReference,
+                          chunk: content,
+                          timestamp: now
+                        });
+                      }
+
+                      if (choice.finish_reason) {
+                        console.log(`[OpenClaw Transport] 📥 Received SSE Event: finished (reason: ${choice.finish_reason})`);
+                        onEvent({
+                          eventType: "completion",
+                          executionId: providerExecutionReference,
+                          finalOutput: accumulatedOutput,
+                          timestamp: now
+                        });
+                        started = false;
+                      }
+                    }
+                  } 
+                  // 2. Fallback to OpenClaw native event format
+                  else if (data.type === "response.created" || data.type === "response.in_progress") {
                     console.log(`[OpenClaw Transport] 📥 Received SSE Event: ${data.type} (Status: In Progress)`);
                     onEvent({
                       eventType: "progress",
