@@ -522,7 +522,7 @@ export function SubscriptionPaymentPage() {
   const isSubActive = subscription && 
     (subscription.status === "active" || subscription.status === "expiring_soon") &&
     new Date(subscription.expiresAt).getTime() > Date.now();
-
+  const activePlan = isSubActive && subscription ? subscription.plan : "free";
   // =========================================================================
   // VIEW 1: BILLING DASHBOARD (MÀN HÌNH CHÍNH)
   // =========================================================================
@@ -937,40 +937,40 @@ export function SubscriptionPaymentPage() {
             </div>
 
             <div className="plan-mini-grid">
-              <div className={`plan-mini-item ${(!subscription || subscription.plan === "free") ? "plan-mini-item--active" : ""}`}>
+              <div className={`plan-mini-item ${activePlan === "free" ? "plan-mini-item--active" : ""}`}>
                 <div>
                   <div className="plan-mini-name">
                     Free Plan
-                    {(!subscription || subscription.plan === "free") && <span className="plan-mini-badge">Current</span>}
+                    {activePlan === "free" && <span className="plan-mini-badge">Current</span>}
                   </div>
                   <div className="plan-mini-price">$0 / month — 2 vCPUs, 4GB RAM, 2 Agents, 10GB Storage</div>
                 </div>
               </div>
 
-              <div className={`plan-mini-item ${subscription?.plan === "standard" ? "plan-mini-item--active" : ""}`}>
+              <div className={`plan-mini-item ${activePlan === "standard" ? "plan-mini-item--active" : ""}`}>
                 <div>
                   <div className="plan-mini-name">
                     Standard Plan
-                    {subscription?.plan === "standard" && <span className="plan-mini-badge">Current</span>}
+                    {activePlan === "standard" && <span className="plan-mini-badge">Current</span>}
                   </div>
                   <div className="plan-mini-price">${plansConfig ? plansConfig.standard.price : 29} / month — 8 vCPUs, 16GB RAM, 10 Agents, 50GB Storage</div>
                 </div>
-                {(!subscription || subscription.plan === "free") && (
+                {activePlan === "free" && (
                   <button onClick={() => handleInitiateCheckout("standard")} className="btn btn--secondary" style={{ width: "auto" }}>Buy</button>
                 )}
               </div>
 
-              <div className={`plan-mini-item ${subscription?.plan === "premium" ? "plan-mini-item--active" : ""}`}>
+              <div className={`plan-mini-item ${activePlan === "premium" ? "plan-mini-item--active" : ""}`}>
                 <div>
                   <div className="plan-mini-name">
                     Premium Plan
-                    {subscription?.plan === "premium" && <span className="plan-mini-badge">Current</span>}
+                    {activePlan === "premium" && <span className="plan-mini-badge">Current</span>}
                   </div>
                   <div className="plan-mini-price">${plansConfig ? plansConfig.premium.price : 79} / month — 32 vCPUs, 64GB RAM, 50 Agents, 500GB Storage</div>
                 </div>
-                {subscription?.plan === "standard" ? (
+                {activePlan === "standard" ? (
                   <button onClick={() => setView("upgrade")} className="btn btn--primary" style={{ width: "auto" }}>Upgrade</button>
-                ) : (!subscription || subscription.plan === "free") ? (
+                ) : activePlan === "free" ? (
                   <button onClick={() => handleInitiateCheckout("premium")} className="btn btn--primary" style={{ width: "auto" }}>Buy</button>
                 ) : null}
               </div>
