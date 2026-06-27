@@ -337,16 +337,16 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     this.tasks.set(task.taskId as string, task);
 
     try {
-      await fetch(`${this.baseUrl}/api/workspaces/${input.workspaceId}/executions/start`, {
+      await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskId: task.taskId,
           workId: task.workId,
-          workspaceId: input.workspaceId,
+          workspaceId: "demo_workspace_1" as any,
           conversationId: "cnv_default",
           prompt: input.prompt,
-          routing: input.requestedRouting
+          routing: input.routing
         })
       });
     } catch (err) {
