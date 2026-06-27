@@ -151,6 +151,10 @@ export type TaskCreationAction =
       /** Updates task state from a received TaskRuntimeEvent. */
       type: "runtime-event";
       event: import("./task-orchestration-provider").TaskRuntimeEvent;
+    }
+  | {
+      type: "conversations-restored";
+      conversations: import("@vcp/shared").Conversation[];
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -516,6 +520,68 @@ export function taskCreationReducer(
       return {
         ...state,
         tasks: state.tasks.map((t) => (t.taskId === updatedTask.taskId ? updatedTask : t))
+      };
+    }
+    case "conversations-restored": {
+      if (!action.conversations || action.conversations.length === 0) {
+        return state;
+      }
+      const newTasks: CreatedTaskRecord[] = [...state.tasks];
+      const newConversations: TaskConversationSession[] = [...state.conversations];
+
+      for (const conv of action.conversations) {
+        let existing = newConversations.find((c) => c.conversationId === conv.conversationId);
+        const taskIds: EntityId<"taskId">[] = [];
+
+        for (const msg of conv.messages || []) {
+          if (msg.role === "user") {
+            const taskId = `task-${msg.messageId}`;
+            taskIds.push(taskId as any);
+            if (!newTasks.some((t) => t.taskId === taskId)) {
+              newTasks.push({
+                taskId: taskId as any,
+                workId: `work-${msg.messageId}` as any,
+                prompt: msg.content,
+                requestedRouting: { mode: "auto" },
+                status: "succeeded",
+                createdAt: msg.timestamp || conv.createdAt,
+                processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
+                streamingSnapshot: createInitialStreamingSnapshot(),
+                finalizedResult: {
+                  text: conv.messages.find((m) => m.role === "assistant" && (m.timestamp >= msg.timestamp || m.messageId > msg.messageId))?.content || "",
+                  finalizedAt: msg.timestamp || conv.updatedAt,
+                  artifacts: [],
+                  followUpPromptSuggestions: []
+                }
+              });
+            }
+          }
+        }
+
+        if (existing) {
+          existing = { ...existing, title: conv.title || existing.title, taskIds: Array.from(new Set([...existing.taskIds, ...taskIds])) };
+          newConversations.splice(newConversations.findIndex((c) => c.conversationId === conv.conversationId), 1, existing);
+        } else {
+          newConversations.push({
+            conversationId: conv.conversationId as string,
+            title: conv.title || "Restored conversation",
+            taskIds,
+            createdAt: conv.createdAt,
+            updatedAt: conv.updatedAt
+          });
+        }
+      }
+
+      const activeConvId = state.activeConversationId || (newConversations.length > 0 ? newConversations[0].conversationId : undefined);
+      const activeConv = newConversations.find((c) => c.conversationId === activeConvId);
+      const activeTaskId = activeConv && activeConv.taskIds.length > 0 ? activeConv.taskIds[activeConv.taskIds.length - 1] : state.activeTaskId;
+
+      return {
+        ...state,
+        tasks: newTasks,
+        conversations: newConversations,
+        activeConversationId: activeConvId,
+        activeTaskId
       };
     }
   }

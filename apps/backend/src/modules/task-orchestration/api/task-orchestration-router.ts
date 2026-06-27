@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from "express";
-import type { StartExecutionCommand, NormalizedRuntimeEvent } from "@vcp/shared";
+import type { StartExecutionCommand, NormalizedRuntimeEvent, ConversationRepository } from "@vcp/shared";
 import type { OpenClawExecutionOrchestrator, OpenClawTaskExecutionAdapter } from "../../../features/task-execution/adapters/openclaw-task-execution-adapter.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 
 export type TaskOrchestrationRouterDependencies = {
   orchestrator: OpenClawExecutionOrchestrator;
   adapter: OpenClawTaskExecutionAdapter;
+  conversationRepository: ConversationRepository;
 };
 
 function getRequestContext(request: Request): RequestContext {
@@ -17,7 +18,7 @@ export function createTaskOrchestrationRouter(
 ): Router {
   const router = Router({ mergeParams: true });
 
-  router.post("/start", async (request, response) => {
+  router.post("/executions/start", async (request, response) => {
     console.log(`\n[Backend API] 📥 Received POST /api/workspaces/${request.params.workspaceId}/executions/start`);
     console.log(`[Backend API] Request Body:`, JSON.stringify(request.body));
     try {
@@ -50,7 +51,7 @@ export function createTaskOrchestrationRouter(
     }
   });
 
-  router.post("/:taskId/cancel", async (request, response) => {
+  router.post("/executions/:taskId/cancel", async (request, response) => {
     console.log(`\n[Backend API] 📥 Received POST /api/workspaces/${request.params.workspaceId}/executions/${request.params.taskId}/cancel`);
     try {
       const context = getRequestContext(request);
@@ -82,7 +83,7 @@ export function createTaskOrchestrationRouter(
     }
   });
 
-  router.get("/:taskId/state", async (request, response) => {
+  router.get("/executions/:taskId/state", async (request, response) => {
     try {
       const context = getRequestContext(request);
       const { taskId } = request.params;
@@ -111,7 +112,7 @@ export function createTaskOrchestrationRouter(
     }
   });
 
-  router.get("/:taskId/stream", (request, response) => {
+  router.get("/executions/:taskId/stream", (request, response) => {
     const { taskId, workspaceId } = request.params;
     console.log(`\n[Backend API] 🔌 Client connected to SSE stream for Task ID: ${taskId} (Workspace: ${workspaceId})`);
 
@@ -131,6 +132,38 @@ export function createTaskOrchestrationRouter(
       console.log(`[Backend API] 🔌 Client disconnected from SSE stream for Task ID: ${taskId}`);
       dependencies.adapter.unsubscribe(taskId as any, onEvent);
     });
+  });
+
+  router.get("/conversations", async (request, response) => {
+    console.log(`\n[Backend API] 📥 Received GET /api/workspaces/${request.params.workspaceId}/conversations`);
+    try {
+      const context = getRequestContext(request);
+      const { workspaceId } = request.params;
+      const result = await dependencies.conversationRepository.listConversationsByWorkspace(workspaceId as any);
+
+      console.log(`[Backend API] ✓ Successfully fetched ${result.length} conversations for Workspace ID: ${workspaceId}`);
+      response.status(200).json({
+        ok: true,
+        data: result,
+        meta: {
+          requestId: context.requestId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error: any) {
+      console.error(`[Backend API] ❌ Failed to fetch conversations:`, error.message);
+      response.status(400).json({
+        ok: false,
+        error: {
+          code: "fetch-conversations-failed",
+          message: error.message || "Failed to fetch conversations"
+        },
+        meta: {
+          requestId: getRequestContext(request).requestId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
   });
 
   return router;

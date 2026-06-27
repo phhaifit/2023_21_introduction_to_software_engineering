@@ -404,6 +404,7 @@ export class OpenClawExecutionOrchestrator {
   private workflowCatalog: ExternalWorkflowCatalog;
   private toolCatalog?: ExternalToolCatalog;
   private adapter: OpenClawTaskExecutionAdapter;
+  private conversationRepository?: any;
   
   // In-memory storage for orchestration state
   private taskStore = new Map<string, { taskId: EntityId<"taskId">; workId: EntityId<"workId">; status: CanonicalTaskStatus; prompt: string }>();
@@ -416,7 +417,8 @@ export class OpenClawExecutionOrchestrator {
     agentCatalog: ExternalAgentCatalog,
     workflowCatalog: ExternalWorkflowCatalog,
     adapter: OpenClawTaskExecutionAdapter,
-    toolCatalog?: ExternalToolCatalog
+    toolCatalog?: ExternalToolCatalog,
+    conversationRepository?: any
   ) {
     this.authService = authService;
     this.workspaceMgmt = workspaceMgmt;
@@ -424,6 +426,7 @@ export class OpenClawExecutionOrchestrator {
     this.workflowCatalog = workflowCatalog;
     this.adapter = adapter;
     this.toolCatalog = toolCatalog;
+    this.conversationRepository = conversationRepository;
   }
 
   /**
@@ -446,10 +449,40 @@ export class OpenClawExecutionOrchestrator {
     validateStartExecutionCommand(command);
 
     // Step 3: Validate routing selection through external catalogs
+    let associatedTarget: { type: "agent" | "workflow" | "auto"; targetId?: string } = { type: "auto" };
     if (command.routing.mode === "specific-agent") {
       await this.agentCatalog.validateAndGetAgent(command.workspaceId, command.routing.agentId);
+      associatedTarget = { type: "agent", targetId: command.routing.agentId };
     } else if (command.routing.mode === "predefined-workflow") {
       await this.workflowCatalog.validateAndGetWorkflow(command.workspaceId, command.routing.workflowId);
+      associatedTarget = { type: "workflow", targetId: command.routing.workflowId };
+    }
+
+    // Bridge active conversation with agent and workflow catalogs
+    if (this.conversationRepository) {
+      const convId = (command as any).conversationId || command.workId;
+      let conv = await this.conversationRepository.getConversation(convId);
+      if (!conv) {
+        conv = {
+          conversationId: convId,
+          workspaceId: command.workspaceId,
+          title: command.prompt.slice(0, 50) || "New Conversation",
+          messages: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          associatedTarget
+        };
+        await this.conversationRepository.saveConversation(conv);
+      } else {
+        await this.conversationRepository.updateAssociatedTarget(convId, associatedTarget);
+      }
+      await this.conversationRepository.appendMessage(convId, {
+        messageId: command.taskId as any,
+        conversationId: convId,
+        role: "user",
+        content: command.prompt,
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Step 4: Create platform Task and TaskWork
