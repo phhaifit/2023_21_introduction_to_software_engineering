@@ -6,13 +6,24 @@ Defines the `TaskExecutionAdapter` port interface as the provider-neutral consum
 ## Requirements
 
 ### Requirement: Task Execution Adapter Port Contract
-The Task & Orchestration module SHALL define the `TaskExecutionAdapter` port interface as the provider-neutral consumer-side boundary for managing runtime execution lifecycle operations. The interface SHALL support start execution, cancel execution, get execution snapshot, subscribe to normalized events, unsubscribe, and release local adapter resources.
+The Task & Orchestration module SHALL define the `TaskExecutionAdapter` port interface as the provider-neutral consumer-side boundary for managing runtime execution lifecycle operations. The interface SHALL support start execution, cancel execution, get execution snapshot, subscribe to normalized events, unsubscribe, and release local adapter resources, while remaining completely decoupled from runtime provisioning or infrastructure management.
 
 #### Scenario: Execute adapter lifecycle operations
 * **GIVEN** a concrete adapter implementing `TaskExecutionAdapter` is instantiated
 * **WHEN** the platform task domain invokes runtime operations
 * **THEN** the adapter SHALL execute start, cancel, snapshot, subscribe, unsubscribe, and release local adapter resources
-* **AND** the adapter SHALL decouple the domain from underlying transport protocols
+* **AND** the adapter SHALL decouple the domain from underlying transport protocols without provisioning runtimes
+
+#### Scenario: Map concrete OpenClaw requests
+* **GIVEN** `OpenClawTaskExecutionAdapter` is invoked
+* **WHEN** a `StartExecutionCommand` is received
+* **THEN** it SHALL map platform Task requests to verified OpenClaw requests
+* **AND** it SHALL explicitly exclude raw credentials or container configuration
+
+#### Scenario: Map concrete OpenClaw events
+* **GIVEN** `OpenClawTaskExecutionAdapter` is active
+* **WHEN** execution updates are received from OpenClaw
+* **THEN** it SHALL map OpenClaw execution updates to canonical `NormalizedRuntimeEvent` objects
 
 ---
 

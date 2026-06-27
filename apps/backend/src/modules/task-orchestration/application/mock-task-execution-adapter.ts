@@ -1,9 +1,9 @@
-import type { 
-  EntityId, 
-  TaskExecutionAdapter, 
-  StartExecutionCommand, 
-  ExecutionBinding, 
-  NormalizedRuntimeEvent, 
+import type {
+  EntityId,
+  TaskExecutionAdapter,
+  StartExecutionCommand,
+  ExecutionBinding,
+  NormalizedRuntimeEvent,
   ExecutionSnapshot,
   WorkspaceExecutionRuntimeResolver,
   CanonicalTaskStatus
@@ -38,7 +38,7 @@ export class MockTaskExecutionAdapter implements TaskExecutionAdapter {
     }
 
     const taskIdStr = command.taskId as string;
-    
+
     // Create initial snapshot
     const snapshot: ExecutionSnapshot = {
       taskId: command.taskId,
