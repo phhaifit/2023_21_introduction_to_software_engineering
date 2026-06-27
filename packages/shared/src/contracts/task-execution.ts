@@ -112,16 +112,30 @@ export function sanitizeNormalizedRuntimeError(error: NormalizedRuntimeError): N
   };
 }
 
-export type ExecutionAcceptedEvent = { type: "execution-accepted"; taskId: EntityId<"taskId">; timestamp: string };
-export type ExecutionStartedEvent = { type: "execution-started"; taskId: EntityId<"taskId">; timestamp: string };
-export type RoutingResolvedEvent = { type: "routing-resolved"; taskId: EntityId<"taskId">; routingTarget: string; timestamp: string };
-export type StepStartedEvent = { type: "step-started"; taskId: EntityId<"taskId">; stepId: string; stepName: string; timestamp: string };
-export type StepCompletedEvent = { type: "step-completed"; taskId: EntityId<"taskId">; stepId: string; result: string; timestamp: string };
-export type PartialOutputReceivedEvent = { type: "partial-output-received"; taskId: EntityId<"taskId">; outputChunk: string; timestamp: string };
-export type ExecutionCompletedEvent = { type: "execution-completed"; taskId: EntityId<"taskId">; finalOutput: string; timestamp: string };
-export type ExecutionFailedEvent = { type: "execution-failed"; taskId: EntityId<"taskId">; error: NormalizedRuntimeError; timestamp: string };
-export type ExecutionCanceledEvent = { type: "execution-canceled"; taskId: EntityId<"taskId">; timestamp: string };
-export type SubActivityEvent = { type: "sub-activity"; taskId: EntityId<"taskId">; activityType: "tool" | "workflow" | "sub-agent"; details: string; timestamp: string };
+export type BaseEventScoping = {
+  workspaceId?: EntityId<"workspaceId">;
+  workId?: EntityId<"workId">;
+  providerExecutionReference?: string;
+  providerSessionReference?: string;
+};
+
+export type ExecutionAcceptedEvent = { type: "execution-accepted"; taskId: EntityId<"taskId">; timestamp: string } & BaseEventScoping;
+export type ExecutionStartedEvent = { type: "execution-started"; taskId: EntityId<"taskId">; timestamp: string } & BaseEventScoping;
+export type RoutingResolvedEvent = { type: "routing-resolved"; taskId: EntityId<"taskId">; routingTarget: string; timestamp: string } & BaseEventScoping;
+export type StepStartedEvent = { type: "step-started"; taskId: EntityId<"taskId">; stepId: string; stepName: string; timestamp: string } & BaseEventScoping;
+export type StepCompletedEvent = { type: "step-completed"; taskId: EntityId<"taskId">; stepId: string; result: string; timestamp: string } & BaseEventScoping;
+export type PartialOutputReceivedEvent = { type: "partial-output-received"; taskId: EntityId<"taskId">; outputChunk: string; timestamp: string } & BaseEventScoping;
+export type ExecutionCompletedEvent = { type: "execution-completed"; taskId: EntityId<"taskId">; finalOutput: string; timestamp: string } & BaseEventScoping;
+export type ExecutionFailedEvent = { type: "execution-failed"; taskId: EntityId<"taskId">; error: NormalizedRuntimeError; timestamp: string } & BaseEventScoping;
+export type ExecutionCanceledEvent = { type: "execution-canceled"; taskId: EntityId<"taskId">; timestamp: string } & BaseEventScoping;
+export type SubActivityEvent = {
+  type: "sub-activity";
+  taskId: EntityId<"taskId">;
+  activityType: "routing" | "workflow" | "tool" | "sub-agent" | "handoff" | "review" | "aggregation" | "completion" | "provider-diagnostic";
+  details: string;
+  rawProviderPayload?: unknown;
+  timestamp: string;
+} & BaseEventScoping;
 
 export type NormalizedRuntimeEvent =
   | ExecutionAcceptedEvent
@@ -134,6 +148,57 @@ export type NormalizedRuntimeEvent =
   | ExecutionFailedEvent
   | ExecutionCanceledEvent
   | SubActivityEvent;
+
+export function validateObservabilityProjectionRule(action: {
+  createsTool?: boolean;
+  assignsTool?: boolean;
+  createsSubAgent?: boolean;
+  controlsInternalOrchestration?: boolean;
+  createsWorkflow?: boolean;
+  infersUnprovidedEvents?: boolean;
+}): void {
+  if (
+    action.createsTool ||
+    action.assignsTool ||
+    action.createsSubAgent ||
+    action.controlsInternalOrchestration ||
+    action.createsWorkflow ||
+    action.infersUnprovidedEvents
+  ) {
+    throw new Error(
+      "Task & Orchestration SHALL act strictly as an observability projection consumer. It SHALL display or project activity supplied by the provider but SHALL NOT create tools, assign tools to agents, create sub-agents, control OpenClaw internal orchestration, create workflows, or infer events that were not provided."
+    );
+  }
+}
+
+export function sanitizeObservabilityPayload(payload: unknown): any {
+  if (typeof payload === "string") {
+    return payload
+      .replace(/(bearer|api[_-]?key|password|secret|token)[\s:=]+[^\s,;]+/gi, "$1 [REDACTED]")
+      .replace(/(c:\\users\\[^\s,;]+|\/etc\/[^\s,;]+|\/var\/[^\s,;]+)/gi, "[REDACTED_PATH]");
+  }
+  if (payload && typeof payload === "object") {
+    if (Array.isArray(payload)) {
+      return payload.map(item => sanitizeObservabilityPayload(item));
+    }
+    const sanitized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(payload)) {
+      if (/^(bearer|api[_-]?key|password|secret|token)$/i.test(key)) {
+        sanitized[key] = "[REDACTED]";
+      } else if (typeof value === "string") {
+        sanitized[key] = value
+          .replace(/(bearer|api[_-]?key|password|secret|token)[\s:=]+[^\s,;]+/gi, "$1 [REDACTED]")
+          .replace(/(c:\\users\\[^\s,;]+|\/etc\/[^\s,;]+|\/var\/[^\s,;]+)/gi, "[REDACTED_PATH]");
+      } else if (typeof value === "object") {
+        sanitized[key] = sanitizeObservabilityPayload(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  }
+  return payload;
+}
 
 export type RuntimeObservation =
   | "platform-task-accepted"

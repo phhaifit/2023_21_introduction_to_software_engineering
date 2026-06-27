@@ -25,6 +25,12 @@ The Task & Orchestration module SHALL define the `TaskExecutionAdapter` port int
 * **WHEN** execution updates are received from OpenClaw
 * **THEN** it SHALL map OpenClaw execution updates to canonical `NormalizedRuntimeEvent` objects
 
+#### Scenario: Map optional observability payloads
+* **GIVEN** `OpenClawTaskExecutionAdapter` is active
+* **WHEN** optional observability updates (routing activity, workflow activity, tool activity, sub-agent activity, handoff, review, aggregation, completion, provider diagnostics) are received from OpenClaw
+* **THEN** it SHALL map the updates to canonical `NormalizedRuntimeEvent` objects
+* **AND** it SHALL implement automated security redaction filters scrubbing raw credentials, API keys, and sensitive provider payloads before presentation
+
 ---
 
 ### Requirement: Start Execution Command Platform Fields Only
@@ -149,5 +155,5 @@ extend-openclaw-execution-observability
 #### Scenario: Enforce cross-change dependency order
 * **GIVEN** the multi-change implementation roadmap
 * **WHEN** changes are implemented or validated
-* **THEN** `establish-openclaw-task-integration-contracts` SHALL define consumer-side contracts
+* **THEN** `extend-openclaw-execution-observability` SHALL depend on task execution integration (`integrate-openclaw-task-execution`)
 * **AND** subsequent changes SHALL respect the defined contract and runtime prerequisite hierarchy
