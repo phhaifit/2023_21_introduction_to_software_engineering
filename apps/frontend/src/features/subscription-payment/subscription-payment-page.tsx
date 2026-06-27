@@ -463,7 +463,7 @@ export function SubscriptionPaymentPage() {
             <div className="card-title-row">
               <h3>Resource Usage</h3>
               <span className="quota-badge">
-                {subscription ? `${subscription.plan.toUpperCase()} Quota` : "Free Trial Quota"}
+                {subscription ? `${subscription.plan.toUpperCase()} Plan Quota` : "FREE Plan Quota"}
               </span>
             </div>
             
@@ -533,6 +533,16 @@ export function SubscriptionPaymentPage() {
             </div>
 
             <div className="plan-mini-grid">
+              <div className={`plan-mini-item ${(!subscription || subscription.plan === "free") ? "plan-mini-item--active" : ""}`}>
+                <div>
+                  <div className="plan-mini-name">
+                    Free Plan
+                    {(!subscription || subscription.plan === "free") && <span className="plan-mini-badge">Current</span>}
+                  </div>
+                  <div className="plan-mini-price">$0 / month — 2 vCPUs, 4GB RAM, 2 Agents, 10GB Storage</div>
+                </div>
+              </div>
+
               <div className={`plan-mini-item ${subscription?.plan === "standard" ? "plan-mini-item--active" : ""}`}>
                 <div>
                   <div className="plan-mini-name">
@@ -541,7 +551,7 @@ export function SubscriptionPaymentPage() {
                   </div>
                   <div className="plan-mini-price">${plansConfig ? plansConfig.standard.price : 29} / month — 8 vCPUs, 16GB RAM, 10 Agents, 50GB Storage</div>
                 </div>
-                {!subscription && (
+                {(!subscription || subscription.plan === "free") && (
                   <button onClick={() => handleInitiateCheckout("standard")} className="btn btn--secondary" style={{ width: "auto" }}>Buy</button>
                 )}
               </div>
@@ -556,7 +566,7 @@ export function SubscriptionPaymentPage() {
                 </div>
                 {subscription?.plan === "standard" ? (
                   <button onClick={() => setView("upgrade")} className="btn btn--primary" style={{ width: "auto" }}>Upgrade</button>
-                ) : !subscription ? (
+                ) : (!subscription || subscription.plan === "free") ? (
                   <button onClick={() => handleInitiateCheckout("premium")} className="btn btn--primary" style={{ width: "auto" }}>Buy</button>
                 ) : null}
               </div>
@@ -714,6 +724,32 @@ export function SubscriptionPaymentPage() {
 
 
         <div className="upgrade-cards-grid">
+          {/* Card Free Plan */}
+          <div 
+            className={`upgrade-plan-card ${(!subscription || subscription.plan === "free") ? "upgrade-plan-card--selected" : ""} upgrade-plan-card--disabled`}
+            style={{ cursor: "default", opacity: 0.8 }}
+          >
+            <div className="upgrade-plan-title">Free Plan</div>
+            <div className="upgrade-plan-price">$0<span>/month</span></div>
+            <ul className="features-checklist">
+              {Object.entries(PLAN_ENTITLEMENTS.free).map(([key, val]) => (
+                <li key={key}>
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `${val} GB Storage`}
+                </li>
+              ))}
+              <li>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Community support
+              </li>
+            </ul>
+            {(!subscription || subscription?.plan === "free") && <span className="plan-mini-badge" style={{ alignSelf: "flex-start", padding: "4px 10px" }}>Current Plan</span>}
+          </div>
+
           {/* Card Standard Plan */}
           <div 
             onClick={() => {
@@ -730,7 +766,7 @@ export function SubscriptionPaymentPage() {
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `50 GB Storage`}
+                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `${val} GB Storage`}
                 </li>
               ))}
               <li>
@@ -740,7 +776,7 @@ export function SubscriptionPaymentPage() {
                 Standard email support
               </li>
             </ul>
-            {isUpgrading && <span className="plan-mini-badge" style={{ alignSelf: "flex-start", padding: "4px 10px" }}>Current Plan</span>}
+            {subscription?.plan === "standard" && <span className="plan-mini-badge" style={{ alignSelf: "flex-start", padding: "4px 10px" }}>Current Plan</span>}
           </div>
 
           {/* Card Premium Plan */}
@@ -757,7 +793,7 @@ export function SubscriptionPaymentPage() {
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `500 GB Storage`}
+                  {key === "cpuCores" ? `${val} vCPUs` : key === "memoryGb" ? `${val} GB RAM` : key === "maxAgents" ? `Up to ${val} AI Agents` : `${val} GB Storage`}
                 </li>
               ))}
               <li>
@@ -767,6 +803,7 @@ export function SubscriptionPaymentPage() {
                 Priority Support 24/7
               </li>
             </ul>
+            {subscription?.plan === "premium" && <span className="plan-mini-badge" style={{ alignSelf: "flex-start", padding: "4px 10px" }}>Current Plan</span>}
           </div>
         </div>
 
@@ -826,6 +863,7 @@ export function SubscriptionPaymentPage() {
                 <thead>
                   <tr>
                     <th>Feature</th>
+                    <th>Free</th>
                     <th>Standard</th>
                     <th style={{ color: "#2563eb", fontWeight: 700 }}>Premium ★</th>
                   </tr>
@@ -833,31 +871,37 @@ export function SubscriptionPaymentPage() {
                 <tbody>
                   <tr>
                     <td>CPU</td>
+                    <td>2 vCPUs</td>
                     <td>8 vCPUs</td>
                     <td>32 vCPUs</td>
                   </tr>
                   <tr>
                     <td>RAM</td>
+                    <td>4 GB</td>
                     <td>16 GB</td>
                     <td>64 GB</td>
                   </tr>
                   <tr>
                     <td>Max Agents</td>
+                    <td>2 Agents</td>
                     <td>10 Agents</td>
                     <td>50 Agents</td>
                   </tr>
                   <tr>
                     <td>Workflow Executions</td>
+                    <td>50 / mo</td>
                     <td>5,000 / mo</td>
                     <td>Unlimited</td>
                   </tr>
                   <tr>
                     <td>Storage</td>
+                    <td>10 GB</td>
                     <td>50 GB</td>
                     <td>500 GB</td>
                   </tr>
                   <tr>
                     <td>Support Level</td>
+                    <td>Community</td>
                     <td>Standard</td>
                     <td>Priority 24/7</td>
                   </tr>
