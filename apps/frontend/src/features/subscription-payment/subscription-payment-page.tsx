@@ -45,6 +45,7 @@ export function SubscriptionPaymentPage() {
   
   const [agreeToTerms, setAgreeToTerms] = useState(true); // Gán mặc định true để cải thiện UX
   const [autoRenew, setAutoRenew] = useState(true);
+  const [selectedPlan, setSelectedPlan] = useState<"standard" | "premium">("premium");
 
   // State Promo Code
   const [promoCodeInput, setPromoCodeInput] = useState("");
@@ -693,9 +694,16 @@ export function SubscriptionPaymentPage() {
   // =========================================================================
   if (view === "upgrade") {
     const isUpgrading = subscription?.plan === "standard";
+    const standardPrice = plansConfig ? plansConfig.standard.price : 29;
     const premiumPrice = plansConfig ? plansConfig.premium.price : 79;
-    const standardCredit = isUpgrading ? (plansConfig ? plansConfig.standard.price : 29) : 0;
-    const baseUpgradeFee = premiumPrice - standardCredit;
+
+    // Gói đang được chọn (nếu đang nâng cấp thì bắt buộc chọn premium, còn lại dựa trên selectedPlan)
+    const activeSelectedPlan = isUpgrading ? "premium" : selectedPlan;
+    const selectedPrice = activeSelectedPlan === "standard" ? standardPrice : premiumPrice;
+    
+    // Credit chỉ áp dụng khi thực sự nâng cấp từ standard lên premium
+    const standardCredit = (isUpgrading && activeSelectedPlan === "premium") ? standardPrice : 0;
+    const baseUpgradeFee = selectedPrice - standardCredit;
     const finalUpgradeFee = Math.max(0, baseUpgradeFee - discountAmount);
 
     return (
@@ -714,9 +722,15 @@ export function SubscriptionPaymentPage() {
 
         <div className="upgrade-cards-grid">
           {/* Card Standard Plan */}
-          <div className="upgrade-plan-card">
+          <div 
+            onClick={() => {
+              if (isUpgrading) return; // Đang sử dụng gói này thì không được click chọn lại
+              setSelectedPlan("standard");
+            }}
+            className={`upgrade-plan-card ${activeSelectedPlan === "standard" ? "upgrade-plan-card--selected" : ""} ${isUpgrading ? "upgrade-plan-card--disabled" : ""}`}
+          >
             <div className="upgrade-plan-title">Standard Plan</div>
-            <div className="upgrade-plan-price">${plansConfig ? plansConfig.standard.price : 29}<span>/month</span></div>
+            <div className="upgrade-plan-price">${standardPrice}<span>/month</span></div>
             <ul className="features-checklist">
               {Object.entries(PLAN_ENTITLEMENTS.standard).map(([key, val]) => (
                 <li key={key}>
@@ -737,10 +751,13 @@ export function SubscriptionPaymentPage() {
           </div>
 
           {/* Card Premium Plan */}
-          <div className="upgrade-plan-card upgrade-plan-card--recommended">
+          <div 
+            onClick={() => setSelectedPlan("premium")}
+            className={`upgrade-plan-card ${activeSelectedPlan === "premium" ? "upgrade-plan-card--selected" : ""} ${activeSelectedPlan === "premium" ? "upgrade-plan-card--recommended" : ""}`}
+          >
             <span className="card-badge-pop">Recommended</span>
             <div className="upgrade-plan-title">Premium Plan</div>
-            <div className="upgrade-plan-price">${plansConfig ? plansConfig.premium.price : 79}<span>/month</span></div>
+            <div className="upgrade-plan-price">${premiumPrice}<span>/month</span></div>
             <ul className="features-checklist">
               {Object.entries(PLAN_ENTITLEMENTS.premium).map(([key, val]) => (
                 <li key={key}>
@@ -769,13 +786,13 @@ export function SubscriptionPaymentPage() {
             
             <div className="cost-calc-container">
               <div className="calc-row">
-                <span>Premium plan price</span>
-                <span>$79.00</span>
+                <span>{activeSelectedPlan === "standard" ? "Standard plan price" : "Premium plan price"}</span>
+                <span>${selectedPrice.toFixed(2)}</span>
               </div>
-              {isUpgrading && (
+              {(isUpgrading && activeSelectedPlan === "premium") && (
                 <div className="calc-row calc-row--minus">
                   <span>Standard plan credit</span>
-                  <span>-$29.00</span>
+                  <span>-${standardPrice.toFixed(2)}</span>
                 </div>
               )}
               {appliedPromo && (
@@ -801,7 +818,7 @@ export function SubscriptionPaymentPage() {
                   <span>Total Due Today</span>
                   <span>${finalUpgradeFee.toFixed(2)}</span>
                 </div>
-                <div className="due-sub">Then $79.00/month starting next billing cycle</div>
+                <div className="due-sub">Then ${selectedPrice.toFixed(2)}/month starting next billing cycle</div>
               </div>
             </div>
           </div>
@@ -868,7 +885,7 @@ export function SubscriptionPaymentPage() {
               onChange={(e) => setAgreeToTerms(e.target.checked)}
             />
             <label htmlFor="confirmUpgrade" className="confirm-box-text">
-              Tôi xác nhận rằng tài nguyên workspace sẽ được nâng cấp lên gói Premium ngay lập tức sau khi quá trình thanh toán thành công, và tổng phí là <strong>${finalUpgradeFee.toFixed(2)}</strong> sẽ được áp dụng cho phương thức thanh toán được chọn.
+              Tôi xác nhận rằng tài nguyên workspace sẽ được {activeSelectedPlan === "standard" ? "đăng ký gói Standard" : isUpgrading ? "nâng cấp lên gói Premium" : "đăng ký gói Premium"} ngay lập tức sau khi quá trình thanh toán thành công, và tổng phí là <strong>${finalUpgradeFee.toFixed(2)}</strong> sẽ được áp dụng cho phương thức thanh toán được chọn.
             </label>
           </div>
 
@@ -877,7 +894,17 @@ export function SubscriptionPaymentPage() {
               Cancel
             </button>
             <button 
-              onClick={isUpgrading ? handleInitiateUpgrade : () => handleInitiateCheckout("premium")} 
+              onClick={() => {
+                if (activeSelectedPlan === "standard") {
+                  handleInitiateCheckout("standard");
+                } else {
+                  if (isUpgrading) {
+                    handleInitiateUpgrade();
+                  } else {
+                    handleInitiateCheckout("premium");
+                  }
+                }
+              }} 
               disabled={!agreeToTerms}
               className="btn btn--primary"
             >

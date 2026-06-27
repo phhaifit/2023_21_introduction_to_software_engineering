@@ -593,6 +593,26 @@ input:checked + .slider:before {
   display: flex;
   flex-direction: column;
   position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.upgrade-plan-card:hover:not(.upgrade-plan-card--disabled) {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+.upgrade-plan-card--selected {
+  border-color: #2563eb !important;
+  border-width: 2px !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15) !important;
+}
+
+.upgrade-plan-card--disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  background-color: #f8fafc;
 }
 
 .upgrade-plan-card--recommended {
