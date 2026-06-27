@@ -200,16 +200,19 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
       try {
         const abortController = new AbortController();
-        const response = await this.fetcher(`${endpoint}/v1/responses`, {
+        const response = await this.fetcher(`${endpoint}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${credentialReference}`
+            "Authorization": `Bearer ${credentialReference}`,
+            "x-openclaw-model": "gemini-3.1-pro-preview",
+            "x-openclaw-session-key": request.conversationId || "default-session"
           },
           body: JSON.stringify({
-            model: "gemini-3.1-pro-preview",
-            input: request.prompt || "Start execution",
-            stream: true
+            model: "openclaw/default",
+            messages: [{ role: "user", content: request.prompt || "Start execution" }],
+            stream: true,
+            user: request.conversationId || "default-user"
           }),
           signal: abortController.signal
         });
