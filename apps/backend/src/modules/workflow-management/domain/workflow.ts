@@ -10,6 +10,8 @@ export interface Workflow {
   status: WorkflowStatus;
   triggerType: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
+  version: number;
+  parentWorkflowId: string | null;
   createdAt: string;
   updatedAt: string;
   steps: WorkflowStep[];
@@ -19,9 +21,11 @@ export interface WorkflowStep {
   workflowStepId: EntityId<"workflowStepId">;
   workspaceId: EntityId<"workspaceId">;
   workflowId: EntityId<"workflowId">;
-  agentId: EntityId<"agentId">;
+  agentId: EntityId<"agentId"> | null;
+  stepType: "agent" | "approval";
   stepOrder: number;
   nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null;
+  inputMapping?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +48,8 @@ export function createWorkflow(
     status: "draft" as WorkflowStatus,
     triggerType,
     triggerConfig,
+    version: 1,
+    parentWorkflowId: null,
     createdAt: now,
     updatedAt: now,
     steps,
@@ -54,9 +60,11 @@ export function createWorkflowStep(
   workflowStepId: EntityId<"workflowStepId">,
   workspaceId: EntityId<"workspaceId">,
   workflowId: EntityId<"workflowId">,
-  agentId: EntityId<"agentId">,
+  agentId: EntityId<"agentId"> | null,
+  stepType: "agent" | "approval",
   stepOrder: number,
-  nextSteps: Array<{ targetStepId: string; condition?: string | null }> | null = null
+  nextSteps: Array<{ targetStepId: string; condition?: string | null }> | null = null,
+  inputMapping: Record<string, string> | null = null
 ): WorkflowStep {
   const now = new Date().toISOString();
   return {
@@ -64,8 +72,10 @@ export function createWorkflowStep(
     workspaceId,
     workflowId,
     agentId,
+    stepType,
     stepOrder,
     nextSteps,
+    inputMapping,
     createdAt: now,
     updatedAt: now,
   };
@@ -80,6 +90,8 @@ export function toWorkflowSummary(workflow: Workflow): WorkflowDto {
     status: workflow.status,
     triggerType: workflow.triggerType,
     triggerConfig: workflow.triggerConfig || null,
+    version: workflow.version,
+    parentWorkflowId: workflow.parentWorkflowId,
     createdAt: workflow.createdAt,
     updatedAt: workflow.updatedAt,
   };
@@ -91,8 +103,10 @@ export function toWorkflowStepDto(step: WorkflowStep): WorkflowStepDto {
     workspaceId: step.workspaceId,
     workflowId: step.workflowId,
     agentId: step.agentId,
+    stepType: step.stepType,
     stepOrder: step.stepOrder,
     nextSteps: step.nextSteps as any,
+    inputMapping: step.inputMapping as any,
     createdAt: step.createdAt,
     updatedAt: step.updatedAt,
   };

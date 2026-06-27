@@ -25,6 +25,7 @@ import { createWorkflowManagementRouter } from "./modules/workflow-management/ap
 import { WorkflowUseCases } from "./modules/workflow-management/application/workflow-use-cases.ts";
 import { PrismaWorkflowRepository } from "./modules/workflow-management/infrastructure/prisma-workflow-repository.ts";
 import { InMemoryWorkflowRepository } from "./modules/workflow-management/infrastructure/in-memory-workflow-repository.ts";
+import { WorkflowExecutionService } from "./modules/task-orchestration/application/workflow-execution-service.ts";
 
 import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
 import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
@@ -212,12 +213,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     })
   };
   
-  const mockExecutionHandoff = {
-    async handoffExecution(request: any) {
-      console.log("[Handoff] Mock Workflow Execution Handoff triggered:");
-      console.log(JSON.stringify(request, null, 2));
-    }
-  };
+  const executionService = new WorkflowExecutionService();
 
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
     const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
@@ -227,7 +223,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const workflowUseCases = new WorkflowUseCases(
     workflowRepository,
     agentProvider,
-    mockExecutionHandoff
+    executionService
   );
 
   if (repository instanceof InMemoryAgentRepository) {

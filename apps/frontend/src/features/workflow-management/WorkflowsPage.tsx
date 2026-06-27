@@ -263,6 +263,7 @@ function WorkflowsList({
   onEdit,
   onExecutionSuccess,
   apiClient: providedApiClient,
+  onImportWorkflow
 }: {
   onCreate: () => void;
   onEdit: (id: string) => void;
@@ -386,11 +387,16 @@ function WorkflowsList({
       const exportPayload = {
         name: `${wf.name} (Imported)`,
         description: wf.description,
+        status: wf.status,
         triggerType: wf.triggerType,
         triggerConfig: wf.triggerConfig,
         steps: data.steps ? data.steps.map((s: any) => ({
+          workflowStepId: s.workflowStepId,
           agentId: s.agentId,
-          stepOrder: s.stepOrder
+          stepType: s.stepType,
+          stepOrder: s.stepOrder,
+          nextSteps: s.nextSteps,
+          inputMapping: s.inputMapping
         })) : []
       };
 
@@ -420,7 +426,8 @@ function WorkflowsList({
         if (onImportWorkflow) {
           onImportWorkflow(parsed);
         }
-      } catch (err) {
+      } catch (err: any) {
+        console.error("Import error:", err);
         alert("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
       }
     };
