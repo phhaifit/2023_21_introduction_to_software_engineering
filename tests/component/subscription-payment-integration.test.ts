@@ -106,6 +106,59 @@ describe("Subscription & Payment Integration Flow", () => {
       expect(detailsAfter.subscription?.plan).toBe("premium");
       expect(detailsAfter.subscription?.status).toBe("active");
     });
+
+    it("nên bật tắt tự động gia hạn thành công qua API", async () => {
+      // Đăng ký gói trước
+      const checkoutRes = await client.initiateCheckout("standard");
+      await client.sendMockCallback(checkoutRes.transactionId, "success");
+
+      // Tắt tự gia hạn
+      const res = await client.toggleAutoRenewal(false);
+      expect(res.autoRenew).toBe(false);
+
+      // Verify details
+      const details = await client.getSubscriptionDetails();
+      expect(details.subscription?.autoRenew).toBe(false);
+    });
+
+    it("nên cập nhật phương thức thanh toán ảo thành công qua API", async () => {
+      // Đăng ký gói trước
+      const checkoutRes = await client.initiateCheckout("standard");
+      await client.sendMockCallback(checkoutRes.transactionId, "success");
+
+      // Cập nhật thẻ
+      await client.updatePaymentMethod("1111 2222 3333 4444", "VCP Tester", "09/30");
+
+      // Verify details
+      const details = await client.getSubscriptionDetails();
+      expect(details.subscription?.cardNumber).toBe("1111 2222 3333 4444");
+      expect(details.subscription?.cardHolder).toBe("VCP Tester");
+      expect(details.subscription?.cardExpiry).toBe("09/30");
+    });
+
+    it("nên xác thực mã giảm giá tĩnh thành công qua API", async () => {
+      const res = await client.validatePromo("VCP10");
+      expect(res.success).toBe(true);
+      expect(res.discount).toBe(10);
+
+      const resFail = await client.validatePromo("FAIL_PROMO");
+      expect(resFail.success).toBe(false);
+      expect(resFail.discount).toBe(0);
+    });
+
+    it("nên lấy về tài nguyên sử dụng thật của workspace qua API", async () => {
+      // Đăng ký gói Standard trước
+      const checkoutRes = await client.initiateCheckout("standard");
+      await client.sendMockCallback(checkoutRes.transactionId, "success");
+
+      // Lấy usage
+      const usage = await client.getWorkspaceResourceUsage("workspace-test-id");
+      expect(usage).toHaveProperty("cpu");
+      expect(usage).toHaveProperty("ram");
+      expect(usage).toHaveProperty("agents");
+      expect(usage).toHaveProperty("storage");
+      expect(usage.cpu.max).toBe(8); // Standard CPU max
+    });
   });
 
   // 2. Kiểm tra Worker Webhook Handler

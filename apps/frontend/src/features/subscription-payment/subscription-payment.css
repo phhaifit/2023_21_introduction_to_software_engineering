@@ -1034,3 +1034,43 @@ input:checked + .slider:before {
   color: #0f172a;
   font-weight: 600;
 }
+
+/* Card Modal Styles */
+.card-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.card-modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.card-modal-content h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+}
+
+.card-modal-sub {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 20px;
+}
+

@@ -166,21 +166,23 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
 
-  const checkoutUseCases = new CheckoutUseCases({
-    repository: subscriptionRepository,
-    paymentAdapter: new MockPaymentAdapter(frontendUrl),
-    eventBus,
-    now: () => new Date().toISOString(),
-    generateSubscriptionId: () => randomUUID() as any,
-    generateTransactionId: () => randomUUID() as any,
-    generateEventId: () => randomUUID() as any
-  });
-
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
   const knowledgeDocumentRepository = prisma
     ? new PrismaKnowledgeDocumentRepository(prisma)
     : new InMemoryKnowledgeDocumentRepository();
+
+  const checkoutUseCases = new CheckoutUseCases({
+    repository: subscriptionRepository,
+    paymentAdapter: new MockPaymentAdapter(frontendUrl),
+    eventBus,
+    agentRepository: repository,
+    documentRepository: knowledgeDocumentRepository,
+    now: () => new Date().toISOString(),
+    generateSubscriptionId: () => randomUUID() as any,
+    generateTransactionId: () => randomUUID() as any,
+    generateEventId: () => randomUUID() as any
+  });
   const knowledgeIngestionJobRepository = prisma
     ? new PrismaKnowledgeIngestionJobRepository(prisma)
     : new InMemoryKnowledgeIngestionJobRepository();

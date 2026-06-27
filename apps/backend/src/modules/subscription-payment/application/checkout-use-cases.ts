@@ -1,7 +1,11 @@
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { SubscriptionPlan } from "@vcp/shared/contracts/plans.ts";
-import { PLAN_PRICES } from "@vcp/shared/contracts/plans.ts";
-import type { SubscriptionDetailsResponse } from "@vcp/shared/contracts/subscription-payment.ts";
+import { PLAN_PRICES, PLAN_ENTITLEMENTS } from "@vcp/shared/contracts/plans.ts";
+import type { 
+  SubscriptionDetailsResponse, 
+  WorkspaceResourceUsageResponse,
+  ValidatePromoResponse
+} from "@vcp/shared/contracts/subscription-payment.ts";
 import type { SubscriptionRepository } from "./subscription-repository.ts";
 import type { MockPaymentAdapter } from "../infrastructure/mock-payment-adapter.ts";
 import {
@@ -26,6 +30,8 @@ export type CheckoutUseCasesDependencies = {
   paymentAdapter: MockPaymentAdapter;
   eventBus: EventBus;
   jobQueue?: JobQueue;
+  agentRepository?: any;       // Kết nối chéo Agent
+  documentRepository?: any;    // Kết nối chéo RAG
   now: () => string;
   generateSubscriptionId: () => EntityId<"subscriptionId">;
   generateTransactionId: () => EntityId<"transactionId">;
@@ -53,11 +59,125 @@ export class CheckoutUseCases {
     this.dependencies = dependencies;
   }
 
+  // 1. Áp dụng & Xác thực mã giảm giá
+  validatePromo(promoCode: string): ValidatePromoResponse {
+    const code = promoCode.trim().toUpperCase();
+    if (code === "VCP10") {
+      return { success: true, discount: 10 };
+    }
+    if (code === "VCP20") {
+      return { success: true, discount: 20 };
+    }
+    return {
+      success: false,
+      discount: 0,
+      message: "Mã giảm giá không tồn tại hoặc đã hết hạn."
+    };
+  }
+
+  // 2. Bật/Tắt tự động gia hạn
+  async toggleAutoRenewal(
+    userId: EntityId<"userId">,
+    autoRenew: boolean
+  ): Promise<Subscription> {
+    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    if (!sub) {
+      throw new CheckoutNotFoundError("Không tìm thấy gói đăng ký nào để cập nhật.");
+    }
+
+    const updatedSub: Subscription = {
+      ...sub,
+      autoRenew,
+      updatedAt: this.dependencies.now()
+    };
+
+    await this.dependencies.repository.saveSubscription(updatedSub);
+    return updatedSub;
+  }
+
+  // 3. Cập nhật phương thức thanh toán ảo
+  async updatePaymentMethod(
+    userId: EntityId<"userId">,
+    cardDetails: { cardNumber: string; cardHolder: string; cardExpiry: string }
+  ): Promise<Subscription> {
+    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    if (!sub) {
+      throw new CheckoutNotFoundError("Không tìm thấy gói đăng ký nào để cập nhật phương thức thanh toán.");
+    }
+
+    const updatedSub: Subscription = {
+      ...sub,
+      cardNumber: cardDetails.cardNumber,
+      cardHolder: cardDetails.cardHolder,
+      cardExpiry: cardDetails.cardExpiry,
+      updatedAt: this.dependencies.now()
+    };
+
+    await this.dependencies.repository.saveSubscription(updatedSub);
+    return updatedSub;
+  }
+
+  // 4. Lấy dữ liệu tài nguyên thực tế của Workspace qua API
+  async getWorkspaceResourceUsage(
+    workspaceId: EntityId<"workspaceId">,
+    userId: EntityId<"userId">
+  ): Promise<WorkspaceResourceUsageResponse> {
+    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    const nowStr = this.dependencies.now();
+    const isActive = sub ? isSubscriptionActive(sub, nowStr) : false;
+    const plan = isActive && sub ? sub.plan : "none";
+
+    // Lấy hạn mức quota theo plan
+    const entitlements = PLAN_ENTITLEMENTS[plan as SubscriptionPlan] || {
+      cpuCores: 2,
+      memoryGb: 4,
+      maxAgents: 2,
+      maxDocuments: 10
+    };
+
+    // Đếm số agents thực tế của workspace từ AgentRepository
+    let agentsUsed = 0;
+    if (this.dependencies.agentRepository) {
+      try {
+        const list = await this.dependencies.agentRepository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+        agentsUsed = list.agents.filter((a: any) => a.status !== "deleted").length;
+      } catch (e) {
+        console.error("Lỗi khi đếm Agents của workspace:", e);
+      }
+    }
+
+    // Đếm số documents thực tế từ KnowledgeDocumentRepository
+    let docsUsed = 0;
+    if (this.dependencies.documentRepository) {
+      try {
+        const docsResult = await this.dependencies.documentRepository.listDocuments(workspaceId);
+        docsUsed = docsResult.total || docsResult.items.length;
+      } catch (e) {
+        console.error("Lỗi khi đếm Documents của workspace:", e);
+      }
+    }
+
+    // Tính toán tài nguyên dựa trên active agents
+    const cpuUsed = agentsUsed * 1;
+    const ramUsed = agentsUsed * 2;
+    const storageUsed = Number((docsUsed * 0.42).toFixed(2)); // 0.42 GB cho mỗi document
+
+    const storageMax = plan === "premium" ? 500 : plan === "standard" ? 50 : 10;
+
+    return {
+      cpu: { used: Math.min(cpuUsed, entitlements.cpuCores), max: entitlements.cpuCores },
+      ram: { used: Math.min(ramUsed, entitlements.memoryGb), max: entitlements.memoryGb },
+      agents: { used: agentsUsed, max: entitlements.maxAgents },
+      storage: { used: Math.min(storageUsed, storageMax), max: storageMax }
+    };
+  }
+
   async initiateCheckout(
     userId: EntityId<"userId">,
-    plan: SubscriptionPlan
+    plan: SubscriptionPlan,
+    promoCode?: string
   ): Promise<{ checkoutUrl: string; subscriptionId: EntityId<"subscriptionId">; transactionId: EntityId<"transactionId"> }> {
-        const activeSub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    const activeSub = await this.dependencies.repository.findSubscriptionByUserId(userId);
     const nowStr = this.dependencies.now();
 
     if (activeSub) {
@@ -69,7 +189,7 @@ export class CheckoutUseCases {
           throw new CheckoutValidationError(`Bạn đã có một gói ${plan} đang hoạt động hoặc đang chờ thanh toán.`);
         }
         if (activeSub.plan === "standard" && plan === "premium") {
-          return this.initiateUpgrade(userId, activeSub.subscriptionId);
+          return this.initiateUpgrade(userId, activeSub.subscriptionId, promoCode);
         }
         throw new CheckoutValidationError(`Bạn không thể hạ cấp gói dịch vụ khi gói hiện tại đang hoạt động.`);
       }
@@ -77,7 +197,17 @@ export class CheckoutUseCases {
 
     const subscriptionId = this.dependencies.generateSubscriptionId();
     const transactionId = this.dependencies.generateTransactionId();
-    const amount = PLAN_PRICES[plan];
+    
+    // Áp dụng giảm giá
+    const baseAmount = PLAN_PRICES[plan];
+    let discount = 0;
+    if (promoCode) {
+      const promo = this.validatePromo(promoCode);
+      if (promo.success) {
+        discount = promo.discount;
+      }
+    }
+    const amount = Math.max(0, baseAmount - discount);
 
     const expiresAt = new Date(new Date(nowStr).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -89,7 +219,11 @@ export class CheckoutUseCases {
       status: "pending",
       expiresAt,
       createdAt: nowStr,
-      updatedAt: nowStr
+      updatedAt: nowStr,
+      autoRenew: true,
+      cardNumber: null,
+      cardHolder: null,
+      cardExpiry: null
     };
 
     const transaction: Transaction = {
@@ -120,7 +254,8 @@ export class CheckoutUseCases {
 
   async initiateUpgrade(
     userId: EntityId<"userId">,
-    subscriptionId: EntityId<"subscriptionId">
+    subscriptionId: EntityId<"subscriptionId">,
+    promoCode?: string
   ): Promise<{ checkoutUrl: string; subscriptionId: EntityId<"subscriptionId">; transactionId: EntityId<"transactionId"> }> {
     const sub = await this.dependencies.repository.findSubscriptionById(subscriptionId);
 
@@ -138,9 +273,19 @@ export class CheckoutUseCases {
     }
 
     const transactionId = this.dependencies.generateTransactionId();
+    
+    // Áp dụng giảm giá nâng cấp
     const premiumPrice = PLAN_PRICES["premium"];
     const standardPrice = PLAN_PRICES["standard"];
-    const upgradeAmount = premiumPrice - standardPrice; // Phí nâng cấp chênh lệch
+    const baseUpgradeAmount = premiumPrice - standardPrice; // Phí nâng cấp ($50)
+    let discount = 0;
+    if (promoCode) {
+      const promo = this.validatePromo(promoCode);
+      if (promo.success) {
+        discount = promo.discount;
+      }
+    }
+    const upgradeAmount = Math.max(0, baseUpgradeAmount - discount);
 
     const transaction: Transaction = {
       transactionId,
@@ -194,7 +339,9 @@ export class CheckoutUseCases {
     }
 
     if (status === "success") {
-      const isUpgrade = tx.amount === (PLAN_PRICES["premium"] - PLAN_PRICES["standard"]);
+      // Bất kỳ giao dịch thành công nào được kích hoạt khi gói hiện tại đang là Standard
+      // và trạng thái là active thì được tính là nâng cấp lên Premium.
+      const isUpgrade = sub.plan === "standard" && sub.status === "active";
       let fromPlan = sub.plan;
       let toPlan = sub.plan;
       let updatedSub: Subscription;

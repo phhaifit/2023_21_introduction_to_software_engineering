@@ -2553,7 +2553,11 @@ export const SubscriptionScalarFieldEnum = {
   status: 'status',
   expiresAt: 'expiresAt',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  autoRenew: 'autoRenew',
+  cardNumber: 'cardNumber',
+  cardHolder: 'cardHolder',
+  cardExpiry: 'cardExpiry'
 } as const
 
 export type SubscriptionScalarFieldEnum = (typeof SubscriptionScalarFieldEnum)[keyof typeof SubscriptionScalarFieldEnum]
@@ -2950,6 +2954,13 @@ export type ListStringFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaMod
 
 
 /**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -2988,13 +2999,6 @@ export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'In
  * Reference to a field of type 'Int[]'
  */
 export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int[]'>
-    
-
-
-/**
- * Reference to a field of type 'Boolean'
- */
-export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 /**

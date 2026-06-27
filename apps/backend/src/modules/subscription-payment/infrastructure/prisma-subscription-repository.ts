@@ -21,7 +21,11 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: subscription.status,
       expiresAt: subscription.expiresAt,
       createdAt: subscription.createdAt,
-      updatedAt: subscription.updatedAt
+      updatedAt: subscription.updatedAt,
+      autoRenew: subscription.autoRenew,
+      cardNumber: subscription.cardNumber,
+      cardHolder: subscription.cardHolder,
+      cardExpiry: subscription.cardExpiry
     };
 
     const record = await this.prisma.subscription.upsert({
@@ -38,7 +42,11 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: record.status as SubscriptionStatus,
       expiresAt: record.expiresAt,
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      autoRenew: record.autoRenew ?? true,
+      cardNumber: record.cardNumber,
+      cardHolder: record.cardHolder,
+      cardExpiry: record.cardExpiry
     };
   }
 
@@ -57,7 +65,11 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: record.status as SubscriptionStatus,
       expiresAt: record.expiresAt,
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      autoRenew: record.autoRenew ?? true,
+      cardNumber: record.cardNumber,
+      cardHolder: record.cardHolder,
+      cardExpiry: record.cardExpiry
     };
   }
 
@@ -77,7 +89,11 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: record.status as SubscriptionStatus,
       expiresAt: record.expiresAt,
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      autoRenew: record.autoRenew ?? true,
+      cardNumber: record.cardNumber,
+      cardHolder: record.cardHolder,
+      cardExpiry: record.cardExpiry
     };
   }
 
@@ -97,7 +113,11 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: record.status as SubscriptionStatus,
       expiresAt: record.expiresAt,
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      autoRenew: record.autoRenew ?? true,
+      cardNumber: record.cardNumber,
+      cardHolder: record.cardHolder,
+      cardExpiry: record.cardExpiry
     };
   }
 

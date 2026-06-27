@@ -105,6 +105,10 @@ model Subscription {
   expiresAt      String
   createdAt      String
   updatedAt      String
+  autoRenew      Boolean? @default(true)
+  cardNumber     String?
+  cardHolder     String?
+  cardExpiry     String?
 
   @@index([userId])
   @@index([workspaceId])

@@ -129,6 +129,41 @@ async function runTests() {
   const subCancelled = await repository.findSubscriptionById(checkoutRes2.subscriptionId);
   assert.equal(subCancelled.status, "cancelled");
 
+  // Scenario 8: Validate Promo Codes
+  const promoValid = useCases.validatePromo("VCP10");
+  assert.equal(promoValid.success, true);
+  assert.equal(promoValid.discount, 10);
+
+  const promoInvalid = useCases.validatePromo("INVALID_CODE");
+  assert.equal(promoInvalid.success, false);
+  assert.equal(promoInvalid.discount, 0);
+
+  // Scenario 9: Toggle Auto-Renewal
+  const subToggleRes = await useCases.toggleAutoRenewal(userId, false);
+  assert.equal(subToggleRes.autoRenew, false);
+  
+  const subToggleVerify = await repository.findSubscriptionById("sub-1");
+  assert.equal(subToggleVerify.autoRenew, false);
+
+  // Scenario 10: Update Payment Method Card details
+  const subCardRes = await useCases.updatePaymentMethod(userId, {
+    cardNumber: "1111 2222 3333 4444",
+    cardHolder: "VCP Tester",
+    cardExpiry: "09/30"
+  });
+  assert.equal(subCardRes.cardNumber, "1111 2222 3333 4444");
+  assert.equal(subCardRes.cardHolder, "VCP Tester");
+
+  const subCardVerify = await repository.findSubscriptionById("sub-1");
+  assert.equal(subCardVerify.cardNumber, "1111 2222 3333 4444");
+
+  // Scenario 11: Get Resource Usage
+  const usage = await useCases.getWorkspaceResourceUsage("workspace-123", userId);
+  assert.ok(usage.cpu);
+  assert.ok(usage.ram);
+  assert.ok(usage.agents);
+  assert.ok(usage.storage);
+
   console.log("All subscription tests passed! ✓");
 }
 

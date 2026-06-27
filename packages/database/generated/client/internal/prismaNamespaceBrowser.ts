@@ -182,7 +182,11 @@ export const SubscriptionScalarFieldEnum = {
   status: 'status',
   expiresAt: 'expiresAt',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  autoRenew: 'autoRenew',
+  cardNumber: 'cardNumber',
+  cardHolder: 'cardHolder',
+  cardExpiry: 'cardExpiry'
 } as const
 
 export type SubscriptionScalarFieldEnum = (typeof SubscriptionScalarFieldEnum)[keyof typeof SubscriptionScalarFieldEnum]
