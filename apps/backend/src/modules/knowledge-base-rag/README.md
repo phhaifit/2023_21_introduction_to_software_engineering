@@ -15,11 +15,12 @@ models, application repository ports, application use cases, safe DTO mappers,
 Prisma repository adapters, deterministic in-memory repositories, a thin
 workspace-scoped HTTP API router, and a worker handoff skeleton for document
 ingestion lifecycle updates. The worker boundary also includes a deterministic
-text processing pipeline for supported text/markdown documents.
+text processing pipeline for supported text/markdown documents and an injected
+embedding/vector indexing adapter boundary for persisted chunks.
 
-It still does not contain real file parsing, file storage adapters,
-vector/embedding adapters, full worker runtime handlers, or retrieval
-implementation.
+It still does not contain real file parsing, file storage adapters, real
+embedding provider calls, real vector database calls, full worker runtime
+handlers, or retrieval implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -210,6 +211,10 @@ Current backend foundation:
 - `worker/knowledge-ingestion-handoff.ts`
 - `worker/knowledge-document-content-reader.ts`
 - `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-embedding-adapter.ts`
+- `worker/knowledge-vector-index-adapter.ts`
+- `worker/knowledge-document-indexing-pipeline.ts`
+- `worker/knowledge-indexing-errors.ts`
 - `worker/knowledge-document-text-normalizer.ts`
 - `worker/knowledge-document-text-chunker.ts`
 
@@ -257,9 +262,23 @@ It reads text through an injected content reader, supports text/plain and
 markdown-style content, normalizes whitespace deterministically, splits text
 into stable chunks, and persists `KnowledgeDocumentChunk` records through the
 document repository. It marks ingestion as complete while leaving
-embedding/vector indexing pending. Real PDF/DOC/DOCX parsing, OCR, object
-storage integration, embeddings, vector writes, and retrieval remain future
-adapter/runtime scope.
+embedding/vector indexing pending.
+
+The document indexing pipeline is a separate worker boundary for already
+persisted chunks. It loads chunks through the document repository, marks
+document indexing as `ingesting`, generates embeddings through an injected
+`KnowledgeEmbeddingAdapter`, upserts vectors through an injected
+`KnowledgeVectorIndexAdapter`, marks chunks ready with opaque internal
+`vectorRef` values, and marks the document indexing state `ready` or `failed`.
+It does not call OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, or any
+other real provider/client, and it does not expose embeddings or vector internals
+through public DTOs or events. It is intentionally not wired into the ingestion
+handoff automatically in this slice so the existing text-processing lifecycle
+remains narrow and predictable.
+
+Real PDF/DOC/DOCX parsing, OCR, object storage integration, provider-backed
+embeddings, provider-backed vector writes, retrieval, and queue/runtime
+orchestration remain future adapter/runtime scope.
 
 ## Worker Handoff
 
@@ -273,7 +292,8 @@ Expected flow:
 3. Queue a document ingestion job.
 4. Worker handoff marks the job/document as processing.
 5. The text processing pipeline normalizes supported text and persists chunks.
-6. Future adapters embed and index through explicit boundaries.
+6. The separate indexing pipeline can embed and index persisted chunks through
+   injected fake or future real adapters.
 7. Emit public domain events.
 8. UI reads document, ingestion, and sync status through API routes.
 
