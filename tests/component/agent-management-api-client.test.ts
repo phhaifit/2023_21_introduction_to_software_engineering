@@ -95,6 +95,32 @@ describe("Agent Management API client", () => {
     );
   });
 
+  it("analyzes a skill markdown import payload", async () => {
+    const draftResponse = {
+      draft: null,
+      warnings: [],
+      clarifyingQuestions: ["Which model should this use?"],
+      provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false }
+    };
+    const fetchImplementation = vi.fn(async () => success(draftResponse));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+    const payload = {
+      markdown: "# Imported Agent\n\n## Role\nSupport",
+      fileName: "skill.md"
+    };
+
+    const result = await client.analyzeSkillImport(workspaceId, payload);
+
+    expect(result).toEqual(draftResponse);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `/api/workspaces/${workspaceId}/agents/assistant/import-skill`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+  });
+
   it("creates an agent with the complete form payload", async () => {
     const fetchImplementation = vi.fn(async () => success(summary));
     const client = createAgentManagementApiClient({ fetchImplementation });

@@ -87,6 +87,24 @@ function createClient(overrides: Partial<AgentManagementApiClient> = {}) {
       ].join("\n"),
       fileName: "skill.md" as const,
     })),
+    analyzeSkillImport: vi.fn(async () => ({
+      draft: {
+        name: "Imported Support Agent",
+        role: "Support specialist",
+        model: "gemini-2.5-flash",
+        instructions: "Answer support questions.",
+        responsibilities: ["Triage support issues"],
+        operatingContext: "Use the support handbook.",
+        requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+        requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: []
+      },
+      warnings: [],
+      clarifyingQuestions: [],
+      provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false }
+    })),
     createAgent: vi.fn(async () => enabledAgent),
     getAgentConfiguration: vi.fn(async () => ({
       ...enabledAgent,
@@ -190,7 +208,8 @@ describe("AgentManagementPage API integration", () => {
     await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
     expect(screen.getByRole("button", { name: "Generate draft" })).toBeDisabled();
     await user.click(screen.getByRole("tab", { name: "Import skill.md" }));
-    expect(screen.getByRole("button", { name: "Analyze skill.md" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Analyze skill.md" })).not.toBeDisabled();
+    expect(screen.getByLabelText("Markdown content")).toBeTruthy();
     expect(client.createAgent).not.toHaveBeenCalled();
   });
 
@@ -763,6 +782,85 @@ describe("AgentManagementPage API integration", () => {
 
     expect(promptInput).toHaveValue("Help me write tests.");
     expect(screen.getByRole("button", { name: "Generate draft" })).not.toBeDisabled();
+  });
+
+  it("analyzes pasted skill markdown and moves the extracted draft into review", async () => {
+    const client = createClient();
+    renderPage(client);
+
+    await screen.findByText("Research Agent");
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
+
+    const markdownInput = screen.getByLabelText("Markdown content");
+    await userEvent.type(markdownInput, "# Support Agent\n\n## Role\nSupport");
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+
+    await waitFor(() => {
+      expect(client.analyzeSkillImport).toHaveBeenCalledWith(workspaceId, {
+        markdown: "# Support Agent\n\n## Role\nSupport",
+        fileName: undefined
+      });
+    });
+    expect(await screen.findByText("Imported Draft Ready")).toBeInTheDocument();
+    expect(screen.getByText((_, element) =>
+      element?.textContent === "Requested tools: Slack"
+    )).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit in Template" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Imported Support Agent");
+    expect(screen.getByRole("textbox", { name: "Requested tools" })).toHaveValue("Slack: Notify support team");
+    expect(screen.getByRole("textbox", { name: "Requested knowledge" })).toHaveValue("Support Handbook: Ground answers");
+  });
+
+  it("analyzes uploaded skill markdown files", async () => {
+    const client = createClient();
+    renderPage(client);
+
+    await screen.findByText("Research Agent");
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
+
+    const file = new File(["# File Agent\n\n## Role\nSupport"], "support.skill.md", {
+      type: "text/markdown"
+    });
+    const fileInput = screen.getByLabelText("Markdown file");
+    await userEvent.upload(fileInput, file);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Markdown content")).toHaveValue("# File Agent\n\n## Role\nSupport");
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+
+    await waitFor(() => {
+      expect(client.analyzeSkillImport).toHaveBeenCalledWith(workspaceId, {
+        markdown: "# File Agent\n\n## Role\nSupport",
+        fileName: "support.skill.md"
+      });
+    });
+  });
+
+  it("keeps skill markdown available after invalid import and provider failure", async () => {
+    const client = createClient({
+      analyzeSkillImport: vi.fn().mockRejectedValue(new Error("Import analysis unavailable"))
+    });
+    renderPage(client);
+
+    await screen.findByText("Research Agent");
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+    expect(screen.getByText("Markdown content is required.")).toBeInTheDocument();
+
+    const markdownInput = screen.getByLabelText("Markdown content");
+    await userEvent.type(markdownInput, "# Support Agent");
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unable to analyze skill.md. Please try again.")).toBeInTheDocument();
+    });
+    expect(markdownInput).toHaveValue("# Support Agent");
+    expect(screen.getByRole("button", { name: "Retry analysis" })).not.toBeDisabled();
   });
 
   it("renders viewer mode without mutation controls or mutation API calls", async () => {

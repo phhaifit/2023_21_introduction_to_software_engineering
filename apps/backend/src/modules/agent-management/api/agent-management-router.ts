@@ -128,7 +128,10 @@ export function createAgentManagementRouter(
       const context = getRequestContext(request);
       enforcePermission(context, "agents:manage");
 
-      return dependencies.useCases.validateSkillMarkdownImport(readSkillImportPayload(request));
+      return dependencies.useCases.analyzeSkillMarkdownImport(
+        context.workspace!.workspaceId,
+        readSkillImportPayload(request)
+      );
     });
   });
 

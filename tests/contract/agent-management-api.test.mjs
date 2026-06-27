@@ -501,7 +501,38 @@ function makeAgent(overrides = {}) {
 }
 
 {
-  const { useCases } = createUseCases();
+  const mockDraft = {
+    draft: {
+      name: "Imported Support Agent",
+      role: "Support specialist",
+      model: "gemini-2.5-flash",
+      instructions: "Answer customer support questions.",
+      responsibilities: ["Triage issues"],
+      requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+      requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+      warnings: [],
+      clarifyingQuestions: []
+    },
+    warnings: [{ code: "import.review", message: "Review extracted tool intent.", severity: "advisory" }],
+    clarifyingQuestions: [],
+    provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: true }
+  };
+  const calls = [];
+  const mockDraftingPort = {
+    createDraft: async () => mockDraft,
+    extractDraftFromSkillMarkdown: async (input) => {
+      calls.push(input);
+      if (input.markdown === "# fail_all") {
+        const { LlmDraftingUnavailableError } = await import("@vcp/backend/modules/agent-management/application/llm-agent-drafting-port.ts");
+        throw new LlmDraftingUnavailableError([
+          { providerId: "gemini", reason: "provider_unavailable" },
+          { providerId: "openrouter", reason: "provider_unavailable" }
+        ]);
+      }
+      return mockDraft;
+    }
+  };
+  const { repository, useCases } = createUseCases(new InMemoryAgentRepository(), mockDraftingPort);
 
   await withAgentApi(useCases, async (baseUrl) => {
     const valid = await requestJson(
@@ -517,7 +548,13 @@ function makeAgent(overrides = {}) {
     );
 
     assert.equal(valid.status, 200);
-    assert.deepEqual(valid.body.data, { accepted: true, fileName: "skill.md" });
+    assert.deepEqual(valid.body.data, mockDraft);
+    assert.equal(calls[0].workspaceId, "workspace-a");
+    assert.equal(calls[0].markdown, "# Imported Agent\n\n## Role\nSupport");
+    assert.equal(calls[0].fileName, "skill.md");
+
+    const list = await repository.listByWorkspace("workspace-a", { statuses: ["enabled", "disabled"] });
+    assert.equal(list.agents.length, 0);
 
     const empty = await requestJson(
       baseUrl,
@@ -547,6 +584,41 @@ function makeAgent(overrides = {}) {
 
     assert.equal(nonMarkdown.status, 400);
     assert.equal(nonMarkdown.body.error.code, "validation.invalid_input");
+
+    const forbidden = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        headers: { "x-test-role": "viewer" },
+        body: {
+          markdown: "# Imported Agent\n\n## Role\nSupport",
+          fileName: "skill.md"
+        }
+      }
+    );
+
+    assert.equal(forbidden.status, 403);
+    assert.equal(forbidden.body.error.code, "auth.forbidden");
+
+    const failed = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: "# fail_all",
+          fileName: "skill.md"
+        }
+      }
+    );
+
+    assert.equal(failed.status, 503);
+    assert.equal(failed.body.error.code, "assistant.unavailable");
+    assert.deepEqual(failed.body.error.details.failures, [
+      { providerId: "gemini", reason: "provider_unavailable" },
+      { providerId: "openrouter", reason: "provider_unavailable" }
+    ]);
   });
 }
 
