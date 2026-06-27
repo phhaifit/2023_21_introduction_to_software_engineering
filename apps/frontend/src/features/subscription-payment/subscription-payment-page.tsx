@@ -13,6 +13,13 @@ import { useToast } from "../../components/shared/Toast.tsx";
 
 type ViewState = "dashboard" | "upgrade" | "checkout" | "success";
 
+const AVAILABLE_WORKSPACES = [
+  { id: "workspace-product-demo", name: "Product Demo Workspace (Mặc định)" },
+  { id: "workspace-marketing-dept", name: "Marketing Department" },
+  { id: "workspace-engineering-team", name: "Engineering Team Workspace" },
+  { id: "workspace-sales-operations", name: "Sales & Ops Workspace" },
+];
+
 export function SubscriptionPaymentPage() {
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
@@ -21,6 +28,9 @@ export function SubscriptionPaymentPage() {
   const [resourceUsage, setResourceUsage] = useState<WorkspaceResourceUsageResponse | null>(null);
   const [plansConfig, setPlansConfig] = useState<SubscriptionPlansResponse | null>(null);
   
+  // State quản lý Workspace ID động được chọn từ Dropdown
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>(DEMO_WORKSPACE_ID);
+
   // State quản lý View chuyển màn hình
   const [view, setView] = useState<ViewState>("dashboard");
 
@@ -68,15 +78,15 @@ export function SubscriptionPaymentPage() {
     nextRenewal: string;
   } | null>(null);
 
-  // Fetch dữ liệu thật từ API backend
-  const fetchDetails = async () => {
+  // Fetch dữ liệu thật từ API backend theo Workspace ID động
+  const fetchDetails = async (wsId: string = currentWorkspaceId) => {
     try {
       setLoading(true);
       
       // Gọi song song API lấy Subscription, Resource Usage và Plans
       const [detailsData, usageData, plansData] = await Promise.all([
-        subscriptionPaymentApiClient.getSubscriptionDetails(DEMO_WORKSPACE_ID),
-        subscriptionPaymentApiClient.getWorkspaceResourceUsage(DEMO_WORKSPACE_ID),
+        subscriptionPaymentApiClient.getSubscriptionDetails(wsId),
+        subscriptionPaymentApiClient.getWorkspaceResourceUsage(wsId),
         subscriptionPaymentApiClient.getPlans()
       ]);
 
@@ -96,6 +106,15 @@ export function SubscriptionPaymentPage() {
             cvv: "•••"
           });
         }
+      } else {
+        // Reset về thông tin thẻ mặc định cho Workspace chưa cấu hình
+        setCardDetails({
+          number: "4242 4242 4242 4242",
+          expiry: "12/28",
+          cvv: "•••",
+          name: "Admin Wu"
+        });
+        setAutoRenew(true);
       }
     } catch (err: any) {
       showError(err.message || "Không thể tải thông tin thanh toán từ API.");
@@ -104,14 +123,15 @@ export function SubscriptionPaymentPage() {
     }
   };
 
+  // Reload thông tin khi chuyển đổi Workspace
   useEffect(() => {
-    fetchDetails();
-  }, []);
+    fetchDetails(currentWorkspaceId);
+  }, [currentWorkspaceId]);
 
   // Thay đổi Auto-Renewal qua API thật
   const handleToggleAutoRenew = async (checked: boolean) => {
     try {
-      await subscriptionPaymentApiClient.toggleAutoRenewal(DEMO_WORKSPACE_ID, checked);
+      await subscriptionPaymentApiClient.toggleAutoRenewal(currentWorkspaceId, checked);
       setAutoRenew(checked);
       showSuccess(checked ? "Đã bật tự động gia hạn thành công." : "Đã tắt tự động gia hạn thành công.");
     } catch (err: any) {
@@ -127,10 +147,10 @@ export function SubscriptionPaymentPage() {
     }
     try {
       setLoading(true);
-      await subscriptionPaymentApiClient.toggleAutoRenewal(DEMO_WORKSPACE_ID, false);
+      await subscriptionPaymentApiClient.toggleAutoRenewal(currentWorkspaceId, false);
       setAutoRenew(false);
       showSuccess("Đã hủy tự động gia hạn thành công.");
-      await fetchDetails();
+      await fetchDetails(currentWorkspaceId);
     } catch (err: any) {
       showError(err.message || "Không thể hủy tự động gia hạn.");
     } finally {
@@ -147,7 +167,7 @@ export function SubscriptionPaymentPage() {
     }
     try {
       setLoading(true);
-      await subscriptionPaymentApiClient.updatePaymentMethod(DEMO_WORKSPACE_ID, newCardNumber, newCardHolder, newCardExpiry);
+      await subscriptionPaymentApiClient.updatePaymentMethod(currentWorkspaceId, newCardNumber, newCardHolder, newCardExpiry);
       setCardDetails({
         number: newCardNumber,
         name: newCardHolder,
@@ -156,7 +176,7 @@ export function SubscriptionPaymentPage() {
       });
       setShowCardModal(false);
       showSuccess("Cập nhật phương thức thanh toán ảo thành công.");
-      await fetchDetails();
+      await fetchDetails(currentWorkspaceId);
     } catch (err: any) {
       showError(err.message || "Không thể cập nhật phương thức thanh toán.");
     } finally {
@@ -187,7 +207,7 @@ export function SubscriptionPaymentPage() {
       setLoading(true);
       setSelectedPlanForCheckout(plan);
       
-      const res = await subscriptionPaymentApiClient.initiateCheckout(DEMO_WORKSPACE_ID, plan, appliedPromo || undefined);
+      const res = await subscriptionPaymentApiClient.initiateCheckout(currentWorkspaceId, plan, appliedPromo || undefined);
       
       const baseAmount = PLAN_PRICES[plan];
       const actualAmount = Math.max(0, baseAmount - discountAmount);
@@ -270,8 +290,8 @@ export function SubscriptionPaymentPage() {
       showError(err.message || "Thanh toán thất bại.");
       setView("dashboard"); // Quay về Dashboard nếu thanh toán lỗi
     } finally {
-      // Reload dữ liệu thật từ API
-      await fetchDetails();
+      // Reload dữ liệu thật từ API theo Workspace đang chọn
+      await fetchDetails(currentWorkspaceId);
     }
   };
 
@@ -313,9 +333,34 @@ export function SubscriptionPaymentPage() {
 
     return (
       <div className="billing-container">
-        <div className="billing-title-section">
-          <h2>Billing & Subscription</h2>
-          <p className="subtitle">Quản lý định mức tài nguyên, phương thức thanh toán và lịch sử hóa đơn thực tế của Workspace.</p>
+        <div className="billing-title-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
+          <div>
+            <h2>Billing & Subscription</h2>
+            <p className="subtitle">Quản lý định mức tài nguyên, phương thức thanh toán và lịch sử hóa đơn thực tế của Workspace: <span style={{ color: "#2563eb", fontWeight: 600 }}>{currentWorkspaceId}</span></p>
+          </div>
+          
+          <div className="workspace-selector-container" style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Chọn Workspace:</span>
+            <select
+              value={currentWorkspaceId}
+              onChange={(e) => setCurrentWorkspaceId(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                color: "#1e293b",
+                cursor: "pointer",
+                outline: "none"
+              }}
+            >
+              {AVAILABLE_WORKSPACES.map((ws) => (
+                <option key={ws.id} value={ws.id}>{ws.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
 
@@ -465,6 +510,9 @@ export function SubscriptionPaymentPage() {
               <span className="quota-badge">
                 {subscription ? `${subscription.plan.toUpperCase()} Plan Quota` : "FREE Plan Quota"}
               </span>
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "-8px", marginBottom: "16px" }}>
+              Định mức sử dụng tài nguyên được quản lý theo Workspace: <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", color: "#2563eb" }}>{currentWorkspaceId}</code>
             </div>
             
             <div className="resource-list">
