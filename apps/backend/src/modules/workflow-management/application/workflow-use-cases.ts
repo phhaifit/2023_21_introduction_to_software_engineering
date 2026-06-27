@@ -210,13 +210,13 @@ export class WorkflowUseCases {
     };
   }
 
-  async executeWorkflow(command: ExecuteWorkflowCommand): Promise<void> {
+  async executeWorkflow(command: ExecuteWorkflowCommand): Promise<{ executionId: EntityId<"executionId"> }> {
     const workflow = await this.repository.findById(command.workspaceId, command.workflowId);
     if (!workflow) {
       throw new Error("Workflow not found");
     }
 
-    if (workflow.status !== "published" && workflow.status !== "active") {
+    if (workflow.status !== "published") {
       throw new Error("Cannot execute inactive workflow");
     }
 

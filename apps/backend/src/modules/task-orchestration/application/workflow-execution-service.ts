@@ -2,7 +2,7 @@ import type { EntityId, ExecuteWorkflowRequest, StartExecutionCommand } from "@v
 import type { WorkflowRepository } from "../../workflow-management/infrastructure/workflow-repository.ts";
 import type { WorkflowExecutionHandoff } from "../../workflow-management/application/workflow-use-cases.ts";
 import type { EventBus } from "../../../shared/events/event-bus.ts";
-import type { OpenClawExecutionOrchestrator } from "../../task-execution/adapters/openclaw-task-execution-adapter.ts";
+import type { OpenClawExecutionOrchestrator } from "../../../features/task-execution/adapters/openclaw-task-execution-adapter.ts";
 import { randomUUID } from "crypto";
 
 export class WorkflowExecutionService implements WorkflowExecutionHandoff {
