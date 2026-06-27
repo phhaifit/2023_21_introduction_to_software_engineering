@@ -63,8 +63,11 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
       
-      const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.getSubscriptionDetails(userId);
+      const workspaceId = req.query.workspaceId as EntityId<"workspaceId">;
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc trong query parameters.");
+      }
+      return dependencies.useCases.getSubscriptionDetails(workspaceId);
     });
   });
 
@@ -88,16 +91,21 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
 
-      const payload = req.body as { plan?: string; promoCode?: string } | undefined;
+      const payload = req.body as { plan?: string; promoCode?: string; workspaceId?: string } | undefined;
       const plan = payload?.plan;
       const promoCode = payload?.promoCode;
+      const workspaceId = payload?.workspaceId;
+
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc.");
+      }
 
       if (plan !== "standard" && plan !== "premium") {
         throw new CheckoutValidationError("Gói dịch vụ không hợp lệ. Phải là standard hoặc premium.");
       }
 
       const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.initiateCheckout(userId, plan as SubscriptionPlan, promoCode);
+      return dependencies.useCases.initiateCheckout(userId, workspaceId as EntityId<"workspaceId">, plan as SubscriptionPlan, promoCode);
     });
   });
 
@@ -124,15 +132,18 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
 
-      const payload = req.body as { autoRenew?: boolean } | undefined;
+      const payload = req.body as { autoRenew?: boolean; workspaceId?: string } | undefined;
       const autoRenew = payload?.autoRenew;
+      const workspaceId = payload?.workspaceId;
 
       if (autoRenew === undefined) {
         throw new CheckoutValidationError("autoRenew là bắt buộc trong JSON body.");
       }
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc.");
+      }
 
-      const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.toggleAutoRenewal(userId, autoRenew);
+      return dependencies.useCases.toggleAutoRenewal(workspaceId as EntityId<"workspaceId">, autoRenew);
     });
   });
 
@@ -141,17 +152,20 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
 
-      const payload = req.body as { cardNumber?: string; cardHolder?: string; cardExpiry?: string } | undefined;
+      const payload = req.body as { cardNumber?: string; cardHolder?: string; cardExpiry?: string; workspaceId?: string } | undefined;
       const cardNumber = payload?.cardNumber;
       const cardHolder = payload?.cardHolder;
       const cardExpiry = payload?.cardExpiry;
+      const workspaceId = payload?.workspaceId;
 
       if (!cardNumber || !cardHolder || !cardExpiry) {
         throw new CheckoutValidationError("cardNumber, cardHolder và cardExpiry là bắt buộc trong body.");
       }
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc.");
+      }
 
-      const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.updatePaymentMethod(userId, { cardNumber, cardHolder, cardExpiry });
+      return dependencies.useCases.updatePaymentMethod(workspaceId as EntityId<"workspaceId">, { cardNumber, cardHolder, cardExpiry });
     });
   });
 

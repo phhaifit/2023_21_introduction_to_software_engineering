@@ -48,13 +48,13 @@ describe("Subscription & Payment Integration Flow", () => {
   // 1. Kiểm tra API & Frontend Client Giao tiếp với nhau
   describe("API & UI Client Communication", () => {
     it("nên lấy về subscription rỗng khi user chưa đăng ký gói nào", async () => {
-      const details = await client.getSubscriptionDetails();
+      const details = await client.getSubscriptionDetails("workspace-test-id");
       expect(details.subscription).toBeNull();
       expect(details.transactions).toEqual([]);
     });
 
     it("nên khởi tạo checkout thành công và trả về checkoutUrl, IDs", async () => {
-      const checkoutRes = await client.initiateCheckout("standard");
+      const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
       expect(checkoutRes).toHaveProperty("checkoutUrl");
       expect(checkoutRes).toHaveProperty("subscriptionId");
       expect(checkoutRes).toHaveProperty("transactionId");
@@ -64,7 +64,7 @@ describe("Subscription & Payment Integration Flow", () => {
 
     it("nên đối soát thanh toán thành công qua mock-callback và kích hoạt subscription", async () => {
       // Khởi tạo giao dịch mới
-      const checkoutRes = await client.initiateCheckout("standard");
+      const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
       const transactionId = checkoutRes.transactionId;
 
       // Giả lập callback thanh toán thành công
@@ -72,7 +72,7 @@ describe("Subscription & Payment Integration Flow", () => {
       expect(callbackRes).toHaveProperty("status", "success");
 
       // Kiểm tra xem subscription đã được active chưa
-      const details = await client.getSubscriptionDetails();
+      const details = await client.getSubscriptionDetails("workspace-test-id");
       expect(details.subscription).not.toBeNull();
       expect(details.subscription?.plan).toBe("standard");
       expect(details.subscription?.status).toBe("active");
@@ -86,11 +86,11 @@ describe("Subscription & Payment Integration Flow", () => {
 
     it("nên nâng cấp thành công từ Standard lên Premium", async () => {
       // 1. Tạo mới gói Standard và kích hoạt thành công
-      const checkoutRes = await client.initiateCheckout("standard");
+      const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
       await client.sendMockCallback(checkoutRes.transactionId, "success");
 
       // 2. Lấy thông tin subscription
-      const detailsBefore = await client.getSubscriptionDetails();
+      const detailsBefore = await client.getSubscriptionDetails("workspace-test-id");
       const subscriptionId = detailsBefore.subscription!.subscriptionId;
 
       // 3. Khởi tạo nâng cấp
@@ -102,35 +102,35 @@ describe("Subscription & Payment Integration Flow", () => {
       await client.sendMockCallback(upgradeRes.transactionId, "success");
 
       // 5. Verify trạng thái subscription mới
-      const detailsAfter = await client.getSubscriptionDetails();
+      const detailsAfter = await client.getSubscriptionDetails("workspace-test-id");
       expect(detailsAfter.subscription?.plan).toBe("premium");
       expect(detailsAfter.subscription?.status).toBe("active");
     });
 
     it("nên bật tắt tự động gia hạn thành công qua API", async () => {
       // Đăng ký gói trước
-      const checkoutRes = await client.initiateCheckout("standard");
+      const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
       await client.sendMockCallback(checkoutRes.transactionId, "success");
 
       // Tắt tự gia hạn
-      const res = await client.toggleAutoRenewal(false);
+      const res = await client.toggleAutoRenewal("workspace-test-id", false);
       expect(res.autoRenew).toBe(false);
 
       // Verify details
-      const details = await client.getSubscriptionDetails();
+      const details = await client.getSubscriptionDetails("workspace-test-id");
       expect(details.subscription?.autoRenew).toBe(false);
     });
 
     it("nên cập nhật phương thức thanh toán ảo thành công qua API", async () => {
       // Đăng ký gói trước
-      const checkoutRes = await client.initiateCheckout("standard");
+      const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
       await client.sendMockCallback(checkoutRes.transactionId, "success");
 
       // Cập nhật thẻ
-      await client.updatePaymentMethod("1111 2222 3333 4444", "VCP Tester", "09/30");
+      await client.updatePaymentMethod("workspace-test-id", "1111 2222 3333 4444", "VCP Tester", "09/30");
 
       // Verify details
-      const details = await client.getSubscriptionDetails();
+      const details = await client.getSubscriptionDetails("workspace-test-id");
       expect(details.subscription?.cardNumber).toBe("1111 2222 3333 4444");
       expect(details.subscription?.cardHolder).toBe("VCP Tester");
       expect(details.subscription?.cardExpiry).toBe("09/30");
@@ -148,7 +148,7 @@ describe("Subscription & Payment Integration Flow", () => {
 
     it("nên lấy về tài nguyên sử dụng thật của workspace qua API", async () => {
       // Đăng ký gói Standard trước
-      const checkoutRes = await client.initiateCheckout("standard");
+      const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
       await client.sendMockCallback(checkoutRes.transactionId, "success");
 
       // Lấy usage
@@ -162,8 +162,10 @@ describe("Subscription & Payment Integration Flow", () => {
 
     it("nên lấy về danh sách cấu hình plans qua API", async () => {
       const plans = await client.getPlans();
+      expect(plans).toHaveProperty("free");
       expect(plans).toHaveProperty("standard");
       expect(plans).toHaveProperty("premium");
+      expect(plans.free.price).toBe(0);
       expect(plans.standard.price).toBe(29);
       expect(plans.premium.price).toBe(79);
     });

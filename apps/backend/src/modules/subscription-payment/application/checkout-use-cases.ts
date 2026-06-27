@@ -75,14 +75,14 @@ export class CheckoutUseCases {
     };
   }
 
-  // 2. Bật/Tắt tự động gia hạn
+  // 2. Bật/Tắt tự động gia hạn theo Workspace
   async toggleAutoRenewal(
-    userId: EntityId<"userId">,
+    workspaceId: EntityId<"workspaceId">,
     autoRenew: boolean
   ): Promise<Subscription> {
-    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    const sub = await this.dependencies.repository.findSubscriptionByWorkspaceId(workspaceId);
     if (!sub) {
-      throw new CheckoutNotFoundError("Không tìm thấy gói đăng ký nào để cập nhật.");
+      throw new CheckoutNotFoundError("Không tìm thấy gói đăng ký nào của Workspace để cập nhật.");
     }
 
     const updatedSub: Subscription = {
@@ -95,14 +95,14 @@ export class CheckoutUseCases {
     return updatedSub;
   }
 
-  // 3. Cập nhật phương thức thanh toán ảo
+  // 3. Cập nhật phương thức thanh toán ảo theo Workspace
   async updatePaymentMethod(
-    userId: EntityId<"userId">,
+    workspaceId: EntityId<"workspaceId">,
     cardDetails: { cardNumber: string; cardHolder: string; cardExpiry: string }
   ): Promise<Subscription> {
-    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    const sub = await this.dependencies.repository.findSubscriptionByWorkspaceId(workspaceId);
     if (!sub) {
-      throw new CheckoutNotFoundError("Không tìm thấy gói đăng ký nào để cập nhật phương thức thanh toán.");
+      throw new CheckoutNotFoundError("Không tìm thấy gói đăng ký nào của Workspace để cập nhật phương thức thanh toán.");
     }
 
     const updatedSub: Subscription = {
@@ -122,18 +122,13 @@ export class CheckoutUseCases {
     workspaceId: EntityId<"workspaceId">,
     userId: EntityId<"userId">
   ): Promise<WorkspaceResourceUsageResponse> {
-    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    const sub = await this.dependencies.repository.findSubscriptionByWorkspaceId(workspaceId);
     const nowStr = this.dependencies.now();
     const isActive = sub ? isSubscriptionActive(sub, nowStr) : false;
-    const plan = isActive && sub ? sub.plan : "none";
+    const plan = isActive && sub ? sub.plan : "free"; // Fallback sang gói free nếu không có gói active
 
     // Lấy hạn mức quota theo plan
-    const entitlements = PLAN_ENTITLEMENTS[plan as SubscriptionPlan] || {
-      cpuCores: 2,
-      memoryGb: 4,
-      maxAgents: 2,
-      maxDocuments: 10
-    };
+    const entitlements = PLAN_ENTITLEMENTS[plan as SubscriptionPlan] || PLAN_ENTITLEMENTS.free;
 
     // Đếm số agents thực tế của workspace từ AgentRepository
     let agentsUsed = 0;
@@ -162,7 +157,7 @@ export class CheckoutUseCases {
     const ramUsed = agentsUsed * 2;
     const storageUsed = Number((docsUsed * 0.42).toFixed(2)); // 0.42 GB cho mỗi document
 
-    const storageMax = plan === "premium" ? 500 : plan === "standard" ? 50 : 10;
+    const storageMax = entitlements.maxStorageGb;
 
     return {
       cpu: { used: Math.min(cpuUsed, entitlements.cpuCores), max: entitlements.cpuCores },
@@ -172,12 +167,18 @@ export class CheckoutUseCases {
     };
   }
 
+  // 5. Khởi tạo Checkout theo Workspace (Có truyền Promo Code nếu có)
   async initiateCheckout(
     userId: EntityId<"userId">,
+    workspaceId: EntityId<"workspaceId">,
     plan: SubscriptionPlan,
     promoCode?: string
   ): Promise<{ checkoutUrl: string; subscriptionId: EntityId<"subscriptionId">; transactionId: EntityId<"transactionId"> }> {
-    const activeSub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+    if (plan === "free") {
+      throw new CheckoutValidationError("Bạn không cần thanh toán cho gói Free.");
+    }
+
+    const activeSub = await this.dependencies.repository.findSubscriptionByWorkspaceId(workspaceId);
     const nowStr = this.dependencies.now();
 
     if (activeSub) {
@@ -186,7 +187,7 @@ export class CheckoutUseCases {
 
       if (isActive || isPending) {
         if (activeSub.plan === plan) {
-          throw new CheckoutValidationError(`Bạn đã có một gói ${plan} đang hoạt động hoặc đang chờ thanh toán.`);
+          throw new CheckoutValidationError(`Workspace đã có một gói ${plan} đang hoạt động hoặc đang chờ thanh toán.`);
         }
         if (activeSub.plan === "standard" && plan === "premium") {
           return this.initiateUpgrade(userId, activeSub.subscriptionId, promoCode);
@@ -214,7 +215,7 @@ export class CheckoutUseCases {
     const subscription: Subscription = {
       subscriptionId,
       userId,
-      workspaceId: null,
+      workspaceId,
       plan,
       status: "pending",
       expiresAt,
@@ -252,6 +253,7 @@ export class CheckoutUseCases {
     };
   }
 
+  // 6. Khởi tạo Upgrade từ Standard lên Premium theo Workspace
   async initiateUpgrade(
     userId: EntityId<"userId">,
     subscriptionId: EntityId<"subscriptionId">,
@@ -339,8 +341,6 @@ export class CheckoutUseCases {
     }
 
     if (status === "success") {
-      // Bất kỳ giao dịch thành công nào được kích hoạt khi gói hiện tại đang là Standard
-      // và trạng thái là active thì được tính là nâng cấp lên Premium.
       const isUpgrade = sub.plan === "standard" && sub.status === "active";
       let fromPlan = sub.plan;
       let toPlan = sub.plan;
@@ -366,6 +366,7 @@ export class CheckoutUseCases {
           payload: {
             userId: sub.userId,
             subscriptionId: sub.subscriptionId,
+            workspaceId: sub.workspaceId,
             fromPlan,
             toPlan
           }
@@ -388,6 +389,7 @@ export class CheckoutUseCases {
           payload: {
             userId: sub.userId,
             subscriptionId: sub.subscriptionId,
+            workspaceId: sub.workspaceId,
             plan: sub.plan
           }
         });
@@ -407,8 +409,8 @@ export class CheckoutUseCases {
     return updatedTx;
   }
 
-  async getSubscriptionDetails(userId: EntityId<"userId">): Promise<SubscriptionDetailsResponse> {
-    const sub = await this.dependencies.repository.findSubscriptionByUserId(userId);
+  async getSubscriptionDetails(workspaceId: EntityId<"workspaceId">): Promise<SubscriptionDetailsResponse> {
+    const sub = await this.dependencies.repository.findSubscriptionByWorkspaceId(workspaceId);
     if (!sub) {
       return { subscription: null, transactions: [] };
     }
@@ -423,6 +425,10 @@ export class CheckoutUseCases {
 
   getPlans(): SubscriptionPlansResponse {
     return {
+      free: {
+        price: PLAN_PRICES.free,
+        entitlements: PLAN_ENTITLEMENTS.free
+      },
       standard: {
         price: PLAN_PRICES.standard,
         entitlements: PLAN_ENTITLEMENTS.standard

@@ -11,7 +11,7 @@
 //                          indicator shown; neither children nor fallback shown.
 // =============================================================================
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider } from "./authentication-context.tsx";
@@ -78,6 +78,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
 });

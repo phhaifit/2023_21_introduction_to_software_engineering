@@ -60,7 +60,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       expect(mapped).toEqual({
         type: "partial-output-received",
         taskId,
-        outputChunk: "Here is the result and the secret token Bearer [REDACTED]",
+        outputChunk: "Here is the result and the secret [REDACTED] Bearer [REDACTED]",
         timestamp: new Date(1672531199000).toISOString(),
         providerExecutionReference: "exec-1"
       });

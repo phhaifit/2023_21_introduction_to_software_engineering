@@ -12,7 +12,7 @@ export default defineConfig({
     ],
     setupFiles: ["tests/component/setup.ts"],
     environmentMatchGlobs: [
-      ["apps/**", "node"],
+      ["apps/backend/**", "node"],
       ["packages/**", "node"]
     ],
     deps: {

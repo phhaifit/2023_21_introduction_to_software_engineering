@@ -75,7 +75,7 @@ export function SubscriptionPaymentPage() {
       
       // Gọi song song API lấy Subscription, Resource Usage và Plans
       const [detailsData, usageData, plansData] = await Promise.all([
-        subscriptionPaymentApiClient.getSubscriptionDetails(),
+        subscriptionPaymentApiClient.getSubscriptionDetails(DEMO_WORKSPACE_ID),
         subscriptionPaymentApiClient.getWorkspaceResourceUsage(DEMO_WORKSPACE_ID),
         subscriptionPaymentApiClient.getPlans()
       ]);
@@ -111,7 +111,7 @@ export function SubscriptionPaymentPage() {
   // Thay đổi Auto-Renewal qua API thật
   const handleToggleAutoRenew = async (checked: boolean) => {
     try {
-      await subscriptionPaymentApiClient.toggleAutoRenewal(checked);
+      await subscriptionPaymentApiClient.toggleAutoRenewal(DEMO_WORKSPACE_ID, checked);
       setAutoRenew(checked);
       showSuccess(checked ? "Đã bật tự động gia hạn thành công." : "Đã tắt tự động gia hạn thành công.");
     } catch (err: any) {
@@ -127,7 +127,7 @@ export function SubscriptionPaymentPage() {
     }
     try {
       setLoading(true);
-      await subscriptionPaymentApiClient.toggleAutoRenewal(false);
+      await subscriptionPaymentApiClient.toggleAutoRenewal(DEMO_WORKSPACE_ID, false);
       setAutoRenew(false);
       showSuccess("Đã hủy tự động gia hạn thành công.");
       await fetchDetails();
@@ -147,7 +147,7 @@ export function SubscriptionPaymentPage() {
     }
     try {
       setLoading(true);
-      await subscriptionPaymentApiClient.updatePaymentMethod(newCardNumber, newCardHolder, newCardExpiry);
+      await subscriptionPaymentApiClient.updatePaymentMethod(DEMO_WORKSPACE_ID, newCardNumber, newCardHolder, newCardExpiry);
       setCardDetails({
         number: newCardNumber,
         name: newCardHolder,
@@ -187,7 +187,7 @@ export function SubscriptionPaymentPage() {
       setLoading(true);
       setSelectedPlanForCheckout(plan);
       
-      const res = await subscriptionPaymentApiClient.initiateCheckout(plan, appliedPromo || undefined);
+      const res = await subscriptionPaymentApiClient.initiateCheckout(DEMO_WORKSPACE_ID, plan, appliedPromo || undefined);
       
       const baseAmount = PLAN_PRICES[plan];
       const actualAmount = Math.max(0, baseAmount - discountAmount);

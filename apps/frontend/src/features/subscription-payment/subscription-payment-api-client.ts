@@ -11,8 +11,8 @@ export class SubscriptionPaymentApiClient {
     this.baseUrl = baseUrl;
   }
 
-  async getSubscriptionDetails(): Promise<SubscriptionDetailsResponse> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/details`);
+  async getSubscriptionDetails(workspaceId: string): Promise<SubscriptionDetailsResponse> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/details?workspaceId=${encodeURIComponent(workspaceId)}`);
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
     }
@@ -30,7 +30,7 @@ export class SubscriptionPaymentApiClient {
     return json.data;
   }
 
-  async initiateCheckout(plan: "standard" | "premium", promoCode?: string): Promise<{
+  async initiateCheckout(workspaceId: string, plan: "standard" | "premium", promoCode?: string): Promise<{
     checkoutUrl: string;
     subscriptionId: string;
     transactionId: string;
@@ -38,7 +38,7 @@ export class SubscriptionPaymentApiClient {
     const response = await fetch(`${this.baseUrl}/api/subscriptions/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan, promoCode })
+      body: JSON.stringify({ workspaceId, plan, promoCode })
     });
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
@@ -65,11 +65,11 @@ export class SubscriptionPaymentApiClient {
   }
 
   // 2. Gọi API toggle bật tắt tự gia hạn
-  async toggleAutoRenewal(autoRenew: boolean): Promise<any> {
+  async toggleAutoRenewal(workspaceId: string, autoRenew: boolean): Promise<any> {
     const response = await fetch(`${this.baseUrl}/api/subscriptions/toggle-auto-renewal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ autoRenew })
+      body: JSON.stringify({ workspaceId, autoRenew })
     });
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
@@ -80,6 +80,7 @@ export class SubscriptionPaymentApiClient {
 
   // 3. Gọi API cập nhật phương thức thanh toán ảo
   async updatePaymentMethod(
+    workspaceId: string,
     cardNumber: string,
     cardHolder: string,
     cardExpiry: string
@@ -87,7 +88,7 @@ export class SubscriptionPaymentApiClient {
     const response = await fetch(`${this.baseUrl}/api/subscriptions/payment-method`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cardNumber, cardHolder, cardExpiry })
+      body: JSON.stringify({ workspaceId, cardNumber, cardHolder, cardExpiry })
     });
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));

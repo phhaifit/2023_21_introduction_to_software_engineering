@@ -42,7 +42,7 @@ async function runTests() {
   console.log("Running subscription tests...");
 
   // Scenario 1: Initiate Standard Checkout
-  const checkoutRes = await useCases.initiateCheckout(userId, "standard");
+  const checkoutRes = await useCases.initiateCheckout(userId, "workspace-123", "standard");
   assert.equal(checkoutRes.subscriptionId, "sub-1");
   assert.equal(checkoutRes.transactionId, "tx-1");
   assert.ok(checkoutRes.checkoutUrl.includes("sandbox-checkout"));
@@ -62,7 +62,7 @@ async function runTests() {
   // Scenario 2: Try to checkout standard again when standard is pending -> should throw error
   await assert.rejects(
     async () => {
-      await useCases.initiateCheckout(userId, "standard");
+      await useCases.initiateCheckout(userId, "workspace-123", "standard");
     },
     (err) => {
       return err.message.includes("đã có một gói standard");
@@ -112,7 +112,7 @@ async function runTests() {
   // Scenario 6: Re-checkout Premium when already having active Premium -> should throw error
   await assert.rejects(
     async () => {
-      await useCases.initiateCheckout(userId, "premium");
+      await useCases.initiateCheckout(userId, "workspace-123", "premium");
     },
     (err) => {
       return err.message.includes("đã có một gói premium");
@@ -121,7 +121,7 @@ async function runTests() {
 
   // Scenario 7: Webhook payment failed callback
   const anotherUser = "user-456";
-  const checkoutRes2 = await useCases.initiateCheckout(anotherUser, "standard");
+  const checkoutRes2 = await useCases.initiateCheckout(anotherUser, "workspace-456", "standard");
   
   const reconcileFailedRes = await useCases.reconcilePayment(checkoutRes2.transactionId, "failed");
   assert.equal(reconcileFailedRes.status, "failed");
@@ -139,14 +139,14 @@ async function runTests() {
   assert.equal(promoInvalid.discount, 0);
 
   // Scenario 9: Toggle Auto-Renewal
-  const subToggleRes = await useCases.toggleAutoRenewal(userId, false);
+  const subToggleRes = await useCases.toggleAutoRenewal("workspace-123", false);
   assert.equal(subToggleRes.autoRenew, false);
   
   const subToggleVerify = await repository.findSubscriptionById("sub-1");
   assert.equal(subToggleVerify.autoRenew, false);
 
   // Scenario 10: Update Payment Method Card details
-  const subCardRes = await useCases.updatePaymentMethod(userId, {
+  const subCardRes = await useCases.updatePaymentMethod("workspace-123", {
     cardNumber: "1111 2222 3333 4444",
     cardHolder: "VCP Tester",
     cardExpiry: "09/30"
@@ -166,6 +166,7 @@ async function runTests() {
 
   // Scenario 12: Get Plans Configuration
   const plans = useCases.getPlans();
+  assert.equal(plans.free.price, 0);
   assert.equal(plans.standard.price, 29);
   assert.equal(plans.premium.price, 79);
 

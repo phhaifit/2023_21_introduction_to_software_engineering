@@ -61,6 +61,7 @@ export type PlanDetails = {
 };
 
 export type SubscriptionPlansResponse = {
+  free: PlanDetails;
   standard: PlanDetails;
   premium: PlanDetails;
 };
