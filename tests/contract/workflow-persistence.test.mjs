@@ -40,6 +40,7 @@ async function runTests() {
       workspaceId,
       workflowId,
       "agt-1",
+      "agent",
       1
     ));
 
@@ -48,6 +49,7 @@ async function runTests() {
       workspaceId,
       workflowId,
       "agt-2",
+      "agent",
       2
     ));
 
