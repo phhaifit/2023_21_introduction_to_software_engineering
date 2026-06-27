@@ -351,7 +351,8 @@ describe("8. Demo Reset & Isolation", () => {
     for (let i = 0; i < 6; i++) {
       act(() => { pRuntimeA.scheduler.advance(); });
     }
-    expect(await screen.findByText("FAIL_SIMULATION: Task A")).toBeVisible();
+    const feedA = screen.getByRole("region", { name: /conversation/i });
+    expect(await within(feedA).findByText("FAIL_SIMULATION: Task A")).toBeVisible();
     expect(screen.getByLabelText("Task status: Failed")).toBeVisible();
 
     // Simulate Demo Reset by unmounting, cleaning up, resetting ID sequence, and remounting
@@ -371,7 +372,8 @@ describe("8. Demo Reset & Isolation", () => {
 
     // Submit Task B (normal task)
     await submitPrompt("Normal Task B");
-    expect(await screen.findByText("Normal Task B")).toBeVisible();
+    const feedB = screen.getByRole("region", { name: /conversation/i });
+    expect(await within(feedB).findByText("Normal Task B")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
   });
 });

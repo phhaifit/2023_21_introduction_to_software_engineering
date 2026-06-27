@@ -289,7 +289,7 @@ const expectedModels = {
       workflowStepId: "String",
       workspaceId: "String",
       workflowId: "String",
-      agentId: "String",
+      agentId: "String?",
       stepOrder: "Int",
       createdAt: "String",
       updatedAt: "String"
@@ -423,7 +423,6 @@ const expectedUniqueConstraints = {
   Agent: ["workspaceId", "name"],
   ToolConnection: ["workspaceId", "toolId"],
   AgentToolAssignment: ["workspaceId", "agentId", "toolId"],
-  WorkflowStep: ["workflowId", "stepOrder"],
   TaskRun: ["jobId"],
   KnowledgeAccessGrant: ["workspaceId", "documentId", "agentId"]
 };

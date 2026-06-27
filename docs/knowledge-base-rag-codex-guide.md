@@ -39,11 +39,12 @@ The Knowledge Base / RAG frontend currently includes:
 - Upload Documents screen.
 - Typed frontend API client for the workspace-scoped KB/RAG routes.
 
-The Documents and Upload screens now use the typed KB/RAG API client for
-runtime loading, metadata-only upload validation, and upload preparation. Local
-mock data remains available for isolated prototype/test use. Do not wire Data
-Sources, Synchronization Scope, or Processing Status to API calls outside their
-own scoped frontend integration issues.
+The Documents, Upload, Data Sources, and Synchronization Scope screens now use
+the typed KB/RAG API client for runtime loading, metadata-only upload
+validation/preparation, safe data-source placeholder connection, sync-scope
+updates, manual sync requests, and sync job reads. Local mock data remains
+available for isolated prototype/test use. Do not wire Processing Status to API
+calls outside its own scoped frontend integration issue.
 
 The backend now has an internal foundation for future runtime implementation:
 
@@ -58,9 +59,17 @@ The backend now has an internal foundation for future runtime implementation:
 - Deterministic in-memory repositories for future use-case tests.
 - A thin workspace-scoped HTTP API router that maps shared route contracts to
   application use cases and shared API envelopes.
+- A worker handoff skeleton that moves already-created document ingestion jobs
+  through pending/ingesting/ready or pending/ingesting/failed lifecycle states
+  through KB/RAG repository ports.
+- A deterministic worker-side text processing pipeline for supported
+  text/plain and markdown-style content. It reads content through an injected
+  reader, normalizes text, splits stable chunks, and persists chunks through
+  KB/RAG repository ports.
 
 The backend still does not have real upload/file adapters, embedding/vector
-adapters, or worker handlers.
+adapters, PDF/DOC/DOCX/OCR parsers, full worker runtime handlers, retrieval,
+or external sync adapters.
 
 ## Required Future Workflow
 
@@ -218,6 +227,11 @@ Current foundation files include:
 - `domain/knowledge-sync.ts`
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+- `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-document-content-reader.ts`
+- `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-document-text-normalizer.ts`
+- `worker/knowledge-document-text-chunker.ts`
 
 Likely future files:
 
@@ -227,6 +241,13 @@ Likely future files:
 - `infrastructure/*-adapter.ts`
 
 Do not create worker handlers or adapters outside the selected task scope.
+
+The current worker handoff plus processing pipeline may mark pending ingestion
+jobs as ingesting, ready, or failed, update associated document ingestion
+status, and persist deterministic text chunks. It must not read object storage,
+parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors,
+execute external sync, or mark vector indexing complete until a later
+adapter/runtime issue explicitly adds those boundaries.
 
 ## API Contract Boundary
 
@@ -354,12 +375,13 @@ npm run prisma -- validate
 
 ## Current UI Guidance
 
-Documents and Upload use the API client; remaining placeholder views may keep
-local mock data until their own scoped integration issues wire them to API
-contracts. New UI-only flows should pause until the API/DTO/event foundation is
-designed. The KB/RAG API client follows the Agent Management and Workflow
-Management client pattern: typed fetch wrapper, shared `ApiResponse` parsing,
-shared `ErrorCode`, network error handling, and malformed-response handling.
+Documents, Upload, Data Sources, and Synchronization Scope use the API client;
+remaining placeholder views may keep local mock data until their own scoped
+integration issues wire them to API contracts. New UI-only flows should pause
+until the API/DTO/event foundation is designed. The KB/RAG API client follows
+the Agent Management and Workflow Management client pattern: typed fetch
+wrapper, shared `ApiResponse` parsing, shared `ErrorCode`, network error
+handling, and malformed-response handling.
 
 ## Final Response Checklist
 

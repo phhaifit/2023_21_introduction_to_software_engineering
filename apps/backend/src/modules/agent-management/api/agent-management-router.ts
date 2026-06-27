@@ -16,12 +16,21 @@ import { LlmDraftingUnavailableError, LlmProviderFailure } from "../application/
 import { sendAgentApiFailure, sendAgentApiSuccess, sendAgentPaginatedApiSuccess } from "./api-response.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 import { canPerform } from "../../../shared/rbac/permissions.ts";
+import type { CheckoutUseCases } from "../../subscription-payment/application/checkout-use-cases.ts";
+
 export type AgentManagementRouterDependencies = {
   useCases: AgentLifecycleUseCases;
+  checkoutUseCases?: CheckoutUseCases;
 };
 
 class AuthenticationError extends Error {}
 class AuthorizationError extends Error {}
+export class QuotaExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuotaExceededError";
+  }
+}
 
 function getRequestContext(request: Request): RequestContext {
   return (request as any).context || { requestId: "unknown" };
@@ -70,6 +79,17 @@ export function createAgentManagementRouter(
     await handleAgentApiRequest(request, response, async () => {
       const context = getRequestContext(request);
       enforcePermission(context, "agents:manage");
+
+      // Quota Enforcement: Chặn nếu số lượng Agent vượt mức tối đa của gói cước
+      if (dependencies.checkoutUseCases) {
+        const usage = await dependencies.checkoutUseCases.getWorkspaceResourceUsage(
+          context.workspace!.workspaceId,
+          context.user!.userId
+        );
+        if (usage.agents.used >= usage.agents.max) {
+          throw new QuotaExceededError("Hạn mức số lượng Agent của gói dịch vụ hiện tại đã đạt tối đa. Vui lòng nâng cấp gói cước để tiếp tục.");
+        }
+      }
 
       const payload = readStringPayload(request, ["name", "role", "model", "instructions"]);
       const body = request.body as Record<string, unknown> | undefined;
@@ -341,6 +361,15 @@ function handleAgentApiError(request: Request, response: Response, error: unknow
       code: "agent.not_available",
       message: "Agent is not available in this workspace.",
       statusCode: 404
+    });
+    return;
+  }
+
+  if (error instanceof QuotaExceededError) {
+    sendAgentApiFailure(request, response, {
+      code: "billing.quota_exceeded",
+      message: error.message,
+      statusCode: 402
     });
     return;
   }

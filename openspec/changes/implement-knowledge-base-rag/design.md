@@ -81,10 +81,33 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: Documents loads `KnowledgeDocumentDto` values through `listDocuments`; Upload converts selected `File` objects to metadata-only `UploadCandidateFileDto` values, validates candidates through the API client, and prepares only accepted candidates. This slice does not integrate Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, vector databases, or new dependencies.
    - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
 
+15. Wire Data Sources and Synchronization Scope screens through the frontend API client in a scoped slice.
+   - Rationale: Runtime source/scope screens should use the same shared DTO and route boundary as backend routes instead of remaining static placeholders once the API client exists.
+   - Boundary: Data Sources loads `KnowledgeDataSourceDto` values through `listDataSources` and records safe connection intent through `connectDataSource` without credentials. Synchronization Scope loads `SyncScopeNodeDto` values through `getSyncScope`, persists selected scope IDs through `updateSyncScope`, requests queued manual sync intent through `requestManualSync`, and displays `SyncJobDto` values through `listSyncJobs`. This slice does not integrate Processing Status, worker runtime, external provider/OAuth flows, credentials, object storage, file parsing, embedding providers, vector databases, or new dependencies.
+   - Constraint: Frontend request bodies must not include workspace IDs, actor/user IDs, generated IDs, lifecycle status controlled by the server, timestamps, storage keys, vector references, queue payloads, credentials, secrets, tokens, refresh tokens, passwords, raw provider payloads, raw embeddings, or vector config.
+
+16. Add a lifecycle-only worker handoff before real ingestion adapters.
+   - Rationale: Future worker entrypoints need a stable module-owned handoff that updates already-created ingestion jobs and documents without reaching directly into Prisma or running slow work inside HTTP handlers.
+   - Boundary: The handoff accepts a workspace-scoped pending ingestion job, marks the job/document as ingesting, runs an injected no-op processor by default, then marks the job/document ready or failed and creates safe ingestion lifecycle events. This slice does not parse files, read object storage, create chunks, call embedding providers, write vectors, execute external sync, or add queue runtime adapters.
+   - Constraint: Worker handoff code uses KB/RAG repository ports and safe event contracts only; it must not import frontend code, Prisma directly, another module's private internals, parser/storage/embedding/vector runtimes, or expose storage keys, vector refs, queue payloads, credentials, secrets, tokens, raw file contents, or raw embeddings in events.
+
+17. Add a deterministic text processing pipeline before embedding/vector indexing.
+   - Rationale: The worker needs a concrete processor boundary that can turn supported text content into repository-owned chunks while preserving adapter boundaries for file storage, embeddings, and vectors.
+   - Boundary: The pipeline reads text through an injected content reader, supports text/plain and markdown-style content, normalizes whitespace deterministically, chunks text deterministically, persists `KnowledgeDocumentChunk` records through the KB/RAG document repository, and returns updated document/job state to the handoff. This slice does not read object storage directly, parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors, implement retrieval, or add queue runtime entrypoints.
+   - Constraint: Chunk records use stable generated IDs in tests, stable chunk indexes, pending embedding status, no vector references, and safe error conversion for empty, unsupported, or failed content reads.
+
+18. Add an embedding/vector indexing adapter boundary after persisted chunks exist.
+   - Rationale: The worker needs a safe boundary that can index persisted chunks with deterministic fakes now and real providers later without exposing provider or vector database internals to public contracts.
+   - Boundary: The indexing pipeline loads workspace-scoped persisted chunks through the KB/RAG document repository, marks document indexing as `ingesting`, generates embeddings through an injected `KnowledgeEmbeddingAdapter`, upserts chunk embeddings through an injected `KnowledgeVectorIndexAdapter`, updates chunk embedding status/vector references internally, and marks document indexing `ready` or `failed`.
+   - Constraint: This slice does not call real OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, FAISS, Elasticsearch, or other provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
 - Embedding services may be unavailable -> Provide mock/local adapter mode for demos and tests.
 - Access control is security-sensitive -> Check agent knowledge assignment before retrieval, not only during upload.
-- Public contracts can drift from prototype UI mocks -> Keep runtime Documents and Upload flows mapped to shared DTOs through the API client, and keep any remaining mock data isolated to placeholder/test use.
+- Public contracts can drift from prototype UI mocks -> Keep runtime Documents, Upload, Data Sources, and Synchronization Scope flows mapped to shared DTOs through the API client, and keep any remaining mock data isolated to placeholder/test use.
 - KB/RAG persistence can outgrow the initial additive schema -> Add later migrations only through focused OpenSpec-backed issues and keep vector/embedding provider internals behind adapters.
+- A lifecycle-only worker handoff can look complete to callers -> Keep docs/tests explicit that parsing, chunking, embedding, vector writes, and external sync remain future adapter/runtime scope.
+- Text-only chunking is intentionally limited -> Keep PDF/DOC/DOCX/OCR, object storage readers, embedding, and vector indexing in later adapter-focused issues.
+- A standalone indexing pipeline can be mistaken for a scheduled runtime -> Keep it explicitly injected/tested and leave queue/runtime wiring for a later scoped issue.

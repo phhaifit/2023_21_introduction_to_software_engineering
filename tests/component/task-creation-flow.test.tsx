@@ -118,7 +118,8 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(screen.getByLabelText("Pending task")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
-    expect(screen.getByText("Draft the weekly report.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Draft the weekly report.")).toBeVisible();
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "View processing details" }));
@@ -129,8 +130,8 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Completed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Failed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
 
     const timeline = screen.getByRole("region", { name: /processing timeline/i });
     expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);

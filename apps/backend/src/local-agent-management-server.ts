@@ -25,6 +25,7 @@ import { createWorkflowManagementRouter } from "./modules/workflow-management/ap
 import { WorkflowUseCases } from "./modules/workflow-management/application/workflow-use-cases.ts";
 import { PrismaWorkflowRepository } from "./modules/workflow-management/infrastructure/prisma-workflow-repository.ts";
 import { InMemoryWorkflowRepository } from "./modules/workflow-management/infrastructure/in-memory-workflow-repository.ts";
+import { WorkflowExecutionService } from "./modules/task-orchestration/application/workflow-execution-service.ts";
 
 import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
 import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
@@ -58,6 +59,74 @@ import {
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
 
+// New imports for Task Orchestration & OpenClaw network transport
+import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
+import {
+  OpenClawTaskExecutionAdapter,
+  OpenClawExecutionOrchestrator,
+  type ExternalAgentCatalog,
+  type ExternalWorkflowCatalog,
+  type ExternalAuthenticationService,
+  type ExternalWorkspaceManagement
+} from "./features/task-execution/adapters/openclaw-task-execution-adapter.ts";
+import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
+import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
+import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
+
+class ServerAgentCatalog implements ExternalAgentCatalog {
+  async validateAndGetAgent(workspaceId: EntityId<"workspaceId">, agentId: string) {
+    return {
+      agentId,
+      workspaceId: workspaceId as string,
+      providerAgentMapping: "openclaw-agent-super-coder",
+      status: "active" as const
+    };
+  }
+}
+
+class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
+  async validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string) {
+    return {
+      workflowId,
+      workspaceId: workspaceId as string,
+      providerWorkflowMapping: "openclaw-workflow-ci-cd",
+      status: "active" as const
+    };
+  }
+}
+
+class ServerAuthenticationService implements ExternalAuthenticationService {
+  async getAuthenticatedPrincipal(context: Record<string, unknown>) {
+    return {
+      principalId: "usr_task_commander_999",
+      roles: ["workspace-admin"],
+      permissions: ["start-task-execution", "cancel-task-execution", "view-advanced-provider-details"]
+    };
+  }
+
+  async authorizeOperation(principal: any, operation: string, workspaceId: EntityId<"workspaceId">) {
+    return true;
+  }
+}
+
+class ServerWorkspaceManagement implements ExternalWorkspaceManagement {
+  getWorkspaceExecutionRuntimeResolver(): WorkspaceExecutionRuntimeResolver {
+    return {
+      async resolve(workspaceId: EntityId<"workspaceId">): Promise<WorkspaceExecutionRuntime> {
+        return {
+          instanceId: "inst_openclaw_docker_01" as EntityId<"instanceId">,
+          workspaceId,
+          provider: "openclaw",
+          status: "running",
+          endpointReference: "http://127.0.0.1:18789",
+          credentialReference: process.env.OPENCLAW_GATEWAY_TOKEN || "42c07ed4c737a6c9651450f70df15446fdd6fd8f6a04bfca831a74934f460e59",
+          capabilities: ["http-sse-streaming", "local-execution"]
+        };
+      }
+    };
+  }
+}
+
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
 
@@ -78,20 +147,37 @@ export type LocalAgentManagementRuntime = {
   workflowUseCases: any;
   knowledgeBaseRagRepositories: any;
   knowledgeBaseRagUseCases: any;
+  openclawAdapter: OpenClawTaskExecutionAdapter;
+  openclawOrchestrator: OpenClawExecutionOrchestrator;
+  conversationRepository: any;
 };
 
 let cachedPrisma: any = null;
+let prismaAttempted = false;
 
 async function getPrismaClient(): Promise<any> {
-  if (cachedPrisma) return cachedPrisma;
+  if (prismaAttempted) return cachedPrisma;
+  prismaAttempted = true;
+
   if (process.env.DATABASE_URL) {
-    const { PrismaClient, PrismaPg } = await import("@vcp/database");
-    const pg = await import("pg");
-    const Pool = pg.default ? pg.default.Pool : pg.Pool;
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaPg(pool);
-    cachedPrisma = new PrismaClient({ adapter });
-    return cachedPrisma;
+    try {
+      const { PrismaClient, PrismaPg } = await import("@vcp/database");
+      const pg = await import("pg");
+      const Pool = pg.default ? pg.default.Pool : pg.Pool;
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const adapter = new PrismaPg(pool);
+      const prisma = new PrismaClient({ adapter });
+      
+      // Thử kết nối vật lý với DB bằng truy vấn SQL thô
+      await prisma.$executeRawUnsafe("SELECT 1;");
+      console.log("Database connection established successfully via Prisma.");
+      cachedPrisma = prisma;
+      return cachedPrisma;
+    } catch (err) {
+      console.warn("Could not connect to database via Prisma, fallback to InMemory repositories.");
+      cachedPrisma = null;
+      return null;
+    }
   }
   return null;
 }
@@ -132,6 +218,17 @@ async function createAuthSessionRepository(): Promise<any> {
   return new InMemorySessionRepository();
 }
 
+async function createConversationRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    const { PrismaConversationRepository } = await import(
+      "./modules/task-orchestration/infrastructure/prisma-conversation-repository.ts"
+    );
+    return new PrismaConversationRepository(prisma);
+  }
+  return new InMemoryConversationRepository();
+}
+
 function createSkillWriter(): AgentSkillWriter {
   if (process.env.AGENT_SKILLS_DIR) {
     return new FileSystemAgentSkillWriter(process.env.AGENT_SKILLS_DIR);
@@ -165,21 +262,23 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
 
-  const checkoutUseCases = new CheckoutUseCases({
-    repository: subscriptionRepository,
-    paymentAdapter: new MockPaymentAdapter(frontendUrl),
-    eventBus,
-    now: () => new Date().toISOString(),
-    generateSubscriptionId: () => randomUUID() as any,
-    generateTransactionId: () => randomUUID() as any,
-    generateEventId: () => randomUUID() as any
-  });
-
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
   const knowledgeDocumentRepository = prisma
     ? new PrismaKnowledgeDocumentRepository(prisma)
     : new InMemoryKnowledgeDocumentRepository();
+
+  const checkoutUseCases = new CheckoutUseCases({
+    repository: subscriptionRepository,
+    paymentAdapter: new MockPaymentAdapter(frontendUrl),
+    eventBus,
+    agentRepository: repository,
+    documentRepository: knowledgeDocumentRepository,
+    now: () => new Date().toISOString(),
+    generateSubscriptionId: () => randomUUID() as any,
+    generateTransactionId: () => randomUUID() as any,
+    generateEventId: () => randomUUID() as any
+  });
   const knowledgeIngestionJobRepository = prisma
     ? new PrismaKnowledgeIngestionJobRepository(prisma)
     : new InMemoryKnowledgeIngestionJobRepository();
@@ -225,29 +324,40 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     })
   };
   
-  const mockExecutionHandoff = {
-    async handoffExecution(request: any) {
-      console.log("[Handoff] Mock Workflow Execution Handoff triggered:");
-      console.log(JSON.stringify(request, null, 2));
-    }
-  };
-
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
-    const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
-    return all.filter((a: any) => agentIds.includes(a.agentId));
+    const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
+    return all.agents.filter((a: any) => agentIds.includes(a.agentId));
   };
-
-  const workflowUseCases = new WorkflowUseCases(
-    workflowRepository,
-    agentProvider,
-    mockExecutionHandoff
-  );
 
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);
+    await subscriptionRepository.saveSubscription({
+      subscriptionId: "demo-subscription-id" as any,
+      userId: "local-dev-user" as any,
+      workspaceId: DEMO_WORKSPACE_ID,
+      plan: "premium",
+      status: "active",
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      autoRenew: true,
+      cardNumber: null,
+      cardHolder: null,
+      cardExpiry: null
+    });
   }
 
   const app = express();
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-mock-role, x-mock-user, x-request-id");
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
   app.use(express.json());
 
   // Fake Auth Middleware for local development
@@ -279,7 +389,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   app.use(
     "/api/workspaces/:workspaceId/agents",
-    createAgentManagementRouter({ useCases })
+    createAgentManagementRouter({ useCases, checkoutUseCases })
   );
 
   app.use(
@@ -287,12 +397,55 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createSubscriptionRouter({ useCases: checkoutUseCases })
   );
 
-  app.use(
-    "/api/workspaces/:workspaceId/workflows",
-    createWorkflowManagementRouter({ useCases: workflowUseCases })
+  const serverWorkspaceMgmt = new ServerWorkspaceManagement();
+  const serverAgentCatalog = new ServerAgentCatalog();
+  const serverWorkflowCatalog = new ServerWorkflowCatalog();
+  const serverAuthService = new ServerAuthenticationService();
+
+  const conversationRepository = await createConversationRepository();
+  const openclawTransport = new OpenClawHttpSSETransport();
+  const openclawAdapter = new OpenClawTaskExecutionAdapter(
+    serverWorkspaceMgmt.getWorkspaceExecutionRuntimeResolver(),
+    serverAgentCatalog,
+    serverWorkflowCatalog,
+    openclawTransport
+  );
+  const openclawOrchestrator = new OpenClawExecutionOrchestrator(
+    serverAuthService,
+    serverWorkspaceMgmt,
+    serverAgentCatalog,
+    serverWorkflowCatalog,
+    openclawAdapter,
+    undefined,
+    conversationRepository
   );
 
-  app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));
+  app.use(
+    "/api/workspaces/:workspaceId",
+    createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter, conversationRepository })
+  );
+
+  const executionService = new WorkflowExecutionService(
+    workflowRepository,
+    openclawOrchestrator,
+    eventBus
+  );
+
+  const workflowUseCases = new WorkflowUseCases(
+    workflowRepository,
+    agentProvider,
+    executionService
+  );
+
+  app.use(
+    "/api/workspaces/:workspaceId/workflows",
+    createWorkflowManagementRouter({ useCases: workflowUseCases, eventBus })
+  );
+
+  app.use(createKnowledgeBaseRagRouter({
+    ...knowledgeBaseRagUseCases,
+    checkoutUseCases
+  }));
 
   const authUserRepository = await createAuthUserRepository();
   const authSessionRepository = await createAuthSessionRepository();
@@ -326,7 +479,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     workflowRepository,
     workflowUseCases,
     knowledgeBaseRagRepositories,
-    knowledgeBaseRagUseCases
+    knowledgeBaseRagUseCases,
+    openclawAdapter,
+    openclawOrchestrator,
+    conversationRepository
   };
 }
 
@@ -377,4 +533,5 @@ if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
   app.listen(LOCAL_AGENT_API_PORT, LOCAL_AGENT_API_HOST, () => {
     console.log(`Agent & Billing API: http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`);
   });
+  setInterval(() => {}, 100000);
 }

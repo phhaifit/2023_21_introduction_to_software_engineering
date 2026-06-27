@@ -12,7 +12,7 @@ import { mockWorkflows } from "../../data/workflows.ts";
 import { mockExecutions } from "../../data/executions.ts";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
-import { Play, Edit2, Trash2, Loader2, Workflow as WorkflowIcon } from "lucide-react";
+import { Play, Edit2, Trash2, Loader2, Workflow as WorkflowIcon, Download, Upload } from "lucide-react";
 
 import { useEffect, useMemo } from "react";
 import {
@@ -43,21 +43,40 @@ function StreamingProgressModal({
       if (data.type === "workflow_started") {
         setLogs((prev) => [
           ...prev,
-          `> Khởi tạo Workflow: [${workflowName}]`,
-          `> Tổng số bước cần chạy: ${data.totalSteps}`,
-          `> Đang cấp phát tài nguyên... OK`,
+          `> Initializing Workflow: [${workflowName}]`,
+          `> Total steps to run: ${data.totalSteps}`,
+          `> Allocating resources... OK`,
+        ]);
+      } else if (data.type === "step_started") {
+        setLogs((prev) => [
+          ...prev,
+          `> [Running] Step ${data.stepOrder} - Agent: ${data.agentId} started...`,
         ]);
       } else if (data.type === "step_completed") {
         setLogs((prev) => [
           ...prev,
-          `> [Hoàn thành] Bước ${data.stepOrder} - Agent: ${data.agentId} đã xử lý xong.`,
+          `> [Completed] Step ${data.stepOrder} - Agent: ${data.agentId} finished processing.`,
+          `> Output: ${JSON.stringify(data.outputData)}`
         ]);
         setProgress((prev) => Math.min(prev + 30, 90));
+      } else if (data.type === "step_failed") {
+        setLogs((prev) => [
+          ...prev,
+          `> [Error] Step ${data.stepOrder} failed: ${data.errorMsg}`,
+        ]);
       } else if (data.type === "workflow_completed") {
         setLogs((prev) => [
           ...prev,
-          `> [Thành công] Workflow đã thực thi xong toàn bộ các bước.`,
-          `> Đóng luồng kết nối.`,
+          `> [Success] Workflow executed all steps successfully.`,
+          `> Closing connection stream.`,
+        ]);
+        setProgress(100);
+        es.close();
+      } else if (data.type === "workflow_failed") {
+        setLogs((prev) => [
+          ...prev,
+          `> [Failed] Workflow execution failed: ${data.errorMsg}`,
+          `> Closing connection stream.`,
         ]);
         setProgress(100);
         es.close();
@@ -67,8 +86,8 @@ function StreamingProgressModal({
     es.onerror = () => {
       setLogs((prev) => [
         ...prev,
-        `> [Lỗi] Mất kết nối tới server (Stream Error).`,
-        `> Vui lòng kiểm tra lại cấu hình Workflow.`,
+        `> [Error] Lost connection to server (Stream Error).`,
+        `> Please check your Workflow configuration.`,
       ]);
       es.close();
     };
@@ -215,8 +234,7 @@ function StreamingProgressModal({
                   gap: "8px",
                 }}
               >
-                <span className="typing-indicator"></span> Đang đợi tiến
-                trình...
+                <span className="typing-indicator"></span> Waiting for process...
               </div>
             )}
           </div>
@@ -249,7 +267,7 @@ function StreamingProgressModal({
                   progress === 100 ? "#10b981" : "#334155")
               }
             >
-              {progress === 100 ? "Hoàn thành" : "Đóng cửa sổ"}
+              {progress === 100 ? "Done" : "Close Window"}
             </button>
           </div>
         </div>
@@ -264,11 +282,13 @@ function WorkflowsList({
   onEdit,
   onExecutionSuccess,
   apiClient: providedApiClient,
+  onImportWorkflow
 }: {
   onCreate: () => void;
   onEdit: (id: string) => void;
   onExecutionSuccess?: () => void;
   apiClient?: WorkflowManagementApiClient;
+  onImportWorkflow?: (data: any) => void;
 }) {
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
@@ -328,15 +348,43 @@ function WorkflowsList({
     }
   });
 
-  const handleRun = async (workflowId: string, workflowName: string) => {
+  const [runModalData, setRunModalData] = useState<{ workflowId: string; workflowName: string; } | null>(null);
+  const [inputVariables, setInputVariables] = useState<{key: string, value: string}[]>([
+    { key: "prompt", value: "" }
+  ]);
+
+  const handleRunClick = (workflowId: string, workflowName: string) => {
+    setInputVariables([{ key: "prompt", value: "" }]);
+    setRunModalData({ workflowId, workflowName });
+  };
+
+  const handleConfirmRun = async () => {
+    if (!runModalData) return;
+    const { workflowId, workflowName } = runModalData;
+    setRunModalData(null);
     setExecutingId(workflowId);
-    setStreamingUrl(
-      apiClient.getExecutionStreamUrl(
+    try {
+      let inputData: Record<string, string> = {};
+      for (const v of inputVariables) {
+        if (v.key.trim()) {
+          inputData[v.key.trim()] = v.value;
+        }
+      }
+      
+      const { executionId } = await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">, inputData);
+      
+      const streamUrl = apiClient.getExecutionStreamUrl(
         DEMO_WORKSPACE_ID,
         workflowId as EntityId<"workflowId">,
-      ),
-    );
-    setStreamingWorkflowName(workflowName);
+      ) + `?executionId=${executionId}`;
+      
+      setStreamingUrl(streamUrl);
+      setStreamingWorkflowName(workflowName);
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to execute workflow: " + (err.message || "Unknown error"));
+      setExecutingId(null);
+    }
   };
 
   const handleStreamingClose = () => {
@@ -364,18 +412,79 @@ function WorkflowsList({
   };
 
   const handleDelete = async (workflowId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa workflow này không?"))
+    if (!window.confirm("Are you sure you want to delete this workflow?"))
       return;
     try {
       await apiClient.deleteWorkflow(
         DEMO_WORKSPACE_ID,
         workflowId as EntityId<"workflowId">,
       );
-      alert("Xóa thành công!");
-      loadWorkflows();
+      setWorkflows(prev => prev.filter(w => w.workflowId !== workflowId));
     } catch (err: any) {
-      alert("Lỗi khi xóa Workflow: " + (err.message || "Unknown error"));
+      if (err?.status === 404 || err?.message?.includes("not found")) {
+        // Already gone on server — just remove from UI
+        setWorkflows(prev => prev.filter(w => w.workflowId !== workflowId));
+      } else {
+        alert("Error deleting Workflow: " + (err.message || "Unknown error"));
+      }
     }
+  };
+
+  const handleExport = async (workflowId: string, workflowName: string) => {
+    try {
+      const data: any = await apiClient.getWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">);
+      const wf = data.workflow ? data.workflow : data;
+      
+      const exportPayload = {
+        name: `${wf.name} (Imported)`,
+        description: wf.description,
+        status: wf.status,
+        triggerType: wf.triggerType,
+        triggerConfig: wf.triggerConfig,
+        steps: data.steps ? data.steps.map((s: any) => ({
+          workflowStepId: s.workflowStepId,
+          agentId: s.agentId,
+          stepType: s.stepType,
+          stepOrder: s.stepOrder,
+          nextSteps: s.nextSteps,
+          inputMapping: s.inputMapping
+        })) : []
+      };
+
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `workflow-${workflowName.toLowerCase().replace(/\s+/g, '-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export workflow");
+    }
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (onImportWorkflow) {
+          onImportWorkflow(parsed);
+        }
+      } catch (err: any) {
+        console.error("Import error:", err);
+        alert("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
+      }
+    };
+    reader.readAsText(file);
+    // Reset the input value so the same file can be selected again if needed
+    event.target.value = "";
   };
 
   return (
@@ -393,13 +502,19 @@ function WorkflowsList({
         }}
       >
         <SearchBar
-          placeholder="Tìm kiếm workflow..."
+          placeholder="Search workflows..."
           value={search}
           onChange={setSearch}
         />
-        <button onClick={onCreate} className="primary-action">
-          Tạo Workflow
-        </button>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <label className="secondary-action" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", margin: 0, padding: "8px 16px" }}>
+            <Upload size={16} /> Import Workflow
+            <input type="file" accept=".json" style={{ display: "none" }} onChange={handleFileImport} />
+          </label>
+          <button onClick={onCreate} className="primary-action">
+            Create Workflow
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -426,12 +541,12 @@ function WorkflowsList({
                 }}
                 style={{ cursor: "pointer", userSelect: "none" }}
               >
-                Tên Workflow{" "}
+                Workflow Name{" "}
                 {sortField === "name" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
-              <th>Trạng thái</th>
-              <th>Cấu hình</th>
-              <th>Số bước</th>
+              <th>Status</th>
+              <th>Configuration</th>
+              <th>Steps</th>
               <th
                 onClick={() => {
                   setSortField("updatedAt");
@@ -439,10 +554,10 @@ function WorkflowsList({
                 }}
                 style={{ cursor: "pointer", userSelect: "none" }}
               >
-                Cập nhật lần cuối{" "}
+                Last Updated{" "}
                 {sortField === "updatedAt" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
-              <th style={{ textAlign: "right" }}>Thao tác</th>
+              <th style={{ textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -479,13 +594,13 @@ function WorkflowsList({
                 >
                   <EmptyState
                     icon={<WorkflowIcon size={48} strokeWidth={1} style={{ marginBottom: "16px", opacity: 0.5, color: "var(--accent)" }} />}
-                    title="Không tìm thấy Workflow"
+                    title="No Workflows Found"
                     description={
                       search
-                        ? "Không có kết quả phù hợp với từ khóa của bạn."
-                        : "Hãy tạo một workflow mới để bắt đầu tự động hóa công việc."
+                        ? "No results match your search."
+                        : "Create a new workflow to start automating tasks."
                     }
-                    actionLabel={search ? "Xóa bộ lọc" : "Tạo Workflow"}
+                    actionLabel={search ? "Clear filters" : "Create Workflow"}
                     onAction={search ? () => setSearch("") : onCreate}
                   />
                 </td>
@@ -509,19 +624,19 @@ function WorkflowsList({
                   </td>
                   <td>
                     {w.triggerType === "webhook" ? (
-                      <div style={{ fontSize: "13px", color: "var(--text)" }}>Qua Webhook (API)</div>
+                      <div style={{ fontSize: "13px", color: "var(--text)" }}>Via Webhook (API)</div>
                     ) : w.triggerType === "schedule" ? (
                       <div style={{ fontSize: "13px", color: "var(--text)" }}>
-                        {w.triggerConfig?.frequency === "weekly" ? `Hàng tuần (Thứ ${w.triggerConfig.dayOfWeek || 2})` : 
-                         w.triggerConfig?.frequency === "monthly" ? `Hàng tháng (Ngày ${w.triggerConfig.dayOfMonth || 1})` : 
-                         "Hàng ngày"}{" "}
-                        lúc {w.triggerConfig?.time || "08:00"}
+                        {w.triggerConfig?.frequency === "weekly" ? `Weekly (Day ${w.triggerConfig.dayOfWeek || 2})` : 
+                         w.triggerConfig?.frequency === "monthly" ? `Monthly (Day ${w.triggerConfig.dayOfMonth || 1})` : 
+                         "Daily"}{" "}
+                        at {w.triggerConfig?.time || "08:00"}
                       </div>
                     ) : (
-                      <div style={{ fontSize: "13px", color: "var(--text)" }}>Thủ công (Manual)</div>
+                      <div style={{ fontSize: "13px", color: "var(--text)" }}>Manual</div>
                     )}
                   </td>
-                  <td>{w.stepCount ?? 0} bước</td>
+                  <td>{w.stepCount ?? 0} steps</td>
                   <td>{new Date(w.updatedAt).toLocaleDateString("vi-VN")}</td>
                   <td style={{ textAlign: "right" }}>
                     <div
@@ -532,15 +647,15 @@ function WorkflowsList({
                       }}
                     >
                       <button
-                        className={`icon-button ${w.status === "active" ? "success" : ""}`}
+                        className={`icon-button ${w.status === "published" ? "success" : ""}`}
                         title={
-                          w.status !== "active"
-                            ? "Chỉ Workflow ở trạng thái Active mới có thể chạy"
-                            : "Chạy Workflow"
+                          w.status !== "published"
+                            ? "Only Published (Active) workflows can be run"
+                            : "Run Workflow"
                         }
-                        onClick={() => handleRun(w.workflowId, w.name)}
+                        onClick={() => handleRunClick(w.workflowId, w.name)}
                         disabled={
-                          executingId === w.workflowId || w.status !== "active"
+                          executingId === w.workflowId || w.status !== "published"
                         }
                       >
                         {executingId === w.workflowId
@@ -549,14 +664,21 @@ function WorkflowsList({
                       </button>
                       <button
                         className="icon-button"
-                        title="Chỉnh sửa Workflow"
+                        title="Export Workflow"
+                        onClick={() => handleExport(w.workflowId, w.name)}
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        title="Edit Workflow"
                         onClick={() => onEdit(w.workflowId)}
                       >
                         <Edit2 size={16} />
                       </button>
                       <button
                         className="icon-button danger"
-                        title="Xóa Workflow"
+                        title="Delete Workflow"
                         onClick={() => handleDelete(w.workflowId)}
                       >
                         <Trash2 size={16} />
@@ -577,6 +699,74 @@ function WorkflowsList({
           onClose={handleStreamingClose}
         />
       )}
+
+      {runModalData && createPortal(
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999999, animation: "fadeIn 0.15s ease-out" }}>
+          <div style={{ background: "var(--bg)", padding: "24px", borderRadius: "12px", width: "600px", maxWidth: "90%", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "8px", fontSize: "18px", fontWeight: 600 }}>Execute Workflow</h3>
+            <p style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "20px" }}>
+              Provide the starting variables for <strong style={{color: "var(--text)"}}>{runModalData.workflowName}</strong>:
+            </p>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "40vh", overflowY: "auto", paddingRight: "8px" }}>
+              {inputVariables.map((v, i) => (
+                <div key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  <div style={{ flex: "0 0 150px" }}>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Variable Name" 
+                      value={v.key} 
+                      onChange={e => {
+                        const newVars = [...inputVariables];
+                        newVars[i].key = e.target.value;
+                        setInputVariables(newVars);
+                      }}
+                      style={{ margin: 0, fontFamily: "monospace", fontSize: "13px" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                    <textarea 
+                      className="form-input" 
+                      placeholder="Enter value..." 
+                      value={v.value} 
+                      rows={2}
+                      onChange={e => {
+                        const newVars = [...inputVariables];
+                        newVars[i].value = e.target.value;
+                        setInputVariables(newVars);
+                      }}
+                      style={{ margin: 0, resize: "vertical", minHeight: "42px", flex: 1 }}
+                    />
+                    <button 
+                      className="icon-button danger" 
+                      title="Remove Variable"
+                      onClick={() => setInputVariables(inputVariables.filter((_, idx) => idx !== i))}
+                      style={{ padding: "10px", margin: 0 }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              <button 
+                className="secondary-action" 
+                style={{ alignSelf: "flex-start", padding: "6px 12px", fontSize: "13px", marginTop: "4px" }}
+                onClick={() => setInputVariables([...inputVariables, { key: "", value: "" }])}
+              >
+                + Add Variable
+              </button>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border-color)" }}>
+              <button className="secondary-action" onClick={() => setRunModalData(null)}>Cancel</button>
+              <button className="primary-action" onClick={handleConfirmRun}>Confirm Run</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -588,6 +778,7 @@ export function WorkflowsPage({
 }) {
   const [activeTab, setActiveTab] = useState<SubTab>("dashboard");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [importedData, setImportedData] = useState<any>(null);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -598,10 +789,17 @@ export function WorkflowsPage({
           <WorkflowsList
             onCreate={() => {
               setEditingId(null);
+              setImportedData(null);
               setActiveTab("editor");
             }}
             onEdit={(id) => {
               setEditingId(id);
+              setImportedData(null);
+              setActiveTab("editor");
+            }}
+            onImportWorkflow={(data) => {
+              setEditingId(null);
+              setImportedData(data);
               setActiveTab("editor");
             }}
             onExecutionSuccess={() => setActiveTab("executions")}
@@ -613,6 +811,7 @@ export function WorkflowsPage({
           <WorkflowEditorPage
             apiClient={apiClient}
             workflowId={editingId}
+            importedData={importedData}
             onExecutionSuccess={() => setActiveTab("executions")}
             onCancel={() => setActiveTab("list")}
           />
@@ -638,20 +837,20 @@ export function WorkflowsPage({
             onClick={() => setActiveTab("list")}
             className={`tab-btn ${activeTab === "list" ? "active" : ""}`}
           >
-            Danh sách
+            List
           </button>
           {activeTab === "editor" && (
             <button
               className="tab-btn active"
             >
-              {editingId ? "Sửa Workflow" : "Tạo Workflow"}
+              {editingId ? "Edit Workflow" : "Create Workflow"}
             </button>
           )}
           <button
             onClick={() => setActiveTab("executions")}
             className={`tab-btn ${activeTab === "executions" ? "active" : ""}`}
           >
-            Lịch sử chạy
+            Run History
           </button>
         </nav>
       </PageHeader>

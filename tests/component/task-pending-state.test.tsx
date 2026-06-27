@@ -184,7 +184,8 @@ describe("4. submitted prompt is visible in Pending view", () => {
     const prompt = "Prepare the Q2 summary for stakeholders.";
     await submitPrompt(prompt);
 
-    expect(screen.getByText(prompt)).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText(prompt)).toBeVisible();
   });
 });
 
@@ -388,8 +389,9 @@ describe("14. Pending view does not show streaming, completed result, or error",
 
     await submitPrompt("No extras.");
 
-    expect(screen.queryByText(/Completed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Failed/i)).not.toBeInTheDocument();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // No streaming indicator
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -482,7 +484,14 @@ describe("17. no dual mutable timeline source — authoritative snapshot only", 
   });
 
   it("page renders timeline from processingSnapshot.steps, not a legacy field", () => {
-    const source = readFileSync(
+    const dockSource = readFileSync(
+      join(
+        process.cwd(),
+        "apps/frontend/src/features/task-orchestration/components/task-orchestration-dock.tsx"
+      ),
+      "utf8"
+    );
+    const pageSource = readFileSync(
       join(
         process.cwd(),
         "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
@@ -490,8 +499,8 @@ describe("17. no dual mutable timeline source — authoritative snapshot only", 
       "utf8"
     );
 
-    expect(source).toMatch(/processingSnapshot\.steps/);
-    expect(source).not.toMatch(/activeTask\.timeline/);
+    expect(dockSource).toMatch(/processingSnapshot\.steps/);
+    expect(pageSource).not.toMatch(/activeTask\.timeline/);
   });
 });
 
@@ -835,7 +844,8 @@ describe("32. prompt remains visible after Cancel task click", () => {
     await submitPrompt(prompt);
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
 
-    expect(screen.getByText(prompt)).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText(prompt)).toBeVisible();
   });
 });
 

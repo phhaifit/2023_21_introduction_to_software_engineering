@@ -1,12 +1,8 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { TaskRoutingSelection } from "@vcp/shared";
 
-import { ProcessingTimeline } from "./components/processing-timeline";
 import { RoutingSelector } from "./components/routing-selector";
 import { TaskComposer } from "./components/task-composer";
-import { TaskLogList } from "./components/task-log-list";
-import { TaskPartialResult } from "./components/task-partial-result";
-import { TaskStatusBadge } from "./components/task-status-badge";
 import {
   createTaskOrchestrationSeedData,
   DEMO_PROMPTS,
@@ -19,29 +15,17 @@ import {
 import {
   buildCreateTaskRequest,
   getActiveTask,
+  getActiveConversation,
+  getConversationTasks,
+  getLatestConversationTask,
   initialTaskCreationState,
   taskCreationReducer
 } from "./model/task-creation-state";
-import { isTerminalTaskStatus, toTaskPresentationStatus } from "./model/task-lifecycle";
-import {
-  createTaskProcessingController,
-  TaskFinalStepBoundaryError,
-  type TaskProcessingController,
-  type TaskProcessingScheduleHandle,
-  type TaskProcessingStateReader,
-  type TaskProcessingStreamingStopper,
-  type TaskProcessingCompletionStopper
-} from "./model/task-processing-controller";
+import { toTaskPresentationStatus } from "./model/task-lifecycle";
 import {
   createBrowserTaskProcessingRuntime,
   type TaskProcessingRuntime
 } from "./model/task-processing-runtime";
-import { ORDERED_STEP_IDS } from "./model/task-processing";
-import { selectAccumulatedPartialText } from "./model/task-streaming";
-import {
-  createTaskStreamingController,
-  type TaskStreamingController
-} from "./model/task-streaming-controller";
 import {
   createDefaultTaskStreamingRuntime,
   DEFAULT_TASK_STREAMING_DELAYS,
@@ -54,31 +38,34 @@ import {
   type TaskCompletionDelays,
   type TaskCompletionRuntime
 } from "./model/task-completion-runtime";
-import {
-  createTaskCompletionController,
-  type TaskCompletionController
-} from "./model/task-completion-controller";
-import { TaskCompletedResult } from "./components/task-completed-result";
 import { TaskProcessingDetailModal } from "./components/task-processing-detail-modal";
 import { TaskCancelConfirmationDialog } from "./components/task-cancel-confirmation-dialog";
-import { TaskCanceledState } from "./components/task-canceled-state";
-import { TaskFailedState } from "./components/task-failed-state";
 import { buildTaskProcessingDetail } from "./model/task-processing-detail";
-import {
-  createTaskCancellationCoordinator,
-  type TaskCancellationCoordinator
-} from "./model/task-cancellation-coordinator";
+import type { TaskCancellationCoordinator } from "./model/task-cancellation-coordinator";
 import {
   ROUTING_MODES,
-  type RoutingMode
+  type RoutingMode,
+  type CreatedTaskRecord
 } from "./model/task-types";
 import { TaskConversation } from "./components/task-conversation";
 import { TaskOrchestrationDock } from "./components/task-orchestration-dock";
+import {
+  TaskConversationNavigation,
+  type TaskConversationNavigationItem
+} from "./components/task-conversation-navigation";
+import {
+  createTaskRuntimeRegistry,
+  type TaskRuntimeRegistry
+} from "./model/task-runtime-registry";
+import {
+  resolveTaskOrchestrationProvider,
+  DEFAULT_PROVIDER_CONFIG,
+  type TaskOrchestrationClient,
+  type TaskEventSubscription
+} from "./model/task-orchestration-provider";
 
 import "./task-orchestration-page.css";
 import "./task-orchestration-tokens.css";
-
-import type { CreatedTaskRecord } from "./model/task-types";
 
 type TaskCancellationRequestHandler = (
   taskId: CreatedTaskRecord["taskId"]
@@ -86,7 +73,10 @@ type TaskCancellationRequestHandler = (
 
 type TaskOrchestrationPageProps = {
   isLoading?: boolean;
+  isReconnecting?: boolean;
+  isProviderUnavailable?: boolean;
   taskCreationClient?: TaskCreationClient;
+  taskOrchestrationClient?: TaskOrchestrationClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
   processingRuntime?: TaskProcessingRuntime;
   processingDelays?: Readonly<{
@@ -107,12 +97,13 @@ const suggestedPrompts = [
 ] as const;
 
 const routingOptions = createTaskOrchestrationSeedData();
-const FINAL_STEP_ID = ORDERED_STEP_IDS[ORDERED_STEP_IDS.length - 1];
-const STREAMING_START_STEP_ID = "execute-task";
 
 export function TaskOrchestrationPage({
   isLoading = false,
+  isReconnecting = false,
+  isProviderUnavailable = false,
   taskCreationClient,
+  taskOrchestrationClient,
   onCancelTaskRequested,
   processingRuntime,
   processingDelays,
@@ -132,9 +123,7 @@ export function TaskOrchestrationPage({
   );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const taskClientRef = useRef(
-    taskCreationClient ?? createMockTaskCreationClient()
-  );
+  const [cancelTargetTaskId, setCancelTargetTaskId] = useState<string | null>(null);
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
@@ -143,8 +132,6 @@ export function TaskOrchestrationPage({
 
   const runtimeRef = useRef(processingRuntime ?? createBrowserTaskProcessingRuntime());
   const delaysRef = useRef(processingDelays ?? DEMO_TIMINGS);
-  const controllerRef = useRef<TaskProcessingController | null>(null);
-  const progressionHandleRef = useRef<TaskProcessingScheduleHandle | null>(null);
   const streamingRuntimeRef = useRef(
     streamingRuntime ?? createDefaultTaskStreamingRuntime()
   );
@@ -153,326 +140,103 @@ export function TaskOrchestrationPage({
       fragmentMs: DEMO_TIMINGS.streamChunkMs ?? DEFAULT_TASK_STREAMING_DELAYS.fragmentMs
     }
   );
-  const streamingControllerRef = useRef<TaskStreamingController | null>(null);
-
   const completionRuntimeRef = useRef(
     completionRuntime ?? createBrowserTaskCompletionRuntime()
   );
   const completionDelaysRef = useRef(
     completionDelays ?? DEFAULT_TASK_COMPLETION_DELAYS
   );
-  const completionControllerRef = useRef<TaskCompletionController | null>(null);
-  const cancellationCoordinatorRef = useRef<TaskCancellationCoordinator | null>(
-    cancellationCoordinator ?? null
+
+  const clientRef = useRef(
+    taskOrchestrationClient ??
+      resolveTaskOrchestrationProvider(DEFAULT_PROVIDER_CONFIG, {
+        taskCreationClient,
+        processingRuntime: runtimeRef.current,
+        processingDelays: delaysRef.current,
+        streamingRuntime: streamingRuntimeRef.current,
+        streamingDelays: streamingDelaysRef.current,
+        completionRuntime: completionRuntimeRef.current,
+        completionDelays: completionDelaysRef.current,
+        cancellationCoordinator
+      })
   );
+  const subscriptionsRef = useRef(new Map<string, TaskEventSubscription>());
 
-  // Stable ref-backed adapters for failure-simulation cleanup (Task 13).
-  // Closing over refs (not render-time values) ensures these are never stale.
-  const failureStateReader: TaskProcessingStateReader = {
-    findTask: (taskId) =>
-      taskStateRef.current.tasks.find((task) => task.taskId === taskId) ?? null
-  };
-  const failureStreamingStopper: TaskProcessingStreamingStopper = {
-    stop: (taskId) => {
-      streamingControllerRef.current?.stop(taskId);
-    }
-  };
-  const failureCompletionStopper: TaskProcessingCompletionStopper = {
-    stop: (taskId) => {
-      completionControllerRef.current?.stop(taskId);
-    }
-  };
+  const activeConversation = getActiveConversation(taskState);
+  const activeConversationTasks = taskState.activeConversationId
+    ? getConversationTasks(taskState, taskState.activeConversationId)
+    : [];
+  const latestActiveConversationTask = taskState.activeConversationId
+    ? getLatestConversationTask(taskState, taskState.activeConversationId)
+    : undefined;
 
-  if (!controllerRef.current) {
-    controllerRef.current = createTaskProcessingController({
-      scheduler: runtimeRef.current.scheduler,
-      clock: runtimeRef.current.clock,
-      logIdentitySource: runtimeRef.current.logIdentitySource,
-      actionSink: {
-        dispatch: (action) => {
-          if (mountedRef.current) {
-            taskStateRef.current = taskCreationReducer(
-              taskStateRef.current,
-              action
-            );
-            dispatchRef.current(action);
-          }
-        }
-      },
-      pendingDelayMs: delaysRef.current.pendingMs,
-      stateReader: failureStateReader,
-      streamingStopper: failureStreamingStopper,
-      completionStopper: failureCompletionStopper
-    });
-  }
-
-  if (!streamingControllerRef.current) {
-    streamingControllerRef.current = createTaskStreamingController({
-      scheduler: streamingRuntimeRef.current.scheduler,
-      clock: streamingRuntimeRef.current.clock,
-      fragmentIdentitySource: streamingRuntimeRef.current.fragmentIdentitySource,
-      fragmentSource: streamingRuntimeRef.current.fragmentSource,
-      stateReader: {
-        findTask: (taskId) =>
-          taskStateRef.current.tasks.find((task) => task.taskId === taskId) ??
-          null
-      },
-      actionSink: {
-        dispatch: (action) => {
-          if (mountedRef.current) {
-            taskStateRef.current = taskCreationReducer(
-              taskStateRef.current,
-              action
-            );
-            dispatchRef.current(action);
-          }
-        }
-      },
-      fragmentDelayMs: streamingDelaysRef.current.fragmentMs
-    });
-  }
-
-  if (!completionControllerRef.current) {
-    completionControllerRef.current = createTaskCompletionController({
-      scheduler: completionRuntimeRef.current.scheduler,
-      stateReader: {
-        findTask: (taskId) =>
-          taskStateRef.current.tasks.find((task) => task.taskId === taskId) ?? null
-      },
-      resultSource: completionRuntimeRef.current.resultSource,
-      actionSink: {
-        dispatch: (action) => {
-          if (mountedRef.current) {
-            taskStateRef.current = taskCreationReducer(
-              taskStateRef.current,
-              action
-            );
-            dispatchRef.current(action);
-          }
-        }
-      },
-      completionDelayMs: completionDelaysRef.current.completionMs
-    });
-  }
-
-  if (!cancellationCoordinatorRef.current && controllerRef.current && streamingControllerRef.current && completionControllerRef.current) {
-    cancellationCoordinatorRef.current = createTaskCancellationCoordinator({
-      stateReader: {
-        findTask: (taskId) =>
-          taskStateRef.current.tasks.find((task) => task.taskId === taskId)
-      },
-      processingStopper: controllerRef.current,
-      streamingStopper: streamingControllerRef.current,
-      completionStopper: completionControllerRef.current,
-      clock: {
-        nowIso: () => runtimeRef.current.clock.now()
-      },
-      actionSink: {
-        dispatch: (action) => {
-          if (mountedRef.current) {
-            taskStateRef.current = taskCreationReducer(
-              taskStateRef.current,
-              action
-            );
-            dispatchRef.current(action);
-          }
-        }
-      }
-    });
-  }
-
-  const activeTask = getActiveTask(taskState);
+  const activeTask = latestActiveConversationTask;
   const activeTaskPresentationStatus = activeTask
     ? toTaskPresentationStatus(activeTask.status)
     : null;
 
+  const navigationItems: TaskConversationNavigationItem[] = taskState.conversations.map((conv) => {
+    const latestTask = getLatestConversationTask(taskState, conv.conversationId);
+    const convTasks = getConversationTasks(taskState, conv.conversationId);
+    return {
+      conversationId: conv.conversationId,
+      title: conv.title,
+      latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined,
+      tasks: convTasks
+    };
+  });
+
+  function handleSelectConversation(conversationId: string): void {
+    setIsDetailModalOpen(false);
+    setIsCancelDialogOpen(false);
+    setCancelTargetTaskId(null);
+    dispatchTaskAction({
+      type: "conversation-selected",
+      conversationId
+    });
+  }
+
+  function handleCreateConversation(): void {
+    setIsDetailModalOpen(false);
+    setIsCancelDialogOpen(false);
+    setCancelTargetTaskId(null);
+    setPrompt("");
+    dispatchTaskAction({
+      type: "conversation-created",
+      createdAt: runtimeRef.current.clock.now()
+    });
+  }
+
   useEffect(() => {
     mountedRef.current = true;
+    const client = clientRef.current;
+    const subs = subscriptionsRef.current;
 
-    if (!cancellationCoordinatorRef.current && controllerRef.current && streamingControllerRef.current && completionControllerRef.current) {
-      cancellationCoordinatorRef.current = createTaskCancellationCoordinator({
-        stateReader: {
-          findTask: (taskId) =>
-            taskStateRef.current.tasks.find((task) => task.taskId === taskId)
-        },
-        processingStopper: controllerRef.current,
-        streamingStopper: streamingControllerRef.current,
-        completionStopper: completionControllerRef.current,
-        clock: {
-          nowIso: () => runtimeRef.current.clock.now()
-        },
-        actionSink: {
-          dispatch: (action) => {
-            if (mountedRef.current) {
-              taskStateRef.current = taskCreationReducer(
-                taskStateRef.current,
-                action
-              );
-              dispatchRef.current(action);
-            }
-          }
+    if (client.fetchConversations) {
+      client.fetchConversations("demo_workspace_1").then((conversations) => {
+        if (mountedRef.current && conversations && conversations.length > 0) {
+          dispatchRef.current({ type: "conversations-restored", conversations });
         }
       });
     }
 
     return () => {
       mountedRef.current = false;
-      progressionHandleRef.current?.cancel();
-      progressionHandleRef.current = null;
-      controllerRef.current?.dispose();
-      streamingControllerRef.current?.dispose();
-      completionControllerRef.current?.dispose();
-      cancellationCoordinatorRef.current?.dispose();
-      cancellationCoordinatorRef.current = null;
+      for (const sub of subs.values()) {
+        client.unsubscribeFromTaskEvents(sub);
+      }
+      subs.clear();
+      if ("reset" in client && typeof (client as any).reset === "function") {
+        (client as any).reset();
+      }
     };
   }, []);
 
   useEffect(() => {
-    const taskId = activeTask?.taskId;
-
     setIsDetailModalOpen(false);
     setIsCancelDialogOpen(false);
-
-    return () => {
-      progressionHandleRef.current?.cancel();
-      progressionHandleRef.current = null;
-      if (taskId) {
-        controllerRef.current?.stop(taskId);
-        streamingControllerRef.current?.stop(taskId);
-        completionControllerRef.current?.stop(taskId);
-      }
-    };
+    setCancelTargetTaskId(null);
   }, [activeTask?.taskId]);
-
-  useEffect(() => {
-    const controller = controllerRef.current;
-    const runtime = runtimeRef.current;
-    const delays = delaysRef.current;
-    const task = activeTask;
-
-    progressionHandleRef.current?.cancel();
-    progressionHandleRef.current = null;
-
-    if (!controller || !task) {
-      return;
-    }
-
-    const { taskId, status } = task;
-
-    if (isTerminalTaskStatus(status)) {
-      controller.stop(taskId);
-      return;
-    }
-
-    if (status === "queued") {
-      controller.scheduleStart(taskId);
-      return;
-    }
-
-    if (status !== "running") {
-      return;
-    }
-
-    const activeStep = task.processingSnapshot.steps.find(
-      (step) => step.status === "active"
-    );
-
-    if (!activeStep || activeStep.id === FINAL_STEP_ID) {
-      return;
-    }
-
-    progressionHandleRef.current = runtime.scheduler.schedule(delays.stepMs, () => {
-      progressionHandleRef.current = null;
-      try {
-        controller.advance(taskId);
-      } catch (error) {
-        if (!(error instanceof TaskFinalStepBoundaryError)) {
-          throw error;
-        }
-      }
-    });
-  }, [
-    activeTask?.taskId,
-    activeTask?.status,
-    activeTask?.processingSnapshot.steps,
-    activeTask?.processingSnapshot.logs.length
-  ]);
-
-  useEffect(() => {
-    const task = activeTask;
-    const controller = streamingControllerRef.current;
-
-    if (!task || !controller) {
-      return;
-    }
-
-    if (isTerminalTaskStatus(task.status)) {
-      controller.stop(task.taskId);
-      return;
-    }
-
-    if (task.status !== "running") {
-      return;
-    }
-
-    if (task.streamingSnapshot.phase !== "idle") {
-      return;
-    }
-
-    const activeStep = task.processingSnapshot.steps.find(
-      (step) => step.status === "active"
-    );
-
-    if (activeStep?.id !== STREAMING_START_STEP_ID) {
-      return;
-    }
-
-    controller.start(task.taskId);
-  }, [
-    activeTask?.taskId,
-    activeTask?.status,
-    activeTask?.streamingSnapshot.phase,
-    activeTask?.processingSnapshot.steps
-  ]);
-
-  useEffect(() => {
-    const task = activeTask;
-    const controller = completionControllerRef.current;
-
-    if (!task || !controller) {
-      return;
-    }
-
-    if (isTerminalTaskStatus(task.status)) {
-      controller.stop(task.taskId);
-      return;
-    }
-
-    if (task.status !== "running") {
-      return;
-    }
-
-    const finalStep = task.processingSnapshot.steps.at(-1);
-    if (finalStep?.id !== FINAL_STEP_ID || finalStep.status !== "active") {
-      return;
-    }
-
-    if (task.streamingSnapshot.phase !== "exhausted") {
-      return;
-    }
-
-    if (task.finalizedResult) {
-      return;
-    }
-
-    controller.start(task.taskId);
-  }, [
-    activeTask?.taskId,
-    activeTask?.status,
-    activeTask?.processingSnapshot.steps,
-    activeTask?.streamingSnapshot.phase,
-    activeTask?.finalizedResult
-  ]);
 
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
@@ -499,13 +263,21 @@ export function TaskOrchestrationPage({
     dispatchTaskAction({ type: "submit-started" });
 
     try {
-      const response = await taskClientRef.current.createTask(requestResult.request);
+      const response = await clientRef.current.createTask(requestResult.request);
       dispatchTaskAction({
         type: "task-created",
         request: requestResult.request,
-        response
+        response,
+        conversationId: taskState.activeConversationId
       });
       setPrompt("");
+
+      const sub = clientRef.current.subscribeToTaskEvents(response.taskId as string, (event) => {
+        if (mountedRef.current) {
+          dispatchTaskAction({ type: "runtime-event", event });
+        }
+      });
+      subscriptionsRef.current.set(response.taskId as string, sub);
     } catch {
       dispatchTaskAction({
         type: "submission-failed",
@@ -514,32 +286,6 @@ export function TaskOrchestrationPage({
     }
   }
 
-  const timelineAriaLabel =
-    activeTask?.status === "running"
-      ? "Processing timeline"
-      : "Initial processing timeline";
-
-  const taskArticleLabel =
-    activeTask?.status === "running"
-      ? "In-progress task"
-      : activeTask?.status === "cancelled"
-      ? "Canceled task"
-      : activeTask?.status === "failed"
-      ? "Failed task"
-      : activeTask?.status === "succeeded"
-      ? "Completed task"
-      : "Pending task";
-  const partialText = activeTask
-    ? selectAccumulatedPartialText(activeTask.streamingSnapshot)
-    : "";
-  const shouldShowPartialResult =
-    activeTask !== undefined &&
-    activeTask.status !== "succeeded" &&
-    activeTask.status !== "failed" &&
-    (activeTask.streamingSnapshot.phase === "streaming" ||
-      activeTask.streamingSnapshot.phase === "exhausted" ||
-      activeTask.streamingSnapshot.fragments.length > 0);
-
   return (
     <section className="task-workspace" aria-labelledby="task-workspace-title">
       <aside className="task-workspace__sidebar" aria-label="Task workspace sidebar">
@@ -547,14 +293,12 @@ export function TaskOrchestrationPage({
           <p className="task-workspace__eyebrow">Conversations</p>
           <h2>Workspace sessions</h2>
         </div>
-        <button type="button" disabled>
-          New conversation
-        </button>
-        <section className="task-workspace__history" aria-labelledby="recent-work-title">
-          <h3 id="recent-work-title">Recent work</h3>
-          <p>No conversations yet.</p>
-          <span>New sessions will appear here in a later task.</span>
-        </section>
+        <TaskConversationNavigation
+          items={navigationItems}
+          activeConversationId={taskState.activeConversationId}
+          onCreateConversation={handleCreateConversation}
+          onSelectConversation={handleSelectConversation}
+        />
       </aside>
 
       <div className="task-workspace__main">
@@ -564,12 +308,35 @@ export function TaskOrchestrationPage({
             <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
             <p>Bring a request to your virtual team and keep the work in one conversation.</p>
           </div>
+          <div className="task-workspace__simulation-indicator" aria-label="Simulation mode active" title="Simulation mode active">
+            <span className="task-workspace__simulation-dot" aria-hidden="true" />
+            <span>Simulated Mock Execution</span>
+          </div>
         </header>
 
         <section
           className="task-workspace__conversation"
           aria-label="Main conversation region"
         >
+          {isReconnecting ? (
+            <div className="task-workspace__reconnecting" role="status" aria-live="polite">
+              <span className="task-workspace__spinner task-workspace__spinner--reconnecting" aria-hidden="true" />
+              <div>
+                <h3>Reconnecting to workspace gateway</h3>
+                <p>Restoring live synchronization. Your canonical task processing continues in the background.</p>
+              </div>
+            </div>
+          ) : null}
+
+          {isProviderUnavailable ? (
+            <div className="task-workspace__provider-unavailable" role="alert">
+              <div>
+                <h3>Execution Provider Unavailable</h3>
+                <p>The external OpenClaw runtime is currently unreachable or stopped. Tasks will remain queued or use simulated mock execution.</p>
+              </div>
+            </div>
+          ) : null}
+
           {isLoading ? (
             <div className="task-workspace__loading" role="status" aria-live="polite">
               <span className="task-workspace__spinner" aria-hidden="true" />
@@ -578,18 +345,37 @@ export function TaskOrchestrationPage({
                 <p>Loading local conversation controls and suggestions.</p>
               </div>
             </div>
-          ) : activeTask && activeTaskPresentationStatus ? (
-            <article
-              className={`task-workspace__task-view${
-                activeTask.status === "running" ? " task-workspace__task-view--in-progress" : ""
-              }`}
-              aria-label={taskArticleLabel}
-            >
-              <TaskConversation
-                task={activeTask}
-                clipboardWriter={completionRuntimeRef.current.clipboard}
-              />
-            </article>
+          ) : activeConversation && activeConversationTasks.length > 0 ? (
+            <div className="task-workspace__feed" aria-label="Conversation task feed">
+              {activeConversationTasks.map((task) => {
+                const isRunning = task.status === "running";
+                const articleLabel =
+                  task.status === "running"
+                    ? "In-progress task"
+                    : task.status === "cancelled"
+                    ? "Canceled task"
+                    : task.status === "failed"
+                    ? "Failed task"
+                    : task.status === "succeeded"
+                    ? "Completed task"
+                    : "Pending task";
+
+                return (
+                  <article
+                    key={task.taskId as string}
+                    className={`task-workspace__task-view${
+                      isRunning ? " task-workspace__task-view--in-progress" : ""
+                    }`}
+                    aria-label={articleLabel}
+                  >
+                    <TaskConversation
+                      task={task}
+                      clipboardWriter={completionRuntimeRef.current.clipboard}
+                    />
+                  </article>
+                );
+              })}
+            </div>
           ) : (
             <div className="task-workspace__empty">
               <span className="task-workspace__empty-mark" aria-hidden="true">✦</span>
@@ -620,16 +406,23 @@ export function TaskOrchestrationPage({
           />
         ) : null}
 
-        {isCancelDialogOpen && activeTask && (activeTask.status === "queued" || activeTask.status === "running") ? (
-          <TaskCancelConfirmationDialog
-            task={activeTask}
-            onConfirm={() => {
-              cancellationCoordinatorRef.current?.cancel(activeTask.taskId);
-              setIsCancelDialogOpen(false);
-            }}
-            onDismiss={() => setIsCancelDialogOpen(false)}
-          />
-        ) : null}
+        {(() => {
+          const cancelTargetTask = taskState.tasks.find((t) => t.taskId === cancelTargetTaskId);
+          return isCancelDialogOpen && cancelTargetTask && (cancelTargetTask.status === "queued" || cancelTargetTask.status === "running") ? (
+            <TaskCancelConfirmationDialog
+              task={cancelTargetTask}
+              onConfirm={() => {
+                clientRef.current.cancelTask(cancelTargetTask.taskId as string);
+                setIsCancelDialogOpen(false);
+                setCancelTargetTaskId(null);
+              }}
+              onDismiss={() => {
+                setIsCancelDialogOpen(false);
+                setCancelTargetTaskId(null);
+              }}
+            />
+          ) : null;
+        })()}
 
         {activeTask ? (
           <TaskOrchestrationDock
@@ -640,6 +433,7 @@ export function TaskOrchestrationPage({
                 onCancelTaskRequested(activeTask.taskId);
               } else {
                 setIsCancelDialogOpen(true);
+                setCancelTargetTaskId(activeTask.taskId);
               }
             }}
           />

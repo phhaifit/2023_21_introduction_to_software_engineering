@@ -52,7 +52,10 @@ textarea {
 .sidebar {
   display: flex;
   width: var(--sidebar-expanded);
-  min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
   flex: 0 0 var(--sidebar-expanded);
   flex-direction: column;
   gap: 10px;
@@ -60,7 +63,21 @@ textarea {
   border-right: 1px solid var(--line);
   background: #fbfcff;
   transition: width 160ms ease, flex-basis 160ms ease;
+  z-index: 100;
 }
+
+/* Ẩn scrollbar thô sơ của trình duyệt trên Sidebar nhưng vẫn cho phép scroll khi tràn */
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(203, 213, 225, 0.5);
+  border-radius: 4px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 
 .sidebar--collapsed {
   width: var(--sidebar-collapsed);

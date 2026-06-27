@@ -11,16 +11,26 @@ export interface WorkflowDto {
   status: WorkflowStatus;
   triggerType: WorkflowTriggerType;
   triggerConfig: Record<string, any> | null;
+  version: number;
+  parentWorkflowId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WorkflowStepTransition {
+  targetStepId: EntityId<"workflowStepId">;
+  condition?: string | null;
 }
 
 export interface WorkflowStepDto {
   workflowStepId: EntityId<"workflowStepId">;
   workspaceId: EntityId<"workspaceId">;
   workflowId: EntityId<"workflowId">;
-  agentId: EntityId<"agentId">;
+  agentId: EntityId<"agentId"> | null;
+  stepType: "agent" | "approval";
   stepOrder: number;
+  nextSteps?: WorkflowStepTransition[] | null;
+  inputMapping?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,9 +45,23 @@ export interface WorkflowExecutionDto {
   completedAt: string | null;
 }
 
+export interface WorkflowStepLogDto {
+  logId: EntityId<"logId">;
+  workspaceId: EntityId<"workspaceId">;
+  executionId: EntityId<"executionId">;
+  workflowStepId: EntityId<"workflowStepId">;
+  status: string;
+  inputData?: Record<string, any> | null;
+  outputData?: Record<string, any> | null;
+  errorMsg?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+}
+
 export interface ExecuteWorkflowRequest {
   workflowId: EntityId<"workflowId">;
   workspaceId: EntityId<"workspaceId">;
+  executionId: EntityId<"executionId">;
   triggeredBy: EntityId<"userId">;
   triggerType: WorkflowTriggerType;
   inputData?: Record<string, any>;

@@ -11,6 +11,10 @@ export type SubscriptionPublicSummary = {
   expiresAt: string;
   createdAt: string;
   updatedAt: string;
+  autoRenew: boolean;
+  cardNumber: string | null;
+  cardHolder: string | null;
+  cardExpiry: string | null;
 };
 
 export type TransactionPublicSummary = {
@@ -27,3 +31,39 @@ export type SubscriptionDetailsResponse = {
   subscription: SubscriptionPublicSummary | null;
   transactions: TransactionPublicSummary[];
 };
+
+export type ResourceUsageItem = {
+  used: number;
+  max: number;
+};
+
+export type WorkspaceResourceUsageResponse = {
+  cpu: ResourceUsageItem;
+  ram: ResourceUsageItem;
+  agents: ResourceUsageItem;
+  storage: ResourceUsageItem;
+};
+
+export type ValidatePromoResponse = {
+  success: boolean;
+  discount: number;
+  message?: string;
+};
+
+export type PlanDetails = {
+  price: number;
+  entitlements: {
+    cpuCores: number;
+    memoryGb: number;
+    maxAgents: number;
+    maxDocuments: number;
+  };
+};
+
+export type SubscriptionPlansResponse = {
+  free: PlanDetails;
+  standard: PlanDetails;
+  premium: PlanDetails;
+};
+
+

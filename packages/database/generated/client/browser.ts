@@ -152,3 +152,18 @@ export type KnowledgeAccessGrant = Prisma.KnowledgeAccessGrantModel
  *
  */
 export type Job = Prisma.JobModel
+/**
+ * Model PaymentMethod
+ *
+ */
+export type PaymentMethod = Prisma.PaymentMethodModel
+/**
+ * Model Conversation
+ *
+ */
+export type Conversation = Prisma.ConversationModel
+/**
+ * Model ChatMessage
+ *
+ */
+export type ChatMessage = Prisma.ChatMessageModel

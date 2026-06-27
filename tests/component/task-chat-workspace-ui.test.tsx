@@ -337,7 +337,8 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
     const { unmount } = render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("Task Alpha");
-    expect(await screen.findByText("Task Alpha")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(await within(feed).findByText("Task Alpha")).toBeVisible();
 
     unmount();
     cleanup();

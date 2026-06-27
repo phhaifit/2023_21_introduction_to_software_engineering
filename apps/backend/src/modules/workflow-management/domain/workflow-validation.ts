@@ -22,12 +22,69 @@ export class WorkflowValidationError extends Error {
   }
 }
 
+export class WorkflowGraphError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkflowGraphError";
+  }
+}
+
+export function validateWorkflowDAG(steps: WorkflowStepDto[]): void {
+  const stepMap = new Map<string, WorkflowStepDto>();
+  for (const step of steps) {
+    stepMap.set(step.workflowStepId, step);
+  }
+
+  // 1. Ensure all nextSteps point to valid existing steps
+  for (const step of steps) {
+    if (step.nextSteps) {
+      for (const next of step.nextSteps) {
+        if (!stepMap.has(next.targetStepId)) {
+          throw new WorkflowGraphError(`Step ${step.workflowStepId} references non-existent target step ${next.targetStepId}`);
+        }
+      }
+    }
+  }
+
+  // 2. Cycle detection using DFS
+  const visited = new Set<string>();
+  const recStack = new Set<string>();
+
+  function dfs(stepId: string): boolean {
+    if (recStack.has(stepId)) return true; // Cycle found
+    if (visited.has(stepId)) return false;
+
+    visited.add(stepId);
+    recStack.add(stepId);
+
+    const step = stepMap.get(stepId);
+    if (step?.nextSteps) {
+      for (const next of step.nextSteps) {
+        if (dfs(next.targetStepId)) {
+          return true;
+        }
+      }
+    }
+
+    recStack.delete(stepId);
+    return false;
+  }
+
+  for (const step of steps) {
+    if (!visited.has(step.workflowStepId)) {
+      if (dfs(step.workflowStepId)) {
+        throw new WorkflowGraphError("Workflow contains a cycle, which is not allowed.");
+      }
+    }
+  }
+}
+
 export async function validateWorkflowAgents(
   workspaceId: EntityId<"workspaceId">,
   steps: WorkflowStepDto[],
   agentProvider: AgentSummaryProvider
 ): Promise<void> {
-  const requiredAgentIds = [...new Set(steps.map((s) => s.agentId))];
+  const requiredAgentIds = [...new Set(steps.map((s) => s.agentId).filter((id): id is EntityId<"agentId"> => id !== null && id !== undefined))];
   
   if (requiredAgentIds.length === 0) {
     return;

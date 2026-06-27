@@ -63,12 +63,12 @@ for (const dir of requiredDirs) {
 }
 
 const files = collectFiles(moduleRoot).filter((file) => file.endsWith(".ts"));
-assert.ok(files.some((file) => file.includes("/domain/")), "domain files exist");
-assert.ok(files.some((file) => file.includes("/application/")), "application files exist");
-assert.ok(files.some((file) => file.includes("/infrastructure/")), "infrastructure files exist");
+assert.ok(files.some((file) => /[\\/]domain[\\/]/.test(file)), "domain files exist");
+assert.ok(files.some((file) => /[\\/]application[\\/]/.test(file)), "application files exist");
+assert.ok(files.some((file) => /[\\/]infrastructure[\\/]/.test(file)), "infrastructure files exist");
 assert.ok(files.some((file) => /knowledge-base-rag-router\.ts$/.test(file)), "API router exists");
 
-for (const file of files.filter((file) => file.includes("/domain/") || file.includes("/application/"))) {
+for (const file of files.filter((file) => /[\\/]domain[\\/]/.test(file) || /[\\/]application[\\/]/.test(file))) {
   const source = readFileSync(file, "utf8");
   assert.equal(
     source.includes("/api/") || source.includes("Router("),
@@ -89,7 +89,7 @@ for (const file of files) {
 }
 
 const prismaRepositoryFiles = files.filter((file) =>
-  file.includes("/infrastructure/prisma-")
+  file.includes("infrastructure\\prisma-") || file.includes("infrastructure/prisma-")
 );
 for (const file of prismaRepositoryFiles) {
   const source = readFileSync(file, "utf8");

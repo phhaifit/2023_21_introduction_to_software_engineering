@@ -22,6 +22,8 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           status: workflow.status,
           triggerType: workflow.triggerType,
           triggerConfig: workflow.triggerConfig ? JSON.stringify(workflow.triggerConfig) : null,
+          version: workflow.version,
+          parentWorkflowId: workflow.parentWorkflowId,
           updatedAt: workflow.updatedAt,
         },
         create: {
@@ -32,6 +34,8 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           status: workflow.status,
           triggerType: workflow.triggerType,
           triggerConfig: workflow.triggerConfig ? JSON.stringify(workflow.triggerConfig) : null,
+          version: workflow.version,
+          parentWorkflowId: workflow.parentWorkflowId,
           createdAt: workflow.createdAt,
           updatedAt: workflow.updatedAt,
         },
@@ -49,7 +53,10 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             workspaceId: step.workspaceId,
             workflowId: step.workflowId,
             agentId: step.agentId,
+            stepType: step.stepType,
             stepOrder: step.stepOrder,
+            nextSteps: step.nextSteps ? JSON.stringify(step.nextSteps) : null,
+            inputMapping: step.inputMapping ? JSON.stringify(step.inputMapping) : null,
             createdAt: step.createdAt,
             updatedAt: step.updatedAt,
           })),
@@ -83,6 +90,8 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       status: record.status as WorkflowStatus,
       triggerType: (record.triggerType as "manual" | "schedule" | "webhook") || "manual",
       triggerConfig: record.triggerConfig ? JSON.parse(record.triggerConfig as string) : null,
+      version: record.version,
+      parentWorkflowId: record.parentWorkflowId,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       steps: record.steps.map(
@@ -90,8 +99,11 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           workflowStepId: step.workflowStepId as EntityId<"workflowStepId">,
           workspaceId: step.workspaceId as EntityId<"workspaceId">,
           workflowId: step.workflowId as EntityId<"workflowId">,
-          agentId: step.agentId as EntityId<"agentId">,
+          agentId: step.agentId ? step.agentId as EntityId<"agentId"> : null,
+          stepType: (step.stepType as "agent" | "approval") || "agent",
           stepOrder: step.stepOrder,
+          nextSteps: step.nextSteps ? JSON.parse(step.nextSteps as string) : null,
+          inputMapping: step.inputMapping ? JSON.parse(step.inputMapping as string) : null,
           createdAt: step.createdAt,
           updatedAt: step.updatedAt,
         })
@@ -129,6 +141,8 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       status: record.status as WorkflowStatus,
       triggerType: (record.triggerType as "manual" | "schedule" | "webhook") || "manual",
       triggerConfig: record.triggerConfig ? JSON.parse(record.triggerConfig as string) : null,
+      version: record.version,
+      parentWorkflowId: record.parentWorkflowId,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       steps: record.steps.map(
@@ -136,8 +150,11 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           workflowStepId: step.workflowStepId as EntityId<"workflowStepId">,
           workspaceId: step.workspaceId as EntityId<"workspaceId">,
           workflowId: step.workflowId as EntityId<"workflowId">,
-          agentId: step.agentId as EntityId<"agentId">,
+          agentId: step.agentId ? step.agentId as EntityId<"agentId"> : null,
+          stepType: (step.stepType as "agent" | "approval") || "agent",
           stepOrder: step.stepOrder,
+          nextSteps: step.nextSteps ? JSON.parse(step.nextSteps as string) : null,
+          inputMapping: step.inputMapping ? JSON.parse(step.inputMapping as string) : null,
           createdAt: step.createdAt,
           updatedAt: step.updatedAt,
         })
@@ -165,5 +182,58 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     });
 
     return true;
+  }
+
+  async createExecution(execution: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto): Promise<void> {
+    await this.prisma.workflowExecution.create({
+      data: {
+        executionId: execution.executionId,
+        workspaceId: execution.workspaceId,
+        workflowId: execution.workflowId,
+        status: execution.status,
+        triggeredBy: execution.triggeredBy,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt,
+      },
+    });
+  }
+
+  async updateExecutionStatus(workspaceId: EntityId<"workspaceId">, executionId: EntityId<"executionId">, status: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionStatus, completedAt?: string): Promise<void> {
+    await this.prisma.workflowExecution.updateMany({
+      where: { executionId, workspaceId },
+      data: {
+        status,
+        ...(completedAt && { completedAt })
+      }
+    });
+  }
+
+  async createStepLog(log: import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto): Promise<void> {
+    await this.prisma.workflowStepLog.create({
+      data: {
+        logId: log.logId,
+        workspaceId: log.workspaceId,
+        executionId: log.executionId,
+        workflowStepId: log.workflowStepId,
+        status: log.status,
+        inputData: log.inputData ? JSON.stringify(log.inputData) : null,
+        outputData: log.outputData ? JSON.stringify(log.outputData) : null,
+        errorMsg: log.errorMsg,
+        startedAt: log.startedAt,
+        completedAt: log.completedAt,
+      },
+    });
+  }
+
+  async updateStepLog(logId: EntityId<"logId">, status: string, outputData?: any, errorMsg?: string, completedAt?: string): Promise<void> {
+    await this.prisma.workflowStepLog.update({
+      where: { logId },
+      data: {
+        status,
+        ...(outputData && { outputData: JSON.stringify(outputData) }),
+        ...(errorMsg && { errorMsg }),
+        ...(completedAt && { completedAt })
+      }
+    });
   }
 }

@@ -79,10 +79,15 @@ Owner module: `apps/backend/src/modules/subscription-payment`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route reads current user subscription details. |
-| `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route starts mock checkout for standard or premium plan. |
-| `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route starts an upgrade flow. |
-| `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route reconciles directly or enqueues payment webhook work. |
+| `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | `ApiResponse` subscription details | `provisional-existing` | Reads current user subscription and transaction history. |
+| `GET` | `/api/subscriptions/plans` | Authenticated | User subscription context | Request context | `ApiResponse` plans configuration details | `implemented` | Reads standard and premium plan prices and resource entitlements. |
+| `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | `ApiResponse` checkout session summary | `provisional-existing` | Starts checkout session for standard or premium plan. |
+| `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | `ApiResponse` upgrade session summary | `provisional-existing` | Starts an upgrade flow. |
+| `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | `ApiResponse` transaction summary | `provisional-existing` | Reconciles directly or enqueues payment webhook work. |
+| `GET` | `/api/subscriptions/usage` | Authenticated | Workspace scope | workspaceId query | `ApiResponse` workspace resource usage summary | `implemented` | Computes dynamic CPU, RAM, Agent count, and Document storage usage. |
+| `POST` | `/api/subscriptions/toggle-auto-renewal` | Authenticated | User subscription context | `{ autoRenew: boolean }` | `ApiResponse` subscription summary | `implemented` | Enables or disables automatic renewal of current subscription. |
+| `POST` | `/api/subscriptions/payment-method` | Authenticated | User subscription context | `{ cardNumber, cardHolder, cardExpiry }` | `ApiResponse` subscription summary | `implemented` | Updates the virtual card details associated with the user. |
+| `POST` | `/api/subscriptions/validate-promo` | Authenticated | User subscription context | `{ promoCode: string }` | `ApiResponse` validate promo response | `implemented` | Checks promo code and returns discount amount ($10 for VCP10, $20 for VCP20). |
 
 ## Tools & Integration
 
@@ -113,6 +118,8 @@ Owner module: `apps/backend/src/modules/workflow-management`
 ## Task & Orchestration
 
 Owner module: `apps/backend/src/modules/task-orchestration`
+
+> **Architectural Boundary & Execution Contracts**: For detailed technical documentation regarding `TaskExecutionAdapter`, `OpenClawTaskExecutionAdapter`, DTO contracts (`StartExecutionCommand`, `ExecutionBinding`, `NormalizedRuntimeEvent`), the 10-step start flow, cancellation forwarding, and external dependency catalogs (`WorkspaceExecutionRuntimeResolver`, `ExternalAgentCatalog`, `ExternalWorkflowCatalog`), see the [Task & Orchestration Module README](../../apps/backend/src/modules/task-orchestration/README.md).
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
