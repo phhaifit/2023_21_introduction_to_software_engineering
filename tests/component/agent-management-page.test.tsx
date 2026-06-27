@@ -298,8 +298,13 @@ describe("AgentManagementPage API integration", () => {
       role: "Planner",
       model: "gemini-2.5-flash",
       instructions: "Create execution plans.",
+      responsibilities: [],
+      operatingContext: undefined,
       requestedTools: undefined,
       requestedKnowledge: undefined,
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: [],
     });
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
   });
@@ -364,8 +369,13 @@ describe("AgentManagementPage API integration", () => {
         "Requested Tools:",
         "- Slack: Notify owners",
       ].join("\n"),
+      responsibilities: [],
+      operatingContext: undefined,
       requestedTools: [{ name: "Slack", reason: "Notify owners" }],
       requestedKnowledge: undefined,
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: [],
     });
   });
 

@@ -79,8 +79,13 @@ export function createAgentManagementRouter(
         role: payload.role,
         model: payload.model,
         instructions: payload.instructions,
+        responsibilities: readOptionalStringArray(body, "responsibilities"),
+        operatingContext: readOptionalString(body, "operatingContext"),
         requestedTools: readOptionalToolReferences(body),
-        requestedKnowledge: readOptionalKnowledgeReferences(body)
+        requestedKnowledge: readOptionalKnowledgeReferences(body),
+        constraints: readOptionalStringArray(body, "constraints"),
+        escalationRules: readOptionalStringArray(body, "escalationRules"),
+        exampleTasks: readOptionalStringArray(body, "exampleTasks")
       });
 
       return result.publicSummary;
@@ -157,12 +162,20 @@ export function createAgentManagementRouter(
       enforcePermission(context, "agents:manage");
 
       const payload = readStringPayload(request, ["role", "model", "instructions"]);
+      const body = request.body as Record<string, unknown> | undefined;
       const result = await dependencies.useCases.updateAgent({
         workspaceId: context.workspace!.workspaceId,
         agentId: request.params.agentId as EntityId<"agentId">,
         role: payload.role,
         model: payload.model,
-        instructions: payload.instructions
+        instructions: payload.instructions,
+        responsibilities: readOptionalStringArray(body, "responsibilities"),
+        operatingContext: readOptionalString(body, "operatingContext"),
+        requestedTools: readOptionalToolReferences(body),
+        requestedKnowledge: readOptionalKnowledgeReferences(body),
+        constraints: readOptionalStringArray(body, "constraints"),
+        escalationRules: readOptionalStringArray(body, "escalationRules"),
+        exampleTasks: readOptionalStringArray(body, "exampleTasks")
       });
 
       return result.publicSummary;

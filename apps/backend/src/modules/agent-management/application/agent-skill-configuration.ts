@@ -1,6 +1,7 @@
 import type {
   AgentSkillDraftInput,
   AgentSkillKnowledgeReference,
+  AgentRuntimeConfiguration,
   AgentSkillToolReference
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { Agent } from "../domain/agent.ts";
@@ -20,9 +21,13 @@ export type AgentSkillConfigurationInput = Pick<
       | "escalationRules"
       | "exampleTasks"
     >
-  >;
+  > & {
+    runtimeConfiguration?: Partial<AgentRuntimeConfiguration>;
+  };
 
 export function generateAgentSkillConfiguration(input: AgentSkillConfigurationInput): string {
+  const runtimeConfiguration = input.runtimeConfiguration;
+
   return [
     `# ${input.name}`,
     "",
@@ -33,28 +38,28 @@ export function generateAgentSkillConfiguration(input: AgentSkillConfigurationIn
     input.model,
     "",
     "## Responsibilities",
-    renderTextList(input.responsibilities),
+    renderTextList(input.responsibilities ?? runtimeConfiguration?.responsibilities),
     "",
     "## Operating Context",
-    renderText(input.operatingContext),
+    renderText(input.operatingContext ?? runtimeConfiguration?.operatingContext),
     "",
     "## Instructions",
     input.instructions,
     "",
     "## Requested Tools",
-    renderToolList(input.requestedTools),
+    renderToolList(input.requestedTools ?? runtimeConfiguration?.requestedTools),
     "",
     "## Requested Knowledge",
-    renderKnowledgeList(input.requestedKnowledge),
+    renderKnowledgeList(input.requestedKnowledge ?? runtimeConfiguration?.requestedKnowledge),
     "",
     "## Constraints",
-    renderTextList(input.constraints),
+    renderTextList(input.constraints ?? runtimeConfiguration?.constraints),
     "",
     "## Escalation Rules",
-    renderTextList(input.escalationRules),
+    renderTextList(input.escalationRules ?? runtimeConfiguration?.escalationRules),
     "",
     "## Example Tasks",
-    renderTextList(input.exampleTasks),
+    renderTextList(input.exampleTasks ?? runtimeConfiguration?.exampleTasks),
     ""
   ].join("\n");
 }
