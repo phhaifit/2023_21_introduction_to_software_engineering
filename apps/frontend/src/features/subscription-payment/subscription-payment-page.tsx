@@ -122,6 +122,9 @@ export function SubscriptionPaymentPage() {
   // State phương thức thanh toán đang chọn trên màn hình checkout
   const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "momo" | "stripe" | "simulated">("stripe");
 
+  // State lưu ID của phương thức thanh toán đã chọn (đã thêm sẵn hoặc chọn thêm mới)
+  const [selectedSavedMethodId, setSelectedSavedMethodId] = useState<string | "new_method">("new_method");
+
   // State Modal thêm/đổi phương thức thanh toán
   const [showCardModal, setShowCardModal] = useState(false);
   const [newMethodType, setNewMethodType] = useState<"card" | "momo" | "vnpay">("card");
@@ -215,18 +218,28 @@ export function SubscriptionPaymentPage() {
   useEffect(() => {
     fetchDetails(currentWorkspaceId);
   }, [currentWorkspaceId]);
-  // Tự động điền thông tin thẻ mặc định khi chuyển sang view checkout
+  // Tự động điền thông tin và chọn phương thức mặc định khi chuyển sang view checkout
   useEffect(() => {
     if (view === "checkout") {
       const defaultMethod = savedCards.find(c => c.isDefault);
-      if (defaultMethod && defaultMethod.type === "card") {
-        setCardDetails({
-          number: `•••• •••• •••• ${defaultMethod.last4}`,
-          expiry: defaultMethod.expiry || "12/28",
-          cvv: "•••",
-          name: defaultMethod.holder
-        });
+      if (defaultMethod) {
+        setSelectedSavedMethodId(defaultMethod.id);
+        if (defaultMethod.type === "card") {
+          setPaymentMethod("stripe");
+          setCardDetails({
+            number: `•••• •••• •••• ${defaultMethod.last4}`,
+            expiry: defaultMethod.expiry || "12/28",
+            cvv: "•••",
+            name: defaultMethod.holder
+          });
+        } else if (defaultMethod.type === "momo") {
+          setPaymentMethod("momo");
+        } else if (defaultMethod.type === "vnpay") {
+          setPaymentMethod("vnpay");
+        }
       } else {
+        setSelectedSavedMethodId("new_method");
+        setPaymentMethod("stripe");
         setCardDetails({
           number: "",
           expiry: "",
@@ -565,6 +578,61 @@ export function SubscriptionPaymentPage() {
           amountPaid: checkoutData.amount,
           nextRenewal: nextRenewalDate
         });
+
+        // Nếu thanh toán bằng phương thức mới, tự động liên kết và lưu phương thức đó vào Workspace
+        if (selectedSavedMethodId === "new_method" && paymentMethod !== "simulated") {
+          const localCardsKey = `vcp_cards_${currentWorkspaceId}`;
+          const cached = localStorage.getItem(localCardsKey);
+          const currentList: PaymentMethodInfo[] = cached ? JSON.parse(cached) : [];
+          
+          // Đặt làm mặc định nếu danh sách trống hoặc tất cả đều chưa có
+          const isDefault = currentList.length === 0;
+          if (isDefault) {
+            currentList.forEach(c => c.isDefault = false);
+          }
+
+          let newMethod: PaymentMethodInfo;
+          if (paymentMethod === "stripe") {
+            const digits = cardDetails.number.replace(/\s/g, "");
+            newMethod = {
+              id: `card_${Date.now()}`,
+              type: "card",
+              last4: digits.length >= 4 ? digits.slice(-4) : "4321",
+              brand: detectBrand(cardDetails.number),
+              expiry: cardDetails.expiry || "12/28",
+              holder: cardDetails.name || "Chủ Thẻ Mới",
+              isDefault: true
+            };
+          } else {
+            const phoneDigits = newPhone.replace(/\s/g, "");
+            newMethod = {
+              id: `card_${Date.now()}`,
+              type: paymentMethod,
+              last4: phoneDigits.length >= 4 ? phoneDigits.slice(-4) : "0987",
+              holder: newCardHolder || "Chủ Ví Mới",
+              isDefault: true
+            };
+          }
+
+          // Cập nhật các phương thức khác thành không mặc định
+          const updatedList = currentList.map(c => ({ ...c, isDefault: false }));
+          updatedList.push(newMethod);
+
+          localStorage.setItem(localCardsKey, JSON.stringify(updatedList));
+          setSavedCards(updatedList);
+
+          // Đồng bộ phương thức mặc định mới lên DB backend
+          const dbCardNumber = newMethod.type === "card" 
+            ? cardDetails.number 
+            : `${newMethod.type === "momo" ? "MoMo" : "VNPay"}: •••• •••• •••• ${newMethod.last4}`;
+
+          await subscriptionPaymentApiClient.updatePaymentMethod(
+            currentWorkspaceId,
+            dbCardNumber,
+            newMethod.holder,
+            newMethod.expiry || ""
+          );
+        }
         
         // Reset promo states
         setAppliedPromo(null);
@@ -1595,84 +1663,171 @@ export function SubscriptionPaymentPage() {
               <h3>Select Payment Method</h3>
             </div>
 
-            <div className="method-list">
-              {/* VNPay */}
-              <div 
-                className={`method-item ${paymentMethod === "vnpay" ? "method-item--selected" : ""}`}
-                onClick={() => setPaymentMethod("vnpay")}
-              >
-                <input 
-                  type="radio" 
-                  name="pm" 
-                  checked={paymentMethod === "vnpay"} 
-                  onChange={() => setPaymentMethod("vnpay")}
-                  className="method-radio" 
-                />
-                <span className="method-logo method-logo--vnpay">VNPay</span>
-                <div className="method-info">
-                  <span className="method-name">VNPay</span>
-                  <span className="method-desc">Vietnam Payment Gateway</span>
-                </div>
-              </div>
+            {/* PHẦN 1: CÁC PHƯƠNG THỨC THANH TOÁN ĐÃ THÊM SẴN (SAVED METHODS) */}
+            {savedCards.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Saved Payment Methods
+                </h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {savedCards.map((card) => {
+                    const isSelected = selectedSavedMethodId === card.id;
+                    return (
+                      <div
+                        key={card.id}
+                        onClick={() => {
+                          setSelectedSavedMethodId(card.id);
+                          if (card.type === "card") setPaymentMethod("stripe");
+                          else if (card.type === "momo") setPaymentMethod("momo");
+                          else if (card.type === "vnpay") setPaymentMethod("vnpay");
+                        }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "8px",
+                          border: isSelected ? "2px solid #2563eb" : "1.5px solid #e2e8f0",
+                          background: isSelected ? "#eff6ff" : "#ffffff", cursor: "pointer", transition: "all 0.2s"
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="selected_saved_method"
+                          checked={isSelected}
+                          onChange={() => {}} // Div click will trigger state update
+                          style={{ cursor: "pointer" }}
+                        />
+                        <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <span style={{ fontWeight: 600, color: "#1e293b", marginRight: "8px", fontSize: "0.9rem" }}>
+                              {card.type === "card" 
+                                ? `💳 Thẻ ${card.brand?.toUpperCase() || "Thẻ"} •• ${card.last4}`
+                                : card.type === "momo"
+                                ? `🌸 Ví MoMo •• ${card.last4}`
+                                : `🔵 Ví VNPay •• ${card.last4}`}
+                            </span>
+                            {card.isDefault && (
+                              <span style={{ fontSize: "0.6rem", background: "#dbeafe", color: "#1e40af", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                DEFAULT
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{card.holder}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-              {/* MoMo */}
-              <div 
-                className={`method-item ${paymentMethod === "momo" ? "method-item--selected" : ""}`}
-                onClick={() => setPaymentMethod("momo")}
-              >
-                <input 
-                  type="radio" 
-                  name="pm" 
-                  checked={paymentMethod === "momo"} 
-                  onChange={() => setPaymentMethod("momo")}
-                  className="method-radio" 
-                />
-                <span className="method-logo method-logo--momo">MoMo</span>
-                <div className="method-info">
-                  <span className="method-name">MoMo</span>
-                  <span className="method-desc">MoMo e-Wallet</span>
+                  {/* Tuỳ chọn sử dụng phương thức mới */}
+                  <div
+                    onClick={() => {
+                      setSelectedSavedMethodId("new_method");
+                      setPaymentMethod("stripe");
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "8px",
+                      border: selectedSavedMethodId === "new_method" ? "2px solid #2563eb" : "1.5px solid #e2e8f0",
+                      background: selectedSavedMethodId === "new_method" ? "#eff6ff" : "#ffffff", cursor: "pointer", transition: "all 0.2s"
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="selected_saved_method"
+                      checked={selectedSavedMethodId === "new_method"}
+                      onChange={() => {}}
+                      style={{ cursor: "pointer" }}
+                    />
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>➕ Sử dụng phương thức thanh toán mới</span>
+                    </div>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Stripe */}
-              <div 
-                className={`method-item ${paymentMethod === "stripe" ? "method-item--selected" : ""}`}
-                onClick={() => setPaymentMethod("stripe")}
-              >
-                <input 
-                  type="radio" 
-                  name="pm" 
-                  checked={paymentMethod === "stripe"} 
-                  onChange={() => setPaymentMethod("stripe")}
-                  className="method-radio" 
-                />
-                <span className="method-logo method-logo--stripe">Stripe</span>
-                <div className="method-info">
-                  <span className="method-name">Stripe</span>
-                  <span className="method-desc">International Card Payment</span>
-                </div>
-              </div>
+            {/* PHẦN 2: CHỌN CỔNG THANH TOÁN MỚI (CHỈ HIỂN THỊ KHI CHỌN NEW_METHOD HOẶC CHƯA CÓ PHƯƠNG THỨC NÀO) */}
+            {(selectedSavedMethodId === "new_method" || savedCards.length === 0) && (
+              <div style={{ marginTop: savedCards.length > 0 ? "20px" : "0" }}>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Chọn cổng thanh toán mới
+                </h4>
+                <div className="method-list">
+                  {/* VNPay */}
+                  <div 
+                    className={`method-item ${paymentMethod === "vnpay" ? "method-item--selected" : ""}`}
+                    onClick={() => setPaymentMethod("vnpay")}
+                  >
+                    <input 
+                      type="radio" 
+                      name="pm" 
+                      checked={paymentMethod === "vnpay"} 
+                      onChange={() => setPaymentMethod("vnpay")}
+                      className="method-radio" 
+                    />
+                    <span className="method-logo method-logo--vnpay">VNPay</span>
+                    <div className="method-info">
+                      <span className="method-name">VNPay</span>
+                      <span className="method-desc">Vietnam Payment Gateway</span>
+                    </div>
+                  </div>
 
-              {/* simulated payment */}
-              <div 
-                className={`method-item ${paymentMethod === "simulated" ? "method-item--selected" : ""}`}
-                onClick={() => setPaymentMethod("simulated")}
-              >
-                <input 
-                  type="radio" 
-                  name="pm" 
-                  checked={paymentMethod === "simulated"} 
-                  onChange={() => setPaymentMethod("simulated")}
-                  className="method-radio" 
-                />
-                <span className="method-logo method-logo--simulated">Mô phỏng</span>
-                <div className="method-info">
-                  <span className="method-name">Phương thức thanh toán mô phỏng</span>
-                  <span className="method-desc">Giả lập thanh toán Sandbox qua API backend</span>
+                  {/* MoMo */}
+                  <div 
+                    className={`method-item ${paymentMethod === "momo" ? "method-item--selected" : ""}`}
+                    onClick={() => setPaymentMethod("momo")}
+                  >
+                    <input 
+                      type="radio" 
+                      name="pm" 
+                      checked={paymentMethod === "momo"} 
+                      onChange={() => setPaymentMethod("momo")}
+                      className="method-radio" 
+                    />
+                    <span className="method-logo method-logo--momo">MoMo</span>
+                    <div className="method-info">
+                      <span className="method-name">MoMo</span>
+                      <span className="method-desc">MoMo e-Wallet</span>
+                    </div>
+                  </div>
+
+                  {/* Stripe */}
+                  <div 
+                    className={`method-item ${paymentMethod === "stripe" ? "method-item--selected" : ""}`}
+                    onClick={() => setPaymentMethod("stripe")}
+                  >
+                    <input 
+                      type="radio" 
+                      name="pm" 
+                      checked={paymentMethod === "stripe"} 
+                      onChange={() => setPaymentMethod("stripe")}
+                      className="method-radio" 
+                    />
+                    <span className="method-logo method-logo--stripe">Stripe</span>
+                    <div className="method-info">
+                      <span className="method-name">Stripe</span>
+                      <span className="method-desc">International Card Payment</span>
+                    </div>
+                  </div>
+
+                  {/* simulated payment */}
+                  <div 
+                    className={`method-item ${paymentMethod === "simulated" ? "method-item--selected" : ""}`}
+                    onClick={() => setPaymentMethod("simulated")}
+                  >
+                    <input 
+                      type="radio" 
+                      name="pm" 
+                      checked={paymentMethod === "simulated"} 
+                      onChange={() => setPaymentMethod("simulated")}
+                      className="method-radio" 
+                    />
+                    <span className="method-logo method-logo--simulated">Mô phỏng</span>
+                    <div className="method-info">
+                      <span className="method-name">Phương thức thanh toán mô phỏng</span>
+                      <span className="method-desc">Giả lập thanh toán Sandbox qua API backend</span>
+                    </div>
+                    <span className="method-badge">Recommended</span>
+                  </div>
                 </div>
-                <span className="method-badge">Recommended</span>
               </div>
-            </div>
+            )}
 
             {/* Form điền thông tin thẻ nếu chọn Stripe */}
             {paymentMethod === "stripe" && (
@@ -1721,19 +1876,19 @@ export function SubscriptionPaymentPage() {
 
             {/* Thông báo hoặc Form nhập Ví MoMo */}
             {paymentMethod === "momo" && (() => {
-              const defaultMomo = savedCards.find(c => c.type === "momo" && c.isDefault);
-              return defaultMomo ? (
+              const currentSavedMomo = savedCards.find(c => c.id === selectedSavedMethodId);
+              return currentSavedMomo && selectedSavedMethodId !== "new_method" ? (
                 <div style={{ backgroundColor: "#fdf2f8", border: "1.5px solid #fbcfe8", borderRadius: "10px", padding: "16px", marginTop: "24px", color: "#9d174d" }}>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontWeight: 700 }}>
                     <span>🌸 Ví MoMo liên kết hoạt động</span>
                   </div>
                   <div style={{ fontSize: "0.85rem" }}>
-                    Tài khoản: <strong>•••• •••• •••• {defaultMomo.last4}</strong>
+                    Tài khoản: <strong>•••• •••• •••• {currentSavedMomo.last4}</strong>
                     <br />
-                    Tên chủ ví: <strong>{defaultMomo.holder}</strong>
+                    Tên chủ ví: <strong>{currentSavedMomo.holder}</strong>
                   </div>
                   <p style={{ fontSize: "0.75rem", color: "#be185d", marginTop: "10px", marginBottom: 0 }}>
-                    Hệ thống sẽ tiến hành trừ phí dịch vụ từ ví MoMo đã liên kết này sau khi xác nhận.
+                    Hệ thống sẽ tiến hành trừ phí dịch vụ từ ví MoMo đã chọn này sau khi xác nhận.
                   </p>
                 </div>
               ) : (
@@ -1767,19 +1922,19 @@ export function SubscriptionPaymentPage() {
 
             {/* Thông báo hoặc Form nhập Ví VNPay */}
             {paymentMethod === "vnpay" && (() => {
-              const defaultVnpay = savedCards.find(c => c.type === "vnpay" && c.isDefault);
-              return defaultVnpay ? (
+              const currentSavedVnpay = savedCards.find(c => c.id === selectedSavedMethodId);
+              return currentSavedVnpay && selectedSavedMethodId !== "new_method" ? (
                 <div style={{ backgroundColor: "#ebf8ff", border: "1.5px solid #bee3f8", borderRadius: "10px", padding: "16px", marginTop: "24px", color: "#2b6cb0" }}>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px", fontWeight: 700 }}>
                     <span>🔵 Ví VNPay liên kết hoạt động</span>
                   </div>
                   <div style={{ fontSize: "0.85rem" }}>
-                    Tài khoản: <strong>•••• •••• •••• {defaultVnpay.last4}</strong>
+                    Tài khoản: <strong>•••• •••• •••• {currentSavedVnpay.last4}</strong>
                     <br />
-                    Tên chủ ví: <strong>{defaultVnpay.holder}</strong>
+                    Tên chủ ví: <strong>{currentSavedVnpay.holder}</strong>
                   </div>
                   <p style={{ fontSize: "0.75rem", color: "#2b6cb0", marginTop: "10px", marginBottom: 0 }}>
-                    Hệ thống sẽ tiến hành trừ phí dịch vụ từ ví VNPay đã liên kết này sau khi xác nhận.
+                    Hệ thống sẽ tiến hành trừ phí dịch vụ từ ví VNPay đã chọn này sau khi xác nhận.
                   </p>
                 </div>
               ) : (
