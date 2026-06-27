@@ -183,6 +183,13 @@ The system SHALL process documents into searchable vector chunks asynchronously.
 - **AND** this boundary does not call real embedding providers, real vector database clients, semantic search, retrieval APIs, RAG answer generation, frontend code, HTTP routes, Prisma schema changes, migrations, generated Prisma client changes, or new SDK dependencies
 - **AND** public DTOs, events, logs, and thrown safe errors do not expose raw embeddings, raw chunk text beyond existing repository-internal chunk storage, storage keys, vector DB internals, provider payloads, credentials, tokens, or secrets
 
+#### Scenario: Local end-to-end flow composes existing worker boundaries
+- **WHEN** a prepared workspace document and pending ingestion job exist in local repositories
+- **THEN** the local flow runner starts the ingestion handoff, runs the injected text processing pipeline, persists deterministic chunks, runs the injected indexing pipeline, calls injected embedding and vector index adapters, and returns final document/job/chunk state
+- **AND** successful local flow marks ingestion status ready, chunk embedding status ready, document indexing status ready, and indexed chunk count equal to persisted chunk count
+- **AND** content reader failures, empty or unsupported content, embedding failures, vector index failures, and unknown indexing failures produce safe failure code/message fields without leaking raw document content, raw embeddings, storage keys, vector DB config, provider payloads, credentials, secrets, tokens, or queue payloads
+- **AND** the local flow runner does not add production scheduling, real file storage, real embedding provider calls, real vector DB calls, retrieval, RAG answer generation, frontend UI/API client changes, backend HTTP routes, Prisma schema/migration/generated client changes, shared status changes, SDK dependencies, or external sync
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata

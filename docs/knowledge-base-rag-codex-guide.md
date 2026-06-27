@@ -66,10 +66,12 @@ The backend now has an internal foundation for future runtime implementation:
   text/plain and markdown-style content. It reads content through an injected
   reader, normalizes text, splits stable chunks, and persists chunks through
   KB/RAG repository ports.
+- An embedding/vector indexing adapter boundary and local flow runner for
+  deterministic contract tests with fake adapters.
 
-The backend still does not have real upload/file adapters, embedding/vector
-adapters, PDF/DOC/DOCX/OCR parsers, full worker runtime handlers, retrieval,
-or external sync adapters.
+The backend still does not have real upload/file adapters, real
+embedding/vector provider adapters, PDF/DOC/DOCX/OCR parsers, full worker
+runtime handlers, retrieval, or external sync adapters.
 
 ## Required Future Workflow
 
@@ -228,6 +230,7 @@ Current foundation files include:
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
 - `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-base-rag-local-flow-runner.ts`
 - `worker/knowledge-document-content-reader.ts`
 - `worker/knowledge-document-processing-pipeline.ts`
 - `worker/knowledge-document-text-normalizer.ts`
@@ -244,10 +247,11 @@ Do not create worker handlers or adapters outside the selected task scope.
 
 The current worker handoff plus processing pipeline may mark pending ingestion
 jobs as ingesting, ready, or failed, update associated document ingestion
-status, and persist deterministic text chunks. It must not read object storage,
-parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors,
-execute external sync, or mark vector indexing complete until a later
-adapter/runtime issue explicitly adds those boundaries.
+status, and persist deterministic text chunks. The local flow runner may compose
+that handoff with fake embedding/vector adapters for contract tests. It must
+not read object storage, parse PDF/DOC/DOCX, perform OCR, call real embedding
+providers, write to a real vector database, execute external sync, or schedule
+runtime workers.
 
 ## API Contract Boundary
 
