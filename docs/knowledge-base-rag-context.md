@@ -10,7 +10,7 @@ module.
 
 Parent issue: `[Phase 4] Quan ly Tri thuc & Du lieu noi bo (Knowledge Base / RAG Management) #35`
 
-Current architecture issue: `[Architecture] Knowledge Base / RAG - Foundation Audit and Context Alignment`
+Current cleanup issue: `[Cleanup] Knowledge Base / RAG - OpenSpec Task Alignment and Final Boundary Check`
 
 OpenSpec change: `implement-knowledge-base-rag`
 
@@ -63,7 +63,7 @@ The backend now has an internal module foundation under
   that composes handoff, text processing, chunk persistence, fake embeddings,
   fake vector upserts, and final indexing status updates.
 
-Runtime implementation still needs:
+Production runtime implementation still needs:
 
 - Object storage integration, real PDF/DOC/DOCX parsing, OCR, provider-backed
   embedding, provider-backed vector indexing, retrieval, and external source
@@ -71,7 +71,8 @@ Runtime implementation still needs:
 - Full worker ingestion/sync runtime entrypoints for queue integration,
   embedding, vector writes, and external sync.
 - Frontend API integration for Processing Status.
-- Worker tests, frontend integration tests, and functional PA5 tests.
+- Production worker tests, frontend Processing Status integration tests, and
+  functional PA5 tests for production runtime behavior.
 
 The queue type already reserves `document.ingest`. The current worker handoff
 skeleton is module-local under the KB/RAG backend boundary and can be called by
@@ -352,7 +353,7 @@ Current repository/application boundary files:
 - `worker/knowledge-document-text-normalizer.ts`
 - `worker/knowledge-document-text-chunker.ts`
 
-Likely future runtime files:
+Likely future production-runtime files:
 
 - `domain/upload-validation.ts`
 - `domain/knowledge-events.ts`

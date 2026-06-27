@@ -46,7 +46,8 @@ updates, manual sync requests, and sync job reads. Local mock data remains
 available for isolated prototype/test use. Do not wire Processing Status to API
 calls outside its own scoped frontend integration issue.
 
-The backend now has an internal foundation for future runtime implementation:
+The backend now has an internal foundation and local/test worker flow for
+future production runtime implementation:
 
 - Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
   sync jobs, and sync job events.
@@ -69,7 +70,7 @@ The backend now has an internal foundation for future runtime implementation:
 - An embedding/vector indexing adapter boundary and local flow runner for
   deterministic contract tests with fake adapters.
 
-The backend still does not have real upload/file adapters, real
+The backend still does not have production upload/file adapters, real
 embedding/vector provider adapters, PDF/DOC/DOCX/OCR parsers, full worker
 runtime handlers, retrieval, or external sync adapters.
 
@@ -236,7 +237,7 @@ Current foundation files include:
 - `worker/knowledge-document-text-normalizer.ts`
 - `worker/knowledge-document-text-chunker.ts`
 
-Likely future files:
+Likely future production-runtime files:
 
 - `application/ports.ts`
 - `domain/upload-validation.ts`
@@ -326,12 +327,13 @@ credential data, raw chunk operations, or private adapter details.
 
 ## Worker Handoff Rules
 
-The expected flow is:
+The production-intent flow is:
 
 1. Upload is validated.
 2. Valid uploads are prepared.
 3. Ingestion job is queued.
-4. Worker processes parsing, chunking, embedding, and indexing.
+4. Worker processes parsing, chunking, embedding, and indexing through
+   appropriate runtime adapters.
 5. Status is updated.
 6. Domain events are emitted.
 7. UI reads job/status state through API.
