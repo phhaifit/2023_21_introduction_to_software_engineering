@@ -96,6 +96,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: The pipeline reads text through an injected content reader, supports text/plain and markdown-style content, normalizes whitespace deterministically, chunks text deterministically, persists `KnowledgeDocumentChunk` records through the KB/RAG document repository, and returns updated document/job state to the handoff. This slice does not read object storage directly, parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors, implement retrieval, or add queue runtime entrypoints.
    - Constraint: Chunk records use stable generated IDs in tests, stable chunk indexes, pending embedding status, no vector references, and safe error conversion for empty, unsupported, or failed content reads.
 
+18. Add an embedding/vector indexing adapter boundary after persisted chunks exist.
+   - Rationale: The worker needs a safe boundary that can index persisted chunks with deterministic fakes now and real providers later without exposing provider or vector database internals to public contracts.
+   - Boundary: The indexing pipeline loads workspace-scoped persisted chunks through the KB/RAG document repository, marks document indexing as `ingesting`, generates embeddings through an injected `KnowledgeEmbeddingAdapter`, upserts chunk embeddings through an injected `KnowledgeVectorIndexAdapter`, updates chunk embedding status/vector references internally, and marks document indexing `ready` or `failed`.
+   - Constraint: This slice does not call real OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, FAISS, Elasticsearch, or other provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
@@ -105,3 +110,4 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 - KB/RAG persistence can outgrow the initial additive schema -> Add later migrations only through focused OpenSpec-backed issues and keep vector/embedding provider internals behind adapters.
 - A lifecycle-only worker handoff can look complete to callers -> Keep docs/tests explicit that parsing, chunking, embedding, vector writes, and external sync remain future adapter/runtime scope.
 - Text-only chunking is intentionally limited -> Keep PDF/DOC/DOCX/OCR, object storage readers, embedding, and vector indexing in later adapter-focused issues.
+- A standalone indexing pipeline can be mistaken for a scheduled runtime -> Keep it explicitly injected/tested and leave queue/runtime wiring for a later scoped issue.

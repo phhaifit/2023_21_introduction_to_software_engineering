@@ -175,6 +175,14 @@ The system SHALL process documents into searchable vector chunks asynchronously.
 - **AND** empty content, unsupported content, and content-reader failures mark the job and document failed with safe error code/message fields
 - **AND** the pipeline does not read object storage directly, parse PDF/DOC/DOCX, perform OCR, call embedding providers, write vectors, implement retrieval, modify HTTP routes, import frontend code, or import another module's private internals
 
+#### Scenario: Embedding and vector indexing use injected adapters
+- **WHEN** a worker indexes a workspace document that already has persisted chunks
+- **THEN** the indexing pipeline loads chunks through KB/RAG repository ports, marks document indexing as ingesting, generates embeddings through an injected embedding adapter, and upserts chunk embeddings through an injected vector index adapter
+- **AND** successful indexing marks chunk embedding status ready, stores only opaque internal vector references on chunks, updates the document indexed chunk count, and marks document indexing ready
+- **AND** missing chunks, embedding adapter failures, vector index adapter failures, unsupported chunk state, or unknown failures mark document indexing failed with safe error code/message fields
+- **AND** this boundary does not call real embedding providers, real vector database clients, semantic search, retrieval APIs, RAG answer generation, frontend code, HTTP routes, Prisma schema changes, migrations, generated Prisma client changes, or new SDK dependencies
+- **AND** public DTOs, events, logs, and thrown safe errors do not expose raw embeddings, raw chunk text beyond existing repository-internal chunk storage, storage keys, vector DB internals, provider payloads, credentials, tokens, or secrets
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata
