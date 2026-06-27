@@ -548,7 +548,7 @@ export function taskCreationReducer(
                 processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
                 streamingSnapshot: createInitialStreamingSnapshot(),
                 finalizedResult: {
-                  text: conv.messages.find((m) => m.role === "assistant" && (m.timestamp >= msg.timestamp || m.messageId > msg.messageId))?.content || "Restored from history.",
+                  text: conv.messages.find((m) => m.role === "assistant" && (m.timestamp >= msg.timestamp || m.messageId > msg.messageId))?.content || "",
                   finalizedAt: msg.timestamp || conv.updatedAt,
                   artifacts: [],
                   followUpPromptSuggestions: []

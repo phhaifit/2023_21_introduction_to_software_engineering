@@ -181,3 +181,13 @@ export type Job = Prisma.JobModel
  * 
  */
 export type PaymentMethod = Prisma.PaymentMethodModel
+/**
+ * Model Conversation
+ * 
+ */
+export type Conversation = Prisma.ConversationModel
+/**
+ * Model ChatMessage
+ * 
+ */
+export type ChatMessage = Prisma.ChatMessageModel

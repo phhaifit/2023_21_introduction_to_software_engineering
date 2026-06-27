@@ -78,7 +78,9 @@ export const ModelName = {
   KnowledgeSyncJobEvent: 'KnowledgeSyncJobEvent',
   KnowledgeAccessGrant: 'KnowledgeAccessGrant',
   Job: 'Job',
-  PaymentMethod: 'PaymentMethod'
+  PaymentMethod: 'PaymentMethod',
+  Conversation: 'Conversation',
+  ChatMessage: 'ChatMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -533,6 +535,29 @@ export const PaymentMethodScalarFieldEnum = {
 } as const
 
 export type PaymentMethodScalarFieldEnum = (typeof PaymentMethodScalarFieldEnum)[keyof typeof PaymentMethodScalarFieldEnum]
+
+
+export const ConversationScalarFieldEnum = {
+  conversationId: 'conversationId',
+  workspaceId: 'workspaceId',
+  title: 'title',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  associatedTarget: 'associatedTarget'
+} as const
+
+export type ConversationScalarFieldEnum = (typeof ConversationScalarFieldEnum)[keyof typeof ConversationScalarFieldEnum]
+
+
+export const ChatMessageScalarFieldEnum = {
+  messageId: 'messageId',
+  conversationId: 'conversationId',
+  role: 'role',
+  content: 'content',
+  timestamp: 'timestamp'
+} as const
+
+export type ChatMessageScalarFieldEnum = (typeof ChatMessageScalarFieldEnum)[keyof typeof ChatMessageScalarFieldEnum]
 
 
 export const SortOrder = {
