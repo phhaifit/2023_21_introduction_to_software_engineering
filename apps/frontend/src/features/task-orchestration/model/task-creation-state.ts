@@ -146,6 +146,11 @@ export type TaskCreationAction =
       type: "task-failed";
       taskId: EntityId<"taskId">;
       error: import("./task-types").TaskError;
+    }
+  | {
+      /** Updates task state from a received TaskRuntimeEvent. */
+      type: "runtime-event";
+      event: import("./task-orchestration-provider").TaskRuntimeEvent;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -497,6 +502,20 @@ export function taskCreationReducer(
         tasks: state.tasks.map((t) =>
           t.taskId === action.taskId ? updatedTask : t
         )
+      };
+    }
+    case "runtime-event": {
+      if (!action.event.taskSnapshot) {
+        return state;
+      }
+      const updatedTask = action.event.taskSnapshot;
+      const exists = state.tasks.some((t) => t.taskId === updatedTask.taskId);
+      if (!exists) {
+        return state;
+      }
+      return {
+        ...state,
+        tasks: state.tasks.map((t) => (t.taskId === updatedTask.taskId ? updatedTask : t))
       };
     }
   }
