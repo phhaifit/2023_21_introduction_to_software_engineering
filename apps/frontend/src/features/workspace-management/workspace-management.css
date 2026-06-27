@@ -1,0 +1,351 @@
+.workspace-management-page {
+  gap: 24px;
+}
+
+.workspace-management-section,
+.workspace-detail-panel,
+.workspace-create-form {
+  display: grid;
+  gap: 16px;
+  border: 1px solid #dfe5ef;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 20px;
+}
+
+.workspace-management-eyebrow {
+  margin: 0 0 6px;
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workspace-create-form__fields {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+}
+
+.workspace-field {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-weight: 700;
+}
+
+.workspace-field input,
+.workspace-field select {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #0f172a;
+}
+
+.workspace-field input[aria-invalid="true"] {
+  border-color: #b91c1c;
+}
+
+.workspace-management-alert {
+  margin: 0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  line-height: 1.5;
+}
+
+.workspace-management-alert--error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.workspace-management-alert--success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.workspace-management-alert--warning {
+  background: #fef3c7;
+  color: #854d0e;
+}
+
+.workspace-management-alert--info {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.workspace-management-loading,
+.workspace-management-empty {
+  display: grid;
+  min-height: 150px;
+  align-content: center;
+  justify-items: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 24px;
+  text-align: center;
+}
+
+.workspace-management-empty h3,
+.workspace-management-empty h2 {
+  margin: 0 0 8px;
+}
+
+.workspace-management-empty p {
+  margin: 0;
+  color: #64748b;
+}
+
+.workspace-management-table-wrapper {
+  overflow-x: auto;
+}
+
+.workspace-management-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.workspace-management-table th,
+.workspace-management-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.workspace-management-table th {
+  color: #475569;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.workspace-management-name-cell,
+.workspace-management-status-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-management-name-cell span,
+.workspace-management-status-cell span:last-child,
+.workspace-management-muted {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.workspace-status-badge {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 26px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workspace-status-badge--provisioning {
+  background: #fef3c7;
+  color: #854d0e;
+}
+
+.workspace-status-badge--active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.workspace-status-badge--failed,
+.workspace-status-badge--delete_failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.workspace-status-badge--deleting {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.workspace-status-badge--deleted {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.workspace-management-safe-failure {
+  color: #991b1b;
+}
+
+.workspace-management-link,
+.workspace-management-link-button {
+  border: 0;
+  background: transparent;
+  color: #4f46e5;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: none;
+}
+
+.workspace-management-link:hover,
+.workspace-management-link-button:hover {
+  text-decoration: underline;
+}
+
+.workspace-management-secondary-button,
+.workspace-management-danger-button,
+.workspace-management-icon-button {
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.workspace-management-secondary-button {
+  width: fit-content;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 10px 14px;
+}
+
+.workspace-management-danger-button {
+  background: #b91c1c;
+  color: #ffffff;
+  padding: 10px 14px;
+}
+
+.workspace-management-secondary-button:disabled,
+.workspace-management-danger-button:disabled,
+.primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.workspace-detail-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-detail-panel__header h2,
+.workspace-detail-panel__header p {
+  margin: 0;
+}
+
+.workspace-detail-panel__header p:last-child {
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.workspace-detail-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.workspace-detail-grid div {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.workspace-detail-grid dt {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workspace-detail-grid dd {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.workspace-public-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.workspace-public-links h3 {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+.workspace-detail-panel__actions {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+}
+
+.workspace-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 20px;
+}
+
+.workspace-delete-dialog {
+  display: grid;
+  width: min(520px, 100%);
+  gap: 16px;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
+
+.workspace-delete-dialog__header,
+.workspace-delete-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspace-delete-dialog h2,
+.workspace-delete-dialog p {
+  margin: 0;
+}
+
+.workspace-delete-dialog__confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-management-icon-button {
+  width: 32px;
+  height: 32px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .workspace-create-form__fields,
+  .workspace-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-detail-panel__header,
+  .workspace-delete-dialog__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
