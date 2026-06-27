@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { subscriptionPaymentApiClient } from "./subscription-payment-api-client.ts";
 import "./subscription-payment.css";
 import type {
@@ -30,6 +30,60 @@ export function SubscriptionPaymentPage() {
   
   // State quản lý Workspace ID động được chọn từ Dropdown
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>(DEMO_WORKSPACE_ID);
+
+  // Custom Dropdown states & refs
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const selectRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside: đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectRef.current && !selectRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+        setFocusedIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Xử lý phím bàn phím cho Custom Dropdown
+  const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!isDropdownOpen) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setIsDropdownOpen(true);
+        setFocusedIndex(AVAILABLE_WORKSPACES.findIndex(ws => ws.id === currentWorkspaceId));
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setFocusedIndex(prev => (prev < AVAILABLE_WORKSPACES.length - 1 ? prev + 1 : 0));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setFocusedIndex(prev => (prev > 0 ? prev - 1 : AVAILABLE_WORKSPACES.length - 1));
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < AVAILABLE_WORKSPACES.length) {
+          setCurrentWorkspaceId(AVAILABLE_WORKSPACES[focusedIndex].id);
+          setIsDropdownOpen(false);
+          setFocusedIndex(-1);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setIsDropdownOpen(false);
+        setFocusedIndex(-1);
+        break;
+    }
+  }, [isDropdownOpen, focusedIndex, currentWorkspaceId]);
 
   // State quản lý View chuyển màn hình
   const [view, setView] = useState<ViewState>("dashboard");
@@ -333,33 +387,56 @@ export function SubscriptionPaymentPage() {
 
     return (
       <div className="billing-container">
-        <div className="billing-title-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
+        <div className="billing-title-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
           <div>
             <h2>Billing & Subscription</h2>
-            <p className="subtitle">Quản lý định mức tài nguyên, phương thức thanh toán và lịch sử hóa đơn thực tế của Workspace: <span style={{ color: "#2563eb", fontWeight: 600 }}>{currentWorkspaceId}</span></p>
+            <p className="subtitle">Quản lý định mức tài nguyên, phương thức thanh toán và lịch sử hóa đơn thực tế của Workspace.</p>
           </div>
           
-          <div className="workspace-selector-container" style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Chọn Workspace:</span>
-            <select
-              value={currentWorkspaceId}
-              onChange={(e) => setCurrentWorkspaceId(e.target.value)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                background: "#ffffff",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                color: "#1e293b",
-                cursor: "pointer",
-                outline: "none"
-              }}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.03em" }}>WORKSPACE</span>
+            <div
+              ref={selectRef}
+              className={`custom-select-container ${isDropdownOpen ? "is-open" : ""}`}
+              onKeyDown={handleDropdownKeyDown}
             >
-              {AVAILABLE_WORKSPACES.map((ws) => (
-                <option key={ws.id} value={ws.id}>{ws.name}</option>
-              ))}
-            </select>
+              <button
+                type="button"
+                className="custom-select-trigger"
+                onClick={() => {
+                  setIsDropdownOpen(prev => !prev);
+                  if (!isDropdownOpen) {
+                    setFocusedIndex(AVAILABLE_WORKSPACES.findIndex(ws => ws.id === currentWorkspaceId));
+                  }
+                }}
+                aria-haspopup="listbox"
+                aria-expanded={isDropdownOpen}
+              >
+                <span>{AVAILABLE_WORKSPACES.find(ws => ws.id === currentWorkspaceId)?.name ?? currentWorkspaceId}</span>
+                <svg className="custom-select-arrow" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              <div className="custom-select-options" role="listbox" aria-label="Chọn workspace">
+                {AVAILABLE_WORKSPACES.map((ws, idx) => (
+                  <div
+                    key={ws.id}
+                    role="option"
+                    aria-selected={ws.id === currentWorkspaceId}
+                    className={`custom-select-option ${ws.id === currentWorkspaceId ? "is-selected" : ""} ${focusedIndex === idx ? "is-focused" : ""}`}
+                    onClick={() => {
+                      setCurrentWorkspaceId(ws.id);
+                      setIsDropdownOpen(false);
+                      setFocusedIndex(-1);
+                    }}
+                    onMouseEnter={() => setFocusedIndex(idx)}
+                  >
+                    {ws.name}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
