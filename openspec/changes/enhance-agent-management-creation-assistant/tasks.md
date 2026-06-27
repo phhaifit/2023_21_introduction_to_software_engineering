@@ -83,16 +83,16 @@
 
 ## 8. Phase 7 - Tool and Knowledge Recommendation Validation
 
-- [ ] 8.1 Add Agent Management application ports for connected tool catalog lookup and ready KB/RAG document lookup.
-- [ ] 8.2 Implement mock public connected-tool catalog adapter for the first demo without importing Tools Integration private code.
-- [ ] 8.3 Implement mock public ready-knowledge catalog adapter for the first demo without importing KB/RAG private code.
-- [ ] 8.4 Validate requested tools from prompt/import/template drafts against the connected-tool catalog.
-- [ ] 8.5 Validate requested knowledge references from prompt/import/template drafts against ready documents in the knowledge catalog.
-- [ ] 8.6 Add blocking warnings for missing tools, disconnected tools, missing documents, and unready documents.
-- [ ] 8.7 Prevent agent creation while blocking warnings remain.
-- [ ] 8.8 Add backend tests for valid connected tool, disconnected tool warning, valid ready document, missing document warning, unready document warning, and no assignment/grant mutation.
-- [ ] 8.9 Add frontend tests for warning display, disabled create button, warning resolution, and valid draft submission after resolution.
-- [ ] 8.10 Run focused backend and frontend tests for capability validation.
+- [x] 8.1 Add Agent Management application ports for connected tool catalog lookup and ready KB/RAG document lookup.
+- [x] 8.2 Implement mock public connected-tool catalog adapter for the first demo without importing Tools Integration private code.
+- [x] 8.3 Implement mock public ready-knowledge catalog adapter for the first demo without importing KB/RAG private code.
+- [x] 8.4 Validate requested tools from prompt/import/template drafts against the connected-tool catalog.
+- [x] 8.5 Validate requested knowledge references from prompt/import/template drafts against ready documents in the knowledge catalog.
+- [x] 8.6 Add blocking warnings for missing tools, disconnected tools, missing documents, and unready documents.
+- [x] 8.7 Prevent agent creation while blocking warnings remain.
+- [x] 8.8 Add backend tests for valid connected tool, disconnected tool warning, valid ready document, missing document warning, unready document warning, and no assignment/grant mutation.
+- [x] 8.9 Add frontend tests for warning display, disabled create button, warning resolution, and valid draft submission after resolution.
+- [x] 8.10 Run focused backend and frontend tests for capability validation.
 
 ## 9. Phase 8 - OpenClaw Runtime-Ready Agent Output
 

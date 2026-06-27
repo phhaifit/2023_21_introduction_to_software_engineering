@@ -72,12 +72,15 @@ export function createAgentManagementRouter(
       enforcePermission(context, "agents:manage");
 
       const payload = readStringPayload(request, ["name", "role", "model", "instructions"]);
+      const body = request.body as Record<string, unknown> | undefined;
       const result = await dependencies.useCases.createAgent({
         workspaceId: context.workspace!.workspaceId,
         name: payload.name,
         role: payload.role,
         model: payload.model,
-        instructions: payload.instructions
+        instructions: payload.instructions,
+        requestedTools: readOptionalToolReferences(body),
+        requestedKnowledge: readOptionalKnowledgeReferences(body)
       });
 
       return result.publicSummary;
@@ -314,7 +317,7 @@ function handleAgentApiError(request: Request, response: Response, error: unknow
     sendAgentApiFailure(request, response, {
       code: "validation.invalid_input",
       message: error.message,
-      details: { issues: error.issues },
+      details: { issues: error.issues, warnings: error.warnings },
       statusCode: 400
     });
     return;

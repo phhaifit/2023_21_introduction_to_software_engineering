@@ -117,6 +117,15 @@ export type AgentCreationAssistantDraftRequest = {
   prompt: string;
 };
 
+export type CreateAgentRequest = {
+  name: string;
+  role: string;
+  model: string;
+  instructions: string;
+  requestedTools?: AgentSkillToolReference[];
+  requestedKnowledge?: AgentSkillKnowledgeReference[];
+};
+
 export type AgentCreationAssistantDraftResponse = {
   draft: AgentCreationAssistantDraft | null;
   warnings: AgentDraftValidationWarning[];

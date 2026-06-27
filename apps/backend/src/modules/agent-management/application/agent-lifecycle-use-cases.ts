@@ -1,16 +1,26 @@
 import type {
   AgentCreationAssistantDraftResponse,
+  AgentDraftValidationWarning,
   AgentModelCatalogEntry,
   AgentPublicSummary,
+  AgentSkillKnowledgeReference,
   AgentSkillImportAnalysisRequest,
   AgentSkillPreviewRequest,
-  AgentSkillPreviewResponse
+  AgentSkillPreviewResponse,
+  AgentSkillToolReference
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { ApiPaginationMeta } from "@vcp/shared/contracts/api.ts";
 import { createAgent, isAgentSelectable, toAgentPublicSummary, type Agent } from "../domain/agent.ts";
 import type { AgentRepository } from "./agent-repository.ts";
+import {
+  MockConnectedToolCatalog,
+  MockKnowledgeDocumentCatalog,
+  validateRequestedCapabilities,
+  type ConnectedToolCatalogPort,
+  type KnowledgeDocumentCatalogPort
+} from "./agent-capability-catalog.ts";
 import { StaticAgentModelCatalog, type AgentModelCatalogPort } from "./agent-model-catalog.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
 import type { AgentSkillWriter } from "./agent-skill-writer.ts";
@@ -49,6 +59,8 @@ export type CreateAgentInput = {
   role: string;
   model: string;
   instructions: string;
+  requestedTools?: AgentSkillToolReference[];
+  requestedKnowledge?: AgentSkillKnowledgeReference[];
 };
 
 export type UpdateAgentInput = {
@@ -62,6 +74,8 @@ export type UpdateAgentInput = {
 export type AgentLifecycleDependencies = {
   repository: AgentRepository;
   modelCatalog?: AgentModelCatalogPort;
+  connectedToolCatalog?: ConnectedToolCatalogPort;
+  knowledgeDocumentCatalog?: KnowledgeDocumentCatalogPort;
   skillWriter?: AgentSkillWriter;
   draftingPort?: LlmAgentDraftingPort;
   now: () => string;
@@ -70,11 +84,13 @@ export type AgentLifecycleDependencies = {
 
 export class AgentValidationError extends Error {
   readonly issues: readonly string[];
+  readonly warnings: readonly AgentDraftValidationWarning[];
 
-  constructor(issues: readonly string[]) {
+  constructor(issues: readonly string[], warnings: readonly AgentDraftValidationWarning[] = []) {
     super(`Invalid agent configuration: ${issues.join(", ")}`);
     this.name = "AgentValidationError";
     this.issues = issues;
+    this.warnings = warnings;
   }
 }
 
@@ -88,10 +104,15 @@ export class AgentNotFoundError extends Error {
 export class AgentLifecycleUseCases {
   private readonly dependencies: AgentLifecycleDependencies;
   private readonly modelCatalog: AgentModelCatalogPort;
+  private readonly connectedToolCatalog: ConnectedToolCatalogPort;
+  private readonly knowledgeDocumentCatalog: KnowledgeDocumentCatalogPort;
 
   constructor(dependencies: AgentLifecycleDependencies) {
     this.dependencies = dependencies;
     this.modelCatalog = dependencies.modelCatalog ?? new StaticAgentModelCatalog();
+    this.connectedToolCatalog = dependencies.connectedToolCatalog ?? new MockConnectedToolCatalog();
+    this.knowledgeDocumentCatalog =
+      dependencies.knowledgeDocumentCatalog ?? new MockKnowledgeDocumentCatalog();
   }
 
   async listAgents(
@@ -277,6 +298,11 @@ export class AgentLifecycleUseCases {
   async createAgent(input: CreateAgentInput): Promise<AgentMutationResult> {
     const normalized = this.validateCreateInput(input);
     await this.assertSelectableModel(input.workspaceId, normalized.model);
+    await this.assertRequestedCapabilities({
+      workspaceId: input.workspaceId,
+      requestedTools: normalized.requestedTools,
+      requestedKnowledge: normalized.requestedKnowledge
+    });
     const nameAlreadyUsed = await this.dependencies.repository.existsByName(
       input.workspaceId,
       normalized.name
@@ -532,6 +558,25 @@ export class AgentLifecycleUseCases {
 
     if (!matchingModel || !matchingModel.enabled) {
       throw new AgentValidationError(["model must match an enabled catalog model"]);
+    }
+  }
+
+  private async assertRequestedCapabilities(input: {
+    workspaceId: EntityId<"workspaceId">;
+    requestedTools?: readonly AgentSkillToolReference[];
+    requestedKnowledge?: readonly AgentSkillKnowledgeReference[];
+  }): Promise<void> {
+    const warnings = await validateRequestedCapabilities(input, {
+      tools: this.connectedToolCatalog,
+      knowledge: this.knowledgeDocumentCatalog
+    });
+
+    const blockingWarnings = warnings.filter((warning) => warning.severity === "blocking");
+    if (blockingWarnings.length > 0) {
+      throw new AgentValidationError(
+        blockingWarnings.map((warning) => `${warning.field}: ${warning.message}`),
+        blockingWarnings
+      );
     }
   }
 
