@@ -4,13 +4,16 @@ import type {
   StartExecutionCommand,
   WorkspaceExecutionRuntimeResolver,
   WorkspaceExecutionRuntime,
-  NormalizedRuntimeEvent
+  NormalizedRuntimeEvent,
+  SubActivityEvent
 } from "@vcp/shared";
+import { validateObservabilityProjectionRule, sanitizeObservabilityPayload } from "@vcp/shared";
 import {
   OpenClawTaskExecutionAdapter,
   OpenClawExecutionOrchestrator,
   type ExternalAgentCatalog,
   type ExternalWorkflowCatalog,
+  type ExternalToolCatalog,
   type ExternalAuthenticationService,
   type ExternalWorkspaceManagement
 } from "./openclaw-task-execution-adapter.ts";
@@ -19,6 +22,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
   let mockResolver: WorkspaceExecutionRuntimeResolver;
   let agentCatalog: ExternalAgentCatalog;
   let workflowCatalog: ExternalWorkflowCatalog;
+  let toolCatalog: ExternalToolCatalog;
   let authService: ExternalAuthenticationService;
   let workspaceMgmt: ExternalWorkspaceManagement;
   let adapter: OpenClawTaskExecutionAdapter;
@@ -53,14 +57,24 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       })
     };
 
+    toolCatalog = {
+      validateAndGetTool: vi.fn().mockImplementation(async (wsId, toolId) => {
+        if (toolId === "tool-invalid") {
+          return { toolId, workspaceId: wsId, safeLabel: "", providerToolMapping: "", status: "inactive" };
+        }
+        return { toolId, workspaceId: wsId, safeLabel: `Safe Tool: ${toolId}`, providerToolMapping: `openclaw-tool-${toolId}`, status: "active" };
+      })
+    };
+
     authService = {
       getAuthenticatedPrincipal: vi.fn().mockResolvedValue({
         principalId: "user-1",
         roles: ["workspace-member"],
-        permissions: ["start-task-execution", "cancel-task-execution"]
+        permissions: ["start-task-execution", "cancel-task-execution", "view-advanced-provider-details"]
       }),
       authorizeOperation: vi.fn().mockImplementation(async (principal, op, wsId) => {
         if (principal.principalId === "user-unauthorized") return false;
+        if (op === "view-advanced-provider-details" && principal.principalId === "user-no-advanced") return false;
         return true;
       })
     };
@@ -70,7 +84,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
     };
 
     adapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCatalog, workflowCatalog);
-    orchestrator = new OpenClawExecutionOrchestrator(authService, workspaceMgmt, agentCatalog, workflowCatalog, adapter);
+    orchestrator = new OpenClawExecutionOrchestrator(authService, workspaceMgmt, agentCatalog, workflowCatalog, adapter, toolCatalog);
   });
 
   describe("1. External Runtime Resolution & Adapter Structure", () => {
@@ -399,6 +413,180 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       const compliance = orchestrator.verifyExternallyBlockedTasksCompliance();
       expect(compliance.realIntegrationBlocked).toBe(true);
       expect(compliance.requiresProvisioning).toBe(false);
+    });
+  });
+
+  describe("6. Extend OpenClaw Execution Observability", () => {
+    it("1.1 & 1.2 & 1.3: should extend NormalizedRuntimeEvent union to support optional presentation of routing activity, workflow activity, tool activity, sub-agent activity, handoff, review, aggregation, completion, and provider diagnostics, and enforce projection-only boundary", () => {
+      const activities: Array<SubActivityEvent["activityType"]> = [
+        "routing",
+        "workflow",
+        "tool",
+        "sub-agent",
+        "handoff",
+        "review",
+        "aggregation",
+        "completion",
+        "provider-diagnostic"
+      ];
+
+      for (const activityType of activities) {
+        const event: SubActivityEvent = {
+          type: "sub-activity",
+          taskId: "task-601" as EntityId<"taskId">,
+          activityType,
+          details: `Activity update for ${activityType}`,
+          rawProviderPayload: { meta: "test" },
+          timestamp: new Date().toISOString(),
+          workspaceId: "ws-1" as EntityId<"workspaceId">,
+          workId: "work-601" as EntityId<"workId">,
+          providerExecutionReference: "exec-601",
+          providerSessionReference: "sess-601"
+        };
+        expect(event.activityType).toBe(activityType);
+        expect(event.workspaceId).toBe("ws-1");
+      }
+
+      // Verify projection-only boundary validation
+      expect(() => validateObservabilityProjectionRule({ createsTool: true })).toThrow(/Task & Orchestration SHALL act strictly as an observability projection consumer/);
+      expect(() => validateObservabilityProjectionRule({ assignsTool: true })).toThrow(/Task & Orchestration SHALL act strictly as an observability projection consumer/);
+      expect(() => validateObservabilityProjectionRule({ createsSubAgent: true })).toThrow(/Task & Orchestration SHALL act strictly as an observability projection consumer/);
+      expect(() => validateObservabilityProjectionRule({ controlsInternalOrchestration: true })).toThrow(/Task & Orchestration SHALL act strictly as an observability projection consumer/);
+      expect(() => validateObservabilityProjectionRule({ createsWorkflow: true })).toThrow(/Task & Orchestration SHALL act strictly as an observability projection consumer/);
+      expect(() => validateObservabilityProjectionRule({ infersUnprovidedEvents: true })).toThrow(/Task & Orchestration SHALL act strictly as an observability projection consumer/);
+      expect(() => validateObservabilityProjectionRule({})).not.toThrow();
+    });
+
+    it("2.1 & 2.2 & 2.3: should implement graceful degradation validation ensuring canonical Task lifecycle remains functional without optional observability events, and verify event-scoping isolation boundaries", async () => {
+      const cmd: StartExecutionCommand = {
+        taskId: "task-602" as EntityId<"taskId">,
+        workId: "work-602" as EntityId<"workId">,
+        workspaceId: "ws-1" as EntityId<"workspaceId">,
+        conversationId: "conv-1" as EntityId<"conversationId">,
+        prompt: "Graceful degradation test",
+        routing: { mode: "auto" }
+      };
+
+      await orchestrator.execute10StepStartFlow({ authHeader: "valid" }, cmd);
+      const degradationCheck = await orchestrator.verifyGracefulDegradation("task-602" as EntityId<"taskId">);
+      expect(degradationCheck.canonicalLifecycleFunctional).toBe(true);
+      expect(degradationCheck.absenceTriggersFailure).toBe(false);
+
+      // Verify event-scoping isolation boundaries
+      const validEvent: SubActivityEvent = {
+        type: "sub-activity",
+        taskId: "task-602" as EntityId<"taskId">,
+        activityType: "tool",
+        details: "Tool used",
+        timestamp: new Date().toISOString(),
+        workspaceId: "ws-1" as EntityId<"workspaceId">,
+        workId: "work-602" as EntityId<"workId">,
+        providerExecutionReference: "openclaw-exec-123",
+        providerSessionReference: "sess-1"
+      };
+
+      const expectedScope = {
+        workspaceId: "ws-1" as EntityId<"workspaceId">,
+        taskId: "task-602" as EntityId<"taskId">,
+        workId: "work-602" as EntityId<"workId">,
+        providerExecutionReference: "openclaw-exec-123",
+        providerSessionReference: "sess-1"
+      };
+
+      expect(adapter.validateAndScopeIncomingEvent(validEvent, expectedScope)).toBe(true);
+      expect(adapter.validateAndScopeIncomingEvent({ ...validEvent, taskId: "task-other" as EntityId<"taskId"> }, expectedScope)).toBe(false);
+      expect(adapter.validateAndScopeIncomingEvent({ ...validEvent, workspaceId: "ws-other" as EntityId<"workspaceId"> }, expectedScope)).toBe(false);
+      expect(adapter.validateAndScopeIncomingEvent({ ...validEvent, workId: "work-other" as EntityId<"workId"> }, expectedScope)).toBe(false);
+      expect(adapter.validateAndScopeIncomingEvent({ ...validEvent, providerExecutionReference: "exec-other" }, expectedScope)).toBe(false);
+      expect(adapter.validateAndScopeIncomingEvent({ ...validEvent, providerSessionReference: "sess-other" }, expectedScope)).toBe(false);
+    });
+
+    it("3.1 & 3.2 & 3.3: should implement automated security redaction filters scrubbing raw credentials, API keys, system paths, and sensitive provider payloads, and implement permission-gated authorization checks for Advanced Details", async () => {
+      // Test security redaction filters
+      const rawPayload = {
+        meta: "exec-update",
+        apiKey: "AIzaSyD-sensitive-key-value",
+        bearer: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+        password: "supersecretpassword",
+        systemPath: "C:\\Users\\admin\\secrets\\config.json",
+        nested: {
+          token: "secret-token-123",
+          path: "/etc/passwd"
+        }
+      };
+
+      const sanitized = sanitizeObservabilityPayload(rawPayload);
+      expect(sanitized.apiKey).toBe("[REDACTED]");
+      expect(sanitized.bearer).toBe("[REDACTED]");
+      expect(sanitized.password).toBe("[REDACTED]");
+      expect(sanitized.systemPath).toContain("[REDACTED_PATH]");
+      expect(sanitized.nested.token).toBe("[REDACTED]");
+      expect(sanitized.nested.path).toBe("[REDACTED_PATH]");
+
+      // Test permission-gated Advanced Details
+      const cmd: StartExecutionCommand = {
+        taskId: "task-603" as EntityId<"taskId">,
+        workId: "work-603" as EntityId<"workId">,
+        workspaceId: "ws-1" as EntityId<"workspaceId">,
+        conversationId: "conv-1" as EntityId<"conversationId">,
+        prompt: "Advanced details test",
+        routing: { mode: "auto" }
+      };
+
+      await orchestrator.execute10StepStartFlow({ authHeader: "valid" }, cmd);
+
+      // Authorized principal
+      const authorizedDetails = await orchestrator.getAdvancedDetails({ authHeader: "valid" }, "task-603" as EntityId<"taskId">, "ws-1" as EntityId<"workspaceId">);
+      expect(authorizedDetails.authorized).toBe(true);
+      expect(authorizedDetails.providerReferences).toBeDefined();
+      expect(authorizedDetails.providerReferences?.runtimeInstanceId).toBe("inst-openclaw-1");
+
+      // Unauthorized principal (lacks view-advanced-provider-details permission)
+      const unauthorizedAuthContext = {
+        getAuthenticatedPrincipal: vi.fn().mockResolvedValue({ principalId: "user-no-advanced", roles: [], permissions: [] }),
+        authorizeOperation: vi.fn().mockResolvedValue(false)
+      };
+      const unauthOrchestrator = new OpenClawExecutionOrchestrator(unauthorizedAuthContext, workspaceMgmt, agentCatalog, workflowCatalog, adapter, toolCatalog);
+      // Need to execute start flow or set binding in unauthOrchestrator to test getAdvancedDetails
+      // But since it's unauthorized, getAdvancedDetails returns early before checking binding!
+      const unauthDetails = await unauthOrchestrator.getAdvancedDetails({ authHeader: "unauth" }, "task-603" as EntityId<"taskId">, "ws-1" as EntityId<"workspaceId">);
+      expect(unauthDetails.authorized).toBe(false);
+      expect(unauthDetails.providerReferences).toBeNull();
+    });
+
+    it("4.1 & 4.2: should define conceptual consumer ports for Tool, Agent, and Workflow metadata catalogs and verify external catalog consumption confirming administration remains outside scope", async () => {
+      const labels = await orchestrator.resolveActivitySafeLabels("ws-1" as EntityId<"workspaceId">, {
+        agentId: "agent-finance",
+        workflowId: "wf-reports",
+        toolId: "tool-calc"
+      });
+
+      expect(labels.agentLabel).toBe("Agent: agent-finance");
+      expect(labels.workflowLabel).toBe("Workflow: wf-reports");
+      expect(labels.toolLabel).toBe("Safe Tool: tool-calc");
+
+      // Verify inactive/invalid tool handling
+      const invalidLabels = await orchestrator.resolveActivitySafeLabels("ws-1" as EntityId<"workspaceId">, {
+        toolId: "tool-invalid"
+      });
+      expect(invalidLabels.toolLabel).toBe("Inactive Tool: tool-invalid");
+    });
+
+    it("5.1 & 5.2 & 5.3: should verify cross-change dependency order documentation, out-of-scope compliance, and mock execution framing", () => {
+      const dependencyOrder = orchestrator.verifyCrossChangeDependencyOrder();
+      expect(dependencyOrder.orderValid).toBe(true);
+      expect(dependencyOrder.dependencies).toContain("extend-openclaw-execution-observability");
+      expect(dependencyOrder.dependencies).toContain("integrate-openclaw-task-execution");
+
+      const outOfScope = orchestrator.verifyOutOfScopeCompliance();
+      expect(outOfScope.noRuntimeProvisioning).toBe(true);
+      expect(outOfScope.noContainerCreation).toBe(true);
+      expect(outOfScope.noSecretOwnership).toBe(true);
+      expect(outOfScope.noDirectApiInvocations).toBe(true);
+
+      const mockFraming = orchestrator.verifyMockExecutionFraming();
+      expect(mockFraming.legitimateTestAdapter).toBe(true);
+      expect(mockFraming.noSilentFallbackFromProduction).toBe(true);
     });
   });
 });
