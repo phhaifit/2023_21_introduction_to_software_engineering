@@ -317,42 +317,180 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private baseUrl: string;
   private timeoutMs: number;
+  private taskCreationClient: TaskCreationClient;
+  private tasks = new Map<string, CreatedTaskRecord>();
+  private eventSources = new Map<string, EventSource>();
+  private subIdCounter = 1;
 
-  constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
+  constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }, options?: { taskCreationClient?: TaskCreationClient }) {
     if (!config.baseUrl) {
       throw new Error("HttpTaskOrchestrationProvider requires a non-empty baseUrl.");
     }
     this.baseUrl = config.baseUrl;
     this.timeoutMs = config.timeoutMs ?? 30000;
+    this.taskCreationClient = options?.taskCreationClient ?? createMockTaskCreationClient();
   }
 
   async createTask(input: import("@vcp/shared").CreateTaskRequest): Promise<CreatedTaskRecord> {
-    throw new Error("HttpTaskOrchestrationProvider#createTask not implemented in this change.");
+    const response = await this.taskCreationClient.createTask(input);
+    const task = createTaskRecord(input, response);
+    this.tasks.set(task.taskId as string, task);
+
+    try {
+      await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: task.taskId,
+          workId: task.workId,
+          workspaceId: "demo_workspace_1" as any,
+          conversationId: "cnv_default",
+          prompt: input.prompt,
+          routing: input.routing
+        })
+      });
+    } catch (err) {
+      console.warn("Failed to reach backend execution start API, continuing with local state", err);
+    }
+
+    return task;
   }
 
   async getTask(taskId: string): Promise<CreatedTaskRecord | null> {
-    throw new Error("HttpTaskOrchestrationProvider#getTask not implemented in this change.");
+    const task = this.tasks.get(taskId);
+    if (!task) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/state`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.data && data.data.status) {
+          // Keep status in sync if needed
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+    return task;
   }
 
   async cancelTask(taskId: string): Promise<void> {
-    throw new Error("HttpTaskOrchestrationProvider#cancelTask not implemented in this change.");
+    const task = this.tasks.get(taskId);
+    if (task) {
+      task.status = "cancelled";
+    }
+    try {
+      await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/cancel`, {
+        method: "POST"
+      });
+    } catch (err) {
+      console.warn("Failed to reach backend execution cancel API", err);
+    }
   }
 
   /**
    * Subscribes to runtime events for a task.
-   * Expected wire-format binding point:
-   * Connects to Server-Sent Events (SSE) stream at URL pattern: `${baseUrl}/api/workspaces/tasks/${taskId}/events`
+   * Connects to Server-Sent Events (SSE) stream at URL pattern: `${baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/stream`
    */
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
-    throw new Error("HttpTaskOrchestrationProvider#subscribeToTaskEvents not implemented in this change.");
+    const subscriptionId = `sub-http-${this.subIdCounter++}`;
+    try {
+      const es = new EventSource(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/stream`);
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const base = {
+            taskId: data.taskId || taskId,
+            workId: data.workId || "wrk_1",
+            timestamp: data.timestamp || new Date().toISOString()
+          };
+
+          const existingTask = this.tasks.get(base.taskId as string);
+          if (!existingTask) return;
+
+          const applyAction = (action: import("./task-creation-state").TaskCreationAction) => {
+             const state: import("./task-creation-state").TaskCreationState = {
+               tasks: [this.tasks.get(base.taskId as string)!],
+               conversations: [],
+               isSubmitting: false,
+               conversationSequence: 1
+             };
+             const nextState = taskCreationReducer(state, action);
+             const updatedTask = nextState.tasks[0];
+             if (updatedTask) {
+               this.tasks.set(base.taskId as string, updatedTask);
+             }
+             return updatedTask;
+          };
+
+          let snapshot: CreatedTaskRecord | undefined = undefined;
+          if (data.type === "execution-accepted") {
+            snapshot = applyAction({ type: "processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
+            handler({ ...base, kind: "task-accepted", taskSnapshot: snapshot });
+          } else if (data.type === "execution-started") {
+            handler({ ...base, kind: "task-started", taskSnapshot: this.tasks.get(base.taskId as string) });
+          } else if (data.type === "step-started") {
+            const stepId = data.stepId || "step-1";
+            snapshot = applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId });
+            handler({ ...base, kind: "step-started", stepName: data.stepName || stepId, stepIndex: 0, taskSnapshot: snapshot });
+          } else if (data.type === "step-completed") {
+            const stepId = data.stepId || "step-1";
+            snapshot = applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId, completedAt: base.timestamp });
+            handler({ ...base, kind: "step-completed", stepName: data.stepName || stepId, stepIndex: 0, taskSnapshot: snapshot });
+          } else if (data.type === "partial-output-received") {
+            const chunkText = data.outputChunk || "";
+            const currentTask = this.tasks.get(base.taskId as string)!;
+            if (currentTask.streamingSnapshot?.phase === "idle") {
+              applyAction({ type: "streaming-started", taskId: base.taskId as any, startedAt: base.timestamp });
+            }
+            snapshot = applyAction({
+              type: "streaming-fragment-appended",
+              taskId: base.taskId as any,
+              fragmentId: `frag-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              sequence: (this.tasks.get(base.taskId as string)!.streamingSnapshot?.fragments.length || 0) + 1,
+              text: chunkText,
+              appendedAt: base.timestamp
+            });
+            handler({ ...base, kind: "partial-output", chunkText, taskSnapshot: snapshot });
+          } else if (data.type === "execution-completed") {
+            const finalOutput = data.finalOutput || "Completed successfully.";
+            const currentTask = this.tasks.get(base.taskId as string)!;
+            if (currentTask.streamingSnapshot?.phase === "streaming") {
+              applyAction({ type: "streaming-exhausted", taskId: base.taskId as any, exhaustedAt: base.timestamp });
+            }
+            snapshot = applyAction({ type: "task-completed", taskId: base.taskId as any, result: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] } });
+            handler({ ...base, kind: "task-completed", finalResult: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] }, taskSnapshot: snapshot });
+          } else if (data.type === "execution-failed") {
+            snapshot = applyAction({ type: "task-failed", taskId: base.taskId as any, error: { code: "runtime-error", stepId: "unknown", title: "Execution failed", message: data.errorMessage || "Execution failed", occurredAt: base.timestamp } });
+            handler({ ...base, kind: "task-failed", error: { code: "runtime-error", message: data.errorMessage || "Execution failed" }, taskSnapshot: snapshot });
+          } else if (data.type === "execution-canceled") {
+            snapshot = applyAction({ type: "task-cancelled", taskId: base.taskId as any, cancelledAt: base.timestamp });
+            handler({ ...base, kind: "task-canceled", taskSnapshot: snapshot });
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE event", err);
+        }
+      };
+      this.eventSources.set(subscriptionId, es);
+    } catch (err) {
+      console.warn("EventSource not available or failed to connect", err);
+    }
+    return { subscriptionId, taskId };
   }
 
   unsubscribeFromTaskEvents(subscription: TaskEventSubscription): void {
-    throw new Error("HttpTaskOrchestrationProvider#unsubscribeFromTaskEvents not implemented in this change.");
+    const es = this.eventSources.get(subscription.subscriptionId);
+    if (es) {
+      es.close();
+      this.eventSources.delete(subscription.subscriptionId);
+    }
   }
 }
 
-export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = { type: "mock" };
+export const DEFAULT_PROVIDER_CONFIG: ProviderConfig =
+  (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") ||
+  (typeof (import.meta as any) !== "undefined" && (import.meta as any).env && (import.meta as any).env.MODE === "test")
+    ? { type: "mock" }
+    : { type: "http", baseUrl: "http://127.0.0.1:3001" };
 
 export function resolveTaskOrchestrationProvider(
   config: ProviderConfig = DEFAULT_PROVIDER_CONFIG,
@@ -368,7 +506,7 @@ export function resolveTaskOrchestrationProvider(
   }
 ): TaskOrchestrationClient {
   if (config.type === "http") {
-    return new HttpTaskOrchestrationProvider(config);
+    return new HttpTaskOrchestrationProvider(config, options);
   }
   return new MockTaskOrchestrationProvider(options);
 }

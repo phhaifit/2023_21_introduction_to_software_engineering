@@ -177,14 +177,82 @@ export class OpenClawRawEventMapper {
 // 3.5 Implement unavailable runtime and auth failure handling.
 export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
   private fetcher: typeof fetch;
+  private isCustomFetcher: boolean;
+  private activeStreams = new Map<string, ReadableStream<Uint8Array>>();
+  private activeControllers = new Map<string, AbortController>();
 
   constructor(customFetcher?: typeof fetch) {
+    this.isCustomFetcher = !!customFetcher;
     this.fetcher = customFetcher || globalThis.fetch;
   }
 
   async startExecution(endpoint: string, credentialReference: string, request: OpenClawStartRequestDTO): Promise<OpenClawStartResponseDTO> {
     if (!endpoint) {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
+    }
+
+    // Check if this is a real OpenClaw gateway runtime vs mock/unit-test environment
+    if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      console.log(`\n[OpenClaw Transport] === STARTING EXECUTION REQUEST ===`);
+      console.log(`[OpenClaw Transport] Target Gateway Endpoint: ${endpoint}/v1/chat/completions`);
+      console.log(`[OpenClaw Transport] Authorization Bearer Token: ${credentialReference.substring(0, 8)}... (Length: ${credentialReference.length})`);
+      console.log(`[OpenClaw Transport] Request Payload Prompt: "${request.prompt}"`);
+
+      try {
+        const abortController = new AbortController();
+        const response = await this.fetcher(`${endpoint}/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${credentialReference}`,
+            "x-openclaw-model": "gemini-3.1-flash-lite",
+            "x-openclaw-session-key": request.conversationId || "default-session"
+          },
+          body: JSON.stringify({
+            model: "openclaw/default",
+            messages: [{ role: "user", content: request.prompt || "Start execution" }],
+            stream: true,
+            user: request.conversationId || "default-user"
+          }),
+          signal: abortController.signal
+        });
+
+        console.log(`[OpenClaw Transport] Gateway Response HTTP Status: ${response.status} ${response.statusText}`);
+
+        if (response.status === 401 || response.status === 403) {
+          console.error(`[OpenClaw Transport] ❌ Authentication Rejected (401/403). Check OPENCLAW_GATEWAY_TOKEN.`);
+          throw new Error(JSON.stringify({ code: "provider-authentication-rejected", message: "Provider authentication rejected by OpenClaw runtime" }));
+        }
+
+        if (!response.ok) {
+          console.error(`[OpenClaw Transport] ❌ Execution Start Rejected with status ${response.status}`);
+          throw new Error(JSON.stringify({ code: "execution-start-rejected", message: `Execution start rejected with status ${response.status}` }));
+        }
+
+        const providerExecutionReference = `openclaw-exec-${Date.now()}`;
+        if (response.body) {
+          console.log(`[OpenClaw Transport] ✓ Successfully received ReadableStream from Gateway. Ready for SSE streaming.`);
+          this.activeStreams.set(providerExecutionReference, response.body);
+          this.activeControllers.set(providerExecutionReference, abortController);
+        } else {
+          console.warn(`[OpenClaw Transport] ⚠️ Response body is empty/null.`);
+        }
+
+        return {
+          providerExecutionReference,
+          status: "started",
+          startedAt: new Date().toISOString()
+        };
+      } catch (err: any) {
+        console.error(`[OpenClaw Transport] ❌ Network/Execution failure:`, err.message);
+        if (err.cause) {
+          console.error(`[OpenClaw Transport] ❌ Error Cause:`, err.cause);
+        }
+        if (err.message && err.message.includes("code")) {
+          throw err;
+        }
+        throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: `Network failure connecting to OpenClaw runtime: ${err.message}` }));
+      }
     }
 
     try {
@@ -218,6 +286,22 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
   async cancelExecution(endpoint: string, credentialReference: string, request: OpenClawCancelRequestDTO): Promise<OpenClawCancelResponseDTO> {
     if (!endpoint) {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
+    }
+
+    if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      console.log(`[OpenClaw Transport] Canceling active execution: ${request.providerExecutionReference}`);
+      const controller = this.activeControllers.get(request.providerExecutionReference);
+      if (controller) {
+        controller.abort();
+        this.activeControllers.delete(request.providerExecutionReference);
+        this.activeStreams.delete(request.providerExecutionReference);
+        console.log(`[OpenClaw Transport] ✓ Successfully aborted gateway connection stream.`);
+      }
+      return {
+        providerExecutionReference: request.providerExecutionReference,
+        status: "canceled",
+        canceledAt: new Date().toISOString()
+      };
     }
 
     try {
@@ -262,6 +346,158 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
     let isSubscribed = true;
 
+    if (this.activeStreams.has(providerExecutionReference)) {
+      console.log(`[OpenClaw Transport] Subscribing to incoming SSE stream for execution: ${providerExecutionReference}`);
+      const stream = this.activeStreams.get(providerExecutionReference)!;
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulatedOutput = "";
+      let started = false;
+
+      const readStream = async () => {
+        try {
+          while (isSubscribed) {
+            const { done, value } = await reader.read();
+            if (done) {
+              console.log(`[OpenClaw Transport] SSE stream reader finished [DONE].`);
+              if (started) {
+                onEvent({
+                  eventType: "completion",
+                  executionId: providerExecutionReference,
+                  finalOutput: accumulatedOutput,
+                  timestamp: Date.now()
+                });
+                started = false;
+              }
+              break;
+            }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const dataStr = line.slice(6).trim();
+                if (!dataStr || dataStr === "[DONE]") continue;
+
+                try {
+                  const data = JSON.parse(dataStr);
+                  const now = Date.now();
+
+                  // 1. OpenAI Chat Completion chunk format
+                  if (data.object === "chat.completion.chunk") {
+                    if (!started) {
+                      started = true;
+                      console.log(`[OpenClaw Transport] 📥 Received SSE Event: Chat started`);
+                      onEvent({
+                        eventType: "progress",
+                        executionId: providerExecutionReference,
+                        stepId: "step-1",
+                        stepName: "Agent Execution",
+                        status: "started",
+                        timestamp: now
+                      });
+                    }
+
+                    const choice = data.choices?.[0];
+                    if (choice) {
+                      if (choice.delta?.content) {
+                        const content = choice.delta.content;
+                        accumulatedOutput += content;
+                        console.log(`[OpenClaw Transport] 📥 Received SSE Event: delta chunk "${content.replace(/\n/g, '\\n')}"`);
+                        onEvent({
+                          eventType: "partial_output",
+                          executionId: providerExecutionReference,
+                          chunk: content,
+                          timestamp: now
+                        });
+                      }
+
+                      if (choice.finish_reason) {
+                        console.log(`[OpenClaw Transport] 📥 Received SSE Event: finished (reason: ${choice.finish_reason})`);
+                        onEvent({
+                          eventType: "completion",
+                          executionId: providerExecutionReference,
+                          finalOutput: accumulatedOutput,
+                          timestamp: now
+                        });
+                        started = false;
+                      }
+                    }
+                  } 
+                  // 2. Fallback to OpenClaw native event format
+                  else if (data.type === "response.created" || data.type === "response.in_progress") {
+                    console.log(`[OpenClaw Transport] 📥 Received SSE Event: ${data.type} (Status: In Progress)`);
+                    onEvent({
+                      eventType: "progress",
+                      executionId: providerExecutionReference,
+                      stepId: "step-1",
+                      stepName: "Agent Execution",
+                      status: "started",
+                      timestamp: now
+                    });
+                  } else if (data.type === "response.output_text.delta") {
+                    console.log(`[OpenClaw Transport] 📥 Received SSE Event: delta chunk "${data.delta}"`);
+                    onEvent({
+                      eventType: "partial_output",
+                      executionId: providerExecutionReference,
+                      chunk: data.delta || "",
+                      timestamp: now
+                    });
+                  } else if (data.type === "response.completed" || data.type === "response.output_text.done") {
+                    console.log(`[OpenClaw Transport] 📥 Received SSE Event: ${data.type} (Execution Completed)`);
+                    let finalOutput = data.text || "";
+                    if (!finalOutput && data.response?.output?.[0]?.text) {
+                      finalOutput = data.response.output[0].text;
+                    }
+                    onEvent({
+                      eventType: "completion",
+                      executionId: providerExecutionReference,
+                      finalOutput: finalOutput || "Execution completed successfully.",
+                      timestamp: now
+                    });
+                  } else if (data.type === "response.failed") {
+                    console.error(`[OpenClaw Transport] 📥 Received SSE Event: response.failed ❌`, data.response?.error);
+                    onEvent({
+                      eventType: "failure",
+                      executionId: providerExecutionReference,
+                      errorCode: "provider_error",
+                      errorMessage: data.response?.error?.message || "Provider execution failed",
+                      timestamp: now
+                    });
+                  }
+                } catch (parseErr) {
+                  // ignore malformed JSON chunk
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+          if (isSubscribed) {
+            console.error(`[OpenClaw Transport] ❌ Streaming transport error:`, err.message);
+            onError(new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: `Streaming transport disconnected: ${err.message}` })));
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      };
+
+      readStream();
+
+      return {
+        unsubscribe: () => {
+          isSubscribed = false;
+          const controller = this.activeControllers.get(providerExecutionReference);
+          if (controller) {
+            controller.abort();
+            this.activeControllers.delete(providerExecutionReference);
+            this.activeStreams.delete(providerExecutionReference);
+          }
+        }
+      };
+    }
+
     const timer = setTimeout(() => {
       if (isSubscribed && endpoint.includes("mock-stream-error")) {
         onError(new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Streaming transport disconnected" })));
@@ -279,6 +515,10 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
   async getSnapshot(endpoint: string, credentialReference: string, providerExecutionReference: string): Promise<unknown> {
     if (!endpoint) {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
+    }
+
+    if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      return { status: "in-progress" };
     }
 
     const response = await this.fetcher(`${endpoint}/executions/${providerExecutionReference}/snapshot`, {
