@@ -673,6 +673,98 @@ describe("AgentManagementPage API integration", () => {
     );
   });
 
+  it("handles prompt assistant submit, loading, fallback-provider, clarification, and success draft review", async () => {
+    let mockDraftResolve: (value: any) => void = () => {};
+    const mockDraftPromise = new Promise((resolve) => {
+      mockDraftResolve = resolve;
+    });
+    
+    const client = createClient({
+      createAssistantDraft: vi.fn().mockReturnValue(mockDraftPromise)
+    });
+
+    renderPage(client);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    });
+
+    const newAgentButton = screen.getByRole("button", { name: "New Agent" });
+    await userEvent.click(newAgentButton);
+
+    const promptAssistantButton = screen.getByRole("tab", { name: "Prompt Assistant" });
+    await userEvent.click(promptAssistantButton);
+
+    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    await userEvent.type(promptInput, "Help me write tests.");
+
+    const generateButton = screen.getByRole("button", { name: "Generate draft" });
+    await userEvent.click(generateButton);
+
+    expect(screen.getByRole("button", { name: "Generating..." })).toBeDisabled();
+    expect(promptInput).toBeDisabled();
+
+    // Resolve with fallback provider and clarifying questions
+    mockDraftResolve({
+      draft: {
+        name: "Test Assistant",
+        role: "QA",
+        model: "openrouter/owl-alpha",
+        instructions: "Write tests.",
+        responsibilities: [],
+        operatingContext: "",
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: []
+      },
+      warnings: [],
+      clarifyingQuestions: ["What framework?"],
+      provider: { providerId: "openrouter", modelId: "openrouter/owl-alpha", fallbackUsed: true }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Draft Ready")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Note: Primary provider failed. Used fallback provider: openrouter/owl-alpha")).toBeInTheDocument();
+    expect(screen.getByText("Test Assistant")).toBeInTheDocument();
+    
+    const editInTemplateButton = screen.getByRole("button", { name: "Edit in Template" });
+    await userEvent.click(editInTemplateButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Test Assistant");
+      expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Write tests.");
+    });
+  });
+
+  it("ensures all-provider failure preserves user input and asks the user to retry", async () => {
+    const client = createClient({
+      createAssistantDraft: vi.fn().mockRejectedValue(new Error("Assistant unavailable"))
+    });
+
+    renderPage(client);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+
+    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    await userEvent.type(promptInput, "Help me write tests.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Assistant unavailable")).toBeInTheDocument();
+    });
+
+    expect(promptInput).toHaveValue("Help me write tests.");
+    expect(screen.getByRole("button", { name: "Generate draft" })).not.toBeDisabled();
+  });
+
   it("renders viewer mode without mutation controls or mutation API calls", async () => {
     const client = createClient();
 

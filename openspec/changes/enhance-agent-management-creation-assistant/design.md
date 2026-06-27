@@ -9,6 +9,7 @@ Current integration state matters:
 - Tools Integration has planned API matrix rows for catalog and assignments, but no runtime backend implementation or shared tool DTOs yet.
 - KB/RAG now has implemented public workspace routes and shared DTOs for document metadata, ingestion jobs, data sources, sync scope, and sync jobs. It still does not expose an Agent Management-owned grant mutation API, and Agent Management must consume only public KB/RAG boundaries.
 - OpenClaw is represented in this repo as a workspace runtime boundary behind `apps/backend/src/shared/openclaw/runtime-adapter.ts`; feature modules should not call Docker/OpenClaw directly.
+- OpenClaw real execution requires agent data to be materialized into OpenClaw-readable agent configuration, workspace files, tool policies, and Gateway requests. Agent Management should provide OpenClaw-ready agent profile output, but the materialization and execution still belong to Task Orchestration / OpenClaw integration.
 
 ## Goals / Non-Goals
 
@@ -22,6 +23,8 @@ Current integration state matters:
 - Add model selection through a backend-provided model catalog rather than trusting arbitrary free-text model values.
 - Validate requested tools and knowledge references against connected tools and ready KB/RAG documents.
 - Use mock public catalog adapters for Tools/KB until teammate modules expose suitable runtime APIs.
+- Persist non-permission assistant/template configuration needed to reconstruct a runtime-ready agent profile after creation.
+- Expose a server-side public Agent Management runtime profile boundary that Task Orchestration / OpenClaw integration can consume without importing Agent Management private repositories.
 - Split implementation into small phases with focused automated tests for every phase.
 
 **Non-Goals:**
@@ -32,7 +35,7 @@ Current integration state matters:
 - Implement real KB/RAG knowledge grant mutation.
 - Implement Task Orchestration runtime manifest construction.
 - Implement task cancellation when tool or knowledge permission is revoked.
-- Implement OpenClaw task execution or direct OpenClaw runtime calls from Agent Management.
+- Implement OpenClaw agent workspace materialization, OpenClaw `agents.list[]` synchronization, Gateway/CLI calls, task execution, streaming, logs, or direct OpenClaw runtime calls from Agent Management.
 - Implement production provider billing, quotas, or credential management.
 - Add local/Ollama providers.
 
@@ -180,7 +183,7 @@ Alternative considered: have Agent Management directly create assignments/grants
 
 ### 9. Do not implement OpenClaw runtime manifest construction in this change
 
-Agent Management exposes agent configuration and `skill.md` artifacts. Task Orchestration should later build an OpenClaw runtime manifest from Agent, Tools, and KB public boundaries when a task runs.
+Agent Management exposes agent configuration, `skill.md` artifacts, and a server-side runtime profile boundary. Task Orchestration should later build an OpenClaw runtime manifest from Agent, Tools, and KB public boundaries when a task runs.
 
 Rationale:
 
@@ -190,7 +193,62 @@ Rationale:
 
 Alternative considered: write all tools/KB/model context into the OpenClaw workspace during agent creation. Rejected as the execution source of truth because it can drift when permissions change.
 
-### 10. Phase implementation to limit context and risk
+### 10. Add an Agent runtime profile boundary for OpenClaw materialization
+
+Agent Management should provide a public server-side `AgentRuntimeProfile` style boundary for Task Orchestration / OpenClaw integration. The profile should include only Agent Management-owned data:
+
+- `workspaceId`, `agentId`, safe runtime agent key, display name, status, and `updatedAt`.
+- Catalog-selected execution model id.
+- Role, instructions, responsibilities, operating context, constraints, escalation rules, and example tasks.
+- Canonical `skill.md` Markdown generated from the current persisted configuration.
+- Requested tool and requested knowledge intent after draft validation, represented as non-authoritative references.
+
+The profile must not include:
+
+- Tool credentials, OAuth tokens, provider secrets, or OpenClaw Gateway tokens.
+- Real tool assignments or real knowledge grants as authority.
+- Raw LLM provider payloads or raw provider errors.
+- OpenClaw container ids, runtime URLs, terminal commands, or `agents.list[]` output as Agent Management-owned state.
+
+Rationale:
+
+- OpenClaw real execution needs enough agent data to create an agent workspace and session input.
+- Persisted Agent records currently risk losing rich draft sections after creation if they remain session-only.
+- A public boundary avoids Task Orchestration importing Agent Management private repositories while keeping permissions resolved at task execution time.
+
+Alternative considered: have Task Orchestration parse downloaded `skill.md` to recover agent behavior. Rejected because Markdown parsing is brittle and loses structured fields that Agent Management already owns.
+
+Alternative considered: make Agent Management write OpenClaw `agents.list[]` entries whenever agents change. Rejected because OpenClaw materialization needs current Tools/KB permissions and task execution context that Agent Management does not own.
+
+### 11. Persist non-permission runtime configuration, not draft sessions
+
+Draft sessions remain frontend-only until the user submits a valid agent. After submission, Agent Management should persist only the approved non-permission runtime configuration that belongs to the agent. This can be implemented as explicit columns or a typed JSON/configuration field, but it must remain caller-safe and testable.
+
+Examples of persisted non-permission configuration:
+
+- Responsibilities.
+- Operating context.
+- Constraints.
+- Escalation rules.
+- Example tasks.
+- Requested tool and knowledge intent references, after validation and warning resolution.
+
+Examples of data that must not be persisted as Agent Management-owned runtime configuration:
+
+- LLM provider raw request/response payloads.
+- API keys, OAuth tokens, or external credentials.
+- Real tool assignment or knowledge grant authority.
+- Task-specific runtime manifests.
+
+Rationale:
+
+- The user explicitly does not want persisted drafts.
+- Runtime execution needs submitted agent configuration to survive modal close, page reload, and later task execution.
+- Persisting approved configuration is different from persisting unsubmitted drafts.
+
+Alternative considered: store the entire draft object exactly as produced by the LLM. Rejected because provider metadata, raw warning states, and unreviewed fields are not all durable agent configuration.
+
+### 12. Phase implementation to limit context and risk
 
 Implementation should proceed in small phase branches/PRs:
 
@@ -200,7 +258,8 @@ Implementation should proceed in small phase branches/PRs:
 4. LLM provider chain and prompt-to-draft flow.
 5. Free-form `skill.md` import through LLM extraction.
 6. Tool/KB mock catalog validation and blocking warnings.
-7. E2E/manual verification and teammate handoff documentation.
+7. OpenClaw-ready runtime profile output and persistence of approved non-permission runtime configuration.
+8. E2E/manual verification and teammate handoff documentation.
 
 Each phase must include focused tests before marking tasks complete.
 
@@ -213,6 +272,8 @@ Each phase must include focused tests before marking tasks complete.
 - [Risk] Model catalog introduces shared contract churn -> Mitigation: start with minimal caller-safe DTOs and focused contract tests; keep provider credentials and billing outside the DTO.
 - [Risk] The guided modal becomes too large for one implementation pass -> Mitigation: phase work so template, LLM, import, and validation screens can land incrementally.
 - [Risk] Users misunderstand `skill.md` as permission authority -> Mitigation: UI labels and validation warnings should make clear that tool/knowledge availability must be connected/ready in the workspace.
+- [Risk] Runtime profile output is mistaken for OpenClaw execution authority -> Mitigation: explicitly exclude credentials, grants, runtime URLs, Gateway tokens, and task manifests from Agent Management profile DTOs.
+- [Risk] Rich draft fields are lost after agent creation -> Mitigation: persist only reviewed non-permission runtime configuration on valid submission and cover `skill.md` download/runtime profile reconstruction in tests.
 - [Risk] Current branch is behind `origin/master` -> Mitigation: recheck and fast-forward from latest `master` before implementation begins.
 
 ## Migration Plan
@@ -224,6 +285,7 @@ Each phase must include focused tests before marking tasks complete.
 5. Add guided creation entry points without removing the existing manual create flow until the assistant flow passes tests.
 6. Add LLM provider configuration through environment variables only; do not store provider secrets in frontend or public DTOs.
 7. Add mock Tools/KB catalogs and handoff docs before integrating real teammate APIs.
+8. Add the runtime profile boundary after draft validation is available, so persisted requested tool/knowledge intent can be marked as non-authoritative and Task Orchestration can combine it with current Tools/KB grants.
 
 Rollback is straightforward by hiding guided assistant UI routes and reverting new Agent Management routes/adapters; existing lifecycle APIs and persisted agent records remain compatible.
 

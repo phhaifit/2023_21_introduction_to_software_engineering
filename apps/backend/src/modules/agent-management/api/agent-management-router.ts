@@ -12,6 +12,7 @@ import {
   AgentNotFoundError,
   AgentValidationError
 } from "../application/agent-lifecycle-use-cases.ts";
+import { LlmDraftingUnavailableError, LlmProviderFailure } from "../application/llm-agent-drafting-port.ts";
 import { sendAgentApiFailure, sendAgentApiSuccess, sendAgentPaginatedApiSuccess } from "./api-response.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 import { canPerform } from "../../../shared/rbac/permissions.ts";
@@ -89,6 +90,16 @@ export function createAgentManagementRouter(
       enforcePermission(context, "agents:manage");
 
       return dependencies.useCases.previewSkillMarkdown(readSkillPreviewPayload(request));
+    });
+  });
+
+  router.post("/assistant/draft", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
+      const payload = readStringPayload(request, ["prompt"]);
+      return dependencies.useCases.generateAssistantDraft(context.workspace!.workspaceId, payload.prompt);
     });
   });
 
@@ -273,6 +284,25 @@ function handleAgentApiError(request: Request, response: Response, error: unknow
       code: "auth.forbidden",
       message: error.message,
       statusCode: 403
+    });
+    return;
+  }
+
+  if (error instanceof LlmDraftingUnavailableError) {
+    sendAgentApiFailure(request, response, {
+      code: "assistant.unavailable",
+      message: error.message,
+      details: { failures: error.failures },
+      statusCode: 503
+    });
+    return;
+  }
+
+  if (error instanceof LlmProviderFailure) {
+    sendAgentApiFailure(request, response, {
+      code: "assistant.provider_failure",
+      message: error.message,
+      statusCode: 400
     });
     return;
   }

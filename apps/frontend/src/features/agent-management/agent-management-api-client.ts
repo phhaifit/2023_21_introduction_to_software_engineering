@@ -2,7 +2,9 @@ import type {
   AgentModelCatalogEntry,
   AgentPublicSummary,
   AgentSkillPreviewRequest,
-  AgentSkillPreviewResponse
+  AgentSkillPreviewResponse,
+  AgentCreationAssistantDraftRequest,
+  AgentCreationAssistantDraftResponse
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -53,6 +55,10 @@ export type AgentManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     payload: AgentSkillPreviewRequest
   ): Promise<AgentSkillPreviewResponse>;
+  createAssistantDraft(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentCreationAssistantDraftRequest
+  ): Promise<AgentCreationAssistantDraftResponse>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
     payload: CreateAgentPayload
@@ -210,6 +216,11 @@ export function createAgentManagementApiClient(input: {
       (await request<AgentModelCatalogEntry[]>(`${collectionPath(workspaceId)}/models`)).data,
     previewSkillMarkdown: async (workspaceId, payload) =>
       (await request<AgentSkillPreviewResponse>(`${collectionPath(workspaceId)}/skill-preview`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
+    createAssistantDraft: async (workspaceId, payload) =>
+      (await request<AgentCreationAssistantDraftResponse>(`${collectionPath(workspaceId)}/assistant/draft`, {
         method: "POST",
         body: JSON.stringify(payload)
       })).data,

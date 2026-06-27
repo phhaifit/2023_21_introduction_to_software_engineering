@@ -76,6 +76,25 @@ describe("Agent Management API client", () => {
     );
   });
 
+  it("creates an assistant draft with a prompt payload", async () => {
+    const fetchImplementation = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true, data: { draft: null, warnings: [], clarifyingQuestions: [] }, meta: {} })
+    });
+
+    const client = createAgentManagementApiClient({ fetchImplementation });
+    const payload = { prompt: "Help me write code" };
+
+    await client.createAssistantDraft(workspaceId, payload);
+
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `/api/workspaces/${workspaceId}/agents/assistant/draft`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+  });
+
   it("creates an agent with the complete form payload", async () => {
     const fetchImplementation = vi.fn(async () => success(summary));
     const client = createAgentManagementApiClient({ fetchImplementation });

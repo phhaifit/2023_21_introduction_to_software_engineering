@@ -40,8 +40,10 @@ import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog.tsx";
 
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
+  AgentCreationAssistantDraft,
+  AgentCreationAssistantDraftResponse,
   AgentModelCatalogEntry,
-  AgentSkillPreviewRequest,
+  AgentPublicSummary,
 } from "@vcp/shared/contracts/agent-management.ts";
 import agentsHeroUrl from "../../assets/agent-management/agents-hero.png";
 import {
@@ -625,6 +627,21 @@ export function AgentManagementPage({
     }
   }
 
+  const acceptAssistantDraft = useCallback((draft: AgentCreationAssistantDraft) => {
+    setTemplateDraft({
+      name: draft.name,
+      role: draft.role,
+      model: draft.model,
+      instructions: draft.instructions,
+      responsibilities: draft.responsibilities?.join("\n") || "",
+      operatingContext: draft.operatingContext || "",
+      constraints: draft.constraints?.join("\n") || "",
+      escalationRules: draft.escalationRules?.join("\n") || "",
+      exampleTasks: draft.exampleTasks?.join("\n") || "",
+    });
+    setGuidedCreateMode("template");
+  }, []);
+
   return (
     <section
       className="agent-management-page"
@@ -867,6 +884,8 @@ export function AgentManagementPage({
 
         {canManageAgents && isFormOpen && form.mode === "create" ? (
           <GuidedCreateDialog
+            workspaceId={workspaceId}
+            apiClient={apiClient}
             activeMode={guidedCreateMode}
             draft={templateDraft}
             errors={templateDraftErrors}
@@ -881,6 +900,7 @@ export function AgentManagementPage({
             onClose={() => closeForm()}
             onDraftChange={updateTemplateDraftField}
             onSubmit={submitTemplateDraft}
+            onAcceptAssistantDraft={acceptAssistantDraft}
           />
         ) : null}
 
@@ -964,6 +984,8 @@ function AgentFormDialog({
 }
 
 type GuidedCreateDialogProps = {
+  workspaceId: string;
+  apiClient: AgentManagementApiClient;
   activeMode: GuidedCreateMode;
   draft: TemplateDraftState;
   errors: TemplateDraftErrors;
@@ -978,9 +1000,12 @@ type GuidedCreateDialogProps = {
   onClose: () => void;
   onDraftChange: (field: TemplateDraftField, value: string) => void;
   onSubmit: () => void;
+  onAcceptAssistantDraft: (draft: AgentCreationAssistantDraft) => void;
 };
 
 function GuidedCreateDialog({
+  workspaceId,
+  apiClient,
   activeMode,
   draft,
   errors,
@@ -995,6 +1020,7 @@ function GuidedCreateDialog({
   onClose,
   onDraftChange,
   onSubmit,
+  onAcceptAssistantDraft,
 }: GuidedCreateDialogProps) {
   const requiredErrors = validateTemplateDraft(draft);
   const selectedModelAvailable = models.some(
@@ -1075,12 +1101,137 @@ function GuidedCreateDialog({
               onDraftChange={onDraftChange}
               onSubmit={onSubmit}
             />
+          ) : activeMode === "prompt" ? (
+            <PromptAssistantPanel
+              workspaceId={workspaceId}
+              apiClient={apiClient}
+              onAccept={onAcceptAssistantDraft}
+            />
           ) : (
             <DeferredGuidedPanel mode={activeMode} />
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function PromptAssistantPanel({
+  workspaceId,
+  apiClient,
+  onAccept,
+}: {
+  workspaceId: string;
+  apiClient: AgentManagementApiClient;
+  onAccept: (draft: AgentCreationAssistantDraft) => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [draftResult, setDraftResult] = useState<AgentCreationAssistantDraftResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    setError(null);
+    setDraftResult(null);
+    try {
+      const response = await apiClient.createAssistantDraft(workspaceId, { prompt });
+      setDraftResult(response);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate draft. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (draftResult?.draft) {
+    const provider = draftResult.provider;
+    return (
+      <section className="agent-guided__deferred agent-guided__prompt-review" aria-live="polite">
+        <Brain size={24} aria-hidden="true" />
+        <h3>Draft Ready</h3>
+        {provider && provider.fallbackUsed && (
+          <p className="agent-warning-text">
+            Note: Primary provider failed. Used fallback provider: {provider.modelId}
+          </p>
+        )}
+        <div className="agent-draft-preview">
+          <h4>{draftResult.draft.name}</h4>
+          <p><strong>Role:</strong> {draftResult.draft.role}</p>
+          <p><strong>Model:</strong> {draftResult.draft.model}</p>
+        </div>
+        
+        {draftResult.warnings.length > 0 && (
+          <div className="agent-draft-warnings">
+            <h4>Warnings</h4>
+            <ul>
+              {draftResult.warnings.map((w, i) => (
+                <li key={i}>{w.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        
+        <div className="agent-form__actions">
+          <button
+            type="button"
+            className="agent-secondary-button"
+            onClick={() => setDraftResult(null)}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            className="agent-primary-button"
+            onClick={() => onAccept(draftResult.draft!)}
+          >
+            Edit in Template
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="agent-guided__deferred" aria-live="polite">
+      <Brain size={24} aria-hidden="true" />
+      <h3>Prompt Assistant</h3>
+      <p>Describe the agent you want to create.</p>
+      
+      <div className="agent-form__field">
+        <textarea
+          className="agent-form__textarea"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="I need an agent that..."
+          disabled={isGenerating}
+          rows={4}
+        />
+      </div>
+
+      {error && <p className="agent-form__error" role="alert">{error}</p>}
+      
+      {draftResult?.clarifyingQuestions && draftResult.clarifyingQuestions.length > 0 && (
+        <div className="agent-draft-questions">
+          <h4>Clarifying Questions</h4>
+          <ul>
+            {draftResult.clarifyingQuestions.map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <button 
+        type="button" 
+        className="agent-primary-button" 
+        disabled={isGenerating || !prompt.trim()}
+        onClick={handleGenerate}
+      >
+        {isGenerating ? "Generating..." : (draftResult ? "Retry" : "Generate draft")}
+      </button>
+    </section>
   );
 }
 

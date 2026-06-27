@@ -36,12 +36,17 @@ This change keeps the work as one OpenSpec change for traceability, but splits i
   - Because Tools Integration runtime APIs are not implemented yet, the first capability-validation phase uses a mock public Tools catalog adapter.
   - KB/RAG now has public document APIs; the future knowledge-validation adapter should prefer those public APIs and only use a mock public catalog if the available API shape is insufficient.
   - The final implementation records a committed handoff requirement for teammate modules at `docs/api/agent-management-tools-kb-handoff.md`.
+- Add OpenClaw runtime-ready Agent Management output:
+  - Persist the non-permission assistant/template configuration needed after agent creation, such as responsibilities, operating context, constraints, escalation rules, example tasks, and validated requested tool/knowledge intent.
+  - Expose a server-side public Agent Management runtime profile boundary for Task Orchestration / OpenClaw integration to read enabled agent configuration without importing Agent Management private repositories.
+  - Include canonical `skill.md` content and OpenClaw materialization hints in the runtime profile, while excluding credentials, provider API keys, raw LLM payloads, and real permission grants.
+  - Keep runtime profile output current after create, update, enable, disable, delete, rename, or duplicate operations.
 - Preserve module boundaries:
   - `skill.md` describes intent and behavior; it is not the permission authority.
   - Tool assignment remains owned by Tools Integration.
   - Knowledge grants remain owned by Knowledge Base / RAG.
   - A later Agent Management integration may call public Tools/KB assignment or grant APIs only after those modules expose suitable APIs and the follow-up OpenSpec change is approved.
-  - OpenClaw runtime manifest construction, task cancellation on permission revoke, and task execution remain owned by Task Orchestration / OpenClaw runtime integration.
+  - OpenClaw runtime manifest construction, agent workspace materialization, Gateway/CLI calls, task cancellation on permission revoke, and task execution remain owned by Task Orchestration / OpenClaw runtime integration.
 
 ## Capabilities
 
@@ -51,6 +56,7 @@ This change keeps the work as one OpenSpec change for traceability, but splits i
 - `agent-creation-assistant`: Template-based and LLM-assisted draft generation, clarification, retry/fallback behavior, and draft submission rules.
 - `agent-model-catalog`: Workspace-scoped model catalog behavior for selecting valid agent execution models.
 - `agent-capability-validation`: Validation of requested tools and knowledge references against connected tools and ready KB/RAG documents through public or mock catalog boundaries.
+- `agent-runtime-profile`: OpenClaw-ready Agent Management runtime profile output for Task Orchestration / OpenClaw integration.
 
 ### Modified Capabilities
 
@@ -63,8 +69,10 @@ This change keeps the work as one OpenSpec change for traceability, but splits i
 
 - Backend:
   - `apps/backend/src/modules/agent-management`
-  - Agent Management application ports for model catalog, LLM draft generation, tool catalog lookup, and knowledge catalog lookup.
+  - Agent Management application ports for model catalog, LLM draft generation, tool catalog lookup, knowledge catalog lookup, and runtime profile lookup.
   - Agent Management API routes under `/api/workspaces/:workspaceId/agents/...`.
+  - A server-side public runtime profile boundary for Task Orchestration / OpenClaw integration to consume without private imports.
+  - Possible Agent persistence changes for non-permission runtime configuration fields.
 - Frontend:
   - `apps/frontend/src/features/agent-management`
   - Create-agent modal, import flow, preview panel, warning display, retry handling, model selector, and API client updates.
@@ -86,6 +94,6 @@ This change keeps the work as one OpenSpec change for traceability, but splits i
   - `skill.md` version history.
   - Real Tools Integration assignment mutation.
   - Real KB/RAG grant mutation.
-  - OpenClaw task manifest execution.
+  - OpenClaw agent workspace materialization, Gateway/CLI calls, and task manifest execution.
   - Task cancellation when tool or knowledge permission is revoked.
   - Production model billing/quota management.
