@@ -97,31 +97,28 @@ export function SubscriptionPaymentPage() {
     amount: number;
   } | null>(null);
 
-  // State cho phương thức thanh toán
-  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "momo" | "stripe" | "simulated">("stripe");
-  
-  // State thông tin thẻ ảo hiện tại (đồng bộ từ db nếu có)
-  const [cardDetails, setCardDetails] = useState({
-    number: "4242 4242 4242 4242",
-    expiry: "12/28",
-    cvv: "•••",
-    name: "Admin Wu"
-  });
-  
-  const [agreeToTerms, setAgreeToTerms] = useState(true); // Gán mặc định true để cải thiện UX
-  const [autoRenew, setAutoRenew] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<"standard" | "premium">("premium");
+  // State phương thức thanh toán đã lưu (null = chưa có thẻ)
+  const [savedCard, setSavedCard] = useState<{
+    last4: string;
+    brand: "visa" | "mastercard" | "jcb" | "amex";
+    expiry: string;
+    holder: string;
+  } | null>(null);
 
-  // State Promo Code
-  const [promoCodeInput, setPromoCodeInput] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
-  const [discountAmount, setDiscountAmount] = useState(0);
-
-  // State Modal thay đổi thẻ ảo
+  // State Modal thêm/đổi thẻ
   const [showCardModal, setShowCardModal] = useState(false);
   const [newCardNumber, setNewCardNumber] = useState("");
   const [newCardHolder, setNewCardHolder] = useState("");
   const [newCardExpiry, setNewCardExpiry] = useState("");
+  const [cardFormError, setCardFormError] = useState<string | null>(null);
+
+  // Các state khác liên quan đến checkout & plan
+  const [agreeToTerms, setAgreeToTerms] = useState(true);
+  const [autoRenew, setAutoRenew] = useState(true);
+  const [selectedPlan, setSelectedPlan] = useState<"standard" | "premium">("premium");
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   // State lưu hóa đơn thành công vừa thanh toán để hiển thị màn hình Success
   const [lastSuccessPayment, setLastSuccessPayment] = useState<{
@@ -149,25 +146,18 @@ export function SubscriptionPaymentPage() {
       setResourceUsage(usageData);
       setPlansConfig(plansData);
 
-      // Cập nhật thông tin gia hạn & thẻ ảo thật từ database
-      if (detailsData.subscription) {
-        setAutoRenew(detailsData.subscription.autoRenew);
-        if (detailsData.subscription.cardNumber) {
-          setCardDetails({
-            number: detailsData.subscription.cardNumber,
-            name: detailsData.subscription.cardHolder || "Admin Wu",
-            expiry: detailsData.subscription.cardExpiry || "12/28",
-            cvv: "•••"
-          });
-        }
-      } else {
-        // Reset về thông tin thẻ mặc định cho Workspace chưa cấu hình
-        setCardDetails({
-          number: "4242 4242 4242 4242",
-          expiry: "12/28",
-          cvv: "•••",
-          name: "Admin Wu"
+      // Parse savedCard từ subscription (nếu có)
+      if (detailsData.subscription?.cardNumber) {
+        const raw = detailsData.subscription.cardNumber.replace(/\s/g, "");
+        setSavedCard({
+          last4: raw.slice(-4),
+          brand: "visa",
+          expiry: detailsData.subscription.cardExpiry || "",
+          holder: detailsData.subscription.cardHolder || "",
         });
+        setAutoRenew(detailsData.subscription.autoRenew);
+      } else {
+        setSavedCard(null);
         setAutoRenew(true);
       }
     } catch (err: any) {
@@ -212,30 +202,59 @@ export function SubscriptionPaymentPage() {
     }
   };
 
-  // Cập nhật thẻ ảo qua API thật
-  const handleUpdateCardDetails = async (e: React.FormEvent) => {
+  // Xác định brand thẻ từ số đầu
+  const detectBrand = (num: string): "visa" | "mastercard" | "jcb" | "amex" => {
+    const n = num.replace(/\s/g, "");
+    if (/^4/.test(n)) return "visa";
+    if (/^5[1-5]/.test(n)) return "mastercard";
+    if (/^3[47]/.test(n)) return "amex";
+    if (/^35/.test(n)) return "jcb";
+    return "visa";
+  };
+
+  // Thêm/cập nhật thẻ
+  const handleSaveCard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCardNumber || !newCardHolder || !newCardExpiry) {
-      showError("Vui lòng nhập đầy đủ thông tin thẻ.");
+    setCardFormError(null);
+    const digits = newCardNumber.replace(/\s/g, "");
+    if (digits.length < 13 || digits.length > 19) {
+      setCardFormError("Số thẻ không hợp lệ (13–19 chữ số).");
+      return;
+    }
+    if (!newCardHolder.trim()) {
+      setCardFormError("Vui lòng nhập tên chủ thẻ.");
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(newCardExpiry)) {
+      setCardFormError("Định dạng MM/YY không hợp lệ.");
       return;
     }
     try {
       setLoading(true);
       await subscriptionPaymentApiClient.updatePaymentMethod(currentWorkspaceId, newCardNumber, newCardHolder, newCardExpiry);
-      setCardDetails({
-        number: newCardNumber,
-        name: newCardHolder,
+      setSavedCard({
+        last4: digits.slice(-4),
+        brand: detectBrand(newCardNumber),
         expiry: newCardExpiry,
-        cvv: "•••"
+        holder: newCardHolder.trim(),
       });
       setShowCardModal(false);
-      showSuccess("Cập nhật phương thức thanh toán ảo thành công.");
-      await fetchDetails(currentWorkspaceId);
+      setNewCardNumber("");
+      setNewCardHolder("");
+      setNewCardExpiry("");
+      showSuccess("Đã lưu thẻ thanh toán thành công.");
     } catch (err: any) {
-      showError(err.message || "Không thể cập nhật phương thức thanh toán.");
+      showError(err.message || "Không thể lưu thẻ thanh toán.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Xóa thẻ đã lưu
+  const handleRemoveCard = () => {
+    if (!window.confirm("Bạn có chắc muốn xóa thẻ này không?")) return;
+    setSavedCard(null);
+    showSuccess("Đã xóa thẻ thanh toán.");
   };
 
   // Áp dụng mã giảm giá thật
@@ -534,56 +553,91 @@ export function SubscriptionPaymentPage() {
             </div>
           </div>
 
-          {/* CỘT PHẢI: Phương thức thanh toán ảo động */}
+          {/* CỘT PHẢI: Phương thức thanh toán */}
           <div className="billing-card">
             <div className="card-title-row">
               <h3>Payment Method</h3>
             </div>
 
-            <div className="virtual-card">
-              <div className="card-header-row">
-                <span className="card-type">VIRTUAL CARD</span>
-                <div className="card-chip"></div>
-              </div>
-              <div className="card-number-display">{cardDetails.number}</div>
-              <div className="card-footer-row">
-                <div className="card-holder">
-                  <div style={{ opacity: 0.6, fontSize: "0.6rem", marginBottom: "2px" }}>CARD HOLDER</div>
-                  <span className="card-holder-name">{cardDetails.name}</span>
+            {savedCard ? (
+              /* === CÓ THẺ: hiển thị masked card === */
+              <div className="saved-card-display">
+                <div className="saved-card-brand-row">
+                  {/* Brand icon */}
+                  {savedCard.brand === "visa" && (
+                    <div className="card-brand-badge card-brand-badge--visa">VISA</div>
+                  )}
+                  {savedCard.brand === "mastercard" && (
+                    <div className="card-brand-badge card-brand-badge--mc">MC</div>
+                  )}
+                  {savedCard.brand === "jcb" && (
+                    <div className="card-brand-badge card-brand-badge--jcb">JCB</div>
+                  )}
+                  {savedCard.brand === "amex" && (
+                    <div className="card-brand-badge card-brand-badge--amex">AMEX</div>
+                  )}
+                  <span className="saved-card-masked">
+                    •••• •••• •••• <strong>{savedCard.last4}</strong>
+                  </span>
                 </div>
-                <div className="card-expiry">
-                  <div style={{ opacity: 0.6, fontSize: "0.6rem", marginBottom: "2px" }}>EXPIRES</div>
-                  <span className="card-expiry-val">{cardDetails.expiry}</span>
+
+                <div className="saved-card-meta">
+                  <div className="saved-card-meta-item">
+                    <span className="saved-card-meta-label">Chủ thẻ</span>
+                    <span className="saved-card-meta-value">{savedCard.holder}</span>
+                  </div>
+                  <div className="saved-card-meta-item">
+                    <span className="saved-card-meta-label">Hết hạn</span>
+                    <span className="saved-card-meta-value">{savedCard.expiry}</span>
+                  </div>
+                </div>
+
+                <div className="saved-card-actions">
+                  <button
+                    className="btn btn--secondary"
+                    onClick={() => {
+                      setNewCardNumber("");
+                      setNewCardHolder(savedCard.holder);
+                      setNewCardExpiry(savedCard.expiry);
+                      setCardFormError(null);
+                      setShowCardModal(true);
+                    }}
+                  >
+                    Đổi thẻ
+                  </button>
+                  <button
+                    className="btn btn--danger"
+                    onClick={handleRemoveCard}
+                  >
+                    Xóa thẻ
+                  </button>
                 </div>
               </div>
-            </div>
-
-            <div className="card-meta-email">
-              <span>Billing email</span>
-              <strong style={{ color: "#334155" }}>dev@local.test</strong>
-            </div>
-
-            {subscription ? (
-              <button 
-                onClick={() => {
-                  setNewCardNumber(cardDetails.number);
-                  setNewCardHolder(cardDetails.name);
-                  setNewCardExpiry(cardDetails.expiry);
-                  setShowCardModal(true);
-                }} 
-                className="btn btn--secondary" 
-                style={{ marginTop: "16px" }}
-              >
-                Change Payment Method
-              </button>
             ) : (
-              <button 
-                disabled 
-                className="btn btn--secondary" 
-                style={{ marginTop: "16px", opacity: 0.5 }}
-              >
-                Đăng ký gói để cập nhật thẻ
-              </button>
+              /* === CHƯA CÓ THẺ: empty state === */
+              <div className="no-card-state">
+                <div className="no-card-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <path d="M2 10h20" />
+                    <path d="M6 15h4" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <p className="no-card-title">Chưa có thẻ thanh toán</p>
+                <p className="no-card-sub">Thêm thẻ để thanh toán gói dịch vụ tự động và dễ dàng hơn.</p>
+                <button
+                  className="btn btn--primary"
+                  onClick={() => {
+                    setNewCardNumber("");
+                    setNewCardHolder("");
+                    setNewCardExpiry("");
+                    setCardFormError(null);
+                    setShowCardModal(true);
+                  }}
+                >
+                  + Thêm thẻ
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -764,58 +818,78 @@ export function SubscriptionPaymentPage() {
           )}
         </div>
 
-        {/* MODAL THAY ĐỔI THẺ THANH TOÁN THỰC TẾ */}
+        {/* MODAL THÊM/ĐỔI THẺ THANH TOÁN */}
         {showCardModal && (
-          <div className="card-modal-overlay">
+          <div className="card-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowCardModal(false); }}>
             <div className="card-modal-content">
-              <h3>Change Payment Method</h3>
-              <p className="card-modal-sub">Cập nhật thông tin thẻ thanh toán ảo được liên kết với hệ thống của bạn.</p>
-              
-              <form onSubmit={handleUpdateCardDetails}>
-                <div className="form-group" style={{ marginBottom: "12px" }}>
-                  <label>Card Number</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. 4242 4242 4242 4242"
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <h3 style={{ margin: 0 }}>{savedCard ? "Đổi thẻ thanh toán" : "Thêm thẻ thanh toán"}</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCardModal(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px" }}
+                  aria-label="Đóng"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <p className="card-modal-sub">Thông tin thẻ chỉ được lưu trên hệ thống mô phỏng, không xử lý thanh toán thực tế.</p>
+
+              {cardFormError && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", fontSize: "0.85rem", color: "#dc2626" }}>
+                  {cardFormError}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveCard}>
+                <div className="form-group" style={{ marginBottom: "14px" }}>
+                  <label>Số thẻ</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="1234 5678 9012 3456"
                     className="form-input"
+                    maxLength={19}
                     value={newCardNumber}
-                    onChange={(e) => setNewCardNumber(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 16);
+                      setNewCardNumber(val.replace(/(\d{4})(?=\d)/g, "$1 ").trim());
+                    }}
                   />
                 </div>
-                <div className="grid-2col" style={{ gap: "12px", marginBottom: "12px" }}>
-                  <div className="form-group">
-                    <label>Card Holder Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Admin Wu"
-                      className="form-input"
-                      value={newCardHolder}
-                      onChange={(e) => setNewCardHolder(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Expiry Date</label>
-                    <input 
-                      type="text" 
-                      placeholder="MM/YY"
-                      className="form-input"
-                      value={newCardExpiry}
-                      onChange={(e) => setNewCardExpiry(e.target.value)}
-                    />
-                  </div>
+
+                <div className="form-group" style={{ marginBottom: "14px" }}>
+                  <label>Tên chủ thẻ</label>
+                  <input
+                    type="text"
+                    placeholder="NGUYEN VAN A"
+                    className="form-input"
+                    value={newCardHolder}
+                    onChange={(e) => setNewCardHolder(e.target.value.toUpperCase())}
+                  />
                 </div>
 
-                <div className="btn-group" style={{ marginTop: "20px" }}>
-                  <button 
-                    type="button" 
-                    className="btn btn--secondary" 
-                    onClick={() => setShowCardModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn--primary">
-                    Save Card details
-                  </button>
+                <div className="form-group" style={{ marginBottom: "20px" }}>
+                  <label>Ngày hết hạn (MM/YY)</label>
+                  <input
+                    type="text"
+                    placeholder="MM/YY"
+                    className="form-input"
+                    maxLength={5}
+                    value={newCardExpiry}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      if (val.length >= 3) val = val.slice(0, 2) + "/" + val.slice(2);
+                      setNewCardExpiry(val);
+                    }}
+                  />
+                </div>
+
+                <div className="btn-group">
+                  <button type="button" className="btn btn--secondary" onClick={() => setShowCardModal(false)}>Hủy</button>
+                  <button type="submit" className="btn btn--primary">Lưu thẻ</button>
                 </div>
               </form>
             </div>
