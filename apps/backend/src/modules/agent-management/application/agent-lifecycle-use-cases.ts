@@ -1,11 +1,21 @@
-import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
+import type {
+  AgentCreationAssistantDraftResponse,
+  AgentModelCatalogEntry,
+  AgentPublicSummary,
+  AgentSkillImportAnalysisRequest,
+  AgentSkillImportValidationResponse,
+  AgentSkillPreviewRequest,
+  AgentSkillPreviewResponse
+} from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { ApiPaginationMeta } from "@vcp/shared/contracts/api.ts";
 import { createAgent, isAgentSelectable, toAgentPublicSummary, type Agent } from "../domain/agent.ts";
 import type { AgentRepository } from "./agent-repository.ts";
+import { StaticAgentModelCatalog, type AgentModelCatalogPort } from "./agent-model-catalog.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
 import type { AgentSkillWriter } from "./agent-skill-writer.ts";
+import type { LlmAgentDraftingPort, LlmDraftingUnavailableError } from "./llm-agent-drafting-port.ts";
 
 export type AgentListItem = AgentPublicSummary & {
   createdAt: string;
@@ -28,6 +38,12 @@ export type AgentEditableConfiguration = {
   updatedAt: string;
 };
 
+export type AgentSkillMarkdownArtifact = {
+  markdown: string;
+  fileName: "skill.md";
+  agent: Agent;
+};
+
 export type CreateAgentInput = {
   workspaceId: EntityId<"workspaceId">;
   name: string;
@@ -46,7 +62,9 @@ export type UpdateAgentInput = {
 
 export type AgentLifecycleDependencies = {
   repository: AgentRepository;
+  modelCatalog?: AgentModelCatalogPort;
   skillWriter?: AgentSkillWriter;
+  draftingPort?: LlmAgentDraftingPort;
   now: () => string;
   generateAgentId: () => EntityId<"agentId">;
 };
@@ -70,9 +88,11 @@ export class AgentNotFoundError extends Error {
 
 export class AgentLifecycleUseCases {
   private readonly dependencies: AgentLifecycleDependencies;
+  private readonly modelCatalog: AgentModelCatalogPort;
 
   constructor(dependencies: AgentLifecycleDependencies) {
     this.dependencies = dependencies;
+    this.modelCatalog = dependencies.modelCatalog ?? new StaticAgentModelCatalog();
   }
 
   async listAgents(
@@ -153,8 +173,94 @@ export class AgentLifecycleUseCases {
     };
   }
 
+  async listAgentModels(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<AgentModelCatalogEntry[]> {
+    const entries = await this.modelCatalog.listModels(workspaceId);
+    return entries
+      .filter((entry) => entry.enabled)
+      .map((entry) => ({
+        ...entry,
+        capabilities: [...entry.capabilities]
+      }));
+  }
+
+  previewSkillMarkdown(input: AgentSkillPreviewRequest): AgentSkillPreviewResponse {
+    const normalized = this.validateAgentSkillDraft(input);
+
+    return {
+      markdown: generateAgentSkillConfiguration(normalized),
+      fileName: "skill.md"
+    };
+  }
+
+  async downloadAgentSkillMarkdown(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentSkillMarkdownArtifact> {
+    const agent = await this.requireAgent(workspaceId, agentId);
+
+    if (agent.status === "deleted") {
+      throw new AgentNotFoundError(agentId);
+    }
+
+    return {
+      markdown: generateAgentSkillConfiguration(agent),
+      fileName: "skill.md",
+      agent
+    };
+  }
+
+  async generateAssistantDraft(
+    workspaceId: EntityId<"workspaceId">,
+    prompt: string
+  ): Promise<AgentCreationAssistantDraftResponse> {
+    if (!this.dependencies.draftingPort) {
+      throw new Error("LlmAgentDraftingPort is not configured");
+    }
+
+    if (!prompt.trim()) {
+      throw new AgentValidationError(["prompt is required"]);
+    }
+
+    return this.dependencies.draftingPort.createDraft({
+      workspaceId,
+      prompt
+    });
+  }
+
+  validateSkillMarkdownImport(
+    input: AgentSkillImportAnalysisRequest
+  ): AgentSkillImportValidationResponse {
+    const markdown = typeof input.markdown === "string" ? input.markdown.trim() : "";
+    const fileName = input.fileName?.trim();
+    const issues: string[] = [];
+
+    if (!markdown) {
+      issues.push("markdown is required");
+    }
+
+    if (fileName && !/\.(md|markdown)$/i.test(fileName)) {
+      issues.push("fileName must reference a Markdown file");
+    }
+
+    if (markdown && !this.looksLikeMarkdown(markdown, fileName)) {
+      issues.push("markdown content must look like Markdown");
+    }
+
+    if (issues.length > 0) {
+      throw new AgentValidationError(issues);
+    }
+
+    return {
+      accepted: true,
+      fileName: "skill.md"
+    };
+  }
+
   async createAgent(input: CreateAgentInput): Promise<AgentMutationResult> {
     const normalized = this.validateCreateInput(input);
+    await this.assertSelectableModel(input.workspaceId, normalized.model);
     const nameAlreadyUsed = await this.dependencies.repository.existsByName(
       input.workspaceId,
       normalized.name
@@ -181,6 +287,7 @@ export class AgentLifecycleUseCases {
 
   async updateAgent(input: UpdateAgentInput): Promise<AgentMutationResult> {
     const normalized = this.validateUpdateInput(input);
+    await this.assertSelectableModel(input.workspaceId, normalized.model);
     const agent = await this.requireAgent(input.workspaceId, input.agentId);
     this.assertAgentCanBeChanged(agent);
 
@@ -361,7 +468,13 @@ export class AgentLifecycleUseCases {
     return this.validateAgentConfiguration(input);
   }
 
-  private validateAgentConfiguration<T extends CreateAgentInput | UpdateAgentInput>(input: T): T {
+  private validateAgentSkillDraft(input: AgentSkillPreviewRequest): AgentSkillPreviewRequest {
+    return this.validateAgentConfiguration(input);
+  }
+
+  private validateAgentConfiguration<T extends { name?: string; role: string; model: string; instructions: string }>(
+    input: T
+  ): T {
     const normalized = {
       ...input,
       name: "name" in input ? input.name.trim() : undefined,
@@ -392,5 +505,25 @@ export class AgentLifecycleUseCases {
     }
 
     return normalized as T;
+  }
+
+  private async assertSelectableModel(
+    workspaceId: EntityId<"workspaceId">,
+    modelId: string
+  ): Promise<void> {
+    const catalog = await this.modelCatalog.listModels(workspaceId);
+    const matchingModel = catalog.find((entry) => entry.modelId === modelId);
+
+    if (!matchingModel || !matchingModel.enabled) {
+      throw new AgentValidationError(["model must match an enabled catalog model"]);
+    }
+  }
+
+  private looksLikeMarkdown(markdown: string, fileName: string | undefined): boolean {
+    if (fileName && /\.(md|markdown)$/i.test(fileName)) {
+      return true;
+    }
+
+    return /(^|\n)#{1,6}\s+\S/.test(markdown) || /(^|\n)(-|\*)\s+\S/.test(markdown);
   }
 }

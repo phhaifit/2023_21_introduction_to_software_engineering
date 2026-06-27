@@ -105,6 +105,7 @@ model Subscription {
   expiresAt      String
   createdAt      String
   updatedAt      String
+  autoRenew      Boolean? @default(true)
 
   @@index([userId])
   @@index([workspaceId])
@@ -177,8 +178,13 @@ model Workflow {
   workflowId  String @id
   workspaceId String
   name        String
-  status      String @default("draft")
-  createdAt   String
+  description   String?
+  status        String @default("published")
+  triggerType   String @default("manual")
+  triggerConfig Json?
+  version       Int    @default(1)
+  parentWorkflowId String?
+  createdAt     String
   updatedAt   String
 
   steps         WorkflowStep[]
@@ -186,6 +192,7 @@ model Workflow {
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+  @@index([parentWorkflowId])
   @@map("workflows")
 }
 
@@ -193,8 +200,11 @@ model WorkflowStep {
   workflowStepId String   @id
   workspaceId    String
   workflowId     String
-  agentId        String
+  agentId        String?
+  stepType       String   @default("agent")
   stepOrder      Int
+  nextSteps      Json?
+  inputMapping   Json?
   createdAt      String
   updatedAt      String
 
@@ -204,7 +214,6 @@ model WorkflowStep {
   @@index([workspaceId])
   @@index([workflowId])
   @@index([agentId])
-  @@unique([workflowId, stepOrder])
   @@map("workflow_steps")
 }
 
@@ -533,4 +542,20 @@ model Job {
   @@index([userId])
   @@index([status])
   @@map("jobs")
+}
+
+model PaymentMethod {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  type         String   // "card" | "momo" | "vnpay"
+  brand        String?  // "visa" | "mastercard" etc.
+  last4        String
+  holder       String
+  isDefault    Boolean  @default(false)
+  gatewayToken String?  // Token thay thế số thẻ thô
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@map("payment_methods")
 }

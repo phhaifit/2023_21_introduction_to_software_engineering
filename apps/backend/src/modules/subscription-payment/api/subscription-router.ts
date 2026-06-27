@@ -63,8 +63,26 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
       
+      const workspaceId = req.query.workspaceId as EntityId<"workspaceId">;
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc trong query parameters.");
+      }
+      return dependencies.useCases.getSubscriptionDetails(workspaceId);
+    });
+  });
+
+  router.get("/usage", async (req, res) => {
+    await handleRequest(req, res, async () => {
+      const context = getRequestContext(req);
+      enforceAuth(context);
+
+      const workspaceId = req.query.workspaceId as EntityId<"workspaceId">;
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc trong query parameters.");
+      }
+
       const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.getSubscriptionDetails(userId);
+      return dependencies.useCases.getWorkspaceResourceUsage(workspaceId, userId);
     });
   });
 
@@ -73,15 +91,21 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
 
-      const payload = req.body as { plan?: string } | undefined;
+      const payload = req.body as { plan?: string; promoCode?: string; workspaceId?: string } | undefined;
       const plan = payload?.plan;
+      const promoCode = payload?.promoCode;
+      const workspaceId = payload?.workspaceId;
+
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc.");
+      }
 
       if (plan !== "standard" && plan !== "premium") {
         throw new CheckoutValidationError("Gói dịch vụ không hợp lệ. Phải là standard hoặc premium.");
       }
 
       const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.initiateCheckout(userId, plan as SubscriptionPlan);
+      return dependencies.useCases.initiateCheckout(userId, workspaceId as EntityId<"workspaceId">, plan as SubscriptionPlan, promoCode);
     });
   });
 
@@ -90,15 +114,74 @@ export function createSubscriptionRouter(
       const context = getRequestContext(req);
       enforceAuth(context);
 
-      const payload = req.body as { subscriptionId?: string } | undefined;
+      const payload = req.body as { subscriptionId?: string; promoCode?: string } | undefined;
       const subscriptionId = payload?.subscriptionId;
+      const promoCode = payload?.promoCode;
 
       if (!subscriptionId) {
         throw new CheckoutValidationError("subscriptionId là bắt buộc.");
       }
 
       const userId = context.user.userId as EntityId<"userId">;
-      return dependencies.useCases.initiateUpgrade(userId, subscriptionId as EntityId<"subscriptionId">);
+      return dependencies.useCases.initiateUpgrade(userId, subscriptionId as EntityId<"subscriptionId">, promoCode);
+    });
+  });
+
+  router.post("/toggle-auto-renewal", async (req, res) => {
+    await handleRequest(req, res, async () => {
+      const context = getRequestContext(req);
+      enforceAuth(context);
+
+      const payload = req.body as { autoRenew?: boolean; workspaceId?: string } | undefined;
+      const autoRenew = payload?.autoRenew;
+      const workspaceId = payload?.workspaceId;
+
+      if (autoRenew === undefined) {
+        throw new CheckoutValidationError("autoRenew là bắt buộc trong JSON body.");
+      }
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc.");
+      }
+
+      return dependencies.useCases.toggleAutoRenewal(workspaceId as EntityId<"workspaceId">, autoRenew);
+    });
+  });
+
+  router.post("/payment-method", async (req, res) => {
+    await handleRequest(req, res, async () => {
+      const context = getRequestContext(req);
+      enforceAuth(context);
+
+      const payload = req.body as { cardNumber?: string; cardHolder?: string; cardExpiry?: string; workspaceId?: string } | undefined;
+      const cardNumber = payload?.cardNumber;
+      const cardHolder = payload?.cardHolder;
+      const cardExpiry = payload?.cardExpiry;
+      const workspaceId = payload?.workspaceId;
+
+      if (!cardNumber || !cardHolder || !cardExpiry) {
+        throw new CheckoutValidationError("cardNumber, cardHolder và cardExpiry là bắt buộc trong body.");
+      }
+      if (!workspaceId) {
+        throw new CheckoutValidationError("workspaceId là bắt buộc.");
+      }
+
+      return dependencies.useCases.updatePaymentMethod(workspaceId as EntityId<"workspaceId">, { cardNumber, cardHolder, cardExpiry });
+    });
+  });
+
+  router.post("/validate-promo", async (req, res) => {
+    await handleRequest(req, res, async () => {
+      const context = getRequestContext(req);
+      enforceAuth(context);
+
+      const payload = req.body as { promoCode?: string } | undefined;
+      const promoCode = payload?.promoCode;
+
+      if (!promoCode) {
+        throw new CheckoutValidationError("promoCode là bắt buộc.");
+      }
+
+      return dependencies.useCases.validatePromo(promoCode);
     });
   });
 
@@ -126,6 +209,12 @@ export function createSubscriptionRouter(
           status as "success" | "failed"
         );
       }
+    });
+  });
+
+  router.get("/plans", async (req, res) => {
+    await handleRequest(req, res, async () => {
+      return dependencies.useCases.getPlans();
     });
   });
 

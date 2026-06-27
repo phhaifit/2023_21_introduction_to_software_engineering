@@ -3,32 +3,131 @@ import { createPortal } from "react-dom";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
 import { mockExecutions, type ExecutionUIModel } from "../../data/executions.ts";
+import { TerminalSquare, ListTodo, History } from "lucide-react";
 
 function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClose: () => void }) {
   const logs = [
-    `[INFO] Starting execution ${execution.executionId} for workflow '${execution.workflowName}'`,
-    `[INFO] Validating workflow definitions... OK`,
-    `[INFO] Orchestration engine initialized.`,
-    execution.status === "Failed" ? `[ERROR] Connection timeout to Agent Service.` : `[INFO] Step 1 executed successfully.`,
-    execution.status === "Failed" ? `[ERROR] Execution aborted.` : `[INFO] Step 2 executed successfully.`,
-    execution.status === "Success" ? `[INFO] Workflow completed successfully.` : execution.status === "Canceled" ? `[WARN] Workflow was canceled by user.` : `[INFO] Waiting for further instructions...`
-  ];
+    `> Initializing Workflow: [${execution.workflowName}]`,
+    `> Run ID: ${execution.executionId}`,
+    `> Allocating resources... OK`,
+    execution.status === "Failed" ? `> [Error] Lost connection to server.` : `> [Completed] Step 1 - Agent finished processing.`,
+    execution.status === "Failed" ? `> [Error] Workflow was canceled.` : `> [Completed] Step 2 - Agent finished processing.`,
+    execution.status === "Success" ? `> [Success] Workflow executed all steps successfully.` : execution.status === "Canceled" ? `> [Warning] Workflow was canceled by user.` : `> [Running] Waiting for process...`,
+    execution.status === "Success" ? `> Closing connection stream.` : ``
+  ].filter(Boolean);
 
   return createPortal(
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000 }}>
-      <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '8px', width: '700px', maxWidth: '90%' }}>
-        <h3 style={{ marginBottom: '8px' }}>Log chạy: {execution.workflowName}</h3>
-        <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '16px' }}>Run ID: {execution.executionId}</p>
-        
-        <div style={{ background: '#1e293b', color: '#e2e8f0', padding: '16px', borderRadius: '8px', minHeight: '200px', maxHeight: '400px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '13px' }}>
-          {logs.map((l, i) => (
-            <div key={i} style={{ marginBottom: '6px', color: l.includes('[ERROR]') ? '#ef4444' : l.includes('[WARN]') ? '#f59e0b' : l.includes('[INFO]') ? '#10b981' : 'inherit' }}>
-              {l}
-            </div>
-          ))}
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(15,23,42,0.8)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100000,
+        animation: "fadeIn 0.2s ease-out",
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        style={{
+          background: "#0f172a",
+          border: "1px solid #334155",
+          borderRadius: "12px",
+          width: "700px",
+          maxWidth: "95%",
+          overflow: "hidden",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+          animation: "slideUp 0.3s ease-out",
+        }}
+      >
+        {/* Terminal Header */}
+        <div
+          style={{
+            background: "#1e293b",
+            padding: "12px 16px",
+            display: "flex",
+            alignItems: "center",
+            borderBottom: "1px solid #334155",
+          }}
+        >
+          <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#ef4444" }}></div>
+            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#f59e0b" }}></div>
+            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#10b981" }}></div>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: "13px",
+              fontWeight: 500,
+              fontFamily: "monospace",
+            }}
+          >
+            Run Log: {execution.workflowName}
+          </div>
         </div>
-        <div style={{ marginTop: '20px', textAlign: 'right' }}>
-          <button onClick={onClose} className="secondary-action">Đóng</button>
+
+        {/* Terminal Body */}
+        <div style={{ padding: "20px", display: "flex", flexDirection: "column" }}>
+          <div
+            style={{
+              background: "#020617",
+              borderRadius: "8px",
+              padding: "16px",
+              fontFamily: "'Fira Code', monospace",
+              fontSize: "13px",
+              lineHeight: 1.6,
+              color: "#38bdf8",
+              height: "280px",
+              overflowY: "auto",
+              boxShadow: "inset 0 2px 4px 0 rgba(0,0,0,0.5)",
+            }}
+          >
+            {logs.map((l, i) => (
+              <div
+                key={i}
+                style={{
+                  marginBottom: "8px",
+                  color: l.includes("[Error]")
+                    ? "#f87171"
+                    : l.includes("[Success]") || l.includes("[Completed]")
+                    ? "#4ade80"
+                    : l.includes("[Warning]")
+                    ? "#facc15"
+                    : "#38bdf8",
+                }}
+              >
+                {l}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={onClose}
+              style={{
+                background: "#334155",
+                color: "white",
+                border: "none",
+                padding: "10px 24px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: 500,
+                transition: "background 0.2s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#475569")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "#334155")}
+            >
+              Close Window
+            </button>
+          </div>
         </div>
       </div>
     </div>,
@@ -46,7 +145,7 @@ export function ExecutionsPage() {
   );
 
   const formatDuration = (startedAt: string, completedAt: string | null) => {
-    if (!completedAt) return "Đang chạy...";
+    if (!completedAt) return "Running...";
     const start = new Date(startedAt).getTime();
     const end = new Date(completedAt).getTime();
     const diffInSeconds = Math.floor((end - start) / 1000);
@@ -66,7 +165,7 @@ export function ExecutionsPage() {
     <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <SearchBar
-          placeholder="Tìm kiếm theo Tên hoặc Run ID..."
+          placeholder="Search by Name or Run ID..."
           value={search}
           onChange={setSearch}
         />
@@ -77,18 +176,20 @@ export function ExecutionsPage() {
           <thead>
             <tr>
               <th>Run ID</th>
-              <th>Tên Workflow</th>
-              <th>Trạng thái</th>
-              <th>Thời gian chạy</th>
-              <th>Bắt đầu lúc</th>
-              <th style={{ textAlign: 'right' }}>Thao tác</th>
+              <th>Workflow Name</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Started At</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
-                  Không tìm thấy lịch sử chạy nào.
+                <td colSpan={6} style={{ textAlign: 'center', padding: '64px 32px', color: 'var(--muted)' }}>
+                  <History size={48} strokeWidth={1} style={{ margin: '0 auto 16px', opacity: 0.5, color: 'var(--accent)' }} />
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>No run history found</div>
+                  <div style={{ fontSize: '14px', marginTop: '4px' }}>Try searching with a different keyword or come back later.</div>
                 </td>
               </tr>
             ) : (
@@ -100,7 +201,13 @@ export function ExecutionsPage() {
                   <td>{formatDuration(run.startedAt, run.completedAt)}</td>
                   <td>{formatDate(run.startedAt)}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="text-action" onClick={() => setSelectedExecution(run)}>Xem Log</button>
+                    <button 
+                      className="secondary-action" 
+                      style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                      onClick={() => setSelectedExecution(run)}
+                    >
+                      <TerminalSquare size={14} /> View Log
+                    </button>
                   </td>
                 </tr>
               ))

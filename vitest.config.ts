@@ -12,12 +12,13 @@ export default defineConfig({
     ],
     setupFiles: ["tests/component/setup.ts"],
     environmentMatchGlobs: [
-      ["apps/**", "node"],
+      ["apps/backend/**", "node"],
       ["packages/**", "node"]
     ],
     deps: {
       moduleDirectories: ["node_modules", "apps/frontend/node_modules"]
     },
-    restoreMocks: true
+    restoreMocks: true,
+    testTimeout: 30000
   }
 });

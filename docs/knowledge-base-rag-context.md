@@ -26,27 +26,54 @@ The frontend currently has a PA5 prototype under
   and `knowledge-base-rag-view.ts`.
 - Documents screen in `knowledge-base-rag-documents.tsx`.
 - Upload Documents screen in `knowledge-base-rag-upload.tsx`.
+- Typed frontend API client in `knowledge-base-rag-api-client.ts`.
 - Feature-prefixed CSS split by shell, shared components, documents, and upload
   screens.
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration.
+change that integration. Documents, Upload, Data Sources, and Synchronization
+Scope screens now use the typed frontend KB/RAG API client as their runtime
+source of truth. The remaining Processing Status view is still
+placeholder-only and should be integrated in a later scoped slice.
 
-The backend still needs a proper foundation before runtime implementation:
+The backend now has an internal module foundation under
+`apps/backend/src/modules/knowledge-base-rag`:
 
-- DB schema ownership decisions for KB/RAG-owned records.
-- Public API schema decisions.
-- Shared contracts and DTOs for frontend/backend/worker boundaries.
-- Public domain event definitions.
-- Backend `api/application/domain/infrastructure` layering.
-- Repository interfaces plus in-memory and Prisma infrastructure.
-- Worker ingestion handoff for long-running document processing.
-- Contract, boundary, backend, frontend, worker, and functional tests.
+- Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
+  sync jobs, and sync job events.
+- Application repository ports for documents, ingestion jobs, data sources,
+  sync scope, and sync jobs.
+- Application use cases for document reads, metadata-only upload validation,
+  safe upload preparation, ingestion-job reads, data-source placeholders,
+  sync-scope updates, and queued manual sync-job creation.
+- Safe DTO mappers from internal domain objects to shared public DTOs.
+- Prisma repositories using KB/RAG-owned Prisma models through `@vcp/database`.
+- Deterministic in-memory repositories for future use-case tests.
+- A thin workspace-scoped HTTP API router under `api/` that maps shared route
+  contracts to application use cases and shared `ApiResponse` envelopes.
+- A worker handoff skeleton that transitions already-created document ingestion
+  jobs through pending/ingesting/ready or pending/ingesting/failed lifecycle
+  states using KB/RAG repository ports.
+- A deterministic worker-side text processing pipeline that reads supported
+  text/markdown content through an injected content reader, normalizes text,
+  splits stable chunks, and persists `KnowledgeDocumentChunk` records through
+  KB/RAG repository ports.
 
-The worker path `apps/workers/src/jobs/document-ingestion` currently contains
-README/context only. The queue type already reserves `document.ingest`, but no
-handler or adapter implementation exists.
+Runtime implementation still needs:
+
+- Object storage integration, real PDF/DOC/DOCX parsing, OCR, embedding, vector
+  indexing, retrieval, and external source adapters.
+- Full worker ingestion/sync runtime entrypoints for queue integration,
+  embedding, vector writes, and external sync.
+- Frontend API integration for Processing Status.
+- Worker tests, frontend integration tests, and functional PA5 tests.
+
+The queue type already reserves `document.ingest`. The current worker handoff
+skeleton is module-local under the KB/RAG backend boundary and can be called by
+a later worker entrypoint. The current processing pipeline handles supported
+text/markdown content only. It does not read object storage, parse PDF/DOC/DOCX,
+perform OCR, call embedding providers, write vectors, or execute external sync.
 
 ## Modular Monolith Alignment
 
@@ -187,8 +214,9 @@ Rules:
 
 ## Public API Contract Boundary
 
-This issue defines the public route boundary only. It does not implement API
-routes.
+The public route boundary is implemented by a thin backend API router. The
+router does not run long-lived ingestion/sync work and does not call storage,
+embedding providers, vector databases, external providers, or worker runtimes.
 
 The final KB/RAG contract uses the workspace-scoped route shape required by
 the API matrix and tenant-boundary rules:
@@ -235,9 +263,10 @@ raw credentials, tokens, provider secrets, private vector DB configuration,
 embedding-provider internals, object-storage private paths, or server-owned
 mutation fields.
 
-Frontend local mock types should now be mapped toward these shared DTOs before
-new API-client work begins. Prototype-only view models may remain module-local
-when they are purely presentation-specific.
+The frontend API client now uses these shared DTOs. Frontend local mock/view
+types are mapped toward these DTOs for the Documents and Upload API-integrated
+screens. Prototype-only view models may remain module-local when they are
+purely presentation-specific.
 
 ## Proposed Domain Events Roadmap
 
@@ -274,7 +303,7 @@ Payload principles:
 
 ## Backend Layering Roadmap
 
-Future backend implementation should use this structure:
+Backend implementation uses this structure:
 
 ```text
 apps/backend/src/modules/knowledge-base-rag/
@@ -284,31 +313,66 @@ apps/backend/src/modules/knowledge-base-rag/
 `-- infrastructure/
 ```
 
-Likely future files, not to be created in this architecture issue:
+Current repository/application boundary files:
 
 - `api/knowledge-base-rag-router.ts`
+- `api/knowledge-base-rag-request-parsers.ts`
 - `api/api-response.ts`
-- `application/document-use-cases.ts`
-- `application/upload-validation-use-cases.ts`
-- `application/ingestion-job-use-cases.ts`
-- `application/sync-use-cases.ts`
-- `application/ports.ts`
 - `application/knowledge-document-repository.ts`
 - `application/knowledge-ingestion-job-repository.ts`
+- `application/knowledge-data-source-repository.ts`
+- `application/knowledge-sync-repositories.ts`
+- `application/dto-mappers.ts`
+- `application/knowledge-document-use-cases.ts`
+- `application/knowledge-upload-use-cases.ts`
+- `application/knowledge-ingestion-use-cases.ts`
+- `application/knowledge-data-source-use-cases.ts`
+- `application/knowledge-sync-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
 - `domain/knowledge-document.ts`
-- `domain/upload-validation.ts`
 - `domain/knowledge-ingestion-job.ts`
 - `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
-- `domain/knowledge-events.ts`
-- `infrastructure/in-memory-knowledge-document-repository.ts`
+- `domain/knowledge-sync.ts`
 - `infrastructure/prisma-knowledge-document-repository.ts`
-- `infrastructure/prisma-knowledge-mappers.ts`
+- `infrastructure/prisma-knowledge-ingestion-job-repository.ts`
+- `infrastructure/prisma-knowledge-data-source-repository.ts`
+- `infrastructure/prisma-knowledge-sync-repository.ts`
+- `infrastructure/prisma-knowledge-base-rag-mapper.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+- `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-document-content-reader.ts`
+- `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-document-text-normalizer.ts`
+- `worker/knowledge-document-text-chunker.ts`
+
+Likely future runtime files:
+
+- `domain/upload-validation.ts`
+- `domain/knowledge-events.ts`
 - `infrastructure/vector-index-adapter.ts`
+- `infrastructure/object-storage-adapter.ts`
+- `infrastructure/embedding-adapter.ts`
 
 Application code should depend on repository and adapter ports. Infrastructure
 should implement those ports. API code should translate HTTP/request context
 into application commands and return shared API envelopes.
+
+The backend HTTP router slice intentionally does not add worker handlers,
+frontend API clients, file/object storage adapters, embedding/vector adapters,
+external source adapters, or Prisma schema changes.
+
+The application use-case slice intentionally keeps upload validation
+metadata-only and creates only safe pending document, ingestion-job, and
+sync-job records through repository ports. It does not parse files, upload to
+object storage, enqueue runtime workers, call embedding providers, or write to a
+vector database.
+
+The current worker processing slice adds text/markdown ingestion after handoff:
+it uses an injected content reader, deterministic normalization, deterministic
+chunking, and repository-backed chunk persistence. It does not read object
+storage directly, parse PDF/DOC/DOCX, perform OCR, call embeddings, write
+vectors, or implement retrieval.
 
 ## Worker Handoff Roadmap
 
@@ -320,8 +384,8 @@ Expected flow:
 2. Valid uploads are prepared into durable document metadata.
 3. An ingestion job is queued through the worker/job boundary.
 4. The worker processes document ingestion.
-5. The worker parses, chunks, embeds, and indexes through adapter ports.
-6. Ingestion and indexing status are updated.
+5. The text pipeline normalizes supported text and persists chunks.
+6. Future embedding and vector indexing run through adapter ports.
 7. Domain events are emitted for public state transitions.
 8. The UI reads document, job, and status state through the API.
 
@@ -345,8 +409,7 @@ Future KB/RAG work should add focused tests with each implemented behavior:
   envelope behavior.
 - Frontend API client tests for routes, envelope parsing, API errors, network
   errors, and malformed responses.
-- Component tests for existing Documents and Upload screens once behavior
-  moves beyond static mock display.
+- Component tests for existing Documents and Upload API integration behavior.
 - Import-boundary tests to prevent private cross-module imports.
 - Worker handoff tests for queue payloads, handler registration, adapter usage,
   success, and failure.

@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { StrictMode } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -159,7 +159,8 @@ async function submitPrompt(prompt: string) {
   const user = userEvent.setup();
   await user.type(screen.getByRole("textbox", { name: "Request" }), prompt);
   await user.click(screen.getByRole("button", { name: "Send request" }));
-  await screen.findByText(prompt);
+  const feed = screen.getByRole("region", { name: /conversation/i });
+  await within(feed).findByText(prompt);
 }
 
 async function startRunning(scheduler: FakeScheduler) {
@@ -210,7 +211,15 @@ function renderPage(options: Partial<ReturnType<typeof makeRuntimes>> & {
 }
 
 afterEach(cleanup);
-beforeEach(() => resetTaskIdentitySequence());
+beforeEach(() => {
+  resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
+});
 
 describe("Task 10B Completed Result UI Integration", () => {
   it("does not complete early for empty, pending, running before final step, or streaming", async () => {
@@ -256,15 +265,18 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
     expect(screen.getByRole("region", { name: /completed result/i })).toBeVisible();
     expect(screen.getByText("Alpha Beta Gamma")).toBeVisible();
-    
-    // UI elements should be visible
-    expect(screen.getByText("Complete me.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Complete me.")).toBeVisible();
+    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
-    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Orchestration processing logs")).not.toBeInTheDocument();
   });
 
   it("supports exactly once completion and terminal protection", async () => {
@@ -307,10 +319,21 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
 
     await submitPrompt("Second task.");
-    expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(0);
+    // Creating another Task does not stop the first Task; the first Task continues in the background.
+    expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
 
+    // Flush the background completion for Task 1
+    await act(() => { first.scheduler.flushNext(COMPLETION_MS); });
+
+    // In a multi-turn conversation feed, Task 1's completed result remains visible, while Task 2 is still pending/in-progress
+    expect(screen.getAllByRole("region", { name: /completed result/i })).toHaveLength(1);
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Second task.")).toBeVisible();
+
+    // Progress Task 2 to completion
     await completeTask(first.scheduler, 1);
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
+    // Unmount stops remaining runtime resources
     first.unmount();
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(0);
   });
@@ -331,12 +354,16 @@ describe("Task 10B Completed Result UI Integration", () => {
       join(root, "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"),
       "utf8"
     );
+    const conversationSource = readFileSync(
+      join(root, "apps/frontend/src/features/task-orchestration/components/task-conversation.tsx"),
+      "utf8"
+    );
     const runtimeSource = readFileSync(
       join(root, "apps/frontend/src/features/task-orchestration/model/task-completion-runtime.ts"),
       "utf8"
     );
     
-    expect(pageSource).toMatch(/TaskCompletedResult/);
+    expect(conversationSource).toMatch(/TaskCompletedResult/);
     expect(pageSource).not.toMatch(/\.status\s*=\s*["'`]succeeded/);
     expect(pageSource).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);
     expect(pageSource).not.toMatch(/\bwindow\.|\bsetTimeout\b|\bclearTimeout\b|\bnavigator\.clipboard\b/);

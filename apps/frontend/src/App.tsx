@@ -10,6 +10,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
+import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
 
 export function App() {
   return (
@@ -30,6 +31,7 @@ export function App() {
           <Route path="/knowledge-base-rag" element={<KnowledgeBaseRagPage />} />
           <Route path="/billing" element={<SubscriptionPaymentPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/authentication" element={<AuthenticationPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

@@ -14,13 +14,13 @@
 
 ## 3. Frontend Experience
 
-- [ ] 3.1 Build registration, login, and logout UI flows in `apps/frontend/src/features/authentication`
-- [ ] 3.2 Add authenticated state handling and protected-route guard
-- [ ] 3.3 Display validation and authentication errors without exposing sensitive details
+- [x] 3.1 Build registration, login, and logout UI flows in `apps/frontend/src/features/authentication`
+- [x] 3.2 Add authenticated state handling and protected-route guard
+- [x] 3.3 Display validation and authentication errors without exposing sensitive details
 
 ## 4. Verification and Handoff
 
-- [ ] 4.1 Add backend tests for registration, login, logout, and unauthorized access
+- [x] 4.1 Add backend tests for registration, login, logout, and unauthorized access
 - [ ] 4.2 Add frontend or integration tests for login/logout flow
-- [ ] 4.3 Run OpenSpec validation and relevant test commands
-- [ ] 4.4 Update module README with implemented endpoints, assumptions, and remaining limitations
+- [x] 4.3 Run OpenSpec validation and relevant test commands
+- [x] 4.4 Update module README with implemented endpoints, assumptions, and remaining limitations

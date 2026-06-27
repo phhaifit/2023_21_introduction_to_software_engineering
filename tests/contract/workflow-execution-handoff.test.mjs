@@ -45,11 +45,11 @@ describe("Workflow Execution Handoff", () => {
       steps: [{ agentId: "agt-1", stepOrder: 1 }]
     });
 
-    // Make workflow active
+    // Make workflow published
     await useCases.updateWorkflow({
       workspaceId: "ws-1",
       workflowId: createResult.workflow.workflowId,
-      status: "active"
+      status: "published"
     });
 
     // Execute
@@ -140,11 +140,11 @@ describe("Workflow Execution Handoff", () => {
       steps: []
     });
 
-    // Make active
+    // Make published
     await useCases.updateWorkflow({
       workspaceId: "ws-1",
       workflowId: createResult.workflow.workflowId,
-      status: "active"
+      status: "published"
     });
 
     try {

@@ -1,7 +1,7 @@
 # Client Side Routing
 
 ## Purpose
-TBD
+Covers client-side routing, URL-based page navigation, deep linking, default redirection, and browser history management across the platform frontend.
 
 ## Requirements
 

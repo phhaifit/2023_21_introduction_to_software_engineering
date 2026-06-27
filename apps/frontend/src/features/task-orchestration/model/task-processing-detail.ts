@@ -2,7 +2,8 @@ import {
   type ProcessingStep,
   type TaskLog,
   type TaskPresentationStatus,
-  type CreatedTaskRecord
+  type CreatedTaskRecord,
+  type TaskError
 } from "./task-types";
 import { toTaskPresentationStatus } from "./task-lifecycle";
 import { formatRoutingSummary } from "../task-orchestration-page";
@@ -10,17 +11,25 @@ import { formatRoutingSummary } from "../task-orchestration-page";
 export interface TaskProcessingDetail {
   readonly taskId: string;
   readonly workId: string;
+  readonly createdAt: string;
+  readonly startedAt?: string;
   readonly status: TaskPresentationStatus;
   readonly routingSummary: string;
   readonly durationMs: number | null;
   readonly steps: readonly ProcessingStep[];
   readonly logs: readonly TaskLog[];
+  readonly error?: TaskError;
+  readonly failedStepId?: string;
 }
 
 export function buildTaskProcessingDetail(task: CreatedTaskRecord): TaskProcessingDetail | null {
   const status = toTaskPresentationStatus(task.status);
   
-  if (status !== "in-progress" && status !== "completed") {
+  if (!status) {
+    return null;
+  }
+
+  if (status === "failed" && !task.error) {
     return null;
   }
 
@@ -34,15 +43,25 @@ export function buildTaskProcessingDetail(task: CreatedTaskRecord): TaskProcessi
     if (!isNaN(start) && !isNaN(end) && end >= start) {
       durationMs = end - start;
     }
+  } else if (status === "failed" && task.error?.occurredAt && processingSnapshot.startedAt) {
+    const start = new Date(processingSnapshot.startedAt).getTime();
+    const end = new Date(task.error.occurredAt).getTime();
+    if (!isNaN(start) && !isNaN(end) && end >= start) {
+      durationMs = end - start;
+    }
   }
 
   return {
     taskId: task.taskId,
     workId: task.workId,
+    createdAt: task.createdAt,
+    startedAt: processingSnapshot.startedAt,
     status,
     routingSummary: formatRoutingSummary(task.requestedRouting),
     durationMs,
     steps: processingSnapshot.steps,
     logs: processingSnapshot.logs,
+    error: task.error,
+    failedStepId: task.error?.stepId,
   };
 }

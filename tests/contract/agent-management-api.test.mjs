@@ -9,7 +9,7 @@ import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.
 import { createAgentManagementRouter } from "@vcp/backend/modules/agent-management/api/agent-management-router.ts";
 import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
-function createUseCases(repository = new InMemoryAgentRepository()) {
+function createUseCases(repository = new InMemoryAgentRepository(), draftingPort = undefined) {
   let idSequence = 0;
   let timeSequence = 0;
 
@@ -17,6 +17,7 @@ function createUseCases(repository = new InMemoryAgentRepository()) {
     repository,
     useCases: new AgentLifecycleUseCases({
       repository,
+      draftingPort,
       now: () => `2026-06-20T00:00:0${timeSequence++}.000Z`,
       generateAgentId: () => `agent-created-${++idSequence}`
     })
@@ -90,13 +91,29 @@ async function requestJson(baseUrl, path, options = {}) {
   };
 }
 
+async function requestText(baseUrl, path, options = {}) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    headers: {
+      "x-request-id": "test-request",
+      ...(options.headers ?? {})
+    }
+  });
+
+  return {
+    status: response.status,
+    headers: response.headers,
+    body: await response.text()
+  };
+}
+
 function makeAgent(overrides = {}) {
   return createAgent({
     agentId: "agent-enabled",
     workspaceId: "workspace-a",
     name: "Research Agent",
     role: "Researcher",
-    model: "gpt-4.1-mini",
+    model: "gemini-2.5-flash",
     instructions: "Prepare market research.",
     createdAt: "2026-06-20T00:00:00.000Z",
     updatedAt: "2026-06-20T00:00:00.000Z",
@@ -115,6 +132,38 @@ function makeAgent(overrides = {}) {
     assert.deepEqual(response.body.data, []);
     assert.equal(response.body.meta.requestId, "test-request");
     assert.match(response.body.meta.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+  });
+}
+
+{
+  const { useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const response = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents/models");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.deepEqual(
+      response.body.data.map((model) => model.modelId),
+      ["gemini-2.5-flash", "gemini-2.5-flash-lite", "openrouter/owl-alpha"]
+    );
+    assert.equal(response.body.data[0].providerId, "gemini");
+    assert.equal(response.body.data[0].displayName, "Gemini 2.5 Flash");
+    assert.ok(response.body.data[0].capabilities.includes("structured-output"));
+    assert.equal(response.body.data[0].tier, "demo");
+    assert.equal(response.body.data[0].enabled, true);
+    assert.equal(response.body.data[0].credential, undefined);
+    assert.equal(response.body.data[0].apiKey, undefined);
+
+    const unauthorized = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/models",
+      { headers: { "x-test-auth": "false" } }
+    );
+
+    assert.equal(unauthorized.status, 401);
+    assert.equal(unauthorized.body.ok, false);
+    assert.equal(unauthorized.body.error.code, "auth.unauthorized");
   });
 }
 
@@ -208,7 +257,7 @@ function makeAgent(overrides = {}) {
       body: {
         name: "Planning Agent",
         role: "Planner",
-        model: "gpt-4.1-mini",
+        model: "gemini-2.5-flash",
         instructions: "Create execution plans."
       }
     });
@@ -224,6 +273,23 @@ function makeAgent(overrides = {}) {
 
     const stored = await repository.findById("workspace-created", "agent-created-1");
     assert.equal(stored.workspaceId, "workspace-created");
+
+    const invalidModel = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Invalid Model Agent",
+        role: "Planner",
+        model: "unknown-model",
+        instructions: "Create execution plans."
+      }
+    });
+
+    assert.equal(invalidModel.status, 400);
+    assert.equal(invalidModel.body.ok, false);
+    assert.equal(invalidModel.body.error.code, "validation.invalid_input");
+    assert.ok(
+      invalidModel.body.error.details.issues.includes("model must match an enabled catalog model")
+    );
   });
 }
 
@@ -235,7 +301,7 @@ function makeAgent(overrides = {}) {
       method: "POST",
       body: {
         name: "",
-        model: "gpt-4.1-mini",
+        model: "gemini-2.5-flash",
         instructions: "Missing role."
       }
     });
@@ -263,7 +329,7 @@ function makeAgent(overrides = {}) {
         method: "PATCH",
         body: {
           role: "Senior Researcher",
-          model: "gpt-4.1",
+          model: "gemini-2.5-flash-lite",
           instructions: "Prepare cited market research."
         }
       }
@@ -272,14 +338,31 @@ function makeAgent(overrides = {}) {
     assert.equal(response.status, 200);
     assert.equal(response.body.ok, true);
     assert.equal(response.body.data.role, "Senior Researcher");
-    assert.equal(response.body.data.model, "gpt-4.1");
+    assert.equal(response.body.data.model, "gemini-2.5-flash-lite");
     assert.equal(response.body.data.instructions, undefined);
     assert.equal(response.body.data.skillConfiguration, undefined);
 
     const stored = await repository.findById("workspace-a", "agent-enabled");
     assert.equal(stored.role, "Senior Researcher");
-    assert.equal(stored.model, "gpt-4.1");
+    assert.equal(stored.model, "gemini-2.5-flash-lite");
     assert.equal(stored.instructions, "Prepare cited market research.");
+
+    const invalidModel = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-enabled",
+      {
+        method: "PATCH",
+        body: {
+          role: "Senior Researcher",
+          model: "unknown-model",
+          instructions: "Prepare cited market research."
+        }
+      }
+    );
+
+    assert.equal(invalidModel.status, 400);
+    assert.equal(invalidModel.body.ok, false);
+    assert.equal(invalidModel.body.error.code, "validation.invalid_input");
   });
 }
 
@@ -294,7 +377,7 @@ function makeAgent(overrides = {}) {
         method: "PATCH",
         body: {
           role: "Researcher",
-          model: "gpt-4.1-mini",
+          model: "gemini-2.5-flash",
           instructions: "Prepare market research."
         }
       }
@@ -325,6 +408,145 @@ function makeAgent(overrides = {}) {
     assert.equal(response.status, 404);
     assert.equal(response.body.ok, false);
     assert.equal(response.body.error.code, "agent.not_available");
+  });
+}
+
+{
+  const { repository, useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const response = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents/skill-preview", {
+      method: "POST",
+      body: {
+        name: "Preview Agent",
+        role: "Researcher",
+        model: "gemini-2.5-flash",
+        instructions: "Summarize market signals.",
+        responsibilities: ["Collect evidence"],
+        requestedTools: [{ name: "Slack", reason: "Share summaries" }],
+        requestedKnowledge: [{ title: "Market Report", reason: "Ground answers" }]
+      }
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.data.fileName, "skill.md");
+    assert.match(response.body.data.markdown, /# Preview Agent/);
+    assert.match(response.body.data.markdown, /## Requested Tools\n- Slack: Share summaries/);
+
+    const list = await repository.listByWorkspace("workspace-a");
+    assert.equal(list.total, 0);
+
+    const invalid = await requestJson(baseUrl, "/api/workspaces/workspace-a/agents/skill-preview", {
+      method: "POST",
+      body: {
+        name: "",
+        role: "Researcher",
+        model: "gemini-2.5-flash",
+        instructions: "Summarize market signals."
+      }
+    });
+
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.body.error.code, "validation.invalid_input");
+  });
+}
+
+{
+  const { repository, useCases } = createUseCases();
+  await repository.save(makeAgent());
+  await repository.save(makeAgent({ agentId: "agent-disabled", status: "disabled" }));
+  await repository.save(makeAgent({ agentId: "agent-deleted", status: "deleted" }));
+  await repository.save(
+    makeAgent({
+      agentId: "agent-other-workspace",
+      workspaceId: "workspace-b",
+      name: "Other Agent"
+    })
+  );
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const downloaded = await requestText(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-enabled/skill.md"
+    );
+
+    assert.equal(downloaded.status, 200);
+    assert.match(downloaded.headers.get("content-type"), /text\/markdown/);
+    assert.match(downloaded.headers.get("content-disposition"), /research-agent\.skill\.md/);
+    assert.match(downloaded.body, /# Research Agent/);
+    assert.match(downloaded.body, /## Instructions\nPrepare market research\./);
+
+    const disabled = await requestText(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-disabled/skill.md"
+    );
+
+    assert.equal(disabled.status, 200);
+
+    const deleted = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-deleted/skill.md"
+    );
+    assert.equal(deleted.status, 404);
+    assert.equal(deleted.body.error.code, "agent.not_available");
+
+    const crossWorkspace = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/agent-other-workspace/skill.md"
+    );
+    assert.equal(crossWorkspace.status, 404);
+    assert.equal(crossWorkspace.body.error.code, "agent.not_available");
+  });
+}
+
+{
+  const { useCases } = createUseCases();
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const valid = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: "# Imported Agent\n\n## Role\nSupport",
+          fileName: "skill.md"
+        }
+      }
+    );
+
+    assert.equal(valid.status, 200);
+    assert.deepEqual(valid.body.data, { accepted: true, fileName: "skill.md" });
+
+    const empty = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: ""
+        }
+      }
+    );
+
+    assert.equal(empty.status, 400);
+    assert.equal(empty.body.error.code, "validation.invalid_input");
+
+    const nonMarkdown = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/import-skill",
+      {
+        method: "POST",
+        body: {
+          markdown: "plain text without markdown markers",
+          fileName: "agent.txt"
+        }
+      }
+    );
+
+    assert.equal(nonMarkdown.status, 400);
+    assert.equal(nonMarkdown.body.error.code, "validation.invalid_input");
   });
 }
 
@@ -438,13 +660,91 @@ function makeAgent(overrides = {}) {
       body: {
         name: "Test Editor",
         role: "Test",
-        model: "test",
+        model: "gemini-2.5-flash",
         instructions: "test"
       }
     });
     assert.equal(editorResponse.status, 200);
     assert.equal(editorResponse.body.ok, true);
     assert.equal(editorResponse.body.data.name, "Test Editor");
+  });
+}
+
+{
+  const mockDraft = {
+    draft: {
+      name: "Mock Assistant",
+      role: "Workspace assistant",
+      model: "gemini-2.5-flash",
+      instructions: "Help workspace members.",
+      responsibilities: [],
+      requestedTools: [],
+      requestedKnowledge: [],
+      warnings: [],
+      clarifyingQuestions: []
+    },
+    warnings: [],
+    clarifyingQuestions: ["What should it do?"],
+    provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false }
+  };
+
+  const mockDraftingPort = {
+    createDraft: async (input) => {
+      if (input.prompt === "fail_all") {
+        const { LlmDraftingUnavailableError } = await import("@vcp/backend/modules/agent-management/application/llm-agent-drafting-port.ts");
+        throw new LlmDraftingUnavailableError([
+          { providerId: "gemini", reason: "provider_unavailable" },
+          { providerId: "openrouter", reason: "provider_unavailable" }
+        ]);
+      }
+      return mockDraft;
+    },
+    extractDraftFromSkillMarkdown: async () => mockDraft
+  };
+
+  const { useCases, repository } = createUseCases(new InMemoryAgentRepository(), mockDraftingPort);
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    // valid prompt response
+    const valid = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/draft",
+      {
+        method: "POST",
+        body: { prompt: "Help me manage my workspace" }
+      }
+    );
+    assert.equal(valid.status, 200);
+    assert.deepEqual(valid.body.data, mockDraft);
+
+    // Ensure no agent was created (no persistence)
+    const list = await repository.listByWorkspace("workspace-a", { statuses: ["enabled", "disabled"] });
+    assert.equal(list.agents.length, 0);
+
+    // all-provider failure response
+    const failed = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/draft",
+      {
+        method: "POST",
+        body: { prompt: "fail_all" }
+      }
+    );
+    assert.equal(failed.status, 503);
+    assert.equal(failed.body.error.code, "assistant.unavailable");
+    
+    // authorization (missing agents:manage)
+    const unauthorized = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/draft",
+      {
+        method: "POST",
+        headers: { "x-test-role": "viewer" },
+        body: { prompt: "Help me" }
+      }
+    );
+    assert.equal(unauthorized.status, 403);
+    assert.equal(unauthorized.body.error.code, "auth.forbidden");
   });
 }
 

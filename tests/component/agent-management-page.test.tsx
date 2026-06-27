@@ -26,7 +26,7 @@ const enabledAgent: AgentListItem = {
   workspaceId,
   name: "Research Agent",
   role: "Researcher",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   status: "enabled",
   createdAt: "2026-06-19T00:00:00.000Z",
   updatedAt: "2026-06-20T00:00:00.000Z",
@@ -47,11 +47,45 @@ const defaultPagination = {
   currentPage: 1,
 };
 
+const modelCatalog = [
+  {
+    providerId: "gemini",
+    modelId: "gemini-2.5-flash",
+    displayName: "Gemini 2.5 Flash",
+    capabilities: ["text-generation", "structured-output"],
+    tier: "demo" as const,
+    enabled: true,
+  },
+  {
+    providerId: "openrouter",
+    modelId: "openrouter/owl-alpha",
+    displayName: "OpenRouter Owl Alpha",
+    capabilities: ["text-generation"],
+    tier: "free" as const,
+    enabled: true,
+  },
+];
+
 function createClient(overrides: Partial<AgentManagementApiClient> = {}) {
   return {
     listAgents: vi.fn(async () => ({
       items: [enabledAgent, disabledAgent],
       pagination: defaultPagination,
+    })),
+    listAgentModels: vi.fn(async () => modelCatalog),
+    previewSkillMarkdown: vi.fn(async (workspace, payload) => ({
+      markdown: [
+        `# ${payload.name}`,
+        "",
+        "## Role",
+        "",
+        payload.role,
+        "",
+        "## Instructions",
+        "",
+        payload.instructions,
+      ].join("\n"),
+      fileName: "skill.md" as const,
     })),
     createAgent: vi.fn(async () => enabledAgent),
     getAgentConfiguration: vi.fn(async () => ({
@@ -142,6 +176,54 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.getByRole("dialog", { name: "Create agent" })).toBeTruthy();
   });
 
+  it("shows guided create entry points without creating an agent", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    expect(screen.getByRole("tab", { name: "Template" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Prompt Assistant" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Import skill.md" })).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    expect(screen.getByRole("button", { name: "Generate draft" })).toBeDisabled();
+    await user.click(screen.getByRole("tab", { name: "Import skill.md" }));
+    expect(screen.getByRole("button", { name: "Analyze skill.md" })).toBeDisabled();
+    expect(client.createAgent).not.toHaveBeenCalled();
+  });
+
+  it("renders skill.md preview from the current template draft", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await fillCreateForm(user);
+
+    await waitFor(() => expect(client.previewSkillMarkdown).toHaveBeenCalled());
+    expect(
+      screen.getByText((_, element) => {
+        return (
+          element?.tagName.toLowerCase() === "pre" &&
+          element.textContent?.includes("# Planning Agent") === true &&
+          element.textContent.includes("Create execution plans.")
+        );
+      }),
+    ).toBeTruthy();
+    expect(client.previewSkillMarkdown).toHaveBeenLastCalledWith(
+      workspaceId,
+      expect.objectContaining({
+        name: "Planning Agent",
+        role: "Planner",
+        model: "gemini-2.5-flash",
+        instructions: "Create execution plans.",
+      }),
+    );
+  });
+
   it("shows an initial error and retries the list request", async () => {
     const listAgents = vi
       .fn()
@@ -195,24 +277,14 @@ describe("AgentManagementPage API integration", () => {
     expect(client.createAgent).toHaveBeenCalledWith(workspaceId, {
       name: "Planning Agent",
       role: "Planner",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Create execution plans.",
     });
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
   });
 
-  it("maps validation errors and preserves create values", async () => {
-    const client = createClient({
-      createAgent: vi.fn(async () => {
-        throw new AgentApiClientError({
-          code: "validation.invalid_input",
-          message: "Invalid agent configuration",
-          details: { issues: ["role is required"] },
-          status: 400,
-          kind: "api",
-        });
-      }),
-    });
+  it("prevents template creation when required fields are missing", async () => {
+    const client = createClient();
     const user = userEvent.setup();
     renderPage(client);
     await screen.findByText("Research Agent");
@@ -220,9 +292,8 @@ describe("AgentManagementPage API integration", () => {
     await user.type(screen.getByLabelText("Name"), "Planning Agent");
     await user.type(screen.getByLabelText("Instructions"), "Create plans.");
 
-    await user.click(screen.getByRole("button", { name: "Create agent" }));
-
-    expect(await screen.findByText("role is required")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+    expect(client.createAgent).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Name")).toHaveValue("Planning Agent");
     expect(screen.getByLabelText("Instructions")).toHaveValue("Create plans.");
   });
@@ -320,7 +391,7 @@ describe("AgentManagementPage API integration", () => {
   });
 
   it("updates an agent without sending its name and refreshes the row", async () => {
-    const updatedAgent = { ...enabledAgent, role: "Analyst", model: "gpt-4.1" };
+    const updatedAgent = { ...enabledAgent, role: "Analyst", model: "gemini-2.5-flash-lite" };
     const listAgents = vi
       .fn()
       .mockResolvedValueOnce({
@@ -344,7 +415,7 @@ describe("AgentManagementPage API integration", () => {
     await user.clear(screen.getByLabelText("Role"));
     await user.type(screen.getByLabelText("Role"), "Analyst");
     await user.clear(screen.getByLabelText("Model"));
-    await user.type(screen.getByLabelText("Model"), "gpt-4.1");
+    await user.type(screen.getByLabelText("Model"), "gemini-2.5-flash-lite");
 
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
@@ -361,7 +432,7 @@ describe("AgentManagementPage API integration", () => {
       enabledAgent.agentId,
       {
         role: "Analyst",
-        model: "gpt-4.1",
+        model: "gemini-2.5-flash-lite",
         instructions: "Prepare market research.",
       },
     );
@@ -600,6 +671,98 @@ describe("AgentManagementPage API integration", () => {
       enabledAgent.agentId,
       "New Name",
     );
+  });
+
+  it("handles prompt assistant submit, loading, fallback-provider, clarification, and success draft review", async () => {
+    let mockDraftResolve: (value: any) => void = () => {};
+    const mockDraftPromise = new Promise((resolve) => {
+      mockDraftResolve = resolve;
+    });
+    
+    const client = createClient({
+      createAssistantDraft: vi.fn().mockReturnValue(mockDraftPromise)
+    });
+
+    renderPage(client);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    });
+
+    const newAgentButton = screen.getByRole("button", { name: "New Agent" });
+    await userEvent.click(newAgentButton);
+
+    const promptAssistantButton = screen.getByRole("tab", { name: "Prompt Assistant" });
+    await userEvent.click(promptAssistantButton);
+
+    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    await userEvent.type(promptInput, "Help me write tests.");
+
+    const generateButton = screen.getByRole("button", { name: "Generate draft" });
+    await userEvent.click(generateButton);
+
+    expect(screen.getByRole("button", { name: "Generating..." })).toBeDisabled();
+    expect(promptInput).toBeDisabled();
+
+    // Resolve with fallback provider and clarifying questions
+    mockDraftResolve({
+      draft: {
+        name: "Test Assistant",
+        role: "QA",
+        model: "openrouter/owl-alpha",
+        instructions: "Write tests.",
+        responsibilities: [],
+        operatingContext: "",
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: []
+      },
+      warnings: [],
+      clarifyingQuestions: ["What framework?"],
+      provider: { providerId: "openrouter", modelId: "openrouter/owl-alpha", fallbackUsed: true }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Draft Ready")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Note: Primary provider failed. Used fallback provider: openrouter/owl-alpha")).toBeInTheDocument();
+    expect(screen.getByText("Test Assistant")).toBeInTheDocument();
+    
+    const editInTemplateButton = screen.getByRole("button", { name: "Edit in Template" });
+    await userEvent.click(editInTemplateButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Test Assistant");
+      expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Write tests.");
+    });
+  });
+
+  it("ensures all-provider failure preserves user input and asks the user to retry", async () => {
+    const client = createClient({
+      createAssistantDraft: vi.fn().mockRejectedValue(new Error("Assistant unavailable"))
+    });
+
+    renderPage(client);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+
+    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    await userEvent.type(promptInput, "Help me write tests.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Assistant unavailable")).toBeInTheDocument();
+    });
+
+    expect(promptInput).toHaveValue("Help me write tests.");
+    expect(screen.getByRole("button", { name: "Generate draft" })).not.toBeDisabled();
   });
 
   it("renders viewer mode without mutation controls or mutation API calls", async () => {

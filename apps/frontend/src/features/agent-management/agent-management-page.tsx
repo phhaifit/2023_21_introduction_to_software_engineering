@@ -5,12 +5,15 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ReactNode,
 } from "react";
 import {
   AlertCircle,
   ArrowUpDown,
   Bot,
+  Brain,
   Copy,
+  FileText,
   Filter,
   Grid3X3,
   List,
@@ -23,6 +26,7 @@ import {
   SquarePen,
   Sparkles,
   Trash2,
+  Upload,
   X,
   XCircle,
   ChevronDown,
@@ -35,6 +39,12 @@ import { RenameDialog } from "./components/RenameDialog.tsx";
 import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog.tsx";
 
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import type {
+  AgentCreationAssistantDraft,
+  AgentCreationAssistantDraftResponse,
+  AgentModelCatalogEntry,
+  AgentPublicSummary,
+} from "@vcp/shared/contracts/agent-management.ts";
 import agentsHeroUrl from "../../assets/agent-management/agents-hero.png";
 import {
   AgentApiClientError,
@@ -64,8 +74,37 @@ const defaultApiClient = createAgentManagementApiClient();
 const createFormValues: AgentFormState["values"] = {
   name: "",
   role: "",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   instructions: "",
+};
+
+type GuidedCreateMode = "template" | "prompt" | "import";
+
+type TemplateDraftField =
+  | "name"
+  | "role"
+  | "model"
+  | "responsibilities"
+  | "instructions"
+  | "constraints"
+  | "escalationRules"
+  | "exampleTasks";
+
+type TemplateDraftState = Record<TemplateDraftField, string>;
+
+type TemplateDraftErrors = Partial<
+  Record<"name" | "role" | "model" | "instructions" | "form", string>
+>;
+
+const templateDraftValues: TemplateDraftState = {
+  name: "",
+  role: "",
+  model: "gemini-2.5-flash",
+  responsibilities: "",
+  instructions: "",
+  constraints: "",
+  escalationRules: "",
+  exampleTasks: "",
 };
 
 export function AgentManagementPage({
@@ -77,6 +116,24 @@ export function AgentManagementPage({
   const [selectedAgentId, setSelectedAgentId] =
     useState<EntityId<"agentId"> | null>(null);
   const [form, setForm] = useState<AgentFormState>(createForm());
+  const [guidedCreateMode, setGuidedCreateMode] =
+    useState<GuidedCreateMode>("template");
+  const [templateDraft, setTemplateDraft] =
+    useState<TemplateDraftState>(createTemplateDraft());
+  const [templateDraftErrors, setTemplateDraftErrors] =
+    useState<TemplateDraftErrors>({});
+  const [modelCatalog, setModelCatalog] = useState<AgentModelCatalogEntry[]>(
+    [],
+  );
+  const [modelCatalogError, setModelCatalogError] = useState<string | null>(
+    null,
+  );
+  const [isModelCatalogLoading, setIsModelCatalogLoading] = useState(false);
+  const [skillPreviewMarkdown, setSkillPreviewMarkdown] = useState("");
+  const [skillPreviewError, setSkillPreviewError] = useState<string | null>(
+    null,
+  );
+  const [isSkillPreviewLoading, setIsSkillPreviewLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [initialLoadError, setInitialLoadError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -102,6 +159,7 @@ export function AgentManagementPage({
   const [deleteAgentObj, setDeleteAgentObj] =
     useState<AgentRowViewModel | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const skillPreviewRequestId = useRef(0);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -154,6 +212,96 @@ export function AgentManagementPage({
     void loadInitialAgents();
   }, [loadInitialAgents]);
 
+  useEffect(() => {
+    if (!isFormOpen || form.mode !== "create") {
+      return;
+    }
+
+    let cancelled = false;
+    setIsModelCatalogLoading(true);
+    setModelCatalogError(null);
+
+    apiClient
+      .listAgentModels(workspaceId)
+      .then((models) => {
+        if (cancelled) {
+          return;
+        }
+
+        setModelCatalog(models);
+        setTemplateDraft((current) =>
+          models.some((model) => model.modelId === current.model) || !models[0]
+            ? current
+            : { ...current, model: models[0].modelId },
+        );
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setModelCatalog([]);
+          setModelCatalogError(
+            messageFor(error, "Unable to load available models."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsModelCatalogLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiClient, form.mode, isFormOpen, workspaceId]);
+
+  useEffect(() => {
+    if (!isFormOpen || form.mode !== "create") {
+      return;
+    }
+
+    const previewInput = templateDraftToSkillPreviewInput(templateDraft);
+    const requiredErrors = validateTemplateDraft(templateDraft);
+    const hasRequiredErrors = Object.keys(requiredErrors).length > 0;
+
+    if (hasRequiredErrors || modelCatalogError) {
+      skillPreviewRequestId.current += 1;
+      setSkillPreviewMarkdown("");
+      setIsSkillPreviewLoading(false);
+      setSkillPreviewError(null);
+      return;
+    }
+
+    const requestId = skillPreviewRequestId.current + 1;
+    skillPreviewRequestId.current = requestId;
+    setIsSkillPreviewLoading(true);
+    setSkillPreviewError(null);
+
+    const timeoutId = window.setTimeout(() => {
+      apiClient
+        .previewSkillMarkdown(workspaceId, previewInput)
+        .then((preview) => {
+          if (skillPreviewRequestId.current === requestId) {
+            setSkillPreviewMarkdown(preview.markdown);
+          }
+        })
+        .catch((error) => {
+          if (skillPreviewRequestId.current === requestId) {
+            setSkillPreviewMarkdown("");
+            setSkillPreviewError(
+              messageFor(error, "Unable to render skill.md preview."),
+            );
+          }
+        })
+        .finally(() => {
+          if (skillPreviewRequestId.current === requestId) {
+            setIsSkillPreviewLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [apiClient, form.mode, isFormOpen, modelCatalogError, templateDraft, workspaceId]);
+
   const viewModel = useMemo(
     () =>
       createAgentManagementViewModel({
@@ -181,6 +329,14 @@ export function AgentManagementPage({
     setIsEditReady(false);
     setPageError(null);
     setForm(createForm());
+    setGuidedCreateMode("template");
+    setTemplateDraft(createTemplateDraft());
+    setTemplateDraftErrors({});
+    setModelCatalog([]);
+    setModelCatalogError(null);
+    setSkillPreviewMarkdown("");
+    setSkillPreviewError(null);
+    setIsSkillPreviewLoading(false);
     setIsFormOpen(true);
   }
 
@@ -245,6 +401,68 @@ export function AgentManagementPage({
         form: undefined,
       },
     }));
+  }
+
+  function updateTemplateDraftField(field: TemplateDraftField, value: string) {
+    setTemplateDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setTemplateDraftErrors((current) => ({
+      ...current,
+      [field]: undefined,
+      form: undefined,
+    }));
+  }
+
+  async function submitTemplateDraft() {
+    if (!canManageAgents || pendingActionRef.current) {
+      return;
+    }
+
+    const errors = validateTemplateDraft(templateDraft);
+    const selectedModelAvailable = modelCatalog.some(
+      (model) => model.modelId === templateDraft.model,
+    );
+
+    if (modelCatalogError) {
+      setTemplateDraftErrors({
+        form: "Available models must load before creating an agent.",
+      });
+      return;
+    }
+
+    if (!selectedModelAvailable) {
+      setTemplateDraftErrors({
+        ...errors,
+        model: "Select an available model.",
+      });
+      return;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setTemplateDraftErrors(errors);
+      return;
+    }
+
+    await runMutation(
+      "create",
+      async () => {
+        await apiClient.createAgent(workspaceId, {
+          name: templateDraft.name.trim(),
+          role: templateDraft.role.trim(),
+          model: templateDraft.model,
+          instructions: buildCreateInstructionsFromDraft(templateDraft),
+        });
+        await replaceAgents();
+        closeForm(true);
+        showSuccess("Agent created successfully");
+      },
+      (error) => {
+        showError(messageFor(error, "Unable to create the agent."));
+        setTemplateDraftErrors(templateDraftErrorsFor(error));
+      },
+    );
   }
 
   async function submitForm() {
@@ -375,6 +593,14 @@ export function AgentManagementPage({
     setIsEditReady(false);
     setIsEditLoading(false);
     setForm(createForm());
+    setGuidedCreateMode("template");
+    setTemplateDraft(createTemplateDraft());
+    setTemplateDraftErrors({});
+    setModelCatalog([]);
+    setModelCatalogError(null);
+    setSkillPreviewMarkdown("");
+    setSkillPreviewError(null);
+    setIsSkillPreviewLoading(false);
   }
 
   async function runMutation(
@@ -400,6 +626,21 @@ export function AgentManagementPage({
       setPendingAction(null);
     }
   }
+
+  const acceptAssistantDraft = useCallback((draft: AgentCreationAssistantDraft) => {
+    setTemplateDraft({
+      name: draft.name,
+      role: draft.role,
+      model: draft.model,
+      instructions: draft.instructions,
+      responsibilities: draft.responsibilities?.join("\n") || "",
+      operatingContext: draft.operatingContext || "",
+      constraints: draft.constraints?.join("\n") || "",
+      escalationRules: draft.escalationRules?.join("\n") || "",
+      exampleTasks: draft.exampleTasks?.join("\n") || "",
+    });
+    setGuidedCreateMode("template");
+  }, []);
 
   return (
     <section
@@ -641,7 +882,29 @@ export function AgentManagementPage({
           />
         )}
 
-        {canManageAgents && isFormOpen ? (
+        {canManageAgents && isFormOpen && form.mode === "create" ? (
+          <GuidedCreateDialog
+            workspaceId={workspaceId}
+            apiClient={apiClient}
+            activeMode={guidedCreateMode}
+            draft={templateDraft}
+            errors={templateDraftErrors}
+            models={modelCatalog}
+            modelCatalogError={modelCatalogError}
+            isModelCatalogLoading={isModelCatalogLoading}
+            skillPreviewMarkdown={skillPreviewMarkdown}
+            skillPreviewError={skillPreviewError}
+            isSkillPreviewLoading={isSkillPreviewLoading}
+            disabled={pendingAction !== null}
+            onModeChange={setGuidedCreateMode}
+            onClose={() => closeForm()}
+            onDraftChange={updateTemplateDraftField}
+            onSubmit={submitTemplateDraft}
+            onAcceptAssistantDraft={acceptAssistantDraft}
+          />
+        ) : null}
+
+        {canManageAgents && isFormOpen && form.mode === "edit" ? (
           <AgentFormDialog
             form={viewModel.form}
             disabled={
@@ -717,6 +980,537 @@ function AgentFormDialog({
         />
       </div>
     </div>
+  );
+}
+
+type GuidedCreateDialogProps = {
+  workspaceId: string;
+  apiClient: AgentManagementApiClient;
+  activeMode: GuidedCreateMode;
+  draft: TemplateDraftState;
+  errors: TemplateDraftErrors;
+  models: AgentModelCatalogEntry[];
+  modelCatalogError: string | null;
+  isModelCatalogLoading: boolean;
+  skillPreviewMarkdown: string;
+  skillPreviewError: string | null;
+  isSkillPreviewLoading: boolean;
+  disabled: boolean;
+  onModeChange: (mode: GuidedCreateMode) => void;
+  onClose: () => void;
+  onDraftChange: (field: TemplateDraftField, value: string) => void;
+  onSubmit: () => void;
+  onAcceptAssistantDraft: (draft: AgentCreationAssistantDraft) => void;
+};
+
+function GuidedCreateDialog({
+  workspaceId,
+  apiClient,
+  activeMode,
+  draft,
+  errors,
+  models,
+  modelCatalogError,
+  isModelCatalogLoading,
+  skillPreviewMarkdown,
+  skillPreviewError,
+  isSkillPreviewLoading,
+  disabled,
+  onModeChange,
+  onClose,
+  onDraftChange,
+  onSubmit,
+  onAcceptAssistantDraft,
+}: GuidedCreateDialogProps) {
+  const requiredErrors = validateTemplateDraft(draft);
+  const selectedModelAvailable = models.some(
+    (model) => model.modelId === draft.model,
+  );
+  const isSubmitDisabled =
+    disabled ||
+    isModelCatalogLoading ||
+    Boolean(modelCatalogError) ||
+    !selectedModelAvailable ||
+    Object.keys(requiredErrors).length > 0;
+
+  return (
+    <div className="agent-modal-backdrop" role="presentation">
+      <div
+        className="agent-modal agent-guided-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="agent-guided-title"
+      >
+        <button
+          type="button"
+          className="agent-modal__close"
+          aria-label="Close agent form"
+          onClick={onClose}
+          disabled={disabled}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+
+        <div className="agent-guided">
+          <header className="agent-guided__header">
+            <span className="agent-form__icon" aria-hidden="true">
+              <Sparkles size={18} />
+            </span>
+            <div>
+              <h2 id="agent-guided-title">Create agent</h2>
+              <p>Select a starting point, review the draft, then create it.</p>
+            </div>
+          </header>
+
+          <div className="agent-guided__entry-points" role="tablist">
+            <GuidedEntryButton
+              mode="template"
+              activeMode={activeMode}
+              icon={<FileText size={17} aria-hidden="true" />}
+              label="Template"
+              onModeChange={onModeChange}
+            />
+            <GuidedEntryButton
+              mode="prompt"
+              activeMode={activeMode}
+              icon={<Brain size={17} aria-hidden="true" />}
+              label="Prompt Assistant"
+              onModeChange={onModeChange}
+            />
+            <GuidedEntryButton
+              mode="import"
+              activeMode={activeMode}
+              icon={<Upload size={17} aria-hidden="true" />}
+              label="Import skill.md"
+              onModeChange={onModeChange}
+            />
+          </div>
+
+          {activeMode === "template" ? (
+            <TemplateDraftForm
+              draft={draft}
+              errors={errors}
+              models={models}
+              modelCatalogError={modelCatalogError}
+              isModelCatalogLoading={isModelCatalogLoading}
+              skillPreviewMarkdown={skillPreviewMarkdown}
+              skillPreviewError={skillPreviewError}
+              isSkillPreviewLoading={isSkillPreviewLoading}
+              disabled={disabled}
+              isSubmitDisabled={isSubmitDisabled}
+              onDraftChange={onDraftChange}
+              onSubmit={onSubmit}
+            />
+          ) : activeMode === "prompt" ? (
+            <PromptAssistantPanel
+              workspaceId={workspaceId}
+              apiClient={apiClient}
+              onAccept={onAcceptAssistantDraft}
+            />
+          ) : (
+            <DeferredGuidedPanel mode={activeMode} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PromptAssistantPanel({
+  workspaceId,
+  apiClient,
+  onAccept,
+}: {
+  workspaceId: string;
+  apiClient: AgentManagementApiClient;
+  onAccept: (draft: AgentCreationAssistantDraft) => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [draftResult, setDraftResult] = useState<AgentCreationAssistantDraftResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    setError(null);
+    setDraftResult(null);
+    try {
+      const response = await apiClient.createAssistantDraft(workspaceId, { prompt });
+      setDraftResult(response);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate draft. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (draftResult?.draft) {
+    const provider = draftResult.provider;
+    return (
+      <section className="agent-guided__deferred agent-guided__prompt-review" aria-live="polite">
+        <Brain size={24} aria-hidden="true" />
+        <h3>Draft Ready</h3>
+        {provider && provider.fallbackUsed && (
+          <p className="agent-warning-text">
+            Note: Primary provider failed. Used fallback provider: {provider.modelId}
+          </p>
+        )}
+        <div className="agent-draft-preview">
+          <h4>{draftResult.draft.name}</h4>
+          <p><strong>Role:</strong> {draftResult.draft.role}</p>
+          <p><strong>Model:</strong> {draftResult.draft.model}</p>
+        </div>
+        
+        {draftResult.warnings.length > 0 && (
+          <div className="agent-draft-warnings">
+            <h4>Warnings</h4>
+            <ul>
+              {draftResult.warnings.map((w, i) => (
+                <li key={i}>{w.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        
+        <div className="agent-form__actions">
+          <button
+            type="button"
+            className="agent-secondary-button"
+            onClick={() => setDraftResult(null)}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            className="agent-primary-button"
+            onClick={() => onAccept(draftResult.draft!)}
+          >
+            Edit in Template
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="agent-guided__deferred" aria-live="polite">
+      <Brain size={24} aria-hidden="true" />
+      <h3>Prompt Assistant</h3>
+      <p>Describe the agent you want to create.</p>
+      
+      <div className="agent-form__field">
+        <textarea
+          className="agent-form__textarea"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="I need an agent that..."
+          disabled={isGenerating}
+          rows={4}
+        />
+      </div>
+
+      {error && <p className="agent-form__error" role="alert">{error}</p>}
+      
+      {draftResult?.clarifyingQuestions && draftResult.clarifyingQuestions.length > 0 && (
+        <div className="agent-draft-questions">
+          <h4>Clarifying Questions</h4>
+          <ul>
+            {draftResult.clarifyingQuestions.map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <button 
+        type="button" 
+        className="agent-primary-button" 
+        disabled={isGenerating || !prompt.trim()}
+        onClick={handleGenerate}
+      >
+        {isGenerating ? "Generating..." : (draftResult ? "Retry" : "Generate draft")}
+      </button>
+    </section>
+  );
+}
+
+type GuidedEntryButtonProps = {
+  mode: GuidedCreateMode;
+  activeMode: GuidedCreateMode;
+  icon: ReactNode;
+  label: string;
+  onModeChange: (mode: GuidedCreateMode) => void;
+};
+
+function GuidedEntryButton({
+  mode,
+  activeMode,
+  icon,
+  label,
+  onModeChange,
+}: GuidedEntryButtonProps) {
+  const isActive = mode === activeMode;
+
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={isActive}
+      className={`agent-guided__entry${isActive ? " agent-guided__entry--active" : ""}`}
+      onClick={() => onModeChange(mode)}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+type TemplateDraftFormProps = {
+  draft: TemplateDraftState;
+  errors: TemplateDraftErrors;
+  models: AgentModelCatalogEntry[];
+  modelCatalogError: string | null;
+  isModelCatalogLoading: boolean;
+  skillPreviewMarkdown: string;
+  skillPreviewError: string | null;
+  isSkillPreviewLoading: boolean;
+  disabled: boolean;
+  isSubmitDisabled: boolean;
+  onDraftChange: (field: TemplateDraftField, value: string) => void;
+  onSubmit: () => void;
+};
+
+function TemplateDraftForm({
+  draft,
+  errors,
+  models,
+  modelCatalogError,
+  isModelCatalogLoading,
+  skillPreviewMarkdown,
+  skillPreviewError,
+  isSkillPreviewLoading,
+  disabled,
+  isSubmitDisabled,
+  onDraftChange,
+  onSubmit,
+}: TemplateDraftFormProps) {
+  return (
+    <form
+      className="agent-guided__body"
+      noValidate
+      aria-busy={disabled}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void onSubmit();
+      }}
+    >
+      <div className="agent-guided__draft">
+        {errors.form ? (
+          <p className="agent-form__error" role="alert">
+            {errors.form}
+          </p>
+        ) : null}
+        <DraftField
+          field="name"
+          label="Name"
+          value={draft.name}
+          error={errors.name}
+          required
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="role"
+          label="Role"
+          value={draft.role}
+          error={errors.role}
+          required
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <div className="agent-form__field">
+          <label htmlFor="agent-template-model">Model</label>
+          {modelCatalogError ? (
+            <p className="agent-form__error" role="alert">
+              {modelCatalogError}
+            </p>
+          ) : null}
+          <select
+            id="agent-template-model"
+            name="model"
+            value={draft.model}
+            disabled={disabled || isModelCatalogLoading || models.length === 0}
+            aria-invalid={Boolean(errors.model) || Boolean(modelCatalogError)}
+            onChange={(event) => onDraftChange("model", event.target.value)}
+          >
+            {isModelCatalogLoading ? (
+              <option value={draft.model}>Loading models...</option>
+            ) : null}
+            {!isModelCatalogLoading && models.length === 0 ? (
+              <option value={draft.model}>No models available</option>
+            ) : null}
+            {models.map((model) => (
+              <option key={model.modelId} value={model.modelId}>
+                {model.displayName}
+              </option>
+            ))}
+          </select>
+          {errors.model ? (
+            <span className="agent-form__error" role="alert">
+              {errors.model}
+            </span>
+          ) : null}
+        </div>
+        <DraftField
+          field="responsibilities"
+          label="Responsibilities"
+          value={draft.responsibilities}
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="instructions"
+          label="Instructions"
+          value={draft.instructions}
+          error={errors.instructions}
+          required
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="constraints"
+          label="Constraints"
+          value={draft.constraints}
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="escalationRules"
+          label="Escalation rules"
+          value={draft.escalationRules}
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+        <DraftField
+          field="exampleTasks"
+          label="Example tasks"
+          value={draft.exampleTasks}
+          multiline
+          disabled={disabled}
+          onDraftChange={onDraftChange}
+        />
+      </div>
+
+      <aside className="agent-guided__preview" aria-label="skill.md preview">
+        <div className="agent-guided__preview-header">
+          <h3>skill.md preview</h3>
+          {isSkillPreviewLoading ? <span role="status">Rendering...</span> : null}
+        </div>
+        {skillPreviewError ? (
+          <p className="agent-form__error" role="alert">
+            {skillPreviewError}
+          </p>
+        ) : null}
+        {skillPreviewMarkdown ? (
+          <pre>{skillPreviewMarkdown}</pre>
+        ) : (
+          <p className="agent-guided__preview-empty">
+            Complete name, role, model, and instructions to render the preview.
+          </p>
+        )}
+      </aside>
+
+      <div className="agent-guided__footer">
+        <p>
+          {isSubmitDisabled
+            ? "Complete required fields and select an available model before creating."
+            : "Template draft is ready to create."}
+        </p>
+        <button
+          type="submit"
+          className="agent-primary-button"
+          disabled={isSubmitDisabled}
+        >
+          {disabled ? "Saving..." : "Create agent"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+type DraftFieldProps = {
+  field: TemplateDraftField;
+  label: string;
+  value: string;
+  error?: string;
+  required?: boolean;
+  multiline?: boolean;
+  disabled?: boolean;
+  onDraftChange: (field: TemplateDraftField, value: string) => void;
+};
+
+function DraftField({
+  field,
+  label,
+  value,
+  error,
+  required = false,
+  multiline = false,
+  disabled = false,
+  onDraftChange,
+}: DraftFieldProps) {
+  const fieldId = `agent-template-${field}`;
+  const errorId = `${fieldId}-error`;
+  const commonProps = {
+    id: fieldId,
+    name: field,
+    value,
+    disabled,
+    required,
+    "aria-invalid": Boolean(error),
+    "aria-describedby": error ? errorId : undefined,
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      onDraftChange(field, event.target.value),
+  };
+
+  return (
+    <div className="agent-form__field">
+      <label htmlFor={fieldId}>{label}</label>
+      {multiline ? <textarea {...commonProps} /> : <input {...commonProps} />}
+      {error ? (
+        <span id={errorId} className="agent-form__error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function DeferredGuidedPanel({ mode }: { mode: Exclude<GuidedCreateMode, "template"> }) {
+  const isPrompt = mode === "prompt";
+
+  return (
+    <section className="agent-guided__deferred" aria-live="polite">
+      {isPrompt ? (
+        <Brain size={24} aria-hidden="true" />
+      ) : (
+        <Upload size={24} aria-hidden="true" />
+      )}
+      <h3>{isPrompt ? "Prompt Assistant" : "Import skill.md"}</h3>
+      <p>
+        {isPrompt
+          ? "Prompt drafting will connect to the provider chain in the next phase."
+          : "Markdown import extraction will connect to the import analysis flow in a later phase."}
+      </p>
+      <button type="button" className="agent-secondary-button" disabled>
+        {isPrompt ? "Generate draft" : "Analyze skill.md"}
+      </button>
+    </section>
   );
 }
 
@@ -1103,7 +1897,7 @@ function AgentForm({
       <FormField
         field="model"
         label="Model"
-        hint="Which LLM should power this agent? (e.g. gpt-4o, claude-3-5-sonnet)"
+        hint="Which LLM should power this agent? (e.g. gemini-2.5-flash, openrouter/owl-alpha)"
         value={form.values.model}
         error={form.errors.model}
         disabled={disabled}
@@ -1202,6 +1996,117 @@ function FormField({
 
 function createForm(): AgentFormState {
   return { mode: "create", values: { ...createFormValues } };
+}
+
+function createTemplateDraft(): TemplateDraftState {
+  return { ...templateDraftValues };
+}
+
+function validateTemplateDraft(draft: TemplateDraftState): TemplateDraftErrors {
+  const errors: TemplateDraftErrors = {};
+
+  if (!draft.name.trim()) {
+    errors.name = "name is required";
+  }
+
+  if (!draft.role.trim()) {
+    errors.role = "role is required";
+  }
+
+  if (!draft.model.trim()) {
+    errors.model = "model is required";
+  }
+
+  if (!draft.instructions.trim()) {
+    errors.instructions = "instructions are required";
+  }
+
+  return errors;
+}
+
+function templateDraftErrorsFor(error: unknown): TemplateDraftErrors {
+  if (
+    error instanceof AgentApiClientError &&
+    error.code === "validation.invalid_input"
+  ) {
+    const issues = Array.isArray(error.details?.issues)
+      ? error.details.issues
+      : [];
+    const errors: TemplateDraftErrors = {};
+
+    for (const issue of issues) {
+      if (typeof issue !== "string") {
+        continue;
+      }
+
+      const field = (["name", "role", "model", "instructions"] as const).find(
+        (candidate) => issue.startsWith(candidate),
+      );
+      if (field) {
+        errors[field] = issue;
+      }
+    }
+
+    return Object.keys(errors).length > 0 ? errors : { form: error.message };
+  }
+
+  return { form: messageFor(error, "Unable to create the agent.") };
+}
+
+function templateDraftToSkillPreviewInput(
+  draft: TemplateDraftState,
+): AgentSkillPreviewRequest {
+  return {
+    name: draft.name.trim(),
+    role: draft.role.trim(),
+    model: draft.model,
+    instructions: draft.instructions.trim(),
+    responsibilities: splitDraftLines(draft.responsibilities),
+    constraints: splitDraftLines(draft.constraints),
+    escalationRules: splitDraftLines(draft.escalationRules),
+    exampleTasks: splitDraftLines(draft.exampleTasks),
+  };
+}
+
+function buildCreateInstructionsFromDraft(draft: TemplateDraftState): string {
+  const optionalSections = [
+    draft.responsibilities,
+    draft.constraints,
+    draft.escalationRules,
+    draft.exampleTasks,
+  ];
+
+  if (optionalSections.every((value) => splitDraftLines(value).length === 0)) {
+    return draft.instructions.trim();
+  }
+
+  const sections = [
+    formatDraftSection("Responsibilities", draft.responsibilities),
+    draft.instructions.trim()
+      ? `Instructions:\n${draft.instructions.trim()}`
+      : "",
+    formatDraftSection("Constraints", draft.constraints),
+    formatDraftSection("Escalation Rules", draft.escalationRules),
+    formatDraftSection("Example Tasks", draft.exampleTasks),
+  ].filter(Boolean);
+
+  return sections.join("\n\n");
+}
+
+function formatDraftSection(title: string, value: string): string {
+  const lines = splitDraftLines(value);
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return [`${title}:`, ...lines.map((line) => `- ${line}`)].join("\n");
+}
+
+function splitDraftLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean);
 }
 
 function formErrorsFor(error: unknown): AgentFormState["errors"] {

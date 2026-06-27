@@ -20,15 +20,29 @@ export type WorkflowModel = runtime.Types.Result.DefaultSelection<Prisma.$Workfl
 
 export type AggregateWorkflow = {
   _count: WorkflowCountAggregateOutputType | null
+  _avg: WorkflowAvgAggregateOutputType | null
+  _sum: WorkflowSumAggregateOutputType | null
   _min: WorkflowMinAggregateOutputType | null
   _max: WorkflowMaxAggregateOutputType | null
+}
+
+export type WorkflowAvgAggregateOutputType = {
+  version: number | null
+}
+
+export type WorkflowSumAggregateOutputType = {
+  version: number | null
 }
 
 export type WorkflowMinAggregateOutputType = {
   workflowId: string | null
   workspaceId: string | null
   name: string | null
+  description: string | null
   status: string | null
+  triggerType: string | null
+  version: number | null
+  parentWorkflowId: string | null
   createdAt: string | null
   updatedAt: string | null
 }
@@ -37,7 +51,11 @@ export type WorkflowMaxAggregateOutputType = {
   workflowId: string | null
   workspaceId: string | null
   name: string | null
+  description: string | null
   status: string | null
+  triggerType: string | null
+  version: number | null
+  parentWorkflowId: string | null
   createdAt: string | null
   updatedAt: string | null
 }
@@ -46,18 +64,35 @@ export type WorkflowCountAggregateOutputType = {
   workflowId: number
   workspaceId: number
   name: number
+  description: number
   status: number
+  triggerType: number
+  triggerConfig: number
+  version: number
+  parentWorkflowId: number
   createdAt: number
   updatedAt: number
   _all: number
 }
 
 
+export type WorkflowAvgAggregateInputType = {
+  version?: true
+}
+
+export type WorkflowSumAggregateInputType = {
+  version?: true
+}
+
 export type WorkflowMinAggregateInputType = {
   workflowId?: true
   workspaceId?: true
   name?: true
+  description?: true
   status?: true
+  triggerType?: true
+  version?: true
+  parentWorkflowId?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -66,7 +101,11 @@ export type WorkflowMaxAggregateInputType = {
   workflowId?: true
   workspaceId?: true
   name?: true
+  description?: true
   status?: true
+  triggerType?: true
+  version?: true
+  parentWorkflowId?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -75,7 +114,12 @@ export type WorkflowCountAggregateInputType = {
   workflowId?: true
   workspaceId?: true
   name?: true
+  description?: true
   status?: true
+  triggerType?: true
+  triggerConfig?: true
+  version?: true
+  parentWorkflowId?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -119,6 +163,18 @@ export type WorkflowAggregateArgs<ExtArgs extends runtime.Types.Extensions.Inter
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: WorkflowAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: WorkflowSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: WorkflowMinAggregateInputType
@@ -149,6 +205,8 @@ export type WorkflowGroupByArgs<ExtArgs extends runtime.Types.Extensions.Interna
   take?: number
   skip?: number
   _count?: WorkflowCountAggregateInputType | true
+  _avg?: WorkflowAvgAggregateInputType
+  _sum?: WorkflowSumAggregateInputType
   _min?: WorkflowMinAggregateInputType
   _max?: WorkflowMaxAggregateInputType
 }
@@ -157,10 +215,17 @@ export type WorkflowGroupByOutputType = {
   workflowId: string
   workspaceId: string
   name: string
+  description: string | null
   status: string
+  triggerType: string
+  triggerConfig: runtime.JsonValue | null
+  version: number
+  parentWorkflowId: string | null
   createdAt: string
   updatedAt: string
   _count: WorkflowCountAggregateOutputType | null
+  _avg: WorkflowAvgAggregateOutputType | null
+  _sum: WorkflowSumAggregateOutputType | null
   _min: WorkflowMinAggregateOutputType | null
   _max: WorkflowMaxAggregateOutputType | null
 }
@@ -187,7 +252,12 @@ export type WorkflowWhereInput = {
   workflowId?: Prisma.StringFilter<"Workflow"> | string
   workspaceId?: Prisma.StringFilter<"Workflow"> | string
   name?: Prisma.StringFilter<"Workflow"> | string
+  description?: Prisma.StringNullableFilter<"Workflow"> | string | null
   status?: Prisma.StringFilter<"Workflow"> | string
+  triggerType?: Prisma.StringFilter<"Workflow"> | string
+  triggerConfig?: Prisma.JsonNullableFilter<"Workflow">
+  version?: Prisma.IntFilter<"Workflow"> | number
+  parentWorkflowId?: Prisma.StringNullableFilter<"Workflow"> | string | null
   createdAt?: Prisma.StringFilter<"Workflow"> | string
   updatedAt?: Prisma.StringFilter<"Workflow"> | string
   steps?: Prisma.WorkflowStepListRelationFilter
@@ -198,7 +268,12 @@ export type WorkflowOrderByWithRelationInput = {
   workflowId?: Prisma.SortOrder
   workspaceId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  description?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
+  triggerType?: Prisma.SortOrder
+  triggerConfig?: Prisma.SortOrderInput | Prisma.SortOrder
+  version?: Prisma.SortOrder
+  parentWorkflowId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   steps?: Prisma.WorkflowStepOrderByRelationAggregateInput
@@ -212,7 +287,12 @@ export type WorkflowWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.WorkflowWhereInput | Prisma.WorkflowWhereInput[]
   workspaceId?: Prisma.StringFilter<"Workflow"> | string
   name?: Prisma.StringFilter<"Workflow"> | string
+  description?: Prisma.StringNullableFilter<"Workflow"> | string | null
   status?: Prisma.StringFilter<"Workflow"> | string
+  triggerType?: Prisma.StringFilter<"Workflow"> | string
+  triggerConfig?: Prisma.JsonNullableFilter<"Workflow">
+  version?: Prisma.IntFilter<"Workflow"> | number
+  parentWorkflowId?: Prisma.StringNullableFilter<"Workflow"> | string | null
   createdAt?: Prisma.StringFilter<"Workflow"> | string
   updatedAt?: Prisma.StringFilter<"Workflow"> | string
   steps?: Prisma.WorkflowStepListRelationFilter
@@ -223,12 +303,19 @@ export type WorkflowOrderByWithAggregationInput = {
   workflowId?: Prisma.SortOrder
   workspaceId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  description?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
+  triggerType?: Prisma.SortOrder
+  triggerConfig?: Prisma.SortOrderInput | Prisma.SortOrder
+  version?: Prisma.SortOrder
+  parentWorkflowId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.WorkflowCountOrderByAggregateInput
+  _avg?: Prisma.WorkflowAvgOrderByAggregateInput
   _max?: Prisma.WorkflowMaxOrderByAggregateInput
   _min?: Prisma.WorkflowMinOrderByAggregateInput
+  _sum?: Prisma.WorkflowSumOrderByAggregateInput
 }
 
 export type WorkflowScalarWhereWithAggregatesInput = {
@@ -238,7 +325,12 @@ export type WorkflowScalarWhereWithAggregatesInput = {
   workflowId?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
   workspaceId?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
   name?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
+  description?: Prisma.StringNullableWithAggregatesFilter<"Workflow"> | string | null
   status?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
+  triggerType?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
+  triggerConfig?: Prisma.JsonNullableWithAggregatesFilter<"Workflow">
+  version?: Prisma.IntWithAggregatesFilter<"Workflow"> | number
+  parentWorkflowId?: Prisma.StringNullableWithAggregatesFilter<"Workflow"> | string | null
   createdAt?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
   updatedAt?: Prisma.StringWithAggregatesFilter<"Workflow"> | string
 }
@@ -247,7 +339,12 @@ export type WorkflowCreateInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
   steps?: Prisma.WorkflowStepCreateNestedManyWithoutWorkflowInput
@@ -258,7 +355,12 @@ export type WorkflowUncheckedCreateInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
   steps?: Prisma.WorkflowStepUncheckedCreateNestedManyWithoutWorkflowInput
@@ -269,7 +371,12 @@ export type WorkflowUpdateInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   steps?: Prisma.WorkflowStepUpdateManyWithoutWorkflowNestedInput
@@ -280,7 +387,12 @@ export type WorkflowUncheckedUpdateInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   steps?: Prisma.WorkflowStepUncheckedUpdateManyWithoutWorkflowNestedInput
@@ -291,7 +403,12 @@ export type WorkflowCreateManyInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -300,7 +417,12 @@ export type WorkflowUpdateManyMutationInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -309,7 +431,12 @@ export type WorkflowUncheckedUpdateManyInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
 }
@@ -318,16 +445,29 @@ export type WorkflowCountOrderByAggregateInput = {
   workflowId?: Prisma.SortOrder
   workspaceId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  description?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  triggerType?: Prisma.SortOrder
+  triggerConfig?: Prisma.SortOrder
+  version?: Prisma.SortOrder
+  parentWorkflowId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type WorkflowAvgOrderByAggregateInput = {
+  version?: Prisma.SortOrder
 }
 
 export type WorkflowMaxOrderByAggregateInput = {
   workflowId?: Prisma.SortOrder
   workspaceId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  description?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  triggerType?: Prisma.SortOrder
+  version?: Prisma.SortOrder
+  parentWorkflowId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -336,14 +476,30 @@ export type WorkflowMinOrderByAggregateInput = {
   workflowId?: Prisma.SortOrder
   workspaceId?: Prisma.SortOrder
   name?: Prisma.SortOrder
+  description?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  triggerType?: Prisma.SortOrder
+  version?: Prisma.SortOrder
+  parentWorkflowId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type WorkflowSumOrderByAggregateInput = {
+  version?: Prisma.SortOrder
 }
 
 export type WorkflowScalarRelationFilter = {
   is?: Prisma.WorkflowWhereInput
   isNot?: Prisma.WorkflowWhereInput
+}
+
+export type IntFieldUpdateOperationsInput = {
+  set?: number
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
 }
 
 export type WorkflowCreateNestedOneWithoutStepsInput = {
@@ -378,7 +534,12 @@ export type WorkflowCreateWithoutStepsInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
   executions?: Prisma.WorkflowExecutionCreateNestedManyWithoutWorkflowInput
@@ -388,7 +549,12 @@ export type WorkflowUncheckedCreateWithoutStepsInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
   executions?: Prisma.WorkflowExecutionUncheckedCreateNestedManyWithoutWorkflowInput
@@ -414,7 +580,12 @@ export type WorkflowUpdateWithoutStepsInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   executions?: Prisma.WorkflowExecutionUpdateManyWithoutWorkflowNestedInput
@@ -424,7 +595,12 @@ export type WorkflowUncheckedUpdateWithoutStepsInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   executions?: Prisma.WorkflowExecutionUncheckedUpdateManyWithoutWorkflowNestedInput
@@ -434,7 +610,12 @@ export type WorkflowCreateWithoutExecutionsInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
   steps?: Prisma.WorkflowStepCreateNestedManyWithoutWorkflowInput
@@ -444,7 +625,12 @@ export type WorkflowUncheckedCreateWithoutExecutionsInput = {
   workflowId: string
   workspaceId: string
   name: string
+  description?: string | null
   status?: string
+  triggerType?: string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: number
+  parentWorkflowId?: string | null
   createdAt: string
   updatedAt: string
   steps?: Prisma.WorkflowStepUncheckedCreateNestedManyWithoutWorkflowInput
@@ -470,7 +656,12 @@ export type WorkflowUpdateWithoutExecutionsInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   steps?: Prisma.WorkflowStepUpdateManyWithoutWorkflowNestedInput
@@ -480,7 +671,12 @@ export type WorkflowUncheckedUpdateWithoutExecutionsInput = {
   workflowId?: Prisma.StringFieldUpdateOperationsInput | string
   workspaceId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerType?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
+  parentWorkflowId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   steps?: Prisma.WorkflowStepUncheckedUpdateManyWithoutWorkflowNestedInput
@@ -530,7 +726,12 @@ export type WorkflowSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   workflowId?: boolean
   workspaceId?: boolean
   name?: boolean
+  description?: boolean
   status?: boolean
+  triggerType?: boolean
+  triggerConfig?: boolean
+  version?: boolean
+  parentWorkflowId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   steps?: boolean | Prisma.Workflow$stepsArgs<ExtArgs>
@@ -542,7 +743,12 @@ export type WorkflowSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   workflowId?: boolean
   workspaceId?: boolean
   name?: boolean
+  description?: boolean
   status?: boolean
+  triggerType?: boolean
+  triggerConfig?: boolean
+  version?: boolean
+  parentWorkflowId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["workflow"]>
@@ -551,7 +757,12 @@ export type WorkflowSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   workflowId?: boolean
   workspaceId?: boolean
   name?: boolean
+  description?: boolean
   status?: boolean
+  triggerType?: boolean
+  triggerConfig?: boolean
+  version?: boolean
+  parentWorkflowId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["workflow"]>
@@ -560,12 +771,17 @@ export type WorkflowSelectScalar = {
   workflowId?: boolean
   workspaceId?: boolean
   name?: boolean
+  description?: boolean
   status?: boolean
+  triggerType?: boolean
+  triggerConfig?: boolean
+  version?: boolean
+  parentWorkflowId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type WorkflowOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"workflowId" | "workspaceId" | "name" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["workflow"]>
+export type WorkflowOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"workflowId" | "workspaceId" | "name" | "description" | "status" | "triggerType" | "triggerConfig" | "version" | "parentWorkflowId" | "createdAt" | "updatedAt", ExtArgs["result"]["workflow"]>
 export type WorkflowInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   steps?: boolean | Prisma.Workflow$stepsArgs<ExtArgs>
   executions?: boolean | Prisma.Workflow$executionsArgs<ExtArgs>
@@ -584,7 +800,12 @@ export type $WorkflowPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     workflowId: string
     workspaceId: string
     name: string
+    description: string | null
     status: string
+    triggerType: string
+    triggerConfig: runtime.JsonValue | null
+    version: number
+    parentWorkflowId: string | null
     createdAt: string
     updatedAt: string
   }, ExtArgs["result"]["workflow"]>
@@ -1015,7 +1236,12 @@ export interface WorkflowFieldRefs {
   readonly workflowId: Prisma.FieldRef<"Workflow", 'String'>
   readonly workspaceId: Prisma.FieldRef<"Workflow", 'String'>
   readonly name: Prisma.FieldRef<"Workflow", 'String'>
+  readonly description: Prisma.FieldRef<"Workflow", 'String'>
   readonly status: Prisma.FieldRef<"Workflow", 'String'>
+  readonly triggerType: Prisma.FieldRef<"Workflow", 'String'>
+  readonly triggerConfig: Prisma.FieldRef<"Workflow", 'Json'>
+  readonly version: Prisma.FieldRef<"Workflow", 'Int'>
+  readonly parentWorkflowId: Prisma.FieldRef<"Workflow", 'String'>
   readonly createdAt: Prisma.FieldRef<"Workflow", 'String'>
   readonly updatedAt: Prisma.FieldRef<"Workflow", 'String'>
 }

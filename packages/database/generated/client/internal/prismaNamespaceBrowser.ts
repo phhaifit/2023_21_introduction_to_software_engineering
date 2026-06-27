@@ -77,7 +77,8 @@ export const ModelName = {
   KnowledgeSyncJob: 'KnowledgeSyncJob',
   KnowledgeSyncJobEvent: 'KnowledgeSyncJobEvent',
   KnowledgeAccessGrant: 'KnowledgeAccessGrant',
-  Job: 'Job'
+  Job: 'Job',
+  PaymentMethod: 'PaymentMethod'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -182,7 +183,8 @@ export const SubscriptionScalarFieldEnum = {
   status: 'status',
   expiresAt: 'expiresAt',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  autoRenew: 'autoRenew'
 } as const
 
 export type SubscriptionScalarFieldEnum = (typeof SubscriptionScalarFieldEnum)[keyof typeof SubscriptionScalarFieldEnum]
@@ -244,7 +246,12 @@ export const WorkflowScalarFieldEnum = {
   workflowId: 'workflowId',
   workspaceId: 'workspaceId',
   name: 'name',
+  description: 'description',
   status: 'status',
+  triggerType: 'triggerType',
+  triggerConfig: 'triggerConfig',
+  version: 'version',
+  parentWorkflowId: 'parentWorkflowId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -257,7 +264,10 @@ export const WorkflowStepScalarFieldEnum = {
   workspaceId: 'workspaceId',
   workflowId: 'workflowId',
   agentId: 'agentId',
+  stepType: 'stepType',
   stepOrder: 'stepOrder',
+  nextSteps: 'nextSteps',
+  inputMapping: 'inputMapping',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -507,6 +517,22 @@ export const JobScalarFieldEnum = {
 } as const
 
 export type JobScalarFieldEnum = (typeof JobScalarFieldEnum)[keyof typeof JobScalarFieldEnum]
+
+
+export const PaymentMethodScalarFieldEnum = {
+  id: 'id',
+  workspaceId: 'workspaceId',
+  type: 'type',
+  brand: 'brand',
+  last4: 'last4',
+  holder: 'holder',
+  isDefault: 'isDefault',
+  gatewayToken: 'gatewayToken',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PaymentMethodScalarFieldEnum = (typeof PaymentMethodScalarFieldEnum)[keyof typeof PaymentMethodScalarFieldEnum]
 
 
 export const SortOrder = {

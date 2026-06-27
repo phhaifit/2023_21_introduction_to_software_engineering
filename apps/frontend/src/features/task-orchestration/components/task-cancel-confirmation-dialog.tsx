@@ -33,6 +33,30 @@ export function TaskCancelConfirmationDialog({
     onDismiss();
   }
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDialogElement>) {
+    if (event.key === "Tab") {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusableElements = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey) {
+        if (document.activeElement === firstElement) {
+          lastElement?.focus();
+          event.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement?.focus();
+          event.preventDefault();
+        }
+      }
+    }
+  }
+
   function handleConfirmClick() {
     setError(null);
     try {
@@ -57,6 +81,7 @@ export function TaskCancelConfirmationDialog({
       ref={dialogRef}
       className="task-cancel-confirmation-dialog"
       onCancel={handleCancel}
+      onKeyDown={handleKeyDown}
       aria-modal="true"
       aria-labelledby="cancel-dialog-title"
       aria-describedby="cancel-dialog-description"

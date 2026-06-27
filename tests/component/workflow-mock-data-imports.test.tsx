@@ -22,14 +22,25 @@ function createMockApiClient(overrides: Partial<WorkflowManagementApiClient> = {
   } as unknown as WorkflowManagementApiClient;
 }
 
+vi.mock("@vcp/frontend/features/workflow-management/api/workflow-api-client.ts", () => {
+  return {
+    createWorkflowManagementApiClient: () => ({
+      listWorkflows: async () => mockWorkflows,
+      getWorkflow: async () => {},
+      createWorkflow: async () => {},
+      updateWorkflow: async () => {}
+    })
+  };
+});
+
 describe("workflow mock data imports", () => {
-  it("renders dashboard workflow summary from the shared demo data import", () => {
+  it("renders dashboard workflow summary from the shared demo data import", async () => {
     render(<DashboardPage />);
 
-    expect(screen.getByText("Tổng số Workflows")).toBeVisible();
-    expect(screen.getByText(String(mockWorkflows.length))).toBeVisible();
-    expect(screen.getByText("Workflows hoạt động gần đây")).toBeVisible();
-    expect(screen.getByText(mockWorkflows[0].name)).toBeVisible();
+    expect(await screen.findByText("Tổng số Workflows")).toBeVisible();
+    expect(await screen.findByText(String(mockWorkflows.length))).toBeVisible();
+    expect(await screen.findByText("Workflows hoạt động gần đây")).toBeVisible();
+    expect(await screen.findByText(mockWorkflows[0].name)).toBeVisible();
   });
 
   it("renders the workflow list with deterministic demo rows", async () => {
@@ -37,7 +48,7 @@ describe("workflow mock data imports", () => {
     const apiClient = createMockApiClient();
     render(<WorkflowsPage apiClient={apiClient} />);
 
-    await user.click(screen.getByRole("button", { name: "Danh sách" }));
+    await user.click(screen.getByRole("button", { name: "List" }));
 
     const table = await screen.findByRole("table");
     expect(within(table).getByText(mockWorkflows[0].name)).toBeVisible();
@@ -48,14 +59,14 @@ describe("workflow mock data imports", () => {
     const apiClient = createMockApiClient();
     render(<WorkflowsPage apiClient={apiClient} />);
 
-    await user.click(screen.getByRole("button", { name: "Danh sách" }));
+    await user.click(screen.getByRole("button", { name: "List" }));
     await screen.findByRole("table");
     
     await user.type(
-      screen.getByPlaceholderText("Tìm kiếm workflow..."),
+      screen.getByPlaceholderText("Search workflows..."),
       "khong-co-workflow"
     );
-
-    expect(screen.getByText("Không tìm thấy workflow nào.")).toBeVisible();
+    expect(screen.getByText("No Workflows Found")).toBeVisible();
+    expect(screen.getByText("No results match your search.")).toBeVisible();
   });
 });

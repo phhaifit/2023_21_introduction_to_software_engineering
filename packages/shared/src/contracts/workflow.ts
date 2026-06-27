@@ -11,16 +11,26 @@ export interface WorkflowDto {
   status: WorkflowStatus;
   triggerType: WorkflowTriggerType;
   triggerConfig: Record<string, any> | null;
+  version: number;
+  parentWorkflowId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WorkflowStepTransition {
+  targetStepId: EntityId<"workflowStepId">;
+  condition?: string | null;
 }
 
 export interface WorkflowStepDto {
   workflowStepId: EntityId<"workflowStepId">;
   workspaceId: EntityId<"workspaceId">;
   workflowId: EntityId<"workflowId">;
-  agentId: EntityId<"agentId">;
+  agentId: EntityId<"agentId"> | null;
+  stepType: "agent" | "approval";
   stepOrder: number;
+  nextSteps?: WorkflowStepTransition[] | null;
+  inputMapping?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 }

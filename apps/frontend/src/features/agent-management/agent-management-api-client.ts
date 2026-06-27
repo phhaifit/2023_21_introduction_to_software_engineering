@@ -1,4 +1,11 @@
-import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
+import type {
+  AgentModelCatalogEntry,
+  AgentPublicSummary,
+  AgentSkillPreviewRequest,
+  AgentSkillPreviewResponse,
+  AgentCreationAssistantDraftRequest,
+  AgentCreationAssistantDraftResponse
+} from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
@@ -41,6 +48,17 @@ export type AgentManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     options?: ListAgentsOptions
   ): Promise<{ items: AgentListItem[]; pagination: ApiPaginationMeta }>;
+  listAgentModels(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<AgentModelCatalogEntry[]>;
+  previewSkillMarkdown(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentSkillPreviewRequest
+  ): Promise<AgentSkillPreviewResponse>;
+  createAssistantDraft(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentCreationAssistantDraftRequest
+  ): Promise<AgentCreationAssistantDraftResponse>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
     payload: CreateAgentPayload
@@ -194,6 +212,18 @@ export function createAgentManagementApiClient(input: {
         pagination: response.meta.pagination
       };
     },
+    listAgentModels: async (workspaceId) =>
+      (await request<AgentModelCatalogEntry[]>(`${collectionPath(workspaceId)}/models`)).data,
+    previewSkillMarkdown: async (workspaceId, payload) =>
+      (await request<AgentSkillPreviewResponse>(`${collectionPath(workspaceId)}/skill-preview`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
+    createAssistantDraft: async (workspaceId, payload) =>
+      (await request<AgentCreationAssistantDraftResponse>(`${collectionPath(workspaceId)}/assistant/draft`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
     createAgent: async (workspaceId, payload) =>
       (await request<AgentPublicSummary>(collectionPath(workspaceId), {
         method: "POST",

@@ -23,11 +23,47 @@ import {
   toTaskPresentationStatus,
   transitionTaskStatus
 } from "@vcp/frontend/features/task-orchestration/model/task-lifecycle.ts";
+import type { TaskProcessingRuntime } from "@vcp/frontend/features/task-orchestration/model/task-processing-runtime.ts";
+
+class FakeScheduler {
+  callbacks: (() => void)[] = [];
+  schedule(delayMs: number, callback: () => void) {
+    this.callbacks.push(callback);
+    return {
+      cancel: () => {
+        this.callbacks = this.callbacks.filter((cb) => cb !== callback);
+      }
+    };
+  }
+  advance() {
+    const cbs = [...this.callbacks];
+    this.callbacks = [];
+    cbs.forEach((cb) => cb());
+  }
+}
+
+class FakeProcessingRuntime implements TaskProcessingRuntime {
+  scheduler = new FakeScheduler();
+  clock = { now: () => "2026-06-24T12:00:00.000Z" };
+  logIdentitySource = {
+    counter: 0,
+    nextLogId() {
+      this.counter += 1;
+      return `log-${this.counter}`;
+    }
+  };
+}
 
 afterEach(cleanup);
 
 beforeEach(() => {
   resetTaskIdentitySequence();
+  HTMLDialogElement.prototype.showModal = vi.fn(function() {
+    (this as HTMLDialogElement).open = true;
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function() {
+    (this as HTMLDialogElement).open = false;
+  });
 });
 
 class SpyTaskCreationClient implements TaskCreationClient {
@@ -69,7 +105,8 @@ async function submitPrompt(prompt = "Prepare a launch summary.") {
 describe("Task 6B task creation UI flow", () => {
   it("creates one pending auto-routed task through the public client boundary", async () => {
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("Draft the weekly report.");
 
@@ -81,23 +118,33 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(screen.getByLabelText("Pending task")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
-    expect(screen.getByText("Draft the weekly report.")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Draft the weekly report.")).toBeVisible();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
+
     expect(screen.getByText("WORK-000001")).toBeVisible();
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
     expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Completed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Failed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
+    expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
 
-    const timeline = screen.getByRole("region", { name: "Initial processing timeline" });
+    const timeline = screen.getByRole("region", { name: /processing timeline/i });
     expect(within(timeline).getAllByText("Waiting")).toHaveLength(6);
+    expect(within(timeline).queryByText("Active")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /processing log details/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
   });
 
   it("preserves canonical specific-agent routing in the request and Pending summary", async () => {
     const user = userEvent.setup();
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await user.click(screen.getByRole("radio", { name: /Specific agent/ }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Agent" }), "AGT-CODE");
@@ -110,13 +157,16 @@ describe("Task 6B task creation UI flow", () => {
       }
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("workflowId");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
   });
 
   it("preserves canonical predefined-workflow routing in the request and Pending summary", async () => {
     const user = userEvent.setup();
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await user.click(screen.getByRole("radio", { name: /Predefined workflow/ }));
     await user.selectOptions(
@@ -135,6 +185,8 @@ describe("Task 6B task creation UI flow", () => {
       }
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("agentId");
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText(
       "Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS"
     )).toBeVisible();
@@ -178,12 +230,16 @@ describe("Task 6B task creation UI flow", () => {
 
   it("keeps unique task records across multiple successful submissions", async () => {
     const client = new SpyTaskCreationClient();
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("First task.");
     await submitPrompt("Second task.");
 
     expect(client.calls).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("TASK-000002")).toBeVisible();
     expect(screen.getByText("WORK-000002")).toBeVisible();
 
@@ -234,7 +290,8 @@ describe("Task 6B task creation UI flow", () => {
         })
       )
     };
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await user.type(screen.getByRole("textbox", { name: "Request" }), "Slow task");
     await user.click(screen.getByRole("button", { name: "Send request" }));
@@ -248,7 +305,8 @@ describe("Task 6B task creation UI flow", () => {
   it("keeps the draft recoverable after client rejection", async () => {
     const client = new SpyTaskCreationClient();
     client.shouldReject = true;
-    render(<TaskOrchestrationPage taskCreationClient={client} />);
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
     await submitPrompt("Retry me.");
 

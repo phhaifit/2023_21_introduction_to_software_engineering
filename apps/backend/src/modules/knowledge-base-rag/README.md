@@ -10,10 +10,16 @@ Foundation reference: see `docs/module-ownership.md`,
 
 ## Current Status
 
-This backend module currently contains documentation/context only. It does not
-yet contain runtime backend logic, API routers, repository interfaces, Prisma
-repositories, in-memory repositories, worker adapters, or shared DTO
-implementations.
+This backend module now contains the internal backend foundation for domain
+models, application repository ports, application use cases, safe DTO mappers,
+Prisma repository adapters, deterministic in-memory repositories, a thin
+workspace-scoped HTTP API router, and a worker handoff skeleton for document
+ingestion lifecycle updates. The worker boundary also includes a deterministic
+text processing pipeline for supported text/markdown documents.
+
+It still does not contain real file parsing, file storage adapters,
+vector/embedding adapters, full worker runtime handlers, or retrieval
+implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -61,9 +67,9 @@ domain concepts: documents, uploads, validation, ingestion jobs, chunks,
 embedding/indexing status, external data sources, sync scope, sync jobs,
 processing events, and worker handoff.
 
-## Future Domain Concepts
+## Domain Concepts
 
-Future backend code should define these concepts before route implementation:
+The backend boundary defines these module-owned concepts:
 
 - `KnowledgeDocument`
 - `KnowledgeDocumentChunk`
@@ -77,23 +83,14 @@ Future backend code should define these concepts before route implementation:
 - Embedding/indexing status
 - Worker ingestion handoff
 
-## Future DB Ownership
+The domain models intentionally keep object storage references and vector
+references as opaque server-side strings (`storageKey`, `vectorRef`). Public DTO
+mappers do not expose those fields.
 
-This issue does not update Prisma schema or migrations.
+## DB Ownership
 
-Likely future KB/RAG-owned entities:
-
-- `KnowledgeDocument`
-- `KnowledgeDocumentChunk`
-- `KnowledgeIngestionJob`
-- `KnowledgeDataSource`
-- `KnowledgeSyncScopeNode`
-- `KnowledgeSyncJob`
-- `KnowledgeSyncJobEvent`
-
-The current Prisma skeleton already includes `Document`, `KnowledgeIndex`,
-`KnowledgeAccessGrant`, and `Job`. A future DB design issue must decide whether
-to extend those models or introduce additional additive models.
+The DB boundary is defined in `packages/database/prisma/schema.prisma`. Backend
+repositories use `@vcp/database` and only access KB/RAG-owned Prisma models.
 
 Rules:
 
@@ -107,30 +104,31 @@ Rules:
 - Actor identity, timestamps, statuses, and API response shape should follow
   shared platform conventions.
 
-## Future API Contract Roadmap
+## HTTP API Contract
 
-Do not implement these routes in architecture-only issues.
-
-The current API matrix reserves workspace-scoped routes under
-`/api/workspaces/:workspaceId/knowledge/...`. A future API design may consider
-this candidate route shape, but it must be reconciled with the API matrix and
-workspace tenant rules before implementation:
+The public contract uses workspace-scoped routes under
+`/api/workspaces/:workspaceId/knowledge/...`:
 
 ```text
-GET    /api/knowledge-base/documents
-POST   /api/knowledge-base/uploads/validate
-POST   /api/knowledge-base/uploads/prepare
-GET    /api/knowledge-base/ingestion-jobs
-GET    /api/knowledge-base/data-sources
-POST   /api/knowledge-base/data-sources/:sourceId/connect
-GET    /api/knowledge-base/sync-scope
-PUT    /api/knowledge-base/sync-scope
-POST   /api/knowledge-base/sync-jobs
-GET    /api/knowledge-base/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/documents
+POST   /api/workspaces/:workspaceId/knowledge/uploads/validate
+POST   /api/workspaces/:workspaceId/knowledge/uploads/prepare
+GET    /api/workspaces/:workspaceId/knowledge/ingestion-jobs
+GET    /api/workspaces/:workspaceId/knowledge/data-sources
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect
+GET    /api/workspaces/:workspaceId/knowledge/sync-scope
+PUT    /api/workspaces/:workspaceId/knowledge/sync-scope
+POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 ```
 
-Before implementation, define request/response DTOs and decide how workspace
-context is provided. Request bodies must not accept trusted fields such as
+The API router in `api/knowledge-base-rag-router.ts` maps these routes to
+application use cases. It parses request bodies, reads `workspaceId` from the
+route path, takes actor identity from `request.context`, returns shared DTOs
+through `ApiResponse` envelopes, and does not call Prisma, storage, embedding,
+vector, worker, or provider adapters directly.
+
+Request bodies must not accept trusted fields such as
 `workspaceId`, actor/user ID, generated IDs, lifecycle status, timestamps, raw
 credentials, private object-storage paths, or vector DB internals.
 
@@ -181,8 +179,6 @@ credentials.
 
 ## Intended Backend Structure
 
-Future runtime implementation should use:
-
 ```text
 apps/backend/src/modules/knowledge-base-rag/
 |-- api/
@@ -191,30 +187,79 @@ apps/backend/src/modules/knowledge-base-rag/
 `-- infrastructure/
 ```
 
-Likely future files:
+Current backend foundation:
 
 - `api/knowledge-base-rag-router.ts`
+- `api/knowledge-base-rag-request-parsers.ts`
 - `api/api-response.ts`
-- `application/document-use-cases.ts`
-- `application/upload-validation-use-cases.ts`
-- `application/ingestion-job-use-cases.ts`
-- `application/sync-use-cases.ts`
-- `application/ports.ts`
 - `application/*-repository.ts`
+- `application/dto-mappers.ts`
+- `application/knowledge-document-use-cases.ts`
+- `application/knowledge-upload-use-cases.ts`
+- `application/knowledge-ingestion-use-cases.ts`
+- `application/knowledge-data-source-use-cases.ts`
+- `application/knowledge-sync-use-cases.ts`
+- `application/knowledge-base-rag-events.ts`
+- `application/knowledge-base-rag-errors.ts`
 - `domain/knowledge-document.ts`
-- `domain/upload-validation.ts`
 - `domain/knowledge-ingestion-job.ts`
 - `domain/knowledge-data-source.ts`
-- `domain/knowledge-sync-job.ts`
-- `domain/knowledge-events.ts`
-- `infrastructure/in-memory-*.ts`
+- `domain/knowledge-sync.ts`
 - `infrastructure/prisma-*.ts`
+- `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
+- `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-document-content-reader.ts`
+- `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-document-text-normalizer.ts`
+- `worker/knowledge-document-text-chunker.ts`
+
+Likely future files:
+
+- `application/ports.ts`
+- `domain/upload-validation.ts`
+- `domain/knowledge-events.ts`
 - `infrastructure/*-adapter.ts`
 
 API code should translate HTTP and request context into application commands.
 Application code should depend on ports. Domain code should hold lifecycle and
 validation rules. Infrastructure should implement persistence, vector,
 embedding, object-storage, and queue adapters.
+
+Current repository ports cover documents and chunks, ingestion jobs, external
+data sources, sync scope nodes, sync jobs, and sync job events. Prisma adapters
+are workspace-scoped and do not query private models owned by Agent Management,
+Workflow Management, Task Orchestration, Authentication, or other modules.
+In-memory adapters are deterministic and workspace-scoped for future
+application/use-case tests.
+
+Current application use cases cover metadata-only upload validation, safe
+upload preparation into pending document/ingestion-job records, document and
+chunk reads, ingestion-job reads, data-source placeholder connection, sync-scope
+updates, and queued manual sync-job creation. They do not parse files, upload
+to storage, enqueue real workers, call embedding providers, or write vectors.
+
+The worker handoff skeleton processes an already-created pending ingestion job
+at the lifecycle level only:
+
+```text
+pending -> ingesting -> ready
+pending -> ingesting -> failed
+```
+
+It updates KB/RAG-owned document and ingestion-job status through repository
+ports, creates safe ingestion started/completed/failed events through existing
+event contracts, and returns/publishes only public lifecycle payloads. It does
+not read file bytes directly, call object storage, generate embeddings, write
+vectors, or run external sync.
+
+The document processing pipeline is the first real ingestion processor boundary.
+It reads text through an injected content reader, supports text/plain and
+markdown-style content, normalizes whitespace deterministically, splits text
+into stable chunks, and persists `KnowledgeDocumentChunk` records through the
+document repository. It marks ingestion as complete while leaving
+embedding/vector indexing pending. Real PDF/DOC/DOCX parsing, OCR, object
+storage integration, embeddings, vector writes, and retrieval remain future
+adapter/runtime scope.
 
 ## Worker Handoff
 
@@ -226,10 +271,11 @@ Expected flow:
 1. Validate upload candidates.
 2. Prepare valid uploads into document metadata.
 3. Queue a document ingestion job.
-4. Worker parses, chunks, embeds, and indexes through adapters.
-5. Update ingestion and indexing status.
-6. Emit public domain events.
-7. UI reads document, ingestion, and sync status through API routes.
+4. Worker handoff marks the job/document as processing.
+5. The text processing pipeline normalizes supported text and persists chunks.
+6. Future adapters embed and index through explicit boundaries.
+7. Emit public domain events.
+8. UI reads document, ingestion, and sync status through API routes.
 
 ## Testing Roadmap
 

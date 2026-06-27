@@ -60,6 +60,7 @@ type AuthFieldProps = {
   type: React.HTMLInputTypeAttribute;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   helperText?: string;
   error?: string;
   id?: string;
@@ -72,6 +73,7 @@ export function AuthField({
   type,
   value,
   onChange,
+  onBlur,
   helperText,
   error,
   id,
@@ -101,6 +103,7 @@ export function AuthField({
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
       />
       {helperText && !error ? (
         <span id={helperId} className="auth-field__helper">

@@ -309,6 +309,47 @@ export function appendProcessingLog(
 }
 
 // ---------------------------------------------------------------------------
+// failActiveStep
+//
+// Marks the currently active step (if any) as "failed".
+// Invariants:
+//   - If no step is active, returns the snapshot unmodified (no-op).
+//   - Later steps remain in their existing waiting state.
+// ---------------------------------------------------------------------------
+export function failActiveStep(
+  snapshot: ProcessingSnapshot
+): ProcessingResult<ProcessingSnapshot> {
+  const activeStep = snapshot.steps.find((s) => s.status === "active");
+  if (!activeStep) {
+    return {
+      ok: true,
+      snapshot
+    };
+  }
+
+  const newSteps = snapshot.steps.map((step) =>
+    step.id === activeStep.id
+      ? { ...step, status: "failed" as const }
+      : { ...step }
+  );
+
+  return {
+    ok: true,
+    snapshot: { ...snapshot, steps: newSteps }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// isFailureSimulationPrompt
+//
+// Pure helper to detect simulated failure prompts.
+// Matches only prompts beginning with "FAIL_SIMULATION:".
+// ---------------------------------------------------------------------------
+export function isFailureSimulationPrompt(prompt: string): boolean {
+  return prompt.startsWith("FAIL_SIMULATION:");
+}
+
+// ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
 

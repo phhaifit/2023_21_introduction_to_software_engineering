@@ -12,6 +12,10 @@ export type Subscription = {
   expiresAt: string;
   createdAt: string;
   updatedAt: string;
+  autoRenew: boolean;
+  cardNumber: string | null;
+  cardHolder: string | null;
+  cardExpiry: string | null;
 };
 
 export type Transaction = {
@@ -24,10 +28,14 @@ export type Transaction = {
   updatedAt: string;
 };
 
-export function createSubscription(draft: Omit<Subscription, "status" | "createdAt" | "updatedAt"> & { createdAt: string }): Subscription {
+export function createSubscription(draft: Omit<Subscription, "status" | "createdAt" | "updatedAt" | "autoRenew" | "cardNumber" | "cardHolder" | "cardExpiry"> & { createdAt: string }): Subscription {
   return {
     ...draft,
     status: "pending",
+    autoRenew: true,
+    cardNumber: null,
+    cardHolder: null,
+    cardExpiry: null,
     createdAt: draft.createdAt,
     updatedAt: draft.createdAt
   };
@@ -49,7 +57,11 @@ export function toSubscriptionPublicSummary(sub: Subscription): SubscriptionPubl
     status: sub.status,
     expiresAt: sub.expiresAt,
     createdAt: sub.createdAt,
-    updatedAt: sub.updatedAt
+    updatedAt: sub.updatedAt,
+    autoRenew: sub.autoRenew,
+    cardNumber: sub.cardNumber,
+    cardHolder: sub.cardHolder,
+    cardExpiry: sub.cardExpiry
   };
 }
 

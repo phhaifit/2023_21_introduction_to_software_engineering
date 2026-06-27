@@ -357,3 +357,104 @@
     display: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+   AuthenticationPage layout
+   -------------------------------------------------------------------------- */
+
+.auth-page {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 24px 64px;
+}
+
+.auth-page__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 440px;
+}
+
+.auth-page__form {
+  display: grid;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.auth-page__switch {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   AccountPanel — signed-in view
+   -------------------------------------------------------------------------- */
+
+.auth-account-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 20px;
+  padding: 32px 28px;
+  width: 100%;
+}
+
+.auth-account-panel__heading {
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.auth-account-panel__details {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.auth-account-panel__row {
+  display: flex;
+  gap: 12px;
+}
+
+.auth-account-panel__row dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  min-width: 60px;
+}
+
+.auth-account-panel__row dd {
+  color: var(--text);
+  font-size: 0.875rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .auth-page {
+    padding: 28px 16px 48px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Success banner — shown after successful registration
+   -------------------------------------------------------------------------- */
+
+.auth-success-banner {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  border-radius: 8px;
+  color: var(--success);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 4px;
+  padding: 10px 14px;
+}
