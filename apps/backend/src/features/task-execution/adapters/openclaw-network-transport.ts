@@ -205,7 +205,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${credentialReference}`,
-            "x-openclaw-model": "gemini-3.1-pro-preview",
+            "x-openclaw-model": "gemini-3.1-flash-lite",
             "x-openclaw-session-key": request.conversationId || "default-session"
           },
           body: JSON.stringify({
