@@ -135,9 +135,7 @@ Request bodies must not accept trusted fields such as
 `workspaceId`, actor/user ID, generated IDs, lifecycle status, timestamps, raw
 credentials, private object-storage paths, or vector DB internals.
 
-## Future Shared DTO Roadmap
-
-Likely future DTOs:
+## Shared DTOs
 
 - `KnowledgeDocumentDto`
 - `KnowledgeDocumentChunkDto`
@@ -156,10 +154,10 @@ Shared DTOs must be caller-safe. Do not expose credentials, tokens, secrets,
 passwords, raw provider config, private vector database fields, raw embedding
 payloads, or server-owned mutation fields.
 
-## Future Domain Event Roadmap
+## Domain Event Contracts
 
-The shared contracts currently include `knowledge.document_uploaded` and
-`knowledge.index_ready`. Future reviewed events may include:
+The shared contracts currently include legacy `knowledge.document_uploaded` and
+`knowledge.index_ready` names plus granular KB/RAG lifecycle events:
 
 - `knowledge.document.uploadValidated`
 - `knowledge.document.ingestionQueued`
@@ -221,7 +219,7 @@ Current backend foundation:
 - `worker/knowledge-document-text-normalizer.ts`
 - `worker/knowledge-document-text-chunker.ts`
 
-Likely future files:
+Likely future production-runtime files:
 
 - `application/ports.ts`
 - `domain/upload-validation.ts`
