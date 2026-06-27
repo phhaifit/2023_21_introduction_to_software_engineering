@@ -118,6 +118,9 @@ export function SubscriptionPaymentPage() {
   // State danh sách các phương thức thanh toán đã lưu (mảng các thẻ)
   const [savedCards, setSavedCards] = useState<CardInfo[]>([]);
 
+  // State phương thức thanh toán đang chọn trên màn hình checkout
+  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "momo" | "stripe" | "simulated">("stripe");
+
   // State Modal thêm/đổi thẻ
   const [showCardModal, setShowCardModal] = useState(false);
   const [newCardNumber, setNewCardNumber] = useState("");
@@ -662,7 +665,30 @@ export function SubscriptionPaymentPage() {
                   Cancel Auto-Renewal
                 </button>
               )}
-              {subscription?.plan === "standard" ? (
+              
+              {subscription?.status === "pending" ? (
+                <button 
+                  onClick={() => {
+                    const tx = transactions.find(t => t.status === "pending");
+                    if (tx) {
+                      setSelectedPlanForCheckout(subscription.plan);
+                      setCheckoutData({
+                        transactionId: tx.transactionId,
+                        subscriptionId: subscription.subscriptionId,
+                        checkoutUrl: `/sandbox-checkout?transactionId=${tx.transactionId}`,
+                        amount: tx.amount
+                      });
+                      setView("checkout");
+                    } else {
+                      setView("upgrade");
+                    }
+                  }} 
+                  className="btn btn--primary"
+                  style={{ background: "#e11d48", borderColor: "#e11d48", color: "#ffffff" }}
+                >
+                  Thanh toán gói đang chờ ({subscription.plan.toUpperCase()})
+                </button>
+              ) : subscription?.plan === "standard" ? (
                 <button onClick={() => setView("upgrade")} className="btn btn--primary">
                   Upgrade Plan
                 </button>
@@ -676,6 +702,15 @@ export function SubscriptionPaymentPage() {
                 </button>
               )}
             </div>
+
+            {subscription?.status === "pending" && (
+              <div style={{ background: "#fff1f2", border: "1px solid #ffe4e6", color: "#e11d48", padding: "12px", borderRadius: "8px", fontSize: "0.85rem", marginTop: "16px", display: "flex", gap: "8px", alignItems: "center" }}>
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Bạn có một giao dịch đăng ký gói <strong>{subscription.plan.toUpperCase()}</strong> đang chờ thanh toán.</span>
+              </div>
+            )}
           </div>
 
           {/* CỘT PHẢI: Phương thức thanh toán (Hỗ trợ nhiều thẻ) */}
