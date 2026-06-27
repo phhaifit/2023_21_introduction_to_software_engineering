@@ -118,7 +118,7 @@ class ServerWorkspaceManagement implements ExternalWorkspaceManagement {
           provider: "openclaw",
           status: "running",
           endpointReference: "http://127.0.0.1:18789",
-          credentialReference: process.env.OPENCLAW_GATEWAY_TOKEN || "demo_secure_token_abc123",
+          credentialReference: process.env.OPENCLAW_GATEWAY_TOKEN || "42c07ed4c737a6c9651450f70df15446fdd6fd8f6a04bfca831a74934f460e59",
           capabilities: ["http-sse-streaming", "local-execution"]
         };
       }
