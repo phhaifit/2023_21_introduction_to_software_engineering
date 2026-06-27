@@ -589,4 +589,121 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       expect(mockFraming.noSilentFallbackFromProduction).toBe(true);
     });
   });
+
+  describe("7. OpenClaw Network Transport Adapter Integration", () => {
+    it("4.1 & 4.2: should inject OpenClawNetworkTransport into OpenClawTaskExecutionAdapter and replace simulated event path for production transport while preserving test-only simulation", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockImplementation((endpoint, cred, execRef, onEvent, onError) => {
+          // Simulate incoming raw provider event
+          setTimeout(() => {
+            onEvent({
+              eventType: "progress",
+              executionId: execRef,
+              stepId: "step-net-1",
+              stepName: "Network Step",
+              status: "started",
+              timestamp: Date.now()
+            });
+          }, 10);
+          return { unsubscribe: vi.fn() };
+        }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+
+      const agentCat: any = { validateAndGetAgent: vi.fn().mockResolvedValue({ status: "active", providerAgentMapping: "agent-1" }) };
+      const workflowCat: any = { validateAndGetWorkflow: vi.fn().mockResolvedValue({ status: "active", providerWorkflowMapping: "wf-1" }) };
+
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      const cmd: any = {
+        taskId: "task-net-101",
+        workId: "work-101",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        prompt: "Network integration test",
+        routing: { mode: "auto" }
+      };
+
+      const binding = await netAdapter.startExecution(cmd);
+      expect(binding.providerExecutionReference).toBe("exec-net-1");
+      expect(mockTransport.startExecution).toHaveBeenCalled();
+      expect(mockTransport.subscribeEventStream).toHaveBeenCalled();
+
+      // Wait for simulated stream event to be processed
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const snap = await netAdapter.getExecutionSnapshot("task-net-101" as any);
+      expect(snap.lastObservedEvent?.type).toBe("step-started");
+      expect((snap.lastObservedEvent as any).stepName).toBe("Network Step");
+
+      // Test cancelExecution forwarding via transport
+      await netAdapter.cancelExecution("task-net-101" as any);
+      expect(mockTransport.cancelExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        { providerExecutionReference: "exec-net-1", taskId: "task-net-101" }
+      );
+
+      await netAdapter.releaseResources();
+    });
+
+    it("4.3 & 4.4 & 4.5: should preserve duplicate/stale event protections and snapshot reconciliation behavior with mock transport", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+
+      const agentCat: any = { validateAndGetAgent: vi.fn().mockResolvedValue({ status: "active", providerAgentMapping: "agent-1" }) };
+      const workflowCat: any = { validateAndGetWorkflow: vi.fn().mockResolvedValue({ status: "active", providerWorkflowMapping: "wf-1" }) };
+
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      const cmd: any = {
+        taskId: "task-net-102",
+        workId: "work-102",
+        workspaceId: "ws-1",
+        conversationId: "conv-1",
+        prompt: "Duplicate/stale and reconciliation test",
+        routing: { mode: "auto" }
+      };
+
+      await netAdapter.startExecution(cmd);
+
+      // Trigger snapshot reconciliation via handleTransportReconnection without explicit snapshot (should call transport.getSnapshot)
+      await netAdapter.handleTransportReconnection("task-net-102" as any);
+      expect(mockTransport.getSnapshot).toHaveBeenCalledWith("https://openclaw.workspace.internal/api/v1", "cred-ref-789", "exec-net-2");
+
+      // Verify duplicate and stale protections are fully active
+      const now = Date.now();
+      netAdapter.simulateIncomingProviderEvent("task-net-102" as any, { type: "partial-output-received", taskId: "task-net-102" as any, outputChunk: "First", timestamp: new Date(now).toISOString() }, now, "evt-unique-1");
+      netAdapter.simulateIncomingProviderEvent("task-net-102" as any, { type: "partial-output-received", taskId: "task-net-102" as any, outputChunk: "Duplicate", timestamp: new Date(now).toISOString() }, now, "evt-unique-1"); // Duplicate unique ID
+      netAdapter.simulateIncomingProviderEvent("task-net-102" as any, { type: "partial-output-received", taskId: "task-net-102" as any, outputChunk: "Stale", timestamp: new Date(now - 5000).toISOString() }, now - 5000, "evt-unique-2"); // Stale timestamp
+
+      const snap = await netAdapter.getExecutionSnapshot("task-net-102" as any);
+      expect((snap.lastObservedEvent as any).outputChunk).toBe("First");
+    });
+  });
 });
