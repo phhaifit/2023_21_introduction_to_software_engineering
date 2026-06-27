@@ -14,31 +14,31 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-radius: 8px;
-  background-color: var(--surface-default);
-  box-shadow: var(--shadow-lg);
+  background-color: #1e293b; /* Nền tối Slate-800 tương phản cao */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
   pointer-events: auto;
   animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  min-width: 300px;
-  max-width: 400px;
-  border: 1px solid var(--border-subtle);
+  min-width: 320px;
+  max-width: 420px;
+  border: 1px solid #334155; /* Viền Slate-700 */
 }
 
 .toast--success {
-  border-left: 4px solid var(--success-default);
+  border-left: 4px solid #10b981; /* Xanh lá */
 }
 
 .toast--success .toast-icon {
-  color: var(--success-default);
+  color: #10b981;
 }
 
 .toast--error {
-  border-left: 4px solid var(--danger-default);
+  border-left: 4px solid #ef4444; /* Đỏ */
 }
 
 .toast--error .toast-icon {
-  color: var(--danger-default);
+  color: #ef4444;
 }
 
 .toast-icon {
@@ -50,8 +50,8 @@
 .toast-message {
   flex: 1;
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-default);
+  font-weight: 600;
+  color: #ffffff; /* Chữ trắng tinh để tương phản tốt nhất */
   word-break: break-word;
 }
 
@@ -61,7 +61,7 @@
   justify-content: center;
   background: none;
   border: none;
-  color: var(--text-subtle);
+  color: #94a3b8;
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -69,8 +69,8 @@
 }
 
 .toast-close:hover {
-  color: var(--text-default);
-  background-color: var(--surface-hover);
+  color: #ffffff;
+  background-color: #334155;
 }
 
 @keyframes toast-slide-in {
