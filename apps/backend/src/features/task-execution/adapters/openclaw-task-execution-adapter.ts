@@ -11,6 +11,7 @@ import type {
   NormalizedRuntimeError
 } from "@vcp/shared";
 import { validateStartExecutionCommand, validateExecutionBinding, mapRuntimeObservationToTaskStatus } from "@vcp/shared";
+import { OpenClawNetworkTransport, OpenClawRawEventMapper } from "./openclaw-network-transport.ts";
 
 // Conceptual Consumer Ports for External Dependencies (Agent Management, Workflow Management, Authentication, Workspace Management)
 export interface ExternalAgentContract {
@@ -71,20 +72,25 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
   private resolver: WorkspaceExecutionRuntimeResolver;
   private agentCatalog: ExternalAgentCatalog;
   private workflowCatalog: ExternalWorkflowCatalog;
+  private transport?: OpenClawNetworkTransport;
   private subscribers = new Map<string, Set<(event: NormalizedRuntimeEvent) => void>>();
   private snapshots = new Map<string, ExecutionSnapshot>();
   private processedEvents = new Map<string, Set<string>>(); // taskId -> Set of event signatures/timestamps for duplicate protection
   private lastEventTimestamps = new Map<string, number>(); // taskId -> timestamp for stale event protection
   private transportConnectionState = new Map<string, "connected" | "disconnected" | "reconnecting">();
+  private streamSubscriptions = new Map<string, { unsubscribe: () => void }>();
+  private activeExecutions = new Map<string, { providerExecutionReference: string; endpoint: string; credentialReference: string }>();
 
   constructor(
     resolver: WorkspaceExecutionRuntimeResolver,
     agentCatalog: ExternalAgentCatalog,
-    workflowCatalog: ExternalWorkflowCatalog
+    workflowCatalog: ExternalWorkflowCatalog,
+    transport?: OpenClawNetworkTransport
   ) {
     this.resolver = resolver;
     this.agentCatalog = agentCatalog;
     this.workflowCatalog = workflowCatalog;
+    this.transport = transport;
   }
 
   async startExecution(command: StartExecutionCommand): Promise<ExecutionBinding> {
@@ -153,10 +159,44 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
       timestamp: new Date().toISOString()
     });
 
+    let providerExecutionReference = `openclaw-exec-${Date.now()}`;
+
+    if (this.transport) {
+      const startResp = await this.transport.startExecution(runtime.endpointReference, runtime.credentialReference, {
+        taskId: taskIdStr,
+        prompt: command.prompt,
+        target: providerExecutionTarget,
+        mode: command.routing.mode
+      });
+      providerExecutionReference = startResp.providerExecutionReference;
+
+      this.activeExecutions.set(taskIdStr, {
+        providerExecutionReference,
+        endpoint: runtime.endpointReference,
+        credentialReference: runtime.credentialReference
+      });
+
+      const sub = this.transport.subscribeEventStream(
+        runtime.endpointReference,
+        runtime.credentialReference,
+        providerExecutionReference,
+        (rawEvent: any) => {
+          const mappedEvent = OpenClawRawEventMapper.mapRawEvent(command.taskId, rawEvent);
+          if (mappedEvent) {
+            this.simulateIncomingProviderEvent(command.taskId, mappedEvent, rawEvent.timestamp || Date.now(), `event-${rawEvent.timestamp}-${Math.random()}`);
+          }
+        },
+        (err: Error) => {
+          this.handleTransportDisconnection(command.taskId);
+        }
+      );
+      this.streamSubscriptions.set(taskIdStr, sub);
+    }
+
     const binding = {
       taskId: command.taskId,
       runtimeInstanceId: runtime.instanceId,
-      providerExecutionReference: `openclaw-exec-${Date.now()}`,
+      providerExecutionReference,
       verifiedProviderFields: {
         endpointReference: runtime.endpointReference,
         target: providerExecutionTarget,
@@ -179,6 +219,16 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     }
 
     // Forward cancellation to the adapter without terminating containers or deleting Gateways
+    if (this.transport) {
+      const activeExec = this.activeExecutions.get(taskIdStr);
+      if (activeExec) {
+        await this.transport.cancelExecution(activeExec.endpoint, activeExec.credentialReference, {
+          providerExecutionReference: activeExec.providerExecutionReference,
+          taskId: taskIdStr
+        });
+      }
+    }
+
     snapshot.status = "canceled";
     snapshot.updatedAt = new Date().toISOString();
     const cancelEvent: NormalizedRuntimeEvent = {
@@ -220,6 +270,11 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
   }
 
   async releaseResources(): Promise<void> {
+    for (const sub of this.streamSubscriptions.values()) {
+      sub.unsubscribe();
+    }
+    this.streamSubscriptions.clear();
+    this.activeExecutions.clear();
     this.subscribers.clear();
     this.snapshots.clear();
     this.processedEvents.clear();
@@ -243,6 +298,22 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     this.transportConnectionState.set(taskIdStr, "connected");
     if (latestSnapshot) {
       this.reconcileSnapshot(taskId, latestSnapshot);
+    } else if (this.transport) {
+      const activeExec = this.activeExecutions.get(taskIdStr);
+      if (activeExec) {
+        try {
+          const snap = await this.transport.getSnapshot(activeExec.endpoint, activeExec.credentialReference, activeExec.providerExecutionReference) as any;
+          if (snap && snap.status) {
+            this.reconcileSnapshot(taskId, {
+              taskId,
+              status: snap.status,
+              updatedAt: new Date().toISOString()
+            });
+          }
+        } catch (err) {
+          // Keep current snapshot if recovery fails
+        }
+      }
     }
   }
 
