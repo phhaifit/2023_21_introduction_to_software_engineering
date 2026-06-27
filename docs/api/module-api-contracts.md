@@ -80,6 +80,7 @@ Owner module: `apps/backend/src/modules/subscription-payment`
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | `ApiResponse` subscription details | `implemented` | Reads current user subscription and transaction history. |
+| `GET` | `/api/subscriptions/plans` | Authenticated | User subscription context | Request context | `ApiResponse` plans configuration details | `implemented` | Reads standard and premium plan prices and resource entitlements. |
 | `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | `ApiResponse` checkout session summary | `implemented` | Starts checkout session for standard or premium plan. |
 | `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | `ApiResponse` upgrade session summary | `implemented` | Starts an upgrade flow. |
 | `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | `ApiResponse` transaction summary | `implemented` | Reconciles directly or enqueues payment webhook work. |

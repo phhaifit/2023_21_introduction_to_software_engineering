@@ -420,4 +420,17 @@ export class CheckoutUseCases {
       transactions: txs.map(toTransactionPublicSummary)
     };
   }
+
+  getPlans(): SubscriptionPlansResponse {
+    return {
+      standard: {
+        price: PLAN_PRICES.standard,
+        entitlements: PLAN_ENTITLEMENTS.standard
+      },
+      premium: {
+        price: PLAN_PRICES.premium,
+        entitlements: PLAN_ENTITLEMENTS.premium
+      }
+    };
+  }
 }

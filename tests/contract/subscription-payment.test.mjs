@@ -164,6 +164,11 @@ async function runTests() {
   assert.ok(usage.agents);
   assert.ok(usage.storage);
 
+  // Scenario 12: Get Plans Configuration
+  const plans = useCases.getPlans();
+  assert.equal(plans.standard.price, 29);
+  assert.equal(plans.premium.price, 79);
+
   console.log("All subscription tests passed! ✓");
 }
 

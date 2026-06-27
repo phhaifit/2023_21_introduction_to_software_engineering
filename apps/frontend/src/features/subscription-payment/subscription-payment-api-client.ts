@@ -122,6 +122,15 @@ export class SubscriptionPaymentApiClient {
     return json.data;
   }
 
+  async getPlans(): Promise<SubscriptionPlansResponse> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/plans`);
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
   private async getErrorMessage(response: Response): Promise<string> {
     try {
       const json = await response.json();

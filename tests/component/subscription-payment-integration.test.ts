@@ -159,6 +159,14 @@ describe("Subscription & Payment Integration Flow", () => {
       expect(usage).toHaveProperty("storage");
       expect(usage.cpu.max).toBe(8); // Standard CPU max
     });
+
+    it("nên lấy về danh sách cấu hình plans qua API", async () => {
+      const plans = await client.getPlans();
+      expect(plans).toHaveProperty("standard");
+      expect(plans).toHaveProperty("premium");
+      expect(plans.standard.price).toBe(29);
+      expect(plans.premium.price).toBe(79);
+    });
   });
 
   // 2. Kiểm tra Worker Webhook Handler

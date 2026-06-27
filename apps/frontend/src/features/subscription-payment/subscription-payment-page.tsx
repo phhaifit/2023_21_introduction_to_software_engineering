@@ -4,7 +4,8 @@ import "./subscription-payment.css";
 import type {
   SubscriptionPublicSummary,
   TransactionPublicSummary,
-  WorkspaceResourceUsageResponse
+  WorkspaceResourceUsageResponse,
+  SubscriptionPlansResponse
 } from "@vcp/shared/contracts/subscription-payment.ts";
 import { PLAN_ENTITLEMENTS, PLAN_PRICES } from "@vcp/shared/contracts/plans.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
@@ -17,6 +18,7 @@ export function SubscriptionPaymentPage() {
   const [subscription, setSubscription] = useState<SubscriptionPublicSummary | null>(null);
   const [transactions, setTransactions] = useState<TransactionPublicSummary[]>([]);
   const [resourceUsage, setResourceUsage] = useState<WorkspaceResourceUsageResponse | null>(null);
+  const [plansConfig, setPlansConfig] = useState<SubscriptionPlansResponse | null>(null);
   
   // State quản lý View chuyển màn hình
   const [view, setView] = useState<ViewState>("dashboard");
@@ -41,7 +43,7 @@ export function SubscriptionPaymentPage() {
     name: "Admin Wu"
   });
   
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(true); // Gán mặc định true để cải thiện UX
   const [autoRenew, setAutoRenew] = useState(true);
 
   // State Promo Code
@@ -70,15 +72,17 @@ export function SubscriptionPaymentPage() {
       setLoading(true);
       setError(null);
       
-      // Gọi song song API lấy Subscription và Resource Usage
-      const [detailsData, usageData] = await Promise.all([
+      // Gọi song song API lấy Subscription, Resource Usage và Plans
+      const [detailsData, usageData, plansData] = await Promise.all([
         subscriptionPaymentApiClient.getSubscriptionDetails(),
-        subscriptionPaymentApiClient.getWorkspaceResourceUsage(DEMO_WORKSPACE_ID)
+        subscriptionPaymentApiClient.getWorkspaceResourceUsage(DEMO_WORKSPACE_ID),
+        subscriptionPaymentApiClient.getPlans()
       ]);
 
       setSubscription(detailsData.subscription);
       setTransactions(detailsData.transactions);
       setResourceUsage(usageData);
+      setPlansConfig(plansData);
 
       // Cập nhật thông tin gia hạn & thẻ ảo thật từ database
       if (detailsData.subscription) {
@@ -338,7 +342,7 @@ export function SubscriptionPaymentPage() {
             
             <div className="card-price-box">
               <span className="price-val">
-                ${subscription ? PLAN_PRICES[subscription.plan] : 0}
+                ${subscription ? (plansConfig ? plansConfig[subscription.plan].price : PLAN_PRICES[subscription.plan]) : 0}
               </span>
               <span className="price-unit"> / month</span>
             </div>
@@ -543,7 +547,7 @@ export function SubscriptionPaymentPage() {
                     Standard Plan
                     {subscription?.plan === "standard" && <span className="plan-mini-badge">Current</span>}
                   </div>
-                  <div className="plan-mini-price">$29 / month — 8 vCPUs, 16GB RAM, 10 Agents, 50GB Storage</div>
+                  <div className="plan-mini-price">${plansConfig ? plansConfig.standard.price : 29} / month — 8 vCPUs, 16GB RAM, 10 Agents, 50GB Storage</div>
                 </div>
                 {!subscription && (
                   <button onClick={() => handleInitiateCheckout("standard")} className="btn btn--secondary" style={{ width: "auto" }}>Buy</button>
@@ -556,7 +560,7 @@ export function SubscriptionPaymentPage() {
                     Premium Plan
                     {subscription?.plan === "premium" && <span className="plan-mini-badge">Current</span>}
                   </div>
-                  <div className="plan-mini-price">$79 / month — 32 vCPUs, 64GB RAM, 50 Agents, 500GB Storage</div>
+                  <div className="plan-mini-price">${plansConfig ? plansConfig.premium.price : 79} / month — 32 vCPUs, 64GB RAM, 50 Agents, 500GB Storage</div>
                 </div>
                 {subscription?.plan === "standard" ? (
                   <button onClick={() => setView("upgrade")} className="btn btn--primary" style={{ width: "auto" }}>Upgrade</button>
@@ -689,8 +693,8 @@ export function SubscriptionPaymentPage() {
   // =========================================================================
   if (view === "upgrade") {
     const isUpgrading = subscription?.plan === "standard";
-    const premiumPrice = 79;
-    const standardCredit = isUpgrading ? 29 : 0;
+    const premiumPrice = plansConfig ? plansConfig.premium.price : 79;
+    const standardCredit = isUpgrading ? (plansConfig ? plansConfig.standard.price : 29) : 0;
     const baseUpgradeFee = premiumPrice - standardCredit;
     const finalUpgradeFee = Math.max(0, baseUpgradeFee - discountAmount);
 
@@ -712,7 +716,7 @@ export function SubscriptionPaymentPage() {
           {/* Card Standard Plan */}
           <div className="upgrade-plan-card">
             <div className="upgrade-plan-title">Standard Plan</div>
-            <div className="upgrade-plan-price">$29<span>/month</span></div>
+            <div className="upgrade-plan-price">${plansConfig ? plansConfig.standard.price : 29}<span>/month</span></div>
             <ul className="features-checklist">
               {Object.entries(PLAN_ENTITLEMENTS.standard).map(([key, val]) => (
                 <li key={key}>
@@ -736,7 +740,7 @@ export function SubscriptionPaymentPage() {
           <div className="upgrade-plan-card upgrade-plan-card--recommended">
             <span className="card-badge-pop">Recommended</span>
             <div className="upgrade-plan-title">Premium Plan</div>
-            <div className="upgrade-plan-price">$79<span>/month</span></div>
+            <div className="upgrade-plan-price">${plansConfig ? plansConfig.premium.price : 79}<span>/month</span></div>
             <ul className="features-checklist">
               {Object.entries(PLAN_ENTITLEMENTS.premium).map(([key, val]) => (
                 <li key={key}>

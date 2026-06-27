@@ -198,5 +198,11 @@ export function createSubscriptionRouter(
     });
   });
 
+  router.get("/plans", async (req, res) => {
+    await handleRequest(req, res, async () => {
+      return dependencies.useCases.getPlans();
+    });
+  });
+
   return router;
 }

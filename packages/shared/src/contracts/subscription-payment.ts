@@ -50,3 +50,19 @@ export type ValidatePromoResponse = {
   message?: string;
 };
 
+export type PlanDetails = {
+  price: number;
+  entitlements: {
+    cpuCores: number;
+    memoryGb: number;
+    maxAgents: number;
+    maxDocuments: number;
+  };
+};
+
+export type SubscriptionPlansResponse = {
+  standard: PlanDetails;
+  premium: PlanDetails;
+};
+
+
