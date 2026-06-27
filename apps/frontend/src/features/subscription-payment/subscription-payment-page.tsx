@@ -20,6 +20,15 @@ const AVAILABLE_WORKSPACES = [
   { id: "workspace-sales-operations",name: "Sales & Ops" },
 ];
 
+const detectBrand = (num: string): "visa" | "mastercard" | "jcb" | "amex" => {
+  const n = num.replace(/\s/g, "");
+  if (/^4/.test(n)) return "visa";
+  if (/^5[1-5]/.test(n)) return "mastercard";
+  if (/^3[47]/.test(n)) return "amex";
+  if (/^35/.test(n)) return "jcb";
+  return "visa";
+};
+
 export function SubscriptionPaymentPage() {
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
@@ -97,13 +106,17 @@ export function SubscriptionPaymentPage() {
     amount: number;
   } | null>(null);
 
-  // State phương thức thanh toán đã lưu (null = chưa có thẻ)
-  const [savedCard, setSavedCard] = useState<{
+  interface CardInfo {
+    id: string;
     last4: string;
     brand: "visa" | "mastercard" | "jcb" | "amex";
     expiry: string;
     holder: string;
-  } | null>(null);
+    isDefault: boolean;
+  }
+
+  // State danh sách các phương thức thanh toán đã lưu (mảng các thẻ)
+  const [savedCards, setSavedCards] = useState<CardInfo[]>([]);
 
   // State Modal thêm/đổi thẻ
   const [showCardModal, setShowCardModal] = useState(false);
@@ -146,18 +159,31 @@ export function SubscriptionPaymentPage() {
       setResourceUsage(usageData);
       setPlansConfig(plansData);
 
-      // Parse savedCard từ subscription (nếu có)
-      if (detailsData.subscription?.cardNumber) {
-        const raw = detailsData.subscription.cardNumber.replace(/\s/g, "");
-        setSavedCard({
-          last4: raw.slice(-4),
-          brand: "visa",
-          expiry: detailsData.subscription.cardExpiry || "",
-          holder: detailsData.subscription.cardHolder || "",
-        });
+      // Đồng bộ danh sách thẻ nhiều loại từ localStorage theo Workspace
+      const localCardsKey = `vcp_cards_${wsId}`;
+      const cached = localStorage.getItem(localCardsKey);
+      let list: CardInfo[] = cached ? JSON.parse(cached) : [];
+
+      // Nếu localStorage trống nhưng DB backend lại có thẻ đã mua gói
+      if (list.length === 0 && detailsData.subscription?.cardNumber) {
+        const rawNum = detailsData.subscription.cardNumber.replace(/\s/g, "");
+        const dbCard: CardInfo = {
+          id: `card_${Date.now()}`,
+          last4: rawNum.slice(-4),
+          brand: detectBrand(detailsData.subscription.cardNumber),
+          expiry: detailsData.subscription.cardExpiry || "12/28",
+          holder: detailsData.subscription.cardHolder || "Admin Wu",
+          isDefault: true
+        };
+        list = [dbCard];
+        localStorage.setItem(localCardsKey, JSON.stringify(list));
+      }
+
+      setSavedCards(list);
+      
+      if (detailsData.subscription) {
         setAutoRenew(detailsData.subscription.autoRenew);
       } else {
-        setSavedCard(null);
         setAutoRenew(true);
       }
     } catch (err: any) {
@@ -202,17 +228,8 @@ export function SubscriptionPaymentPage() {
     }
   };
 
-  // Xác định brand thẻ từ số đầu
-  const detectBrand = (num: string): "visa" | "mastercard" | "jcb" | "amex" => {
-    const n = num.replace(/\s/g, "");
-    if (/^4/.test(n)) return "visa";
-    if (/^5[1-5]/.test(n)) return "mastercard";
-    if (/^3[47]/.test(n)) return "amex";
-    if (/^35/.test(n)) return "jcb";
-    return "visa";
-  };
 
-  // Thêm/cập nhật thẻ
+  // Thêm thẻ mới vào danh sách
   const handleSaveCard = async (e: React.FormEvent) => {
     e.preventDefault();
     setCardFormError(null);
@@ -229,32 +246,136 @@ export function SubscriptionPaymentPage() {
       setCardFormError("Định dạng MM/YY không hợp lệ.");
       return;
     }
+
     try {
       setLoading(true);
-      await subscriptionPaymentApiClient.updatePaymentMethod(currentWorkspaceId, newCardNumber, newCardHolder, newCardExpiry);
-      setSavedCard({
+      const localCardsKey = `vcp_cards_${currentWorkspaceId}`;
+      const cached = localStorage.getItem(localCardsKey);
+      const currentList: CardInfo[] = cached ? JSON.parse(cached) : [];
+
+      // Thẻ đầu tiên tự động làm mặc định
+      const isDefault = currentList.length === 0;
+
+      const newCard: CardInfo = {
+        id: `card_${Date.now()}`,
         last4: digits.slice(-4),
         brand: detectBrand(newCardNumber),
         expiry: newCardExpiry,
         holder: newCardHolder.trim(),
-      });
+        isDefault
+      };
+
+      const updatedList = [...currentList, newCard];
+      localStorage.setItem(localCardsKey, JSON.stringify(updatedList));
+      setSavedCards(updatedList);
+
+      // Nếu là thẻ mặc định, đồng bộ thông tin lên DB backend
+      if (isDefault) {
+        await subscriptionPaymentApiClient.updatePaymentMethod(
+          currentWorkspaceId,
+          newCardNumber,
+          newCardHolder.trim(),
+          newCardExpiry
+        );
+      }
+
       setShowCardModal(false);
       setNewCardNumber("");
       setNewCardHolder("");
       setNewCardExpiry("");
-      showSuccess("Đã lưu thẻ thanh toán thành công.");
+      showSuccess("Đã thêm thẻ thanh toán mới.");
     } catch (err: any) {
-      showError(err.message || "Không thể lưu thẻ thanh toán.");
+      showError(err.message || "Không thể thêm thẻ thanh toán.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Xóa thẻ đã lưu
-  const handleRemoveCard = () => {
+  // Đặt thẻ làm mặc định
+  const handleSetDefaultCard = async (cardId: string) => {
+    try {
+      setLoading(true);
+      const localCardsKey = `vcp_cards_${currentWorkspaceId}`;
+      const cached = localStorage.getItem(localCardsKey);
+      if (!cached) return;
+
+      let currentList: CardInfo[] = JSON.parse(cached);
+      const targetCard = currentList.find(c => c.id === cardId);
+      if (!targetCard) return;
+
+      // Cập nhật thuộc tính isDefault
+      currentList = currentList.map(c => ({
+        ...c,
+        isDefault: c.id === cardId
+      }));
+
+      localStorage.setItem(localCardsKey, JSON.stringify(currentList));
+      setSavedCards(currentList);
+
+      // Đồng bộ thông tin thẻ mặc định mới lên DB backend
+      // Vì chúng ta chỉ lưu số masked ở client, khi đặt default ta truyền placeholder tương ứng hoặc số tượng trưng
+      // để backend lưu trữ (hoặc backend ghi nhận thay đổi thẻ default).
+      // Ở đây ta mô phỏng bằng cách truyền số thẻ che để backend cập nhật hiển thị.
+      await subscriptionPaymentApiClient.updatePaymentMethod(
+        currentWorkspaceId,
+        `•••• •••• •••• ${targetCard.last4}`,
+        targetCard.holder,
+        targetCard.expiry
+      );
+
+      showSuccess(`Đã đặt thẻ đuôi ${targetCard.last4} làm mặc định.`);
+    } catch (err: any) {
+      showError(err.message || "Không thể đặt thẻ làm mặc định.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Xóa thẻ khỏi danh sách
+  const handleRemoveCard = async (cardId: string) => {
     if (!window.confirm("Bạn có chắc muốn xóa thẻ này không?")) return;
-    setSavedCard(null);
-    showSuccess("Đã xóa thẻ thanh toán.");
+
+    try {
+      setLoading(true);
+      const localCardsKey = `vcp_cards_${currentWorkspaceId}`;
+      const cached = localStorage.getItem(localCardsKey);
+      if (!cached) return;
+
+      const currentList: CardInfo[] = JSON.parse(cached);
+      const targetCard = currentList.find(c => c.id === cardId);
+      if (!targetCard) return;
+
+      const updatedList = currentList.filter(c => c.id !== cardId);
+
+      // Nếu thẻ bị xóa là thẻ mặc định, và vẫn còn các thẻ khác
+      if (targetCard.isDefault && updatedList.length > 0) {
+        // Tự động chọn thẻ đầu tiên còn lại làm mặc định
+        updatedList[0].isDefault = true;
+        
+        await subscriptionPaymentApiClient.updatePaymentMethod(
+          currentWorkspaceId,
+          `•••• •••• •••• ${updatedList[0].last4}`,
+          updatedList[0].holder,
+          updatedList[0].expiry
+        );
+      } else if (updatedList.length === 0) {
+        // Nếu không còn thẻ nào, xóa hẳn trên backend
+        await subscriptionPaymentApiClient.updatePaymentMethod(
+          currentWorkspaceId,
+          "",
+          "",
+          ""
+        );
+      }
+
+      localStorage.setItem(localCardsKey, JSON.stringify(updatedList));
+      setSavedCards(updatedList);
+      showSuccess(`Đã xóa thẻ đuôi ${targetCard.last4}.`);
+    } catch (err: any) {
+      showError(err.message || "Không thể xóa thẻ.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Áp dụng mã giảm giá thật
@@ -553,65 +674,112 @@ export function SubscriptionPaymentPage() {
             </div>
           </div>
 
-          {/* CỘT PHẢI: Phương thức thanh toán */}
+          {/* CỘT PHẢI: Phương thức thanh toán (Hỗ trợ nhiều thẻ) */}
           <div className="billing-card">
-            <div className="card-title-row">
+            <div className="card-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3>Payment Method</h3>
+              {savedCards.length > 0 && (
+                <button
+                  className="btn btn--secondary"
+                  style={{ padding: "4px 10px", fontSize: "0.75rem", borderRadius: "999px" }}
+                  onClick={() => {
+                    setNewCardNumber("");
+                    setNewCardHolder("");
+                    setNewCardExpiry("");
+                    setCardFormError(null);
+                    setShowCardModal(true);
+                  }}
+                >
+                  + Thêm thẻ
+                </button>
+              )}
             </div>
 
-            {savedCard ? (
-              /* === CÓ THẺ: hiển thị masked card === */
-              <div className="saved-card-display">
-                <div className="saved-card-brand-row">
-                  {/* Brand icon */}
-                  {savedCard.brand === "visa" && (
-                    <div className="card-brand-badge card-brand-badge--visa">VISA</div>
-                  )}
-                  {savedCard.brand === "mastercard" && (
-                    <div className="card-brand-badge card-brand-badge--mc">MC</div>
-                  )}
-                  {savedCard.brand === "jcb" && (
-                    <div className="card-brand-badge card-brand-badge--jcb">JCB</div>
-                  )}
-                  {savedCard.brand === "amex" && (
-                    <div className="card-brand-badge card-brand-badge--amex">AMEX</div>
-                  )}
-                  <span className="saved-card-masked">
-                    •••• •••• •••• <strong>{savedCard.last4}</strong>
-                  </span>
-                </div>
-
-                <div className="saved-card-meta">
-                  <div className="saved-card-meta-item">
-                    <span className="saved-card-meta-label">Chủ thẻ</span>
-                    <span className="saved-card-meta-value">{savedCard.holder}</span>
-                  </div>
-                  <div className="saved-card-meta-item">
-                    <span className="saved-card-meta-label">Hết hạn</span>
-                    <span className="saved-card-meta-value">{savedCard.expiry}</span>
-                  </div>
-                </div>
-
-                <div className="saved-card-actions">
-                  <button
-                    className="btn btn--secondary"
-                    onClick={() => {
-                      setNewCardNumber("");
-                      setNewCardHolder(savedCard.holder);
-                      setNewCardExpiry(savedCard.expiry);
-                      setCardFormError(null);
-                      setShowCardModal(true);
+            {savedCards.length > 0 ? (
+              /* === HIỂN THỊ DANH SÁCH THẺ === */
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {savedCards.map((card) => (
+                  <div
+                    key={card.id}
+                    className={`saved-card-display ${card.isDefault ? "saved-card-display--default" : ""}`}
+                    style={{
+                      border: card.isDefault ? "1.5px solid #bfdbfe" : "1.5px solid #f1f5f9",
+                      background: card.isDefault ? "#fefefe" : "#ffffff",
+                      borderRadius: "10px",
+                      padding: "12px 14px",
+                      position: "relative",
+                      transition: "all 0.2s ease"
                     }}
                   >
-                    Đổi thẻ
-                  </button>
-                  <button
-                    className="btn btn--danger"
-                    onClick={handleRemoveCard}
-                  >
-                    Xóa thẻ
-                  </button>
-                </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                      <div className="saved-card-brand-row">
+                        {card.brand === "visa" && <div className="card-brand-badge card-brand-badge--visa">VISA</div>}
+                        {card.brand === "mastercard" && <div className="card-brand-badge card-brand-badge--mc">MC</div>}
+                        {card.brand === "jcb" && <div className="card-brand-badge card-brand-badge--jcb">JCB</div>}
+                        {card.brand === "amex" && <div className="card-brand-badge card-brand-badge--amex">AMEX</div>}
+                        <span className="saved-card-masked">
+                          •••• {card.last4}
+                        </span>
+                      </div>
+                      
+                      {card.isDefault ? (
+                        <span style={{ fontSize: "0.7rem", background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: "999px", fontWeight: 700, letterSpacing: "0.02em" }}>
+                          MẶC ĐỊNH
+                        </span>
+                      ) : (
+                        <button
+                          className="btn"
+                          style={{
+                            padding: "2px 8px",
+                            fontSize: "0.7rem",
+                            background: "transparent",
+                            border: "1px solid #cbd5e1",
+                            color: "#64748b",
+                            borderRadius: "999px",
+                            cursor: "pointer"
+                          }}
+                          onClick={() => handleSetDefaultCard(card.id)}
+                        >
+                          Đặt mặc định
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "#64748b" }}>
+                      <div>
+                        <span style={{ display: "block", fontSize: "0.6rem", color: "#94a3b8", textTransform: "uppercase" }}>Chủ thẻ</span>
+                        <strong style={{ color: "#334155" }}>{card.holder}</strong>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <span style={{ display: "block", fontSize: "0.6rem", color: "#94a3b8", textTransform: "uppercase" }}>Hết hạn</span>
+                        <strong style={{ color: "#334155" }}>{card.expiry}</strong>
+                      </div>
+                    </div>
+
+                    {/* Nút xóa thẻ góc dưới hoặc kế bên */}
+                    <button
+                      type="button"
+                      style={{
+                        position: "absolute",
+                        top: "10px",
+                        right: "10px",
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        cursor: "pointer",
+                        padding: "4px",
+                        display: card.isDefault && savedCards.length === 1 ? "none" : "block"
+                      }}
+                      onClick={() => handleRemoveCard(card.id)}
+                      aria-label="Xóa thẻ"
+                      title="Xóa thẻ"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
             ) : (
               /* === CHƯA CÓ THẺ: empty state === */
@@ -823,7 +991,7 @@ export function SubscriptionPaymentPage() {
           <div className="card-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowCardModal(false); }}>
             <div className="card-modal-content">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <h3 style={{ margin: 0 }}>{savedCard ? "Đổi thẻ thanh toán" : "Thêm thẻ thanh toán"}</h3>
+                <h3 style={{ margin: 0 }}>{savedCards.length > 0 ? "Thêm thẻ thanh toán mới" : "Thêm thẻ thanh toán"}</h3>
                 <button
                   type="button"
                   onClick={() => setShowCardModal(false)}
