@@ -337,20 +337,24 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     this.tasks.set(task.taskId as string, task);
 
     try {
-      await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          taskId: task.taskId,
-          workId: task.workId,
-          workspaceId: "demo_workspace_1" as any,
-          conversationId: "cnv_default",
-          prompt: input.prompt,
-          routing: input.routing
-        })
-      });
+      setTimeout(() => {
+        fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            taskId: task.taskId,
+            workId: task.workId,
+            workspaceId: "demo_workspace_1" as any,
+            conversationId: "cnv_default",
+            prompt: input.prompt,
+            routing: input.routing
+          })
+        }).catch((err) => {
+          console.warn("Failed to reach backend execution start API, continuing with local state", err);
+        });
+      }, 50);
     } catch (err) {
-      console.warn("Failed to reach backend execution start API, continuing with local state", err);
+      console.warn("Failed to schedule backend execution start API", err);
     }
 
     return task;
@@ -423,6 +427,12 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
           };
 
           let snapshot: CreatedTaskRecord | undefined = undefined;
+
+          const cur = this.tasks.get(base.taskId as string)!;
+          if (cur.status === "queued" && data.type !== "execution-accepted") {
+            applyAction({ type: "processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
+          }
+
           if (data.type === "execution-accepted") {
             snapshot = applyAction({ type: "processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
             handler({ ...base, kind: "task-accepted", taskSnapshot: snapshot });
@@ -430,11 +440,16 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
             handler({ ...base, kind: "task-started", taskSnapshot: this.tasks.get(base.taskId as string) });
           } else if (data.type === "step-started") {
             const stepId = data.stepId || "step-1";
-            snapshot = applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId });
+            applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId: "validate-input", completedAt: base.timestamp });
+            applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId: "analyze-request" });
+            applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId: "analyze-request", completedAt: base.timestamp });
+            applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId: "select-routing" });
+            applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId: "select-routing", completedAt: base.timestamp });
+            snapshot = applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId: "execute-task" });
             handler({ ...base, kind: "step-started", stepName: data.stepName || stepId, stepIndex: 0, taskSnapshot: snapshot });
           } else if (data.type === "step-completed") {
             const stepId = data.stepId || "step-1";
-            snapshot = applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId, completedAt: base.timestamp });
+            snapshot = applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId: "execute-task", completedAt: base.timestamp });
             handler({ ...base, kind: "step-completed", stepName: data.stepName || stepId, stepIndex: 0, taskSnapshot: snapshot });
           } else if (data.type === "partial-output-received") {
             const chunkText = data.outputChunk || "";
@@ -457,7 +472,11 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
             if (currentTask.streamingSnapshot?.phase === "streaming") {
               applyAction({ type: "streaming-exhausted", taskId: base.taskId as any, exhaustedAt: base.timestamp });
             }
-            snapshot = applyAction({ type: "task-completed", taskId: base.taskId as any, result: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] } });
+            applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId: "execute-task", completedAt: base.timestamp });
+            applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId: "aggregate-result" });
+            applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId: "aggregate-result", completedAt: base.timestamp });
+            applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId: "finalize" });
+            snapshot = applyAction({ type: "task-completed", taskId: base.taskId as any, result: { text: finalOutput, finalizedAt: base.timestamp, artifacts: [], followUpPromptSuggestions: [] } as any });
             handler({ ...base, kind: "task-completed", finalResult: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] }, taskSnapshot: snapshot });
           } else if (data.type === "execution-failed") {
             snapshot = applyAction({ type: "task-failed", taskId: base.taskId as any, error: { code: "runtime-error", stepId: "unknown", title: "Execution failed", message: data.errorMessage || "Execution failed", occurredAt: base.timestamp } });
