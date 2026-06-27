@@ -70,6 +70,7 @@ import {
   type ExternalWorkspaceManagement
 } from "./features/task-execution/adapters/openclaw-task-execution-adapter.ts";
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
+import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
 import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
 
 class ServerAgentCatalog implements ExternalAgentCatalog {
@@ -148,6 +149,7 @@ export type LocalAgentManagementRuntime = {
   knowledgeBaseRagUseCases: any;
   openclawAdapter: OpenClawTaskExecutionAdapter;
   openclawOrchestrator: OpenClawExecutionOrchestrator;
+  conversationRepository: InMemoryConversationRepository;
 };
 
 let cachedPrisma: any = null;
@@ -402,6 +404,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const serverWorkflowCatalog = new ServerWorkflowCatalog();
   const serverAuthService = new ServerAuthenticationService();
 
+  const conversationRepository = new InMemoryConversationRepository();
   const openclawTransport = new OpenClawHttpSSETransport();
   const openclawAdapter = new OpenClawTaskExecutionAdapter(
     serverWorkspaceMgmt.getWorkspaceExecutionRuntimeResolver(),
@@ -414,7 +417,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     serverWorkspaceMgmt,
     serverAgentCatalog,
     serverWorkflowCatalog,
-    openclawAdapter
+    openclawAdapter,
+    undefined,
+    conversationRepository
   );
 
   app.use(
@@ -461,7 +466,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     knowledgeBaseRagRepositories,
     knowledgeBaseRagUseCases,
     openclawAdapter,
-    openclawOrchestrator
+    openclawOrchestrator,
+    conversationRepository
   };
 }
 
