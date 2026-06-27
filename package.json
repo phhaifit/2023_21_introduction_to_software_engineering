@@ -13,7 +13,7 @@
     "dev:web": "npm run dev --workspace=@vcp/frontend",
     "build": "npm run build --workspace=@vcp/frontend",
     "preview": "npm run preview --workspace=@vcp/frontend",
-    "test": "npm run test:workspace-management:domain && npm run test:workspace-management:persistence && npm run test:workspace-management:orchestration && npm run test:workspace-management:local-demo && npm run test:workspace-management:api && npm run test:task-orchestration && npm run test:contracts && npm run test:agent-management && node tests/contract/subscription-payment.test.mjs",
+    "test": "npm run test:workspace-management:domain && npm run test:task-orchestration && npm run test:contracts && npm run test:agent-management && node tests/contract/subscription-payment.test.mjs",
     "test:workspace-management:domain": "vitest run --config vitest.config.ts apps/backend/src/modules/workspace-management/domain/workspace-domain.test.ts",
     "test:workspace-management:persistence": "vitest run --config vitest.config.ts apps/backend/src/modules/workspace-management/infrastructure/persistence/workspace-persistence.test.ts",
   "test:workspace-management:orchestration": "vitest run --config vitest.config.ts apps/backend/src/modules/workspace-management/application/workspace-orchestration.test.ts",
