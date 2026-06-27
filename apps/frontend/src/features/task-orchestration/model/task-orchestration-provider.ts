@@ -403,22 +403,68 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
             workId: data.workId || "wrk_1",
             timestamp: data.timestamp || new Date().toISOString()
           };
+
+          const existingTask = this.tasks.get(base.taskId as string);
+          if (!existingTask) return;
+
+          const applyAction = (action: import("./task-creation-state").TaskCreationAction) => {
+             const state: import("./task-creation-state").TaskCreationState = {
+               tasks: [this.tasks.get(base.taskId as string)!],
+               conversations: [],
+               isSubmitting: false,
+               conversationSequence: 1
+             };
+             const nextState = taskCreationReducer(state, action);
+             const updatedTask = nextState.tasks[0];
+             if (updatedTask) {
+               this.tasks.set(base.taskId as string, updatedTask);
+             }
+             return updatedTask;
+          };
+
+          let snapshot: CreatedTaskRecord | undefined = undefined;
           if (data.type === "execution-accepted") {
-            handler({ ...base, kind: "task-accepted" });
+            snapshot = applyAction({ type: "processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
+            handler({ ...base, kind: "task-accepted", taskSnapshot: snapshot });
           } else if (data.type === "execution-started") {
-            handler({ ...base, kind: "task-started" });
+            handler({ ...base, kind: "task-started", taskSnapshot: this.tasks.get(base.taskId as string) });
           } else if (data.type === "step-started") {
-            handler({ ...base, kind: "step-started", stepName: data.stepName || data.stepId || "Step", stepIndex: 0 });
+            const stepId = data.stepId || "step-1";
+            snapshot = applyAction({ type: "processing-step-activated", taskId: base.taskId as any, stepId });
+            handler({ ...base, kind: "step-started", stepName: data.stepName || stepId, stepIndex: 0, taskSnapshot: snapshot });
           } else if (data.type === "step-completed") {
-            handler({ ...base, kind: "step-completed", stepName: data.stepName || data.stepId || "Step", stepIndex: 0 });
+            const stepId = data.stepId || "step-1";
+            snapshot = applyAction({ type: "processing-step-completed", taskId: base.taskId as any, stepId, completedAt: base.timestamp });
+            handler({ ...base, kind: "step-completed", stepName: data.stepName || stepId, stepIndex: 0, taskSnapshot: snapshot });
           } else if (data.type === "partial-output-received") {
-            handler({ ...base, kind: "partial-output", chunkText: data.outputChunk || "" });
+            const chunkText = data.outputChunk || "";
+            const currentTask = this.tasks.get(base.taskId as string)!;
+            if (currentTask.streamingSnapshot?.phase === "idle") {
+              applyAction({ type: "streaming-started", taskId: base.taskId as any, startedAt: base.timestamp });
+            }
+            snapshot = applyAction({
+              type: "streaming-fragment-appended",
+              taskId: base.taskId as any,
+              fragmentId: `frag-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              sequence: (this.tasks.get(base.taskId as string)!.streamingSnapshot?.fragments.length || 0) + 1,
+              text: chunkText,
+              appendedAt: base.timestamp
+            });
+            handler({ ...base, kind: "partial-output", chunkText, taskSnapshot: snapshot });
           } else if (data.type === "execution-completed") {
-            handler({ ...base, kind: "task-completed", finalResult: { text: data.finalOutput || "Completed successfully.", artifacts: [], followUpPromptSuggestions: [] } });
+            const finalOutput = data.finalOutput || "Completed successfully.";
+            const currentTask = this.tasks.get(base.taskId as string)!;
+            if (currentTask.streamingSnapshot?.phase === "streaming") {
+              applyAction({ type: "streaming-exhausted", taskId: base.taskId as any, exhaustedAt: base.timestamp });
+            }
+            snapshot = applyAction({ type: "task-completed", taskId: base.taskId as any, result: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] } });
+            handler({ ...base, kind: "task-completed", finalResult: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] }, taskSnapshot: snapshot });
           } else if (data.type === "execution-failed") {
-            handler({ ...base, kind: "task-failed", error: { code: "runtime-error", message: data.errorMessage || "Execution failed" } });
+            snapshot = applyAction({ type: "task-failed", taskId: base.taskId as any, error: { code: "runtime-error", stepId: "unknown", title: "Execution failed", message: data.errorMessage || "Execution failed", occurredAt: base.timestamp } });
+            handler({ ...base, kind: "task-failed", error: { code: "runtime-error", message: data.errorMessage || "Execution failed" }, taskSnapshot: snapshot });
           } else if (data.type === "execution-canceled") {
-            handler({ ...base, kind: "task-canceled" });
+            snapshot = applyAction({ type: "task-cancelled", taskId: base.taskId as any, cancelledAt: base.timestamp });
+            handler({ ...base, kind: "task-canceled", taskSnapshot: snapshot });
           }
         } catch (err) {
           console.error("Failed to parse SSE event", err);
