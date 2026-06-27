@@ -98,10 +98,22 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
   }
 
   async findSubscriptionByWorkspaceId(workspaceId: EntityId<"workspaceId">): Promise<Subscription | null> {
-    const record = await this.prisma.subscription.findFirst({
-      where: { workspaceId },
+    // 1. Tìm gói active hoặc expiring_soon trước
+    let record = await this.prisma.subscription.findFirst({
+      where: { 
+        workspaceId,
+        status: { in: ["active", "expiring_soon"] }
+      },
       orderBy: { createdAt: "desc" }
     });
+
+    // 2. Nếu không có gói nào đang hoạt động, lấy gói mới nhất bất kỳ
+    if (!record) {
+      record = await this.prisma.subscription.findFirst({
+        where: { workspaceId },
+        orderBy: { createdAt: "desc" }
+      });
+    }
 
     if (!record) return null;
 

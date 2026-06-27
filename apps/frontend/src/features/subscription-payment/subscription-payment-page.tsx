@@ -610,7 +610,7 @@ export function SubscriptionPaymentPage() {
             
             <div className="card-price-box">
               <span className="price-val">
-                ${subscription ? (plansConfig ? plansConfig[subscription.plan].price : PLAN_PRICES[subscription.plan]) : 0}
+                ${isSubActive && subscription ? (plansConfig ? plansConfig[subscription.plan].price : PLAN_PRICES[subscription.plan]) : 0}
               </span>
               <span className="price-unit"> / month</span>
             </div>
@@ -619,19 +619,19 @@ export function SubscriptionPaymentPage() {
               <div className="info-item">
                 <span className="info-label">Plan</span>
                 <span className="info-value">
-                  {subscription ? `${subscription.plan.toUpperCase()} Plan` : "No Active Plan"}
+                  {isSubActive && subscription ? `${subscription.plan.toUpperCase()} Plan` : "FREE Plan"}
                 </span>
               </div>
               <div className="info-item">
                 <span className="info-label">Start Date</span>
                 <span className="info-value">
-                  {subscription ? formatDate(subscription.createdAt) : "—"}
+                  {isSubActive && subscription ? formatDate(subscription.createdAt) : "—"}
                 </span>
               </div>
               <div className="info-item" style={{ gridColumn: "span 2" }}>
                 <span className="info-label">Renewal Date</span>
                 <span className="info-value">
-                  {subscription ? formatDate(subscription.expiresAt) : "—"}
+                  {isSubActive && subscription ? formatDate(subscription.expiresAt) : "—"}
                 </span>
               </div>
             </div>
@@ -821,7 +821,7 @@ export function SubscriptionPaymentPage() {
             <div className="card-title-row">
               <h3>Resource Usage</h3>
               <span className="quota-badge">
-                {subscription ? `${subscription.plan.toUpperCase()} Plan Quota` : "FREE Plan Quota"}
+                {isSubActive && subscription ? `${subscription.plan.toUpperCase()} Plan Quota` : "FREE Plan Quota"}
               </span>
             </div>
             <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "-8px", marginBottom: "16px" }}>
