@@ -506,7 +506,9 @@ export function SubscriptionPaymentPage() {
     );
   }
 
-  const isSubActive = subscription && (subscription.status === "active" || subscription.status === "expiring_soon");
+  const isSubActive = subscription && 
+    (subscription.status === "active" || subscription.status === "expiring_soon") &&
+    new Date(subscription.expiresAt).getTime() > Date.now();
 
   // =========================================================================
   // VIEW 1: BILLING DASHBOARD (MÀN HÌNH CHÍNH)
@@ -1071,7 +1073,7 @@ export function SubscriptionPaymentPage() {
   // VIEW 2: UPGRADE PLAN SELECTION (MÀN HÌNH SO SÁNH NÂNG CẤP)
   // =========================================================================
   if (view === "upgrade") {
-    const isUpgrading = subscription?.plan === "standard";
+    const isUpgrading = isSubActive && subscription?.plan === "standard";
     const standardPrice = plansConfig ? plansConfig.standard.price : 29;
     const premiumPrice = plansConfig ? plansConfig.premium.price : 79;
 
