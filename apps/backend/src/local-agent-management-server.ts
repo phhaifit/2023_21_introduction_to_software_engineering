@@ -149,7 +149,7 @@ export type LocalAgentManagementRuntime = {
   knowledgeBaseRagUseCases: any;
   openclawAdapter: OpenClawTaskExecutionAdapter;
   openclawOrchestrator: OpenClawExecutionOrchestrator;
-  conversationRepository: InMemoryConversationRepository;
+  conversationRepository: any;
 };
 
 let cachedPrisma: any = null;
@@ -216,6 +216,17 @@ async function createAuthSessionRepository(): Promise<any> {
     return new PrismaSessionRepository(prisma);
   }
   return new InMemorySessionRepository();
+}
+
+async function createConversationRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    const { PrismaConversationRepository } = await import(
+      "./modules/task-orchestration/infrastructure/prisma-conversation-repository.ts"
+    );
+    return new PrismaConversationRepository(prisma);
+  }
+  return new InMemoryConversationRepository();
 }
 
 function createSkillWriter(): AgentSkillWriter {
@@ -404,7 +415,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const serverWorkflowCatalog = new ServerWorkflowCatalog();
   const serverAuthService = new ServerAuthenticationService();
 
-  const conversationRepository = new InMemoryConversationRepository();
+  const conversationRepository = await createConversationRepository();
   const openclawTransport = new OpenClawHttpSSETransport();
   const openclawAdapter = new OpenClawTaskExecutionAdapter(
     serverWorkspaceMgmt.getWorkspaceExecutionRuntimeResolver(),
@@ -423,8 +434,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   );
 
   app.use(
-    "/api/workspaces/:workspaceId/executions",
-    createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter })
+    "/api/workspaces/:workspaceId",
+    createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter, conversationRepository })
   );
 
   app.use(createKnowledgeBaseRagRouter({

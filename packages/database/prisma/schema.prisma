@@ -559,3 +559,28 @@ model PaymentMethod {
   @@index([workspaceId])
   @@map("payment_methods")
 }
+
+model Conversation {
+  conversationId   String        @id
+  workspaceId      String
+  title            String
+  createdAt        String
+  updatedAt        String
+  associatedTarget Json?
+  messages         ChatMessage[]
+
+  @@index([workspaceId])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  messageId      String       @id
+  conversationId String
+  role           String
+  content        String
+  timestamp      String
+  conversation   Conversation @relation(fields: [conversationId], references: [conversationId], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("chat_messages")
+}
