@@ -40,3 +40,7 @@ test-results/
 
 # Personal docs
 .local-docs/
+
+# Local tools
+.tools/
+
