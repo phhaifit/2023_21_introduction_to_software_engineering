@@ -9,12 +9,13 @@ import type {
 } from "@vcp/shared/contracts/subscription-payment.ts";
 import { PLAN_ENTITLEMENTS, PLAN_PRICES } from "@vcp/shared/contracts/plans.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import { useToast } from "../../components/shared/Toast.tsx";
 
 type ViewState = "dashboard" | "upgrade" | "checkout" | "success";
 
 export function SubscriptionPaymentPage() {
+  const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionPublicSummary | null>(null);
   const [transactions, setTransactions] = useState<TransactionPublicSummary[]>([]);
   const [resourceUsage, setResourceUsage] = useState<WorkspaceResourceUsageResponse | null>(null);
@@ -71,7 +72,6 @@ export function SubscriptionPaymentPage() {
   const fetchDetails = async () => {
     try {
       setLoading(true);
-      setError(null);
       
       // Gọi song song API lấy Subscription, Resource Usage và Plans
       const [detailsData, usageData, plansData] = await Promise.all([
@@ -98,7 +98,7 @@ export function SubscriptionPaymentPage() {
         }
       }
     } catch (err: any) {
-      setError(err.message || "Không thể tải thông tin thanh toán từ API.");
+      showError(err.message || "Không thể tải thông tin thanh toán từ API.");
     } finally {
       setLoading(false);
     }
@@ -111,11 +111,11 @@ export function SubscriptionPaymentPage() {
   // Thay đổi Auto-Renewal qua API thật
   const handleToggleAutoRenew = async (checked: boolean) => {
     try {
-      setError(null);
       await subscriptionPaymentApiClient.toggleAutoRenewal(checked);
       setAutoRenew(checked);
+      showSuccess(checked ? "Đã bật tự động gia hạn thành công." : "Đã tắt tự động gia hạn thành công.");
     } catch (err: any) {
-      setError(err.message || "Cập nhật tự động gia hạn thất bại.");
+      showError(err.message || "Cập nhật tự động gia hạn thất bại.");
       setAutoRenew(!checked); // Revert switch nếu lỗi
     }
   };
@@ -127,13 +127,12 @@ export function SubscriptionPaymentPage() {
     }
     try {
       setLoading(true);
-      setError(null);
       await subscriptionPaymentApiClient.toggleAutoRenewal(false);
       setAutoRenew(false);
-      alert("Đã hủy tự động gia hạn thành công.");
+      showSuccess("Đã hủy tự động gia hạn thành công.");
       await fetchDetails();
     } catch (err: any) {
-      setError(err.message || "Không thể hủy tự động gia hạn.");
+      showError(err.message || "Không thể hủy tự động gia hạn.");
     } finally {
       setLoading(false);
     }
@@ -143,12 +142,11 @@ export function SubscriptionPaymentPage() {
   const handleUpdateCardDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardNumber || !newCardHolder || !newCardExpiry) {
-      alert("Vui lòng nhập đầy đủ thông tin thẻ.");
+      showError("Vui lòng nhập đầy đủ thông tin thẻ.");
       return;
     }
     try {
       setLoading(true);
-      setError(null);
       await subscriptionPaymentApiClient.updatePaymentMethod(newCardNumber, newCardHolder, newCardExpiry);
       setCardDetails({
         number: newCardNumber,
@@ -157,10 +155,10 @@ export function SubscriptionPaymentPage() {
         cvv: "•••"
       });
       setShowCardModal(false);
-      alert("Cập nhật phương thức thanh toán ảo thành công.");
+      showSuccess("Cập nhật phương thức thanh toán ảo thành công.");
       await fetchDetails();
     } catch (err: any) {
-      setError(err.message || "Không thể cập nhật phương thức thanh toán.");
+      showError(err.message || "Không thể cập nhật phương thức thanh toán.");
     } finally {
       setLoading(false);
     }
@@ -170,17 +168,16 @@ export function SubscriptionPaymentPage() {
   const handleApplyPromo = async () => {
     if (!promoCodeInput.trim()) return;
     try {
-      setError(null);
       const res = await subscriptionPaymentApiClient.validatePromo(promoCodeInput);
       if (res.success) {
         setAppliedPromo(promoCodeInput.trim().toUpperCase());
         setDiscountAmount(res.discount);
-        alert(`Áp dụng mã giảm giá thành công! Bạn được giảm $${res.discount}.00`);
+        showSuccess(`Áp dụng mã giảm giá thành công! Bạn được giảm $${res.discount}.00`);
       } else {
-        alert(res.message || "Mã giảm giá không hợp lệ.");
+        showError(res.message || "Mã giảm giá không hợp lệ.");
       }
     } catch (err: any) {
-      alert(err.message || "Lỗi khi kiểm tra mã giảm giá.");
+      showError(err.message || "Lỗi khi kiểm tra mã giảm giá.");
     }
   };
 
@@ -188,7 +185,6 @@ export function SubscriptionPaymentPage() {
   const handleInitiateCheckout = async (plan: "standard" | "premium") => {
     try {
       setLoading(true);
-      setError(null);
       setSelectedPlanForCheckout(plan);
       
       const res = await subscriptionPaymentApiClient.initiateCheckout(plan, appliedPromo || undefined);
@@ -204,7 +200,7 @@ export function SubscriptionPaymentPage() {
       });
       setView("checkout");
     } catch (err: any) {
-      setError(err.message || "Khởi tạo checkout thất bại.");
+      showError(err.message || "Khởi tạo checkout thất bại.");
     } finally {
       setLoading(false);
     }
@@ -215,7 +211,6 @@ export function SubscriptionPaymentPage() {
     if (!subscription) return;
     try {
       setLoading(true);
-      setError(null);
       setSelectedPlanForCheckout("premium");
       
       const res = await subscriptionPaymentApiClient.initiateUpgrade(subscription.subscriptionId, appliedPromo || undefined);
@@ -231,7 +226,7 @@ export function SubscriptionPaymentPage() {
       });
       setView("checkout");
     } catch (err: any) {
-      setError(err.message || "Khởi tạo nâng cấp thất bại.");
+      showError(err.message || "Khởi tạo nâng cấp thất bại.");
     } finally {
       setLoading(false);
     }
@@ -242,7 +237,6 @@ export function SubscriptionPaymentPage() {
     if (!checkoutData) return;
     try {
       setLoading(true);
-      setError(null);
       
       // Gọi API mock-callback thực tế của dự án để update DB
       await subscriptionPaymentApiClient.sendMockCallback(checkoutData.transactionId, status);
@@ -267,12 +261,13 @@ export function SubscriptionPaymentPage() {
         setDiscountAmount(0);
         setPromoCodeInput("");
 
+        showSuccess("Thanh toán thành công! Gói dịch vụ của bạn đã được kích hoạt.");
         setView("success");
       } else {
         throw new Error("Giao dịch giả lập đã bị hủy bỏ hoặc thất bại.");
       }
     } catch (err: any) {
-      setError(err.message || "Thanh toán thất bại.");
+      showError(err.message || "Thanh toán thất bại.");
       setView("dashboard"); // Quay về Dashboard nếu thanh toán lỗi
     } finally {
       // Reload dữ liệu thật từ API
@@ -323,11 +318,7 @@ export function SubscriptionPaymentPage() {
           <p className="subtitle">Quản lý định mức tài nguyên, phương thức thanh toán và lịch sử hóa đơn thực tế của Workspace.</p>
         </div>
 
-        {error && (
-          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", padding: "12px", borderRadius: "8px", fontSize: "0.9rem", marginBottom: "16px" }}>
-            {error}
-          </div>
-        )}
+
 
         <div className="grid-2col">
           {/* CỘT TRÁI: Gói hiện tại */}
@@ -720,11 +711,7 @@ export function SubscriptionPaymentPage() {
           <p className="subtitle">Unlock more resources and features for your workspace.</p>
         </div>
 
-        {error && (
-          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", padding: "12px", borderRadius: "8px", fontSize: "0.9rem", marginBottom: "24px" }}>
-            {error}
-          </div>
-        )}
+
 
         <div className="upgrade-cards-grid">
           {/* Card Standard Plan */}
@@ -940,11 +927,7 @@ export function SubscriptionPaymentPage() {
           <p className="subtitle">Hoàn tất thủ tục đăng ký nâng cấp gói của bạn qua API.</p>
         </div>
 
-        {error && (
-          <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c", padding: "12px", borderRadius: "8px", fontSize: "0.9rem", marginBottom: "16px" }}>
-            {error}
-          </div>
-        )}
+
 
         <div className="grid-2col">
           {/* CỘT TRÁI: Phương thức thanh toán */}
