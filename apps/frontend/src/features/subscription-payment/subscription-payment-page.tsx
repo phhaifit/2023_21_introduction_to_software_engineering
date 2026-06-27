@@ -14,10 +14,10 @@ import { useToast } from "../../components/shared/Toast.tsx";
 type ViewState = "dashboard" | "upgrade" | "checkout" | "success";
 
 const AVAILABLE_WORKSPACES = [
-  { id: "workspace-product-demo", name: "Product Demo Workspace (Mặc định)" },
-  { id: "workspace-marketing-dept", name: "Marketing Department" },
-  { id: "workspace-engineering-team", name: "Engineering Team Workspace" },
-  { id: "workspace-sales-operations", name: "Sales & Ops Workspace" },
+  { id: "workspace-product-demo",    name: "Product Demo" },
+  { id: "workspace-marketing-dept",  name: "Marketing Dept." },
+  { id: "workspace-engineering-team",name: "Engineering Team" },
+  { id: "workspace-sales-operations",name: "Sales & Ops" },
 ];
 
 export function SubscriptionPaymentPage() {
@@ -418,7 +418,7 @@ export function SubscriptionPaymentPage() {
                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                   </svg>
                 </div>
-                <span style={{ flex: 1, textAlign: "left" }}>
+                <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "160px" }}>
                   {AVAILABLE_WORKSPACES.find(ws => ws.id === currentWorkspaceId)?.name ?? currentWorkspaceId}
                 </span>
                 <svg className="custom-select-arrow" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">

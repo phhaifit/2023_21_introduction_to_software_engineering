@@ -1111,18 +1111,20 @@ input:checked + .slider:before {
   background: #ffffff;
   border: 1.5px solid #e2e8f0;
   border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #1e293b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: "Inter", "Outfit", -apple-system, sans-serif;
+  color: #334155;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   outline: none;
   transition: all 0.2s ease;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.07);
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
+  min-width: 0;
 }
 
 .custom-select-trigger:hover {
