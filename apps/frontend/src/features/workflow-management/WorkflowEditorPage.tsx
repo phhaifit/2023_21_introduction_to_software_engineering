@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ConfirmButton } from "../../components/shared/ConfirmButton";
 import { SectionCard } from "../../components/shared/SectionCard";
 import { WorkflowStepsTable } from "./components/WorkflowStepsTable";
@@ -8,6 +9,7 @@ import { createWorkflowManagementApiClient, type CreateWorkflowCommand, type Wor
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import { mockExecutions } from "../../data/executions.ts";
+import { Trash2 } from "lucide-react";
 
 const MOCK_AGENTS: AgentPublicSummary[] = [
   { agentId: "agent-research", workspaceId: DEMO_WORKSPACE_ID, name: "Research Agent", role: "Market researcher", model: "gpt-4.1-mini", status: "enabled" },
@@ -194,12 +196,29 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
 
 
 
+  const [showExecutionModal, setShowExecutionModal] = useState(false);
+  const [inputVariables, setInputVariables] = useState<{key: string, value: string}[]>([
+    { key: "prompt", value: "" }
+  ]);
+
+  const openExecutionModal = () => {
+    setShowExecutionModal(true);
+  };
+
   const handleExecute = async () => {
+    let inputData: Record<string, string> = {};
+    for (const v of inputVariables) {
+      if (v.key.trim()) {
+        inputData[v.key.trim()] = v.value;
+      }
+    }
+    
+    setShowExecutionModal(false);
     setExecutionStatus("running");
     setExecutionError(null);
 
     try {
-      await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">);
+      await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">, inputData);
       setExecutionStatus("success");
       
       // Update mock executions for local UI demonstration
@@ -254,14 +273,17 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
         }))
       };
       
-      let newWorkflowId = formData.workflowId;
-      if (formData.workflowId === "new-wf-123" || !workflowId) {
-        const result: any = await apiClient.createWorkflow(DEMO_WORKSPACE_ID, payload);
-        newWorkflowId = result.workflow ? result.workflow.workflowId : result.workflowId;
-        setFormData(prev => ({ ...prev, workflowId: newWorkflowId }));
-        if (formData.status !== "draft") {
-          await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, newWorkflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
-        }
+      // isNew = no real server ID yet (starts with "new-wf-" placeholder)
+      const isNew = !workflowId && formData.workflowId.startsWith("new-wf-");
+      
+      if (isNew) {
+        const result: any = await apiClient.createWorkflow(DEMO_WORKSPACE_ID, {
+          ...payload,
+          status: formData.status as any
+        });
+        const newId = result.workflow ? result.workflow.workflowId : result.workflowId;
+        // Update local state with real server ID so next Save hits PATCH not POST
+        setFormData(prev => ({ ...prev, workflowId: newId }));
       } else {
         await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
       }
@@ -470,12 +492,12 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
               onChange={handleChange}
             >
               <option value="draft">Draft</option>
-              <option value="active">Active</option>
+              <option value="published">Published (Active)</option>
               <option value="archived">Archived</option>
             </select>
           </div>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '12px', lineHeight: '1.5' }}>
-            Note: You must save the Workflow as "Active" to click Run (Execute).
+            Note: You must save the Workflow as "Published" to click Run (Execute).
           </p>
         </SectionCard>
 
@@ -486,10 +508,10 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
             </ConfirmButton>
             <button
               className="primary-action"
-              onClick={handleExecute}
-              style={{ background: formData.status === "active" ? '#10b981' : '#e5e7eb', borderColor: formData.status === "active" ? '#10b981' : '#e5e7eb', color: formData.status === "active" ? 'white' : '#9ca3af', cursor: formData.status === "active" ? 'pointer' : 'not-allowed' }}
-              disabled={executionStatus === "running" || formData.status !== "active"}
-              title={formData.status !== "active" ? "Save workflow as 'Active' to run" : ""}
+              onClick={openExecutionModal}
+              style={{ background: formData.status === "published" ? '#10b981' : '#e5e7eb', borderColor: formData.status === "published" ? '#10b981' : '#e5e7eb', color: formData.status === "published" ? 'white' : '#9ca3af', cursor: formData.status === "published" ? 'pointer' : 'not-allowed' }}
+              disabled={executionStatus === "running" || formData.status !== "published"}
+              title={formData.status !== "published" ? "Save workflow as 'Published' to run" : ""}
             >
               {executionStatus === "running" ? "Sending request..." : "▶ Run Workflow (Execute)"}
             </button>
@@ -513,6 +535,74 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
           )}
         </div>
       </div>
+
+      {showExecutionModal && createPortal(
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999999, animation: "fadeIn 0.15s ease-out" }}>
+          <div style={{ background: "var(--bg)", padding: "24px", borderRadius: "12px", width: "600px", maxWidth: "90%", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "8px", fontSize: "18px", fontWeight: 600 }}>Execute Workflow</h3>
+            <p style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "20px" }}>
+              Provide the starting variables for <strong style={{color: "var(--text)"}}>{formData.name || "Untitled Workflow"}</strong>:
+            </p>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "40vh", overflowY: "auto", paddingRight: "8px" }}>
+              {inputVariables.map((v, i) => (
+                <div key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  <div style={{ flex: "0 0 150px" }}>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Variable Name" 
+                      value={v.key} 
+                      onChange={e => {
+                        const newVars = [...inputVariables];
+                        newVars[i].key = e.target.value;
+                        setInputVariables(newVars);
+                      }}
+                      style={{ margin: 0, fontFamily: "monospace", fontSize: "13px" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                    <textarea 
+                      className="form-input" 
+                      placeholder="Enter value..." 
+                      value={v.value} 
+                      rows={2}
+                      onChange={e => {
+                        const newVars = [...inputVariables];
+                        newVars[i].value = e.target.value;
+                        setInputVariables(newVars);
+                      }}
+                      style={{ margin: 0, resize: "vertical", minHeight: "42px", flex: 1 }}
+                    />
+                    <button 
+                      className="icon-button danger" 
+                      title="Remove Variable"
+                      onClick={() => setInputVariables(inputVariables.filter((_, idx) => idx !== i))}
+                      style={{ padding: "10px", margin: 0 }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              <button 
+                className="secondary-action" 
+                style={{ alignSelf: "flex-start", padding: "6px 12px", fontSize: "13px", marginTop: "4px" }}
+                onClick={() => setInputVariables([...inputVariables, { key: "", value: "" }])}
+              >
+                + Add Variable
+              </button>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border-color)" }}>
+              <button className="secondary-action" onClick={() => setShowExecutionModal(false)}>Cancel</button>
+              <button className="primary-action" onClick={handleExecute}>Confirm Run</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
