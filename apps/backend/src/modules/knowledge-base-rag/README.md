@@ -16,7 +16,9 @@ Prisma repository adapters, deterministic in-memory repositories, a thin
 workspace-scoped HTTP API router, and a worker handoff skeleton for document
 ingestion lifecycle updates. The worker boundary also includes a deterministic
 text processing pipeline for supported text/markdown documents and an injected
-embedding/vector indexing adapter boundary for persisted chunks.
+embedding/vector indexing adapter boundary for persisted chunks. It also has a
+local end-to-end flow runner that composes handoff, text processing, and
+indexing for deterministic tests.
 
 It still does not contain real file parsing, file storage adapters, real
 embedding provider calls, real vector database calls, full worker runtime
@@ -209,6 +211,7 @@ Current backend foundation:
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
 - `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-base-rag-local-flow-runner.ts`
 - `worker/knowledge-document-content-reader.ts`
 - `worker/knowledge-document-processing-pipeline.ts`
 - `worker/knowledge-embedding-adapter.ts`
@@ -280,6 +283,14 @@ Real PDF/DOC/DOCX parsing, OCR, object storage integration, provider-backed
 embeddings, provider-backed vector writes, retrieval, and queue/runtime
 orchestration remain future adapter/runtime scope.
 
+The local flow runner is test-only orchestration for prepared documents and
+ingestion jobs. It wires the existing ingestion handoff to the text processing
+pipeline, then runs the indexing pipeline over persisted chunks. Tests inject a
+fake content reader, deterministic embedding adapter, fake in-memory vector
+index adapter, clocks, and ID generators. It does not schedule background jobs,
+read real storage, call real providers, expose an HTTP route, or implement
+retrieval/RAG answer generation.
+
 ## Worker Handoff
 
 Long-running ingestion and synchronization must run through workers, not inside
@@ -294,8 +305,9 @@ Expected flow:
 5. The text processing pipeline normalizes supported text and persists chunks.
 6. The separate indexing pipeline can embed and index persisted chunks through
    injected fake or future real adapters.
-7. Emit public domain events.
-8. UI reads document, ingestion, and sync status through API routes.
+7. The local flow runner can compose steps 4-6 in contract tests only.
+8. Emit public domain events.
+9. UI reads document, ingestion, and sync status through API routes.
 
 ## Testing Roadmap
 

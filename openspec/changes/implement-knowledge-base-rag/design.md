@@ -101,6 +101,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: The indexing pipeline loads workspace-scoped persisted chunks through the KB/RAG document repository, marks document indexing as `ingesting`, generates embeddings through an injected `KnowledgeEmbeddingAdapter`, upserts chunk embeddings through an injected `KnowledgeVectorIndexAdapter`, updates chunk embedding status/vector references internally, and marks document indexing `ready` or `failed`.
    - Constraint: This slice does not call real OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, FAISS, Elasticsearch, or other provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
 
+19. Add a local end-to-end flow runner for deterministic integration tests.
+   - Rationale: The team needs one local proof that prepared document state can move through handoff, text processing, chunk persistence, embedding, vector upsert, and final indexing status without creating production scheduling/runtime coupling.
+   - Boundary: The local runner composes existing `KnowledgeIngestionHandoff`, `KnowledgeDocumentProcessingPipeline`, and `KnowledgeDocumentIndexingPipeline` with injected repositories, content reader, embedding adapter, vector index adapter, clock, ID generators, and optional event publisher.
+   - Constraint: The runner is local/test orchestration only. It does not add HTTP routes, queue scheduling, real file storage, real embedding providers, real vector database clients, retrieval, RAG answer generation, Prisma changes, shared status changes, or new dependencies.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
@@ -111,3 +116,4 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 - A lifecycle-only worker handoff can look complete to callers -> Keep docs/tests explicit that parsing, chunking, embedding, vector writes, and external sync remain future adapter/runtime scope.
 - Text-only chunking is intentionally limited -> Keep PDF/DOC/DOCX/OCR, object storage readers, embedding, and vector indexing in later adapter-focused issues.
 - A standalone indexing pipeline can be mistaken for a scheduled runtime -> Keep it explicitly injected/tested and leave queue/runtime wiring for a later scoped issue.
+- A local end-to-end runner can be mistaken for production runtime -> Keep it documented and tested as local/test-only composition until a separate worker runtime issue adds scheduling.
