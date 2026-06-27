@@ -16,6 +16,7 @@ export const ENTITY_ID_KINDS = [
   "executionId",
   "workflowStepId",
   "conversationId",
+  "logId",
   "messageId"
 ] as const;
 

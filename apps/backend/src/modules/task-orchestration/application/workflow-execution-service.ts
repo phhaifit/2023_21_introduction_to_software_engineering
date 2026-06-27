@@ -1,22 +1,78 @@
-import type { EntityId, ExecuteWorkflowRequest } from "@vcp/shared";
-import type { TaskRepository } from "./task-repository.ts";
-import type { TaskWorkRepository } from "./task-work-repository.ts";
+import type { EntityId, ExecuteWorkflowRequest, StartExecutionCommand } from "@vcp/shared";
+import type { WorkflowRepository } from "../../workflow-management/infrastructure/workflow-repository.ts";
 import type { WorkflowExecutionHandoff } from "../../workflow-management/application/workflow-use-cases.ts";
+import type { EventBus } from "../../../shared/events/event-bus.ts";
+import type { OpenClawExecutionOrchestrator } from "../../../features/task-execution/adapters/openclaw-task-execution-adapter.ts";
+import { randomUUID } from "crypto";
 
 export class WorkflowExecutionService implements WorkflowExecutionHandoff {
-  // private taskRepository: TaskRepository;
-  // private taskWorkRepository: TaskWorkRepository;
+  private workflowRepo: WorkflowRepository;
+  private orchestrator: OpenClawExecutionOrchestrator;
+  private eventBus: EventBus;
 
-  constructor() {
-    // this.taskRepository = taskRepository;
-    // this.taskWorkRepository = taskWorkRepository;
+  constructor(
+    workflowRepo: WorkflowRepository,
+    orchestrator: OpenClawExecutionOrchestrator,
+    eventBus: EventBus
+  ) {
+    this.workflowRepo = workflowRepo;
+    this.orchestrator = orchestrator;
+    this.eventBus = eventBus;
   }
 
   // Implementation of Handoff interface
   async handoffExecution(request: ExecuteWorkflowRequest): Promise<void> {
-    console.log("[WorkflowExecutionService] Received handoff:", request.workflowId);
-    // Fetch workflow and start execution DAG. Since this service doesn't have the workflow repository, 
-    // it's just a placeholder for now, or it will require it in constructor.
+    console.log(`[WorkflowExecutionService] Received handoff executionId: ${request.executionId} for workflowId: ${request.workflowId}`);
+    const workflow = await this.workflowRepo.findById(request.workspaceId, request.workflowId);
+    
+    if (!workflow) {
+      throw new Error("Workflow not found during handoff");
+    }
+
+    // Emit workflow started
+    await this.eventBus.publish({
+      name: "workflow.execution_started",
+      eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+      occurredAt: new Date().toISOString(),
+      payload: {
+        workspaceId: request.workspaceId,
+        workflowId: request.workflowId,
+        executionId: request.executionId!
+      }
+    });
+
+    try {
+      await this.executeDAG(workflow, request.inputData, request.executionId!, request.triggeredBy);
+      
+      // Update execution status
+      await this.workflowRepo.updateExecutionStatus(request.workspaceId, request.executionId!, "Success", new Date().toISOString());
+      
+      await this.eventBus.publish({
+        name: "workflow.execution_completed",
+        eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+        occurredAt: new Date().toISOString(),
+        payload: {
+          workspaceId: request.workspaceId,
+          workflowId: request.workflowId,
+          executionId: request.executionId!
+        }
+      });
+    } catch (error: any) {
+      console.error("[WorkflowExecutionService] Execution failed:", error);
+      await this.workflowRepo.updateExecutionStatus(request.workspaceId, request.executionId!, "Failed", new Date().toISOString());
+      
+      await this.eventBus.publish({
+        name: "workflow.execution_failed",
+        eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+        occurredAt: new Date().toISOString(),
+        payload: {
+          workspaceId: request.workspaceId,
+          workflowId: request.workflowId,
+          executionId: request.executionId!,
+          errorMsg: error.message
+        }
+      });
+    }
   }
 
   // Parses template string like {{ step_1.output }} and replaces it with actual output data
@@ -48,7 +104,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
   }
 
   // Execute a workflow via BFS (DAG traversal)
-  async executeDAG(workflow: any, initialInput: any): Promise<void> {
+  async executeDAG(workflow: any, initialInput: any, executionId: EntityId<"executionId">, triggeredBy: EntityId<"userId">): Promise<void> {
     const steps = workflow.steps;
     if (!steps || steps.length === 0) return;
 
@@ -82,32 +138,132 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
       await Promise.all(currentLayer.map(async (step) => {
         const inputs = step.inputMapping 
           ? this.parseInputMapping(step.inputMapping, completedOutputs)
-          : {};
+          : (initialInput || {});
 
-        console.log(`[WorkflowExecutor] Executing Step: ${step.workflowStepId} (${step.stepType}) with inputs:`, inputs);
+        const logId = `wfsl_${randomUUID()}` as EntityId<"logId">;
+        await this.workflowRepo.createStepLog({
+          logId,
+          workspaceId: workflow.workspaceId,
+          executionId,
+          workflowStepId: step.workflowStepId,
+          status: "Running",
+          inputData: inputs,
+          startedAt: new Date().toISOString()
+        });
+
+        await this.eventBus.publish({
+          name: "workflow.step_started",
+          eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+          occurredAt: new Date().toISOString(),
+          payload: {
+            workspaceId: workflow.workspaceId,
+            workflowId: workflow.workflowId,
+            executionId,
+            workflowStepId: step.workflowStepId,
+            stepOrder: step.stepOrder,
+            agentId: step.agentId
+          }
+        });
 
         let outputData = null;
 
-        if (step.stepType === "approval") {
-          console.log(`[WorkflowExecutor] Step ${step.workflowStepId} is WAITING_APPROVAL`);
-          outputData = "APPROVED"; 
-        } else {
-          console.log(`[WorkflowExecutor] Agent ${step.agentId} processing...`);
-          outputData = `Result from Agent ${step.agentId}`;
-        }
+        try {
+          if (step.stepType === "approval") {
+            console.log(`[WorkflowExecutor] Step ${step.workflowStepId} is WAITING_APPROVAL`);
+            outputData = "APPROVED"; 
+          } else {
+            console.log(`[WorkflowExecutor] Agent ${step.agentId} processing via OpenClaw...`);
+            
+            // Map to StartExecutionCommand
+            const command: StartExecutionCommand = {
+              taskId: `task_${randomUUID()}` as EntityId<"taskId">,
+              workId: executionId as string as EntityId<"workId">,
+              workspaceId: workflow.workspaceId,
+              conversationId: `conv_${randomUUID()}` as EntityId<"conversationId">,
+              prompt: inputs.prompt || JSON.stringify(inputs),
+              routing: {
+                mode: "specific-agent",
+                agentId: step.agentId
+              }
+            };
+            
+            const context = {
+              principalId: triggeredBy as string,
+              roles: ["workspace-admin"], // mock
+              permissions: ["start-task-execution"]
+            };
 
-        completedOutputs[step.workflowStepId] = outputData;
+            const result = await this.orchestrator.execute10StepStartFlow(context, command);
+            if (result.status === "failed") {
+              throw new Error("Task execution failed in OpenClaw");
+            }
+            
+            // For now, OpenClaw execution adapter may just complete it or we wait for state.
+            // But since this is a pseudo-sync DAG engine running locally, let's poll or assume it completes.
+            // We can just fetch exposed state.
+            let state = await this.orchestrator.getExposedState(command.taskId);
+            let attempts = 0;
+            while(state.status === "pending" || state.status === "in-progress") {
+              await new Promise(r => setTimeout(r, 500));
+              state = await this.orchestrator.getExposedState(command.taskId);
+              attempts++;
+              if (attempts > 60) break; // 30s timeout
+            }
+            
+            if (state.status === "completed") {
+              outputData = `Result from Agent ${step.agentId} (Task ${command.taskId})`;
+            } else {
+              throw new Error(`Task did not complete successfully. Final status: ${state.status}`);
+            }
+          }
 
-        if (step.nextSteps) {
-          for (const next of step.nextSteps) {
-            const isConditionMet = this.evaluateCondition(next.condition, outputData);
-            if (isConditionMet) {
-              const nextStep = steps.find((s: any) => s.workflowStepId === next.targetStepId);
-              if (nextStep && !queue.includes(nextStep)) {
-                queue.push(nextStep);
+          completedOutputs[step.workflowStepId] = outputData;
+
+          await this.workflowRepo.updateStepLog(logId, "Success", outputData, undefined, new Date().toISOString());
+
+          await this.eventBus.publish({
+            name: "workflow.step_completed",
+            eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+            occurredAt: new Date().toISOString(),
+            payload: {
+              workspaceId: workflow.workspaceId,
+              workflowId: workflow.workflowId,
+              executionId,
+              workflowStepId: step.workflowStepId,
+              stepOrder: step.stepOrder,
+              agentId: step.agentId,
+              outputData
+            }
+          });
+
+          if (step.nextSteps) {
+            for (const next of step.nextSteps) {
+              const isConditionMet = this.evaluateCondition(next.condition, outputData);
+              if (isConditionMet) {
+                const nextStep = steps.find((s: any) => s.workflowStepId === next.targetStepId);
+                if (nextStep && !queue.includes(nextStep)) {
+                  queue.push(nextStep);
+                }
               }
             }
           }
+        } catch (err: any) {
+          await this.workflowRepo.updateStepLog(logId, "Failed", null, err.message, new Date().toISOString());
+          await this.eventBus.publish({
+            name: "workflow.step_failed",
+            eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+            occurredAt: new Date().toISOString(),
+            payload: {
+              workspaceId: workflow.workspaceId,
+              workflowId: workflow.workflowId,
+              executionId,
+              workflowStepId: step.workflowStepId,
+              stepOrder: step.stepOrder,
+              agentId: step.agentId,
+              errorMsg: err.message
+            }
+          });
+          throw err; // Stop workflow on step failure
         }
       }));
     }

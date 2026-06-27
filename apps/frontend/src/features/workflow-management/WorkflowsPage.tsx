@@ -47,16 +47,35 @@ function StreamingProgressModal({
           `> Total steps to run: ${data.totalSteps}`,
           `> Allocating resources... OK`,
         ]);
+      } else if (data.type === "step_started") {
+        setLogs((prev) => [
+          ...prev,
+          `> [Running] Step ${data.stepOrder} - Agent: ${data.agentId} started...`,
+        ]);
       } else if (data.type === "step_completed") {
         setLogs((prev) => [
           ...prev,
           `> [Completed] Step ${data.stepOrder} - Agent: ${data.agentId} finished processing.`,
+          `> Output: ${JSON.stringify(data.outputData)}`
         ]);
         setProgress((prev) => Math.min(prev + 30, 90));
+      } else if (data.type === "step_failed") {
+        setLogs((prev) => [
+          ...prev,
+          `> [Error] Step ${data.stepOrder} failed: ${data.errorMsg}`,
+        ]);
       } else if (data.type === "workflow_completed") {
         setLogs((prev) => [
           ...prev,
           `> [Success] Workflow executed all steps successfully.`,
+          `> Closing connection stream.`,
+        ]);
+        setProgress(100);
+        es.close();
+      } else if (data.type === "workflow_failed") {
+        setLogs((prev) => [
+          ...prev,
+          `> [Failed] Workflow execution failed: ${data.errorMsg}`,
           `> Closing connection stream.`,
         ]);
         setProgress(100);
@@ -329,15 +348,43 @@ function WorkflowsList({
     }
   });
 
-  const handleRun = async (workflowId: string, workflowName: string) => {
+  const [runModalData, setRunModalData] = useState<{ workflowId: string; workflowName: string; } | null>(null);
+  const [inputVariables, setInputVariables] = useState<{key: string, value: string}[]>([
+    { key: "prompt", value: "" }
+  ]);
+
+  const handleRunClick = (workflowId: string, workflowName: string) => {
+    setInputVariables([{ key: "prompt", value: "" }]);
+    setRunModalData({ workflowId, workflowName });
+  };
+
+  const handleConfirmRun = async () => {
+    if (!runModalData) return;
+    const { workflowId, workflowName } = runModalData;
+    setRunModalData(null);
     setExecutingId(workflowId);
-    setStreamingUrl(
-      apiClient.getExecutionStreamUrl(
+    try {
+      let inputData: Record<string, string> = {};
+      for (const v of inputVariables) {
+        if (v.key.trim()) {
+          inputData[v.key.trim()] = v.value;
+        }
+      }
+      
+      const { executionId } = await apiClient.executeWorkflow(DEMO_WORKSPACE_ID, workflowId as EntityId<"workflowId">, inputData);
+      
+      const streamUrl = apiClient.getExecutionStreamUrl(
         DEMO_WORKSPACE_ID,
         workflowId as EntityId<"workflowId">,
-      ),
-    );
-    setStreamingWorkflowName(workflowName);
+      ) + `?executionId=${executionId}`;
+      
+      setStreamingUrl(streamUrl);
+      setStreamingWorkflowName(workflowName);
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to execute workflow: " + (err.message || "Unknown error"));
+      setExecutingId(null);
+    }
   };
 
   const handleStreamingClose = () => {
@@ -372,10 +419,14 @@ function WorkflowsList({
         DEMO_WORKSPACE_ID,
         workflowId as EntityId<"workflowId">,
       );
-      alert("Deleted successfully!");
-      loadWorkflows();
+      setWorkflows(prev => prev.filter(w => w.workflowId !== workflowId));
     } catch (err: any) {
-      alert("Error deleting Workflow: " + (err.message || "Unknown error"));
+      if (err?.status === 404 || err?.message?.includes("not found")) {
+        // Already gone on server — just remove from UI
+        setWorkflows(prev => prev.filter(w => w.workflowId !== workflowId));
+      } else {
+        alert("Error deleting Workflow: " + (err.message || "Unknown error"));
+      }
     }
   };
 
@@ -596,15 +647,15 @@ function WorkflowsList({
                       }}
                     >
                       <button
-                        className={`icon-button ${w.status === "active" ? "success" : ""}`}
+                        className={`icon-button ${w.status === "published" ? "success" : ""}`}
                         title={
-                          w.status !== "active"
-                            ? "Only Active workflows can be run"
+                          w.status !== "published"
+                            ? "Only Published (Active) workflows can be run"
                             : "Run Workflow"
                         }
-                        onClick={() => handleRun(w.workflowId, w.name)}
+                        onClick={() => handleRunClick(w.workflowId, w.name)}
                         disabled={
-                          executingId === w.workflowId || w.status !== "active"
+                          executingId === w.workflowId || w.status !== "published"
                         }
                       >
                         {executingId === w.workflowId
@@ -647,6 +698,74 @@ function WorkflowsList({
           eventSourceUrl={streamingUrl}
           onClose={handleStreamingClose}
         />
+      )}
+
+      {runModalData && createPortal(
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999999, animation: "fadeIn 0.15s ease-out" }}>
+          <div style={{ background: "var(--bg)", padding: "24px", borderRadius: "12px", width: "600px", maxWidth: "90%", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "8px", fontSize: "18px", fontWeight: 600 }}>Execute Workflow</h3>
+            <p style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "20px" }}>
+              Provide the starting variables for <strong style={{color: "var(--text)"}}>{runModalData.workflowName}</strong>:
+            </p>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "40vh", overflowY: "auto", paddingRight: "8px" }}>
+              {inputVariables.map((v, i) => (
+                <div key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  <div style={{ flex: "0 0 150px" }}>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Variable Name" 
+                      value={v.key} 
+                      onChange={e => {
+                        const newVars = [...inputVariables];
+                        newVars[i].key = e.target.value;
+                        setInputVariables(newVars);
+                      }}
+                      style={{ margin: 0, fontFamily: "monospace", fontSize: "13px" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                    <textarea 
+                      className="form-input" 
+                      placeholder="Enter value..." 
+                      value={v.value} 
+                      rows={2}
+                      onChange={e => {
+                        const newVars = [...inputVariables];
+                        newVars[i].value = e.target.value;
+                        setInputVariables(newVars);
+                      }}
+                      style={{ margin: 0, resize: "vertical", minHeight: "42px", flex: 1 }}
+                    />
+                    <button 
+                      className="icon-button danger" 
+                      title="Remove Variable"
+                      onClick={() => setInputVariables(inputVariables.filter((_, idx) => idx !== i))}
+                      style={{ padding: "10px", margin: 0 }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              <button 
+                className="secondary-action" 
+                style={{ alignSelf: "flex-start", padding: "6px 12px", fontSize: "13px", marginTop: "4px" }}
+                onClick={() => setInputVariables([...inputVariables, { key: "", value: "" }])}
+              >
+                + Add Variable
+              </button>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingTop: "16px", borderTop: "1px solid var(--border-color)" }}>
+              <button className="secondary-action" onClick={() => setRunModalData(null)}>Cancel</button>
+              <button className="primary-action" onClick={handleConfirmRun}>Confirm Run</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

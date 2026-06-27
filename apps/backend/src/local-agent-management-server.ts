@@ -324,18 +324,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     })
   };
   
-  const executionService = new WorkflowExecutionService();
-
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
     const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
     return all.agents.filter((a: any) => agentIds.includes(a.agentId));
   };
-
-  const workflowUseCases = new WorkflowUseCases(
-    workflowRepository,
-    agentProvider,
-    executionService
-  );
 
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);
@@ -405,11 +397,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createSubscriptionRouter({ useCases: checkoutUseCases })
   );
 
-  app.use(
-    "/api/workspaces/:workspaceId/workflows",
-    createWorkflowManagementRouter({ useCases: workflowUseCases })
-  );
-
   const serverWorkspaceMgmt = new ServerWorkspaceManagement();
   const serverAgentCatalog = new ServerAgentCatalog();
   const serverWorkflowCatalog = new ServerWorkflowCatalog();
@@ -436,6 +423,23 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   app.use(
     "/api/workspaces/:workspaceId",
     createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter, conversationRepository })
+  );
+
+  const executionService = new WorkflowExecutionService(
+    workflowRepository,
+    openclawOrchestrator,
+    eventBus
+  );
+
+  const workflowUseCases = new WorkflowUseCases(
+    workflowRepository,
+    agentProvider,
+    executionService
+  );
+
+  app.use(
+    "/api/workspaces/:workspaceId/workflows",
+    createWorkflowManagementRouter({ useCases: workflowUseCases, eventBus })
   );
 
   app.use(createKnowledgeBaseRagRouter({
@@ -529,4 +533,5 @@ if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
   app.listen(LOCAL_AGENT_API_PORT, LOCAL_AGENT_API_HOST, () => {
     console.log(`Agent & Billing API: http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`);
   });
+  setInterval(() => {}, 100000);
 }

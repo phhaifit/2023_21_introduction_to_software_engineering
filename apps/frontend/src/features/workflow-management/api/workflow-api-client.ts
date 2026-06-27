@@ -39,7 +39,7 @@ export type WorkflowManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">,
     inputData?: Record<string, any>
-  ): Promise<void>;
+  ): Promise<{ executionId: string }>;
   deleteWorkflow(
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">
@@ -100,6 +100,11 @@ export function createWorkflowManagementApiClient(input: {
         message: "Unable to reach the Workflow Management API.",
         kind: "network"
       });
+    }
+
+    // Handle 204 No Content (e.g. DELETE)
+    if (response.status === 204) {
+      return undefined as unknown as T;
     }
 
     let body: unknown;
@@ -163,7 +168,7 @@ export function createWorkflowManagementApiClient(input: {
         body: JSON.stringify(payload)
       }),
     executeWorkflow: (workspaceId, workflowId, inputData) =>
-      request<void>(`${workflowPath(workspaceId, workflowId)}/execute`, {
+      request<{ executionId: string }>(`${workflowPath(workspaceId, workflowId)}/execute`, {
         method: "POST",
         body: JSON.stringify({ inputData })
       }),

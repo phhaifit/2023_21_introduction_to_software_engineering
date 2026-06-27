@@ -9,14 +9,16 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   
   let statusClass = "draft";
   let icon = <FileEdit size={14} strokeWidth={2.5} />;
+  let label = status.charAt(0).toUpperCase() + status.slice(1);
   
-  if (normalizedStatus === "published") {
-    statusClass = "published";
+  if (normalizedStatus === "published" || normalizedStatus === "active") {
+    statusClass = "completed";
     icon = <CheckCircle2 size={14} strokeWidth={2.5} />;
+    label = "Active"; // Show "Active" to users even though internal value is "published"
   } else if (normalizedStatus === "running") {
     statusClass = "running";
     icon = <Loader2 size={14} strokeWidth={2.5} style={{ animation: "spin 2s linear infinite" }} />;
-  } else if (normalizedStatus === "completed" || normalizedStatus === "active" || normalizedStatus === "success") {
+  } else if (normalizedStatus === "completed" || normalizedStatus === "success") {
     statusClass = "completed";
     icon = <CheckCircle2 size={14} strokeWidth={2.5} />;
   } else if (normalizedStatus === "failed") {
@@ -32,8 +34,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     statusClass = normalizedStatus;
   }
 
-  // Generate a style string for border opacity since border-opacity isn't standard
-  let borderColor = "rgba(71, 84, 103, 0.3)"; // default draft
+  let borderColor = "rgba(71, 84, 103, 0.3)";
   if (statusClass === "running") borderColor = "rgba(161, 98, 7, 0.3)";
   else if (statusClass === "completed") borderColor = "rgba(21, 128, 61, 0.3)";
   else if (statusClass === "failed") borderColor = "rgba(185, 28, 28, 0.3)";
@@ -56,7 +57,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       }}
     >
       {icon}
-      <span>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+      <span>{label}</span>
     </span>
   );
 }

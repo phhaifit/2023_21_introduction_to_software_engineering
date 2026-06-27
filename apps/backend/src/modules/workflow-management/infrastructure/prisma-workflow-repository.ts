@@ -183,4 +183,57 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
 
     return true;
   }
+
+  async createExecution(execution: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto): Promise<void> {
+    await this.prisma.workflowExecution.create({
+      data: {
+        executionId: execution.executionId,
+        workspaceId: execution.workspaceId,
+        workflowId: execution.workflowId,
+        status: execution.status,
+        triggeredBy: execution.triggeredBy,
+        startedAt: execution.startedAt,
+        completedAt: execution.completedAt,
+      },
+    });
+  }
+
+  async updateExecutionStatus(workspaceId: EntityId<"workspaceId">, executionId: EntityId<"executionId">, status: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionStatus, completedAt?: string): Promise<void> {
+    await this.prisma.workflowExecution.updateMany({
+      where: { executionId, workspaceId },
+      data: {
+        status,
+        ...(completedAt && { completedAt })
+      }
+    });
+  }
+
+  async createStepLog(log: import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto): Promise<void> {
+    await this.prisma.workflowStepLog.create({
+      data: {
+        logId: log.logId,
+        workspaceId: log.workspaceId,
+        executionId: log.executionId,
+        workflowStepId: log.workflowStepId,
+        status: log.status,
+        inputData: log.inputData ? JSON.stringify(log.inputData) : null,
+        outputData: log.outputData ? JSON.stringify(log.outputData) : null,
+        errorMsg: log.errorMsg,
+        startedAt: log.startedAt,
+        completedAt: log.completedAt,
+      },
+    });
+  }
+
+  async updateStepLog(logId: EntityId<"logId">, status: string, outputData?: any, errorMsg?: string, completedAt?: string): Promise<void> {
+    await this.prisma.workflowStepLog.update({
+      where: { logId },
+      data: {
+        status,
+        ...(outputData && { outputData: JSON.stringify(outputData) }),
+        ...(errorMsg && { errorMsg }),
+        ...(completedAt && { completedAt })
+      }
+    });
+  }
 }

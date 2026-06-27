@@ -60,6 +60,9 @@ describe("Workflow Execution Handoff", () => {
       inputData: { someInput: "data" }
     });
 
+    // Wait for the async setImmediate task to execute
+    await new Promise(resolve => setImmediate(resolve));
+
     // Verify
     assert.ok(handedOffRequest);
     assert.strictEqual(handedOffRequest.workflowId, createResult.workflow.workflowId);
