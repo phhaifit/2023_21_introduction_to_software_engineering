@@ -59,15 +59,15 @@
 
 ## 6. Phase 5 - Prompt Assistant Flow
 
-- [ ] 6.1 Add the workspace-scoped assistant draft API route for natural-language descriptions.
-- [ ] 6.2 Require `agents:manage` permission for assistant draft generation.
-- [ ] 6.3 Return editable draft fields, clarifying questions, warning metadata, and provider metadata without creating an agent.
-- [ ] 6.4 Add backend tests for authorization, valid prompt response, clarification response, all-provider failure response, and no agent persistence.
-- [ ] 6.5 Add frontend API client support for assistant draft generation.
-- [ ] 6.6 Build the prompt assistant modal view with loading, clarification, fallback-provider metadata, retryable failure, and draft review states.
-- [ ] 6.7 Ensure all-provider failure preserves any existing user input and asks the user to retry.
-- [ ] 6.8 Add component tests for prompt submit, loading state, clarification display, fallback-provider display, all-provider failure, and successful draft review.
-- [ ] 6.9 Run focused backend and frontend tests for prompt assistant flow.
+- [x] 6.1 Add the workspace-scoped assistant draft API route for natural-language descriptions.
+- [x] 6.2 Require `agents:manage` permission for assistant draft generation.
+- [x] 6.3 Return editable draft fields, clarifying questions, warning metadata, and provider metadata without creating an agent.
+- [x] 6.4 Add backend tests for authorization, valid prompt response, clarification response, all-provider failure response, and no agent persistence.
+- [x] 6.5 Add frontend API client support for assistant draft generation.
+- [x] 6.6 Build the prompt assistant modal view with loading, clarification, fallback-provider metadata, retryable failure, and draft review states.
+- [x] 6.7 Ensure all-provider failure preserves any existing user input and asks the user to retry.
+- [x] 6.8 Add component tests for prompt submit, loading state, clarification display, fallback-provider display, all-provider failure, and successful draft review.
+- [x] 6.9 Run focused backend and frontend tests for prompt assistant flow.
 
 ## 7. Phase 6 - Free-Form Skill Markdown Import Through LLM
 
@@ -94,17 +94,31 @@
 - [ ] 8.9 Add frontend tests for warning display, disabled create button, warning resolution, and valid draft submission after resolution.
 - [ ] 8.10 Run focused backend and frontend tests for capability validation.
 
-## 9. Phase 8 - Integration, E2E, and Handoff
+## 9. Phase 8 - OpenClaw Runtime-Ready Agent Output
 
-- [ ] 9.1 Add an end-to-end or integration test for the happy path: open guided create, generate or mock a valid assistant draft through configured test provider behavior, preview `skill.md`, submit agent, and see the enabled agent in the list.
-- [ ] 9.2 Add an end-to-end or integration test for blocking warnings preventing agent creation.
-- [ ] 9.3 Add manual browser verification notes for model catalog, template draft, LLM assistant, `skill.md` import, `skill.md` download, provider failure retry, and blocking warnings.
-- [ ] 9.4 Document required environment variables for Gemini and OpenRouter provider configuration without exposing secrets, including demo defaults `GEMINI_MODEL_ID=gemini-2.5-flash` and `OPENROUTER_MODEL_ID=openrouter/owl-alpha`.
-- [ ] 9.5 Create or update `docs/api/agent-management-tools-kb-handoff.md` with teammate handoff requirements for Tools Integration: connected tool catalog API shape and future public assignment API integration.
-- [ ] 9.6 Create or update `docs/api/agent-management-tools-kb-handoff.md` with teammate handoff requirements for KB/RAG: ready document/collection API shape and future public grant API integration.
-- [ ] 9.7 Document that OpenClaw runtime manifest construction and task cancellation on permission revoke remain Task Orchestration/OpenClaw integration scope.
-- [ ] 9.8 Run `npm test`.
-- [ ] 9.9 Run `npm run build`.
-- [ ] 9.10 Run `openspec validate "enhance-agent-management-creation-assistant" --strict`.
-- [ ] 9.11 Run `openspec validate --all --strict`.
-- [ ] 9.12 Run `git diff --check`.
+- [ ] 9.1 Add caller-safe shared DTOs for an Agent Management runtime profile that includes agent identity, workspace identity, runnable status, catalog model id, role, instructions, approved non-permission runtime sections, canonical `skill.md`, requested tool intent, requested knowledge intent, and OpenClaw materialization hints.
+- [ ] 9.2 Persist approved non-permission runtime configuration from template, prompt assistant, and `skill.md` import submissions after the manager creates an agent, without persisting unsubmitted draft sessions.
+- [ ] 9.3 Preserve compatibility for existing basic agents by rendering missing runtime sections as empty or `_Not specified._` in runtime profile and `skill.md` output.
+- [ ] 9.4 Add a server-side public Agent Management runtime profile boundary for Task Orchestration / OpenClaw integration without importing Agent Management private repositories from other modules.
+- [ ] 9.5 Ensure the runtime profile boundary rejects disabled, deleted, missing, and cross-workspace agents for runnable OpenClaw execution.
+- [ ] 9.6 Ensure runtime profile output excludes credentials, raw provider payloads, raw provider errors, real tool assignment authority, real knowledge grant authority, OpenClaw Gateway tokens, runtime URLs, container ids, terminal commands, and task manifests.
+- [ ] 9.7 Keep existing create, update, rename, duplicate, enable, disable, delete, `skill.md` preview, and `skill.md` download behavior compatible with the new runtime configuration fields.
+- [ ] 9.8 Add backend tests for runtime profile success, disabled/deleted/cross-workspace rejection, rich draft field persistence, existing basic agent compatibility, no permission mutation, and secret/runtime-field redaction.
+- [ ] 9.9 Add focused contract tests for runtime profile DTO exposure rules and forbidden fields.
+- [ ] 9.10 Run focused backend and contract tests for runtime-ready Agent Management output.
+
+## 10. Phase 9 - Integration, E2E, and Handoff
+
+- [ ] 10.1 Add an end-to-end or integration test for the happy path: open guided create, generate or mock a valid assistant draft through configured test provider behavior, preview `skill.md`, submit agent, and see the enabled agent in the list.
+- [ ] 10.2 Add an end-to-end or integration test for blocking warnings preventing agent creation.
+- [ ] 10.3 Add a backend integration test or documented smoke test showing Task Orchestration / OpenClaw integration can consume the Agent Management runtime profile boundary without private imports.
+- [ ] 10.4 Add manual browser verification notes for model catalog, template draft, LLM assistant, `skill.md` import, `skill.md` download, provider failure retry, blocking warnings, and runtime profile reconstruction.
+- [ ] 10.5 Document required environment variables for Gemini and OpenRouter provider configuration without exposing secrets, including demo defaults `GEMINI_MODEL_ID=gemini-2.5-flash` and `OPENROUTER_MODEL_ID=openrouter/owl-alpha`.
+- [ ] 10.6 Create or update `docs/api/agent-management-tools-kb-handoff.md` with teammate handoff requirements for Tools Integration: connected tool catalog API shape, future public assignment API integration, and how Task Orchestration must resolve current tool permissions before OpenClaw execution.
+- [ ] 10.7 Create or update `docs/api/agent-management-tools-kb-handoff.md` with teammate handoff requirements for KB/RAG: ready document/collection API shape, future public grant API integration, and how Task Orchestration must resolve current knowledge grants before OpenClaw execution.
+- [ ] 10.8 Document that OpenClaw agent workspace materialization, `agents.list[]` synchronization, Gateway/CLI calls, runtime manifest construction, streaming/logs, and task cancellation on permission revoke remain Task Orchestration/OpenClaw integration scope.
+- [ ] 10.9 Run `npm test`.
+- [ ] 10.10 Run `npm run build`.
+- [ ] 10.11 Run `openspec validate "enhance-agent-management-creation-assistant" --strict`.
+- [ ] 10.12 Run `openspec validate --all --strict`.
+- [ ] 10.13 Run `git diff --check`.
