@@ -484,6 +484,8 @@ export function SubscriptionPaymentPage() {
       showError(err.message || "Thanh toán thất bại.");
       setView("dashboard"); // Quay về Dashboard nếu thanh toán lỗi
     } finally {
+      // Chờ 1 giây để background worker của backend hoàn tất đối soát giao dịch
+      await new Promise(resolve => setTimeout(resolve, 1000));
       // Reload dữ liệu thật từ API theo Workspace đang chọn
       await fetchDetails(currentWorkspaceId);
     }
