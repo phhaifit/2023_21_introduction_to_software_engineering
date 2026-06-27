@@ -61,6 +61,9 @@ import {
 const backendUrlStr = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 const parsedBackendUrl = new URL(backendUrlStr);
 
+import { createProductionLlmAgentDraftingService } from "./modules/agent-management/infrastructure/llm-provider-adapters.ts";
+import { MockLlmAgentDraftProvider, LlmAgentDraftingService } from "./modules/agent-management/application/llm-agent-drafting-port.ts";
+
 export const LOCAL_AGENT_API_HOST = parsedBackendUrl.hostname;
 export const LOCAL_AGENT_API_PORT = parseInt(parsedBackendUrl.port, 10) || 3001;
 
@@ -143,9 +146,19 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   
   const eventBus = new InMemoryEventBus();
 
+  const draftingPort = process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY 
+    ? createProductionLlmAgentDraftingService({
+        geminiApiKey: process.env.GEMINI_API_KEY,
+        geminiModelId: process.env.GEMINI_MODEL_ID,
+        openrouterApiKey: process.env.OPENROUTER_API_KEY,
+        openrouterModelId: process.env.OPENROUTER_MODEL_ID
+      })
+    : new LlmAgentDraftingService([new MockLlmAgentDraftProvider()]);
+
   const useCases = new AgentLifecycleUseCases({
     repository,
     skillWriter,
+    draftingPort,
     now: () => new Date().toISOString(),
     generateAgentId: () => randomUUID()
   });

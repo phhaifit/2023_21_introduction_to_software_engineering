@@ -9,7 +9,7 @@ import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.
 import { createAgentManagementRouter } from "@vcp/backend/modules/agent-management/api/agent-management-router.ts";
 import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
-function createUseCases(repository = new InMemoryAgentRepository()) {
+function createUseCases(repository = new InMemoryAgentRepository(), draftingPort = undefined) {
   let idSequence = 0;
   let timeSequence = 0;
 
@@ -17,6 +17,7 @@ function createUseCases(repository = new InMemoryAgentRepository()) {
     repository,
     useCases: new AgentLifecycleUseCases({
       repository,
+      draftingPort,
       now: () => `2026-06-20T00:00:0${timeSequence++}.000Z`,
       generateAgentId: () => `agent-created-${++idSequence}`
     })
@@ -666,6 +667,84 @@ function makeAgent(overrides = {}) {
     assert.equal(editorResponse.status, 200);
     assert.equal(editorResponse.body.ok, true);
     assert.equal(editorResponse.body.data.name, "Test Editor");
+  });
+}
+
+{
+  const mockDraft = {
+    draft: {
+      name: "Mock Assistant",
+      role: "Workspace assistant",
+      model: "gemini-2.5-flash",
+      instructions: "Help workspace members.",
+      responsibilities: [],
+      requestedTools: [],
+      requestedKnowledge: [],
+      warnings: [],
+      clarifyingQuestions: []
+    },
+    warnings: [],
+    clarifyingQuestions: ["What should it do?"],
+    provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false }
+  };
+
+  const mockDraftingPort = {
+    createDraft: async (input) => {
+      if (input.prompt === "fail_all") {
+        const { LlmDraftingUnavailableError } = await import("@vcp/backend/modules/agent-management/application/llm-agent-drafting-port.ts");
+        throw new LlmDraftingUnavailableError([
+          { providerId: "gemini", reason: "provider_unavailable" },
+          { providerId: "openrouter", reason: "provider_unavailable" }
+        ]);
+      }
+      return mockDraft;
+    },
+    extractDraftFromSkillMarkdown: async () => mockDraft
+  };
+
+  const { useCases, repository } = createUseCases(new InMemoryAgentRepository(), mockDraftingPort);
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    // valid prompt response
+    const valid = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/draft",
+      {
+        method: "POST",
+        body: { prompt: "Help me manage my workspace" }
+      }
+    );
+    assert.equal(valid.status, 200);
+    assert.deepEqual(valid.body.data, mockDraft);
+
+    // Ensure no agent was created (no persistence)
+    const list = await repository.listByWorkspace("workspace-a", { statuses: ["enabled", "disabled"] });
+    assert.equal(list.agents.length, 0);
+
+    // all-provider failure response
+    const failed = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/draft",
+      {
+        method: "POST",
+        body: { prompt: "fail_all" }
+      }
+    );
+    assert.equal(failed.status, 503);
+    assert.equal(failed.body.error.code, "assistant.unavailable");
+    
+    // authorization (missing agents:manage)
+    const unauthorized = await requestJson(
+      baseUrl,
+      "/api/workspaces/workspace-a/agents/assistant/draft",
+      {
+        method: "POST",
+        headers: { "x-test-role": "viewer" },
+        body: { prompt: "Help me" }
+      }
+    );
+    assert.equal(unauthorized.status, 403);
+    assert.equal(unauthorized.body.error.code, "auth.forbidden");
   });
 }
 

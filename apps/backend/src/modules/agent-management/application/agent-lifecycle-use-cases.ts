@@ -1,4 +1,5 @@
 import type {
+  AgentCreationAssistantDraftResponse,
   AgentModelCatalogEntry,
   AgentPublicSummary,
   AgentSkillImportAnalysisRequest,
@@ -14,6 +15,7 @@ import type { AgentRepository } from "./agent-repository.ts";
 import { StaticAgentModelCatalog, type AgentModelCatalogPort } from "./agent-model-catalog.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
 import type { AgentSkillWriter } from "./agent-skill-writer.ts";
+import type { LlmAgentDraftingPort, LlmDraftingUnavailableError } from "./llm-agent-drafting-port.ts";
 
 export type AgentListItem = AgentPublicSummary & {
   createdAt: string;
@@ -62,6 +64,7 @@ export type AgentLifecycleDependencies = {
   repository: AgentRepository;
   modelCatalog?: AgentModelCatalogPort;
   skillWriter?: AgentSkillWriter;
+  draftingPort?: LlmAgentDraftingPort;
   now: () => string;
   generateAgentId: () => EntityId<"agentId">;
 };
@@ -206,6 +209,24 @@ export class AgentLifecycleUseCases {
       fileName: "skill.md",
       agent
     };
+  }
+
+  async generateAssistantDraft(
+    workspaceId: EntityId<"workspaceId">,
+    prompt: string
+  ): Promise<AgentCreationAssistantDraftResponse> {
+    if (!this.dependencies.draftingPort) {
+      throw new Error("LlmAgentDraftingPort is not configured");
+    }
+
+    if (!prompt.trim()) {
+      throw new AgentValidationError(["prompt is required"]);
+    }
+
+    return this.dependencies.draftingPort.createDraft({
+      workspaceId,
+      prompt
+    });
   }
 
   validateSkillMarkdownImport(
