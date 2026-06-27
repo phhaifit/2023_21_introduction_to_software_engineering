@@ -87,6 +87,26 @@ function createClient(overrides: Partial<AgentManagementApiClient> = {}) {
       ].join("\n"),
       fileName: "skill.md" as const,
     })),
+    createAssistantDraft: vi.fn(async () => ({
+      draft: {
+        name: "Assistant Support Agent",
+        role: "Support specialist",
+        model: "gemini-2.5-flash",
+        instructions: "Answer support questions.",
+        responsibilities: ["Triage support issues"],
+        operatingContext: "Use the support handbook.",
+        requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+        requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: ["Draft a support reply"],
+        warnings: [],
+        clarifyingQuestions: [],
+      },
+      warnings: [],
+      clarifyingQuestions: [],
+      provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false },
+    })),
     analyzeSkillImport: vi.fn(async () => ({
       draft: {
         name: "Imported Support Agent",
@@ -309,6 +329,89 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
   });
 
+  it("completes the guided assistant happy path from draft to enabled list row", async () => {
+    const createdAgent = {
+      ...enabledAgent,
+      agentId: "agent-assistant-created" as EntityId<"agentId">,
+      name: "Assistant Support Agent",
+      role: "Support specialist",
+    };
+    const listAgents = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [enabledAgent, createdAgent],
+        pagination: { ...defaultPagination, totalItems: 2 },
+      });
+    const client = createClient({ listAgents });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    await user.type(
+      screen.getByPlaceholderText("I need an agent that..."),
+      "Create a support agent that uses Slack and the support handbook.",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(await screen.findByText("Draft Ready")).toBeTruthy();
+    expect(screen.getByText("Assistant Support Agent")).toBeTruthy();
+    expect(client.createAssistantDraft).toHaveBeenCalledWith(workspaceId, {
+      prompt: "Create a support agent that uses Slack and the support handbook.",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Edit in Template" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Assistant Support Agent");
+    await waitFor(() => expect(client.previewSkillMarkdown).toHaveBeenCalled());
+    expect(
+      screen.getByText((_, element) =>
+        element?.tagName.toLowerCase() === "pre" &&
+        element.textContent?.includes("# Assistant Support Agent") === true
+      ),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(await screen.findByText("Assistant Support Agent")).toBeTruthy();
+    expect(client.createAgent).toHaveBeenCalledWith(workspaceId, {
+      name: "Assistant Support Agent",
+      role: "Support specialist",
+      model: "gemini-2.5-flash",
+      instructions: [
+        "Responsibilities:",
+        "- Triage support issues",
+        "",
+        "Operating Context:",
+        "Use the support handbook.",
+        "",
+        "Instructions:",
+        "Answer support questions.",
+        "",
+        "Requested Tools:",
+        "- Slack: Notify support team",
+        "",
+        "Requested Knowledge:",
+        "- Support Handbook: Ground answers",
+        "",
+        "Example Tasks:",
+        "- Draft a support reply",
+      ].join("\n"),
+      responsibilities: ["Triage support issues"],
+      operatingContext: "Use the support handbook.",
+      requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+      requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: ["Draft a support reply"],
+    });
+    expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
+  });
+
   it("shows blocking capability warnings and allows submit after resolution", async () => {
     const createAgent = vi
       .fn()
@@ -377,6 +480,82 @@ describe("AgentManagementPage API integration", () => {
       escalationRules: [],
       exampleTasks: [],
     });
+  });
+
+  it("keeps an assistant draft uncreated when capability warnings are blocking", async () => {
+    const createAgent = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Invalid agent configuration: requestedTools"), {
+        code: "validation.invalid_input",
+        kind: "api",
+        status: 400,
+        details: {
+          issues: [
+            'requestedTools: Requested tool "PagerDuty" is not connected in this workspace.',
+          ],
+          warnings: [
+            {
+              code: "tool.missing",
+              message: 'Requested tool "PagerDuty" is not connected in this workspace.',
+              severity: "blocking",
+              field: "requestedTools",
+            },
+          ],
+        },
+      }),
+    );
+    const client = createClient({
+      createAssistantDraft: vi.fn(async () => ({
+        draft: {
+          name: "Incident Agent",
+          role: "Incident responder",
+          model: "gemini-2.5-flash",
+          instructions: "Coordinate incidents.",
+          responsibilities: ["Triage incidents"],
+          requestedTools: [{ name: "PagerDuty", reason: "Page responders" }],
+          requestedKnowledge: [],
+          constraints: [],
+          escalationRules: [],
+          exampleTasks: [],
+          warnings: [],
+          clarifyingQuestions: [],
+        },
+        warnings: [
+          {
+            code: "tool.missing",
+            message: 'Requested tool "PagerDuty" is not connected in this workspace.',
+            severity: "blocking",
+            field: "requestedTools",
+          },
+        ],
+        clarifyingQuestions: [],
+        provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false },
+      })),
+      createAgent,
+    });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    await user.type(
+      screen.getByPlaceholderText("I need an agent that..."),
+      "Create an incident response agent that uses PagerDuty.",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(
+      await screen.findByText('Requested tool "PagerDuty" is not connected in this workspace.'),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Edit in Template" }));
+    await waitFor(() => expect(client.previewSkillMarkdown).toHaveBeenCalled());
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    await waitFor(() => expect(createAgent).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Research Agent")).toBeTruthy();
+    expect(screen.queryByText("Incident Agent", { selector: "td" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+    expect(screen.getByLabelText("Requested tools")).toHaveValue("PagerDuty: Page responders");
   });
 
   it("prevents template creation when required fields are missing", async () => {
