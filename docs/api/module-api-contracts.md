@@ -79,11 +79,11 @@ Owner module: `apps/backend/src/modules/subscription-payment`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | `ApiResponse` subscription details | `implemented` | Reads current user subscription and transaction history. |
+| `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | `ApiResponse` subscription details | `provisional-existing` | Reads current user subscription and transaction history. |
 | `GET` | `/api/subscriptions/plans` | Authenticated | User subscription context | Request context | `ApiResponse` plans configuration details | `implemented` | Reads standard and premium plan prices and resource entitlements. |
-| `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | `ApiResponse` checkout session summary | `implemented` | Starts checkout session for standard or premium plan. |
-| `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | `ApiResponse` upgrade session summary | `implemented` | Starts an upgrade flow. |
-| `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | `ApiResponse` transaction summary | `implemented` | Reconciles directly or enqueues payment webhook work. |
+| `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | `ApiResponse` checkout session summary | `provisional-existing` | Starts checkout session for standard or premium plan. |
+| `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | `ApiResponse` upgrade session summary | `provisional-existing` | Starts an upgrade flow. |
+| `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | `ApiResponse` transaction summary | `provisional-existing` | Reconciles directly or enqueues payment webhook work. |
 | `GET` | `/api/subscriptions/usage` | Authenticated | Workspace scope | workspaceId query | `ApiResponse` workspace resource usage summary | `implemented` | Computes dynamic CPU, RAM, Agent count, and Document storage usage. |
 | `POST` | `/api/subscriptions/toggle-auto-renewal` | Authenticated | User subscription context | `{ autoRenew: boolean }` | `ApiResponse` subscription summary | `implemented` | Enables or disables automatic renewal of current subscription. |
 | `POST` | `/api/subscriptions/payment-method` | Authenticated | User subscription context | `{ cardNumber, cardHolder, cardExpiry }` | `ApiResponse` subscription summary | `implemented` | Updates the virtual card details associated with the user. |

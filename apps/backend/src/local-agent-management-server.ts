@@ -257,6 +257,20 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   if (repository instanceof InMemoryAgentRepository) {
     await seedDemoAgents(repository);
+    await subscriptionRepository.saveSubscription({
+      subscriptionId: "demo-subscription-id" as any,
+      userId: "local-dev-user" as any,
+      workspaceId: DEMO_WORKSPACE_ID,
+      plan: "premium",
+      status: "active",
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      autoRenew: true,
+      cardNumber: null,
+      cardHolder: null,
+      cardExpiry: null
+    });
   }
 
   const app = express();
@@ -291,7 +305,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   app.use(
     "/api/workspaces/:workspaceId/agents",
-    createAgentManagementRouter({ useCases })
+    createAgentManagementRouter({ useCases, checkoutUseCases })
   );
 
   app.use(
@@ -304,7 +318,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     createWorkflowManagementRouter({ useCases: workflowUseCases })
   );
 
-  app.use(createKnowledgeBaseRagRouter(knowledgeBaseRagUseCases));
+  app.use(createKnowledgeBaseRagRouter({
+    ...knowledgeBaseRagUseCases,
+    checkoutUseCases
+  }));
 
   const authUserRepository = await createAuthUserRepository();
   const authSessionRepository = await createAuthSessionRepository();

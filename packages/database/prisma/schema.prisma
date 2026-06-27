@@ -106,9 +106,6 @@ model Subscription {
   createdAt      String
   updatedAt      String
   autoRenew      Boolean? @default(true)
-  cardNumber     String?
-  cardHolder     String?
-  cardExpiry     String?
 
   @@index([userId])
   @@index([workspaceId])
@@ -545,4 +542,20 @@ model Job {
   @@index([userId])
   @@index([status])
   @@map("jobs")
+}
+
+model PaymentMethod {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  type         String   // "card" | "momo" | "vnpay"
+  brand        String?  // "visa" | "mastercard" etc.
+  last4        String
+  holder       String
+  isDefault    Boolean  @default(false)
+  gatewayToken String?  // Token thay thế số thẻ thô
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@map("payment_methods")
 }

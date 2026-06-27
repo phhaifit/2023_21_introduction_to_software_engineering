@@ -34,9 +34,6 @@ export type SubscriptionMinAggregateOutputType = {
   createdAt: string | null
   updatedAt: string | null
   autoRenew: boolean | null
-  cardNumber: string | null
-  cardHolder: string | null
-  cardExpiry: string | null
 }
 
 export type SubscriptionMaxAggregateOutputType = {
@@ -49,9 +46,6 @@ export type SubscriptionMaxAggregateOutputType = {
   createdAt: string | null
   updatedAt: string | null
   autoRenew: boolean | null
-  cardNumber: string | null
-  cardHolder: string | null
-  cardExpiry: string | null
 }
 
 export type SubscriptionCountAggregateOutputType = {
@@ -64,9 +58,6 @@ export type SubscriptionCountAggregateOutputType = {
   createdAt: number
   updatedAt: number
   autoRenew: number
-  cardNumber: number
-  cardHolder: number
-  cardExpiry: number
   _all: number
 }
 
@@ -81,9 +72,6 @@ export type SubscriptionMinAggregateInputType = {
   createdAt?: true
   updatedAt?: true
   autoRenew?: true
-  cardNumber?: true
-  cardHolder?: true
-  cardExpiry?: true
 }
 
 export type SubscriptionMaxAggregateInputType = {
@@ -96,9 +84,6 @@ export type SubscriptionMaxAggregateInputType = {
   createdAt?: true
   updatedAt?: true
   autoRenew?: true
-  cardNumber?: true
-  cardHolder?: true
-  cardExpiry?: true
 }
 
 export type SubscriptionCountAggregateInputType = {
@@ -111,9 +96,6 @@ export type SubscriptionCountAggregateInputType = {
   createdAt?: true
   updatedAt?: true
   autoRenew?: true
-  cardNumber?: true
-  cardHolder?: true
-  cardExpiry?: true
   _all?: true
 }
 
@@ -199,9 +181,6 @@ export type SubscriptionGroupByOutputType = {
   createdAt: string
   updatedAt: string
   autoRenew: boolean | null
-  cardNumber: string | null
-  cardHolder: string | null
-  cardExpiry: string | null
   _count: SubscriptionCountAggregateOutputType | null
   _min: SubscriptionMinAggregateOutputType | null
   _max: SubscriptionMaxAggregateOutputType | null
@@ -235,9 +214,6 @@ export type SubscriptionWhereInput = {
   createdAt?: Prisma.StringFilter<"Subscription"> | string
   updatedAt?: Prisma.StringFilter<"Subscription"> | string
   autoRenew?: Prisma.BoolNullableFilter<"Subscription"> | boolean | null
-  cardNumber?: Prisma.StringNullableFilter<"Subscription"> | string | null
-  cardHolder?: Prisma.StringNullableFilter<"Subscription"> | string | null
-  cardExpiry?: Prisma.StringNullableFilter<"Subscription"> | string | null
 }
 
 export type SubscriptionOrderByWithRelationInput = {
@@ -250,9 +226,6 @@ export type SubscriptionOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   autoRenew?: Prisma.SortOrderInput | Prisma.SortOrder
-  cardNumber?: Prisma.SortOrderInput | Prisma.SortOrder
-  cardHolder?: Prisma.SortOrderInput | Prisma.SortOrder
-  cardExpiry?: Prisma.SortOrderInput | Prisma.SortOrder
 }
 
 export type SubscriptionWhereUniqueInput = Prisma.AtLeast<{
@@ -268,9 +241,6 @@ export type SubscriptionWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.StringFilter<"Subscription"> | string
   updatedAt?: Prisma.StringFilter<"Subscription"> | string
   autoRenew?: Prisma.BoolNullableFilter<"Subscription"> | boolean | null
-  cardNumber?: Prisma.StringNullableFilter<"Subscription"> | string | null
-  cardHolder?: Prisma.StringNullableFilter<"Subscription"> | string | null
-  cardExpiry?: Prisma.StringNullableFilter<"Subscription"> | string | null
 }, "subscriptionId">
 
 export type SubscriptionOrderByWithAggregationInput = {
@@ -283,9 +253,6 @@ export type SubscriptionOrderByWithAggregationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   autoRenew?: Prisma.SortOrderInput | Prisma.SortOrder
-  cardNumber?: Prisma.SortOrderInput | Prisma.SortOrder
-  cardHolder?: Prisma.SortOrderInput | Prisma.SortOrder
-  cardExpiry?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.SubscriptionCountOrderByAggregateInput
   _max?: Prisma.SubscriptionMaxOrderByAggregateInput
   _min?: Prisma.SubscriptionMinOrderByAggregateInput
@@ -304,9 +271,6 @@ export type SubscriptionScalarWhereWithAggregatesInput = {
   createdAt?: Prisma.StringWithAggregatesFilter<"Subscription"> | string
   updatedAt?: Prisma.StringWithAggregatesFilter<"Subscription"> | string
   autoRenew?: Prisma.BoolNullableWithAggregatesFilter<"Subscription"> | boolean | null
-  cardNumber?: Prisma.StringNullableWithAggregatesFilter<"Subscription"> | string | null
-  cardHolder?: Prisma.StringNullableWithAggregatesFilter<"Subscription"> | string | null
-  cardExpiry?: Prisma.StringNullableWithAggregatesFilter<"Subscription"> | string | null
 }
 
 export type SubscriptionCreateInput = {
@@ -319,9 +283,6 @@ export type SubscriptionCreateInput = {
   createdAt: string
   updatedAt: string
   autoRenew?: boolean | null
-  cardNumber?: string | null
-  cardHolder?: string | null
-  cardExpiry?: string | null
 }
 
 export type SubscriptionUncheckedCreateInput = {
@@ -334,9 +295,6 @@ export type SubscriptionUncheckedCreateInput = {
   createdAt: string
   updatedAt: string
   autoRenew?: boolean | null
-  cardNumber?: string | null
-  cardHolder?: string | null
-  cardExpiry?: string | null
 }
 
 export type SubscriptionUpdateInput = {
@@ -349,9 +307,6 @@ export type SubscriptionUpdateInput = {
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   autoRenew?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
-  cardNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardHolder?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardExpiry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SubscriptionUncheckedUpdateInput = {
@@ -364,9 +319,6 @@ export type SubscriptionUncheckedUpdateInput = {
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   autoRenew?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
-  cardNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardHolder?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardExpiry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SubscriptionCreateManyInput = {
@@ -379,9 +331,6 @@ export type SubscriptionCreateManyInput = {
   createdAt: string
   updatedAt: string
   autoRenew?: boolean | null
-  cardNumber?: string | null
-  cardHolder?: string | null
-  cardExpiry?: string | null
 }
 
 export type SubscriptionUpdateManyMutationInput = {
@@ -394,9 +343,6 @@ export type SubscriptionUpdateManyMutationInput = {
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   autoRenew?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
-  cardNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardHolder?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardExpiry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SubscriptionUncheckedUpdateManyInput = {
@@ -409,9 +355,6 @@ export type SubscriptionUncheckedUpdateManyInput = {
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
   autoRenew?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
-  cardNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardHolder?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  cardExpiry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type SubscriptionCountOrderByAggregateInput = {
@@ -424,9 +367,6 @@ export type SubscriptionCountOrderByAggregateInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   autoRenew?: Prisma.SortOrder
-  cardNumber?: Prisma.SortOrder
-  cardHolder?: Prisma.SortOrder
-  cardExpiry?: Prisma.SortOrder
 }
 
 export type SubscriptionMaxOrderByAggregateInput = {
@@ -439,9 +379,6 @@ export type SubscriptionMaxOrderByAggregateInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   autoRenew?: Prisma.SortOrder
-  cardNumber?: Prisma.SortOrder
-  cardHolder?: Prisma.SortOrder
-  cardExpiry?: Prisma.SortOrder
 }
 
 export type SubscriptionMinOrderByAggregateInput = {
@@ -454,9 +391,6 @@ export type SubscriptionMinOrderByAggregateInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   autoRenew?: Prisma.SortOrder
-  cardNumber?: Prisma.SortOrder
-  cardHolder?: Prisma.SortOrder
-  cardExpiry?: Prisma.SortOrder
 }
 
 export type NullableBoolFieldUpdateOperationsInput = {
@@ -475,9 +409,6 @@ export type SubscriptionSelect<ExtArgs extends runtime.Types.Extensions.Internal
   createdAt?: boolean
   updatedAt?: boolean
   autoRenew?: boolean
-  cardNumber?: boolean
-  cardHolder?: boolean
-  cardExpiry?: boolean
 }, ExtArgs["result"]["subscription"]>
 
 export type SubscriptionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -490,9 +421,6 @@ export type SubscriptionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   createdAt?: boolean
   updatedAt?: boolean
   autoRenew?: boolean
-  cardNumber?: boolean
-  cardHolder?: boolean
-  cardExpiry?: boolean
 }, ExtArgs["result"]["subscription"]>
 
 export type SubscriptionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -505,9 +433,6 @@ export type SubscriptionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   createdAt?: boolean
   updatedAt?: boolean
   autoRenew?: boolean
-  cardNumber?: boolean
-  cardHolder?: boolean
-  cardExpiry?: boolean
 }, ExtArgs["result"]["subscription"]>
 
 export type SubscriptionSelectScalar = {
@@ -520,12 +445,9 @@ export type SubscriptionSelectScalar = {
   createdAt?: boolean
   updatedAt?: boolean
   autoRenew?: boolean
-  cardNumber?: boolean
-  cardHolder?: boolean
-  cardExpiry?: boolean
 }
 
-export type SubscriptionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"subscriptionId" | "userId" | "workspaceId" | "plan" | "status" | "expiresAt" | "createdAt" | "updatedAt" | "autoRenew" | "cardNumber" | "cardHolder" | "cardExpiry", ExtArgs["result"]["subscription"]>
+export type SubscriptionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"subscriptionId" | "userId" | "workspaceId" | "plan" | "status" | "expiresAt" | "createdAt" | "updatedAt" | "autoRenew", ExtArgs["result"]["subscription"]>
 
 export type $SubscriptionPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Subscription"
@@ -540,9 +462,6 @@ export type $SubscriptionPayload<ExtArgs extends runtime.Types.Extensions.Intern
     createdAt: string
     updatedAt: string
     autoRenew: boolean | null
-    cardNumber: string | null
-    cardHolder: string | null
-    cardExpiry: string | null
   }, ExtArgs["result"]["subscription"]>
   composites: {}
 }
@@ -975,9 +894,6 @@ export interface SubscriptionFieldRefs {
   readonly createdAt: Prisma.FieldRef<"Subscription", 'String'>
   readonly updatedAt: Prisma.FieldRef<"Subscription", 'String'>
   readonly autoRenew: Prisma.FieldRef<"Subscription", 'Boolean'>
-  readonly cardNumber: Prisma.FieldRef<"Subscription", 'String'>
-  readonly cardHolder: Prisma.FieldRef<"Subscription", 'String'>
-  readonly cardExpiry: Prisma.FieldRef<"Subscription", 'String'>
 }
     
 
