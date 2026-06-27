@@ -11,12 +11,6 @@ import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import { mockExecutions } from "../../data/executions.ts";
 import { Trash2 } from "lucide-react";
 
-const MOCK_AGENTS: AgentPublicSummary[] = [
-  { agentId: "agent-research", workspaceId: DEMO_WORKSPACE_ID, name: "Research Agent", role: "Market researcher", model: "gpt-4.1-mini", status: "enabled" },
-  { agentId: "agent-support", workspaceId: DEMO_WORKSPACE_ID, name: "Support Agent", role: "Customer support", model: "gpt-4.1-mini", status: "disabled" },
-  { agentId: "agent-writer", workspaceId: DEMO_WORKSPACE_ID, name: "Writer Agent", role: "Content Writer", model: "gpt-3.5", status: "enabled" }
-] as AgentPublicSummary[];
-
 export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, importedData, onExecutionSuccess, onCancel }: { apiClient?: WorkflowManagementApiClient; workflowId?: string | null; importedData?: any; onExecutionSuccess?: () => void; onCancel?: () => void }) {
   const [formData, setFormData] = useState<{
     workflowId: string;
@@ -46,10 +40,51 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [agents, setAgents] = useState<AgentPublicSummary[]>([]);
+  const [agentLoadError, setAgentLoadError] = useState<string | null>(null);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   
-  const [selectedAgentId, setSelectedAgentId] = useState<string>(MOCK_AGENTS[0].agentId);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
+  const enabledAgents = useMemo(() => agents.filter((agent) => agent.status === "enabled"), [agents]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setIsLoadingAgents(true);
+    apiClient.listWorkflowAgents(DEMO_WORKSPACE_ID)
+      .then((items) => {
+        if (cancelled) return;
+
+        setAgents(items);
+        setAgentLoadError(null);
+        setSelectedAgentId((current) => {
+          if (current && items.some((agent) => agent.agentId === current && agent.status === "enabled")) {
+            return current;
+          }
+
+          return items.find((agent) => agent.status === "enabled")?.agentId ?? "";
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+
+        console.error("Failed to load workflow agents", err);
+        setAgents([]);
+        setSelectedAgentId("");
+        setAgentLoadError("Unable to load available agents. Please check the Agent Management API.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingAgents(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiClient]);
 
   useEffect(() => {
     if (workflowId) {
@@ -109,11 +144,17 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
   };
 
   const handleConfirmAddStep = () => {
+    const selectedAgent = enabledAgents.find((agent) => agent.agentId === selectedAgentId);
+    if (!selectedAgent) {
+      setSubmitError("Select an enabled Agent before adding a workflow step.");
+      return;
+    }
+
     const newStep: WorkflowStepDto = {
       workflowStepId: `step-${Date.now()}`,
       workspaceId: formData.workspaceId,
       workflowId: formData.workflowId,
-      agentId: selectedAgentId,
+      agentId: selectedAgent.agentId,
       stepOrder: formData.steps.length + 1,
       nextSteps: [],
       createdAt: new Date().toISOString(),
@@ -124,6 +165,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
       ...prev,
       steps: [...prev.steps, newStep]
     }));
+    setSubmitError(null);
   };
 
   const handleMoveStepUp = (stepId: string) => {
@@ -251,6 +293,21 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
     }
     setNameError(null);
     setSubmitError(null);
+
+    if (agentLoadError) {
+      setSubmitError("Save failed: Available agents could not be loaded.");
+      return;
+    }
+
+    const invalidStep = formData.steps.find((step) => {
+      const agent = agents.find((item) => item.agentId === step.agentId);
+      return !agent || agent.status !== "enabled";
+    });
+
+    if (invalidStep) {
+      setSubmitError("Save failed: An Agent in the workflow is disabled or missing.");
+      return;
+    }
 
     try {
       const payload: CreateWorkflowCommand & { triggerType: string, triggerConfig: any } = {
@@ -450,7 +507,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
         <SectionCard title="Execution Steps">
           <WorkflowStepsTable
             steps={formData.steps}
-            agents={MOCK_AGENTS}
+            agents={agents}
             onMoveUp={handleMoveStepUp}
             onMoveDown={handleMoveStepDown}
             onRemove={handleRemoveStep}
@@ -460,20 +517,39 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
           
           <div style={{ marginTop: '16px', padding: '16px', border: '1px dashed var(--border-color)', borderRadius: '8px', background: 'var(--bg-subtle)' }}>
             <div style={{ marginBottom: '8px', fontWeight: 500, fontSize: '14px' }}>Add new step:</div>
+            {agentLoadError && (
+              <div style={{ color: '#b91c1c', fontSize: '13px', marginBottom: '8px' }}>
+                {agentLoadError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <select 
                 className="form-input" 
                 style={{ flex: 1, margin: 0 }} 
                 value={selectedAgentId} 
                 onChange={(e) => setSelectedAgentId(e.target.value)}
+                disabled={isLoadingAgents || enabledAgents.length === 0}
               >
-                {MOCK_AGENTS.map(agent => (
+                {isLoadingAgents && (
+                  <option value="">Loading available agents...</option>
+                )}
+                {!isLoadingAgents && enabledAgents.length === 0 && (
+                  <option value="">No enabled agents available</option>
+                )}
+                {enabledAgents.map(agent => (
                   <option key={agent.agentId} value={agent.agentId}>
-                    {agent.name} ({agent.role}) {agent.status === 'disabled' ? ' - [DISABLED]' : ''}
+                    {agent.name} ({agent.role})
                   </option>
                 ))}
               </select>
-              <button className="primary-action" style={{ padding: '8px 24px', whiteSpace: 'nowrap' }} onClick={handleConfirmAddStep}>+ Add Agent</button>
+              <button
+                className="primary-action"
+                style={{ padding: '8px 24px', whiteSpace: 'nowrap' }}
+                onClick={handleConfirmAddStep}
+                disabled={isLoadingAgents || enabledAgents.length === 0}
+              >
+                + Add Agent
+              </button>
             </div>
           </div>
         </SectionCard>

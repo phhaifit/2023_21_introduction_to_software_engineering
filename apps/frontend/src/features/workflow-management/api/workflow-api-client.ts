@@ -1,4 +1,5 @@
 import type { ErrorCode } from "@vcp/shared/contracts/api.ts";
+import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { WorkflowDto, WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 
@@ -17,10 +18,11 @@ export type CreateWorkflowCommand = {
 };
 
 export type UpdateWorkflowCommand = Partial<CreateWorkflowCommand> & {
-  status?: "draft" | "active" | "archived";
+  status?: "draft" | "published" | "archived";
 };
 
 export type WorkflowManagementApiClient = {
+  listWorkflowAgents(workspaceId: EntityId<"workspaceId">): Promise<AgentPublicSummary[]>;
   listWorkflows(workspaceId: EntityId<"workspaceId">): Promise<WorkflowPublicSummary[]>;
   createWorkflow(
     workspaceId: EntityId<"workspaceId">,
@@ -154,6 +156,8 @@ export function createWorkflowManagementApiClient(input: {
   }
 
   return {
+    listWorkflowAgents: (workspaceId) =>
+      request<AgentPublicSummary[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/agents`),
     listWorkflows: (workspaceId) => request<WorkflowPublicSummary[]>(collectionPath(workspaceId)),
     createWorkflow: (workspaceId, payload) =>
       request<WorkflowPublicSummary>(collectionPath(workspaceId), {
