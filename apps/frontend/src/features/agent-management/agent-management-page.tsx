@@ -462,8 +462,13 @@ export function AgentManagementPage({
           role: templateDraft.role.trim(),
           model: templateDraft.model,
           instructions: buildCreateInstructionsFromDraft(templateDraft),
+          responsibilities: splitDraftLines(templateDraft.responsibilities),
+          operatingContext: templateDraft.operatingContext.trim() || undefined,
           requestedTools: parseToolReferences(templateDraft.requestedTools),
           requestedKnowledge: parseKnowledgeReferences(templateDraft.requestedKnowledge),
+          constraints: splitDraftLines(templateDraft.constraints),
+          escalationRules: splitDraftLines(templateDraft.escalationRules),
+          exampleTasks: splitDraftLines(templateDraft.exampleTasks),
         });
         await replaceAgents();
         closeForm(true);

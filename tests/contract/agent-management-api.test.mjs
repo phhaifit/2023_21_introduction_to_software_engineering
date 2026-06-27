@@ -259,7 +259,12 @@ function makeAgent(overrides = {}) {
         name: "Planning Agent",
         role: "Planner",
         model: "gemini-2.5-flash",
-        instructions: "Create execution plans."
+        instructions: "Create execution plans.",
+        responsibilities: ["Break goals into steps"],
+        operatingContext: "Use approved workspace context.",
+        constraints: ["Ask before changing scope"],
+        escalationRules: ["Escalate blocked plans"],
+        exampleTasks: ["Prepare a weekly plan"]
       }
     });
 
@@ -274,6 +279,11 @@ function makeAgent(overrides = {}) {
 
     const stored = await repository.findById("workspace-created", "agent-created-1");
     assert.equal(stored.workspaceId, "workspace-created");
+    assert.deepEqual(stored.runtimeConfiguration.responsibilities, ["Break goals into steps"]);
+    assert.equal(stored.runtimeConfiguration.operatingContext, "Use approved workspace context.");
+    assert.deepEqual(stored.runtimeConfiguration.constraints, ["Ask before changing scope"]);
+    assert.deepEqual(stored.runtimeConfiguration.escalationRules, ["Escalate blocked plans"]);
+    assert.deepEqual(stored.runtimeConfiguration.exampleTasks, ["Prepare a weekly plan"]);
 
     const invalidModel = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
       method: "POST",
@@ -329,6 +339,8 @@ function makeAgent(overrides = {}) {
         role: "Support",
         model: "gemini-2.5-flash",
         instructions: "Support customers.",
+        responsibilities: ["Triage issues"],
+        constraints: ["Do not change account plans"],
         requestedTools: [{ name: "Slack", reason: "Notify owners" }],
         requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }]
       }
@@ -337,6 +349,15 @@ function makeAgent(overrides = {}) {
     assert.equal(valid.status, 200);
     assert.equal(valid.body.ok, true);
     assert.equal(valid.body.data.name, "Validated Assistant");
+    const stored = await repository.findById("workspace-created", "agent-created-1");
+    assert.deepEqual(stored.runtimeConfiguration.responsibilities, ["Triage issues"]);
+    assert.deepEqual(stored.runtimeConfiguration.constraints, ["Do not change account plans"]);
+    assert.deepEqual(stored.runtimeConfiguration.requestedTools, [
+      { name: "Slack", reason: "Notify owners" }
+    ]);
+    assert.deepEqual(stored.runtimeConfiguration.requestedKnowledge, [
+      { title: "Support Handbook", reason: "Ground answers" }
+    ]);
     assert.deepEqual(connectedToolCatalog.calls, ["workspace-created"]);
     assert.deepEqual(knowledgeDocumentCatalog.calls, ["workspace-created"]);
 

@@ -86,6 +86,7 @@ model Agent {
   role         String
   model        String
   instructions String
+  runtimeConfig Json?
   status       String @default("enabled")
   createdAt    String
   updatedAt    String

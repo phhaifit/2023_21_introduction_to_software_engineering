@@ -166,6 +166,7 @@ export const AgentScalarFieldEnum = {
   role: 'role',
   model: 'model',
   instructions: 'instructions',
+  runtimeConfig: 'runtimeConfig',
   status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -244,7 +245,10 @@ export const WorkflowScalarFieldEnum = {
   workflowId: 'workflowId',
   workspaceId: 'workspaceId',
   name: 'name',
+  description: 'description',
   status: 'status',
+  triggerType: 'triggerType',
+  triggerConfig: 'triggerConfig',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

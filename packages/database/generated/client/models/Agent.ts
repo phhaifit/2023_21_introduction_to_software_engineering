@@ -55,6 +55,7 @@ export type AgentCountAggregateOutputType = {
   role: number
   model: number
   instructions: number
+  runtimeConfig: number
   status: number
   createdAt: number
   updatedAt: number
@@ -93,6 +94,7 @@ export type AgentCountAggregateInputType = {
   role?: true
   model?: true
   instructions?: true
+  runtimeConfig?: true
   status?: true
   createdAt?: true
   updatedAt?: true
@@ -178,6 +180,7 @@ export type AgentGroupByOutputType = {
   role: string
   model: string
   instructions: string
+  runtimeConfig: runtime.JsonValue | null
   status: string
   createdAt: string
   updatedAt: string
@@ -211,6 +214,7 @@ export type AgentWhereInput = {
   role?: Prisma.StringFilter<"Agent"> | string
   model?: Prisma.StringFilter<"Agent"> | string
   instructions?: Prisma.StringFilter<"Agent"> | string
+  runtimeConfig?: Prisma.JsonNullableFilter<"Agent">
   status?: Prisma.StringFilter<"Agent"> | string
   createdAt?: Prisma.StringFilter<"Agent"> | string
   updatedAt?: Prisma.StringFilter<"Agent"> | string
@@ -223,6 +227,7 @@ export type AgentOrderByWithRelationInput = {
   role?: Prisma.SortOrder
   model?: Prisma.SortOrder
   instructions?: Prisma.SortOrder
+  runtimeConfig?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -239,6 +244,7 @@ export type AgentWhereUniqueInput = Prisma.AtLeast<{
   role?: Prisma.StringFilter<"Agent"> | string
   model?: Prisma.StringFilter<"Agent"> | string
   instructions?: Prisma.StringFilter<"Agent"> | string
+  runtimeConfig?: Prisma.JsonNullableFilter<"Agent">
   status?: Prisma.StringFilter<"Agent"> | string
   createdAt?: Prisma.StringFilter<"Agent"> | string
   updatedAt?: Prisma.StringFilter<"Agent"> | string
@@ -251,6 +257,7 @@ export type AgentOrderByWithAggregationInput = {
   role?: Prisma.SortOrder
   model?: Prisma.SortOrder
   instructions?: Prisma.SortOrder
+  runtimeConfig?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -269,6 +276,7 @@ export type AgentScalarWhereWithAggregatesInput = {
   role?: Prisma.StringWithAggregatesFilter<"Agent"> | string
   model?: Prisma.StringWithAggregatesFilter<"Agent"> | string
   instructions?: Prisma.StringWithAggregatesFilter<"Agent"> | string
+  runtimeConfig?: Prisma.JsonNullableWithAggregatesFilter<"Agent">
   status?: Prisma.StringWithAggregatesFilter<"Agent"> | string
   createdAt?: Prisma.StringWithAggregatesFilter<"Agent"> | string
   updatedAt?: Prisma.StringWithAggregatesFilter<"Agent"> | string
@@ -281,6 +289,7 @@ export type AgentCreateInput = {
   role: string
   model: string
   instructions: string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: string
   createdAt: string
   updatedAt: string
@@ -293,6 +302,7 @@ export type AgentUncheckedCreateInput = {
   role: string
   model: string
   instructions: string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: string
   createdAt: string
   updatedAt: string
@@ -305,6 +315,7 @@ export type AgentUpdateInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   model?: Prisma.StringFieldUpdateOperationsInput | string
   instructions?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
@@ -317,6 +328,7 @@ export type AgentUncheckedUpdateInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   model?: Prisma.StringFieldUpdateOperationsInput | string
   instructions?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
@@ -329,6 +341,7 @@ export type AgentCreateManyInput = {
   role: string
   model: string
   instructions: string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: string
   createdAt: string
   updatedAt: string
@@ -341,6 +354,7 @@ export type AgentUpdateManyMutationInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   model?: Prisma.StringFieldUpdateOperationsInput | string
   instructions?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
@@ -353,6 +367,7 @@ export type AgentUncheckedUpdateManyInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   model?: Prisma.StringFieldUpdateOperationsInput | string
   instructions?: Prisma.StringFieldUpdateOperationsInput | string
+  runtimeConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   status?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
@@ -370,6 +385,7 @@ export type AgentCountOrderByAggregateInput = {
   role?: Prisma.SortOrder
   model?: Prisma.SortOrder
   instructions?: Prisma.SortOrder
+  runtimeConfig?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -408,6 +424,7 @@ export type AgentSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   role?: boolean
   model?: boolean
   instructions?: boolean
+  runtimeConfig?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -420,6 +437,7 @@ export type AgentSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   role?: boolean
   model?: boolean
   instructions?: boolean
+  runtimeConfig?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -432,6 +450,7 @@ export type AgentSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   role?: boolean
   model?: boolean
   instructions?: boolean
+  runtimeConfig?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -444,12 +463,13 @@ export type AgentSelectScalar = {
   role?: boolean
   model?: boolean
   instructions?: boolean
+  runtimeConfig?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type AgentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"agentId" | "workspaceId" | "name" | "role" | "model" | "instructions" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["agent"]>
+export type AgentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"agentId" | "workspaceId" | "name" | "role" | "model" | "instructions" | "runtimeConfig" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["agent"]>
 
 export type $AgentPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Agent"
@@ -461,6 +481,7 @@ export type $AgentPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     role: string
     model: string
     instructions: string
+    runtimeConfig: runtime.JsonValue | null
     status: string
     createdAt: string
     updatedAt: string
@@ -893,6 +914,7 @@ export interface AgentFieldRefs {
   readonly role: Prisma.FieldRef<"Agent", 'String'>
   readonly model: Prisma.FieldRef<"Agent", 'String'>
   readonly instructions: Prisma.FieldRef<"Agent", 'String'>
+  readonly runtimeConfig: Prisma.FieldRef<"Agent", 'Json'>
   readonly status: Prisma.FieldRef<"Agent", 'String'>
   readonly createdAt: Prisma.FieldRef<"Agent", 'String'>
   readonly updatedAt: Prisma.FieldRef<"Agent", 'String'>

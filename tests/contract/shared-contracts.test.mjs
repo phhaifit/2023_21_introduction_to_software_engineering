@@ -204,6 +204,24 @@ for (const requestDtoName of schema.agentManagement.requestDtoExports) {
     `${requestDtoName} must not accept trusted context or server-owned fields`
   );
 }
+const runtimeProfileBlock = getTypeBlock(agentSource, "AgentRuntimeProfile");
+assert.match(runtimeProfileBlock, /agentId: EntityId<"agentId">;/);
+assert.match(runtimeProfileBlock, /workspaceId: EntityId<"workspaceId">;/);
+assert.match(runtimeProfileBlock, /status: "enabled";/);
+assert.match(runtimeProfileBlock, /runnable: true;/);
+assert.match(runtimeProfileBlock, /skillMarkdown: string;/);
+assert.match(runtimeProfileBlock, /runtimeConfiguration: AgentRuntimeConfiguration;/);
+assert.match(runtimeProfileBlock, /materializationHints: AgentRuntimeMaterializationHints;/);
+assert.doesNotMatch(
+  runtimeProfileBlock,
+  /credential|secret|token|apiKey|rawProvider|providerError|runtimeUrl|containerId|terminalCommand|taskManifest|assignment|grant/i,
+  "runtime profile must not expose credentials, raw providers, runtime internals, assignments, grants, or manifests"
+);
+assert.match(
+  getTypeBlock(agentSource, "AgentRuntimeConfiguration"),
+  /requestedTools: AgentSkillToolReference\[\];[\s\S]*requestedKnowledge: AgentSkillKnowledgeReference\[\];/,
+  "runtime configuration must expose non-authoritative requested tool and knowledge intent"
+);
 assert.doesNotMatch(
   agentSource,
   /apiKey|credential|secret|token|password|privateKey|rawProvider|providerError/i,
