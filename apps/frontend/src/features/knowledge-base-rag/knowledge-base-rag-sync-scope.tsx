@@ -236,7 +236,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         {loadState === "loaded" && tree.length === 0 ? (
           <KnowledgeBaseEmptyState
             title="No synchronization scope available"
-            description="Connect a source placeholder before selecting sync scope."
+            description="Connect a source before selecting sync scope."
           />
         ) : null}
       </KnowledgeBaseSectionCard>
