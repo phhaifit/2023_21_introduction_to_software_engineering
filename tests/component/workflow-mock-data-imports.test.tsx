@@ -22,14 +22,25 @@ function createMockApiClient(overrides: Partial<WorkflowManagementApiClient> = {
   } as unknown as WorkflowManagementApiClient;
 }
 
+vi.mock("@vcp/frontend/features/workflow-management/api/workflow-api-client.ts", () => {
+  return {
+    createWorkflowManagementApiClient: () => ({
+      listWorkflows: async () => mockWorkflows,
+      getWorkflow: async () => {},
+      createWorkflow: async () => {},
+      updateWorkflow: async () => {}
+    })
+  };
+});
+
 describe("workflow mock data imports", () => {
-  it("renders dashboard workflow summary from the shared demo data import", () => {
+  it("renders dashboard workflow summary from the shared demo data import", async () => {
     render(<DashboardPage />);
 
-    expect(screen.getByText("Tổng số Workflows")).toBeVisible();
-    expect(screen.getByText(String(mockWorkflows.length))).toBeVisible();
-    expect(screen.getByText("Workflows hoạt động gần đây")).toBeVisible();
-    expect(screen.getByText(mockWorkflows[0].name)).toBeVisible();
+    expect(await screen.findByText("Tổng số Workflows")).toBeVisible();
+    expect(await screen.findByText(String(mockWorkflows.length))).toBeVisible();
+    expect(await screen.findByText("Workflows hoạt động gần đây")).toBeVisible();
+    expect(await screen.findByText(mockWorkflows[0].name)).toBeVisible();
   });
 
   it("renders the workflow list with deterministic demo rows", async () => {

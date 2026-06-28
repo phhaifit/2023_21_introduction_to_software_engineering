@@ -106,6 +106,9 @@ apps/backend/src/shared/openclaw/runtime-adapter.ts
 
 Feature modules should request runtime work through the workspace module or worker jobs rather than calling Docker/OpenClaw directly.
 
+### Real Network Transport Boundary
+Task & Orchestration utilizes an `OpenClawNetworkTransport` boundary to connect to externally resolved OpenClaw Gateway runtimes exclusively via the official OpenAI-compatible HTTP API (`POST /v1/chat/completions`). Incoming Server-Sent Events (`chat.completion.chunk`) are processed directly through `OpenClawRawEventMapper` to validate required fields, apply automated security redactions (`sanitizeObservabilityPayload`), and enforce duplicate/stale event protections without provisioning containers, managing secrets, or relying on legacy custom DTO webhook definitions. Stream cancellation is governed entirely at the local transport level via `AbortController.abort()`.
+
 ## Async Boundary
 
 Use workers for slow or retryable tasks:

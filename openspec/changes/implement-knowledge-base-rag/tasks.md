@@ -1,28 +1,35 @@
-## 1. Knowledge Domain
+## 1. Completed Boundary and Local/Test Slices
 
-- [ ] 1.1 Define document, collection, data source, ingestion job, vector metadata, and agent access models
-- [ ] 1.2 Implement document and knowledge access repository or persistence interfaces
-- [ ] 1.3 Implement public retrieval contract for task orchestration
+- [x] 1.1 Define KB/RAG document, chunk, ingestion job, data source, sync scope, sync job, sync event, index, and access-grant persistence/domain boundaries
+- [x] 1.2 Implement KB/RAG document, chunk, ingestion job, data source, sync scope, sync job, and sync event repository ports with in-memory and Prisma adapters
+- [x] 1.3 Implement backend application use cases for document reads, metadata-only upload validation, safe upload preparation, ingestion-job reads, data-source placeholders, sync-scope updates, and queued manual sync requests
+- [x] 1.4 Implement the workspace-scoped backend HTTP API router for the approved KB/RAG route family
+- [x] 1.5 Implement the typed frontend KB/RAG API client boundary for shared DTOs and workspace-scoped routes
+- [x] 1.6 Wire Documents and Upload screens to the frontend API client for metadata-only runtime flows
+- [x] 1.7 Wire Data Sources and Synchronization Scope screens to the frontend API client for safe placeholder/source/sync flows
+- [x] 1.8 Implement lifecycle-only worker ingestion handoff through repository ports and safe ingestion lifecycle events
+- [x] 1.9 Implement deterministic text/markdown document processing pipeline with injected content reader and chunk persistence
+- [x] 1.10 Implement embedding/indexing adapter boundary with injected fake-test adapters and no real provider/vector DB calls
+- [x] 1.11 Implement local end-to-end contract-test flow that composes handoff, text processing, chunk persistence, fake embeddings, fake vector upserts, and final indexing status updates
+- [x] 1.12 Add focused contract/component tests for the implemented KB/RAG backend, API, frontend client/integration, worker, adapter-boundary, and local-flow slices
+- [x] 1.13 Update KB/RAG docs/OpenSpec artifacts to describe implemented boundaries and explicit production gaps
 
-## 2. Ingestion and Retrieval
+## 2. Remaining Production Runtime Work
 
-- [ ] 2.1 Implement document upload validation and metadata creation
-- [ ] 2.2 Enqueue document ingestion jobs after upload
-- [ ] 2.3 Implement ingestion worker for parsing, chunking, embedding, and vector storage through adapters
-- [ ] 2.4 Implement ingestion success and failure status updates
-- [ ] 2.5 Implement vector search through the adapter boundary
-- [ ] 2.6 Implement agent knowledge assignment and access checks
+- [ ] 2.1 Implement real file/object storage upload and content-read runtime
+- [ ] 2.2 Implement real PDF/DOC/DOCX/OCR parsing beyond the current text/markdown processing boundary
+- [ ] 2.3 Implement production queue/scheduler runtime entrypoints for ingestion, indexing, and sync
+- [ ] 2.4 Implement real external provider sync for Google Drive, Notion, Confluence, or similar sources
+- [ ] 2.5 Implement real OAuth/credential handling for external providers
+- [ ] 2.6 Implement real embedding provider adapter integration
+- [ ] 2.7 Implement real vector database adapter integration
+- [ ] 2.8 Implement semantic retrieval/vector search public boundary
+- [ ] 2.9 Implement RAG answer generation or task/agent retrieval integration
+- [ ] 2.10 Implement agent knowledge assignment and access checks
+- [ ] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue
 
-## 3. Frontend Experience
+## 3. Remaining Verification and Handoff
 
-- [ ] 3.1 Build document list and upload UI
-- [ ] 3.2 Build ingestion status display for pending, indexed, and failed documents
-- [ ] 3.3 Build data source placeholder configuration UI
-- [ ] 3.4 Build agent knowledge assignment controls
-
-## 4. Verification and Handoff
-
-- [ ] 4.1 Add tests for upload, unsupported file rejection, ingestion success/failure, search, and access checks
-- [ ] 4.2 Add tests that vector and embedding calls go through adapters
-- [ ] 4.3 Run OpenSpec validation and relevant test commands
-- [ ] 4.4 Update module README with supported file assumptions, adapter contracts, and RAG limitations
+- [ ] 3.1 Add production-runtime tests for real storage/parser/provider/vector adapters when those integrations are implemented
+- [ ] 3.2 Add retrieval/search and agent-access tests when those features are implemented
+- [ ] 3.3 Run OpenSpec validation once the `openspec` CLI is available in the environment

@@ -11,3 +11,5 @@ export * from "./subscription-payment.ts";
 export * from "./workflow.ts";
 export * from "./task-orchestration.ts";
 export * from "./workspace-user-management.ts";
+export * from "./task-execution.ts";
+export * from "./conversation.ts";

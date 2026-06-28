@@ -30,6 +30,7 @@ import {
   parseUpdateSyncScopeRequest,
   parseUploadValidationRequest
 } from "./knowledge-base-rag-request-parsers.ts";
+import type { CheckoutUseCases } from "../../subscription-payment/application/checkout-use-cases.ts";
 
 export type KnowledgeBaseRagRouterDependencies = {
   documentUseCases: KnowledgeDocumentUseCases;
@@ -37,7 +38,15 @@ export type KnowledgeBaseRagRouterDependencies = {
   ingestionUseCases: KnowledgeIngestionUseCases;
   dataSourceUseCases: KnowledgeDataSourceUseCases;
   syncUseCases: KnowledgeSyncUseCases;
+  checkoutUseCases?: CheckoutUseCases;
 };
+
+export class QuotaExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuotaExceededError";
+  }
+}
 
 export function createKnowledgeBaseRagRouter(
   dependencies: KnowledgeBaseRagRouterDependencies
@@ -90,6 +99,18 @@ export function createKnowledgeBaseRagRouter(
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
         const { workspaceId, actorId } = enforceKnowledgeManagePermission(request);
+
+        // Quota Enforcement: Chặn nếu dung lượng lưu trữ của workspace đã đạt giới hạn tối đa
+        if (dependencies.checkoutUseCases) {
+          const usage = await dependencies.checkoutUseCases.getWorkspaceResourceUsage(
+            workspaceId,
+            actorId
+          );
+          if (usage.storage.used >= usage.storage.max) {
+            throw new QuotaExceededError("Dung lượng lưu trữ tài liệu của gói dịch vụ hiện tại đã đạt tối đa. Vui lòng nâng cấp gói cước để tiếp tục.");
+          }
+        }
+
         const payload = parsePrepareUploadRequest(request.body);
 
         return dependencies.uploadUseCases.prepareUpload(
@@ -272,6 +293,16 @@ async function handleKnowledgeBaseRagRequest<T>(
         "validation.invalid_input",
         error.message,
         { issues: error.issues }
+      );
+      return;
+    }
+
+    if (error instanceof QuotaExceededError) {
+      sendKnowledgeBaseRagApiFailure(
+        request,
+        response,
+        "subscription.required",
+        error.message
       );
       return;
     }
