@@ -35,7 +35,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "documents",
     label: "Documents",
-    shortLabel: "Docs",
+    shortLabel: "D",
     eyebrow: "Document list management",
     title: "Documents",
     description:
@@ -49,7 +49,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "upload-documents",
     label: "Upload Documents",
-    shortLabel: "Upload",
+    shortLabel: "U",
     eyebrow: "Document upload",
     title: "Upload Documents",
     description:
@@ -63,7 +63,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "data-sources",
     label: "Data Sources",
-    shortLabel: "Sources",
+    shortLabel: "D",
     eyebrow: "External knowledge sources",
     title: "Data Sources",
     description: "Manage external knowledge sources connected to the workspace.",
@@ -76,7 +76,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "synchronization-scope",
     label: "Synchronization Scope",
-    shortLabel: "Scope",
+    shortLabel: "S",
     eyebrow: "Sync scope selection",
     title: "Synchronization Scope",
     description:
@@ -90,7 +90,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "processing-status",
     label: "Processing Status",
-    shortLabel: "Status",
+    shortLabel: "P",
     eyebrow: "Ingestion and sync monitoring",
     title: "Processing Status",
     description:
@@ -150,7 +150,7 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
                 onClick={() => setActiveViewId(view.id)}
               >
                 <span className="knowledge-base-rag-nav-icon" aria-hidden="true">
-                  {view.shortLabel.slice(0, 1)}
+                  {view.shortLabel}
                 </span>
                 <span>{view.label}</span>
               </button>

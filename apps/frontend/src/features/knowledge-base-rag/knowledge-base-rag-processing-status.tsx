@@ -6,7 +6,6 @@ import {
   KnowledgeBaseFileTypeBadge,
   KnowledgeBaseMetadataList,
   KnowledgeBaseMetricCard,
-  KnowledgeBaseProgressBar,
   KnowledgeBaseSectionCard
 } from "./knowledge-base-rag-components.tsx";
 import type {
@@ -113,8 +112,9 @@ export function KnowledgeBaseProcessingStatusScreen({
             <ProcessingStatusBadge status={selectedJob.status} />
           </div>
 
-          <KnowledgeBaseProgressBar
+          <ProcessingProgressBar
             label="Progress"
+            status={selectedJob.status}
             value={selectedJob.progress}
             className="knowledge-base-rag-processing-status-details__progress"
           />
@@ -160,8 +160,9 @@ function ProcessingJobCard({ isSelected, job, onViewDetails }: ProcessingJobCard
         </div>
       </div>
 
-      <KnowledgeBaseProgressBar
+      <ProcessingProgressBar
         label="Progress"
+        status={job.status}
         value={job.progress}
         className="knowledge-base-rag-processing-job__progress"
       />
@@ -222,6 +223,40 @@ function ProcessingStatusBadge({ status }: { status: KnowledgeBaseProcessingJobS
   );
 }
 
+type ProcessingProgressBarProps = {
+  className?: string;
+  label: string;
+  status: KnowledgeBaseProcessingJobStatus;
+  value: number;
+};
+
+function ProcessingProgressBar(props: ProcessingProgressBarProps) {
+  const { className, label, status, value } = props;
+  const progressValue = clampProgress(value);
+
+  return (
+    <div className={`knowledge-base-rag-processing-progress${className ? ` ${className}` : ""}`}>
+      <div className="knowledge-base-rag-processing-progress__header">
+        <span className="knowledge-base-rag-processing-progress__label">{label}</span>
+        <span className="knowledge-base-rag-processing-progress__value">{progressValue}%</span>
+      </div>
+      <div
+        className="knowledge-base-rag-processing-progress__track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progressValue}
+        aria-label={label}
+      >
+        <span
+          className={`knowledge-base-rag-processing-progress__fill knowledge-base-rag-processing-progress__fill--${status}`}
+          style={{ width: `${progressValue}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function getProcessingStatusLabel(status: KnowledgeBaseProcessingJobStatus): string {
   const labels: Record<KnowledgeBaseProcessingJobStatus, string> = {
     queued: "Queued",
@@ -238,4 +273,8 @@ function getProcessingStatusBadgeClassName(
 ): string {
   if (status === "queued") return "kb-rag-status-badge--pending";
   return `kb-rag-status-badge--${status}`;
+}
+
+function clampProgress(value: number): number {
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, Math.round(value))) : 0;
 }
