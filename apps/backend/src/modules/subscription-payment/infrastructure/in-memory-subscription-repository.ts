@@ -24,9 +24,14 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
 
   async findSubscriptionByWorkspaceId(workspaceId: EntityId<"workspaceId">): Promise<Subscription | null> {
     const list = Array.from(this.subscriptions.values())
-      .filter(s => s.workspaceId === workspaceId)
+      .filter(s => s.workspaceId === workspaceId);
+    
+    const activeList = list.filter(s => s.status === "active" || s.status === "expiring_soon")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return list[0] ?? null;
+    if (activeList.length > 0) return activeList[0];
+
+    const anyList = list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return anyList[0] ?? null;
   }
 
   async saveTransaction(transaction: Transaction): Promise<Transaction> {

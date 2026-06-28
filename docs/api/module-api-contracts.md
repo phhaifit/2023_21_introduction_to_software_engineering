@@ -61,11 +61,11 @@ Owner module: `apps/backend/src/modules/agent-management`
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/workspaces/:workspaceId/agents` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` agent public summaries | `implemented` | Existing route lists enabled and disabled agents; deleted agents are omitted. |
-| `POST` | `/api/workspaces/:workspaceId/agents` | `agents:manage` | Route `workspaceId` | name, role, model, instructions | `ApiResponse` agent public summary | `implemented` | Existing route derives workspace from request context. |
+| `POST` | `/api/workspaces/:workspaceId/agents` | `agents:manage` | Route `workspaceId` | `CreateAgentRequest` name, role, model, instructions, optional approved runtime sections, and optional requested tool/knowledge intent | `ApiResponse` agent public summary | `implemented` | Existing route derives workspace from request context; approved non-permission runtime sections are persisted for Agent Management runtime profiles, while requested tool/knowledge intent is validated but does not create assignments or grants. |
 | `GET` | `/api/workspaces/:workspaceId/agents/models` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` model catalog entries | `implemented` | Returns selectable static server-side model catalog entries for the creation assistant change. |
 | `POST` | `/api/workspaces/:workspaceId/agents/skill-preview` | `agents:manage` | Route `workspaceId` | `AgentSkillPreviewRequest` | `ApiResponse` `AgentSkillPreviewResponse` | `implemented` | Renders Markdown from a draft payload without creating or updating an agent. |
 | `POST` | `/api/workspaces/:workspaceId/agents/assistant/draft` | `agents:manage` | Route `workspaceId` | `AgentCreationAssistantDraftRequest` | `ApiResponse` `AgentCreationAssistantDraftResponse` | `planned` | Reserved for Gemini/OpenRouter draft generation; must not return raw provider errors or credentials. |
-| `POST` | `/api/workspaces/:workspaceId/agents/assistant/import-skill` | `agents:manage` | Route `workspaceId` | `AgentSkillImportAnalysisRequest` | `ApiResponse` import validation or extracted draft response | `provisional-existing` | Phase 1 validates Markdown payloads only; later assistant phase will return extracted editable drafts. |
+| `POST` | `/api/workspaces/:workspaceId/agents/assistant/import-skill` | `agents:manage` | Route `workspaceId` | `AgentSkillImportAnalysisRequest` | `ApiResponse` extracted draft response | `implemented` | Analyzes free-form Markdown through the LLM provider chain and returns an editable draft without creating an agent. |
 | `GET` | `/api/workspaces/:workspaceId/agents/:agentId/skill.md` | Workspace member | Route `workspaceId` | Request context | `text/markdown` generated `skill.md` | `implemented` | Downloads the current generated skill artifact for enabled or disabled agents; deleted and cross-workspace agents are rejected. |
 | `GET` | `/api/workspaces/:workspaceId/agents/:agentId/configuration` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` editable configuration | `implemented` | Only route that returns private instructions; generated skill content is never returned. |
 | `PATCH` | `/api/workspaces/:workspaceId/agents/:agentId` | `agents:manage` | Route `workspaceId` | role, model, instructions | `ApiResponse` agent public summary | `implemented` | Agent name is not changed by this route. |
@@ -79,10 +79,15 @@ Owner module: `apps/backend/src/modules/subscription-payment`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route reads current user subscription details. |
-| `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route starts mock checkout for standard or premium plan. |
-| `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route starts an upgrade flow. |
-| `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | Provisional response, align to `ApiResponse` | `provisional-existing` | Existing route reconciles directly or enqueues payment webhook work. |
+| `GET` | `/api/subscriptions/details` | Authenticated | User subscription context | Request context | `ApiResponse` subscription details | `provisional-existing` | Reads current user subscription and transaction history. |
+| `GET` | `/api/subscriptions/plans` | Authenticated | User subscription context | Request context | `ApiResponse` plans configuration details | `implemented` | Reads standard and premium plan prices and resource entitlements. |
+| `POST` | `/api/subscriptions/checkout` | Authenticated | User subscription context | plan selection DTO | `ApiResponse` checkout session summary | `provisional-existing` | Starts checkout session for standard or premium plan. |
+| `POST` | `/api/subscriptions/upgrade` | Authenticated | User subscription context | subscription upgrade DTO | `ApiResponse` upgrade session summary | `provisional-existing` | Starts an upgrade flow. |
+| `POST` | `/api/subscriptions/mock-callback` | Callback or local mock context | Transaction context | transaction callback DTO | `ApiResponse` transaction summary | `provisional-existing` | Reconciles directly or enqueues payment webhook work. |
+| `GET` | `/api/subscriptions/usage` | Authenticated | Workspace scope | workspaceId query | `ApiResponse` workspace resource usage summary | `implemented` | Computes dynamic CPU, RAM, Agent count, and Document storage usage. |
+| `POST` | `/api/subscriptions/toggle-auto-renewal` | Authenticated | User subscription context | `{ autoRenew: boolean }` | `ApiResponse` subscription summary | `implemented` | Enables or disables automatic renewal of current subscription. |
+| `POST` | `/api/subscriptions/payment-method` | Authenticated | User subscription context | `{ cardNumber, cardHolder, cardExpiry }` | `ApiResponse` subscription summary | `implemented` | Updates the virtual card details associated with the user. |
+| `POST` | `/api/subscriptions/validate-promo` | Authenticated | User subscription context | `{ promoCode: string }` | `ApiResponse` validate promo response | `implemented` | Checks promo code and returns discount amount ($10 for VCP10, $20 for VCP20). |
 
 ## Tools & Integration
 
@@ -113,6 +118,8 @@ Owner module: `apps/backend/src/modules/workflow-management`
 ## Task & Orchestration
 
 Owner module: `apps/backend/src/modules/task-orchestration`
+
+> **Architectural Boundary & Execution Contracts**: For detailed technical documentation regarding `TaskExecutionAdapter`, `OpenClawTaskExecutionAdapter`, DTO contracts (`StartExecutionCommand`, `ExecutionBinding`, `NormalizedRuntimeEvent`), the 10-step start flow, cancellation forwarding, and external dependency catalogs (`WorkspaceExecutionRuntimeResolver`, `ExternalAgentCatalog`, `ExternalWorkflowCatalog`), see the [Task & Orchestration Module README](../../apps/backend/src/modules/task-orchestration/README.md).
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |

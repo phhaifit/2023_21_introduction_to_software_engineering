@@ -45,9 +45,23 @@ export interface WorkflowExecutionDto {
   completedAt: string | null;
 }
 
+export interface WorkflowStepLogDto {
+  logId: EntityId<"logId">;
+  workspaceId: EntityId<"workspaceId">;
+  executionId: EntityId<"executionId">;
+  workflowStepId: EntityId<"workflowStepId">;
+  status: string;
+  inputData?: Record<string, any> | null;
+  outputData?: Record<string, any> | null;
+  errorMsg?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+}
+
 export interface ExecuteWorkflowRequest {
   workflowId: EntityId<"workflowId">;
   workspaceId: EntityId<"workspaceId">;
+  executionId: EntityId<"executionId">;
   triggeredBy: EntityId<"userId">;
   triggerType: WorkflowTriggerType;
   inputData?: Record<string, any>;

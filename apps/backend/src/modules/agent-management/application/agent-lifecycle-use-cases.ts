@@ -1,19 +1,32 @@
 import type {
+  AgentCreationAssistantDraftResponse,
+  AgentDraftValidationWarning,
   AgentModelCatalogEntry,
   AgentPublicSummary,
+  AgentRuntimeConfiguration,
+  AgentRuntimeProfile,
+  AgentSkillKnowledgeReference,
   AgentSkillImportAnalysisRequest,
-  AgentSkillImportValidationResponse,
   AgentSkillPreviewRequest,
-  AgentSkillPreviewResponse
+  AgentSkillPreviewResponse,
+  AgentSkillToolReference
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { ApiPaginationMeta } from "@vcp/shared/contracts/api.ts";
 import { createAgent, isAgentSelectable, toAgentPublicSummary, type Agent } from "../domain/agent.ts";
 import type { AgentRepository } from "./agent-repository.ts";
+import {
+  MockConnectedToolCatalog,
+  MockKnowledgeDocumentCatalog,
+  validateRequestedCapabilities,
+  type ConnectedToolCatalogPort,
+  type KnowledgeDocumentCatalogPort
+} from "./agent-capability-catalog.ts";
 import { StaticAgentModelCatalog, type AgentModelCatalogPort } from "./agent-model-catalog.ts";
 import { generateAgentSkillConfiguration } from "./agent-skill-configuration.ts";
 import type { AgentSkillWriter } from "./agent-skill-writer.ts";
+import type { LlmAgentDraftingPort, LlmDraftingUnavailableError } from "./llm-agent-drafting-port.ts";
 
 export type AgentListItem = AgentPublicSummary & {
   createdAt: string;
@@ -48,6 +61,13 @@ export type CreateAgentInput = {
   role: string;
   model: string;
   instructions: string;
+  responsibilities?: string[];
+  operatingContext?: string;
+  requestedTools?: AgentSkillToolReference[];
+  requestedKnowledge?: AgentSkillKnowledgeReference[];
+  constraints?: string[];
+  escalationRules?: string[];
+  exampleTasks?: string[];
 };
 
 export type UpdateAgentInput = {
@@ -56,23 +76,42 @@ export type UpdateAgentInput = {
   role: string;
   model: string;
   instructions: string;
+  responsibilities?: string[];
+  operatingContext?: string;
+  requestedTools?: AgentSkillToolReference[];
+  requestedKnowledge?: AgentSkillKnowledgeReference[];
+  constraints?: string[];
+  escalationRules?: string[];
+  exampleTasks?: string[];
+};
+
+export type AgentRuntimeProfileReader = {
+  getAgentRuntimeProfile(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentRuntimeProfile>;
 };
 
 export type AgentLifecycleDependencies = {
   repository: AgentRepository;
   modelCatalog?: AgentModelCatalogPort;
+  connectedToolCatalog?: ConnectedToolCatalogPort;
+  knowledgeDocumentCatalog?: KnowledgeDocumentCatalogPort;
   skillWriter?: AgentSkillWriter;
+  draftingPort?: LlmAgentDraftingPort;
   now: () => string;
   generateAgentId: () => EntityId<"agentId">;
 };
 
 export class AgentValidationError extends Error {
   readonly issues: readonly string[];
+  readonly warnings: readonly AgentDraftValidationWarning[];
 
-  constructor(issues: readonly string[]) {
+  constructor(issues: readonly string[], warnings: readonly AgentDraftValidationWarning[] = []) {
     super(`Invalid agent configuration: ${issues.join(", ")}`);
     this.name = "AgentValidationError";
     this.issues = issues;
+    this.warnings = warnings;
   }
 }
 
@@ -86,10 +125,15 @@ export class AgentNotFoundError extends Error {
 export class AgentLifecycleUseCases {
   private readonly dependencies: AgentLifecycleDependencies;
   private readonly modelCatalog: AgentModelCatalogPort;
+  private readonly connectedToolCatalog: ConnectedToolCatalogPort;
+  private readonly knowledgeDocumentCatalog: KnowledgeDocumentCatalogPort;
 
   constructor(dependencies: AgentLifecycleDependencies) {
     this.dependencies = dependencies;
     this.modelCatalog = dependencies.modelCatalog ?? new StaticAgentModelCatalog();
+    this.connectedToolCatalog = dependencies.connectedToolCatalog ?? new MockConnectedToolCatalog();
+    this.knowledgeDocumentCatalog =
+      dependencies.knowledgeDocumentCatalog ?? new MockKnowledgeDocumentCatalog();
   }
 
   async listAgents(
@@ -208,9 +252,63 @@ export class AgentLifecycleUseCases {
     };
   }
 
+  async getAgentRuntimeProfile(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentRuntimeProfile> {
+    const agent = await this.requireAgent(workspaceId, agentId);
+
+    if (agent.status !== "enabled") {
+      throw new AgentNotFoundError(agentId);
+    }
+
+    const skillMarkdown = generateAgentSkillConfiguration(agent);
+    const runtimeConfiguration = this.cloneRuntimeConfiguration(agent.runtimeConfiguration);
+
+    return {
+      agentId: agent.agentId,
+      workspaceId: agent.workspaceId,
+      name: agent.name,
+      role: agent.role,
+      model: agent.model,
+      instructions: agent.instructions,
+      status: "enabled",
+      runnable: true,
+      updatedAt: agent.updatedAt,
+      runtimeConfiguration,
+      skillMarkdown,
+      materializationHints: {
+        profileVersion: "agent-runtime-profile.v1",
+        runtimeOwner: "task-orchestration-openclaw",
+        agentDirectoryName: this.toRuntimeAgentDirectoryName(agent),
+        skillFileName: "skill.md",
+        requiresCurrentToolResolution: runtimeConfiguration.requestedTools.length > 0,
+        requiresCurrentKnowledgeResolution: runtimeConfiguration.requestedKnowledge.length > 0
+      }
+    };
+  }
+
+  async generateAssistantDraft(
+    workspaceId: EntityId<"workspaceId">,
+    prompt: string
+  ): Promise<AgentCreationAssistantDraftResponse> {
+    if (!this.dependencies.draftingPort) {
+      throw new Error("LlmAgentDraftingPort is not configured");
+    }
+
+    if (!prompt.trim()) {
+      throw new AgentValidationError(["prompt is required"]);
+    }
+
+    return this.dependencies.draftingPort.createDraft({
+      workspaceId,
+      prompt
+    });
+  }
+
   validateSkillMarkdownImport(
     input: AgentSkillImportAnalysisRequest
-  ): AgentSkillImportValidationResponse {
+  ): { markdown: string; fileName?: string } {
     const markdown = typeof input.markdown === "string" ? input.markdown.trim() : "";
     const fileName = input.fileName?.trim();
     const issues: string[] = [];
@@ -232,14 +330,36 @@ export class AgentLifecycleUseCases {
     }
 
     return {
-      accepted: true,
-      fileName: "skill.md"
+      markdown,
+      fileName: fileName || undefined
     };
+  }
+
+  async analyzeSkillMarkdownImport(
+    workspaceId: EntityId<"workspaceId">,
+    input: AgentSkillImportAnalysisRequest
+  ): Promise<AgentCreationAssistantDraftResponse> {
+    if (!this.dependencies.draftingPort) {
+      throw new Error("LlmAgentDraftingPort is not configured");
+    }
+
+    const validated = this.validateSkillMarkdownImport(input);
+
+    return this.dependencies.draftingPort.extractDraftFromSkillMarkdown({
+      workspaceId,
+      markdown: validated.markdown,
+      fileName: validated.fileName
+    });
   }
 
   async createAgent(input: CreateAgentInput): Promise<AgentMutationResult> {
     const normalized = this.validateCreateInput(input);
     await this.assertSelectableModel(input.workspaceId, normalized.model);
+    await this.assertRequestedCapabilities({
+      workspaceId: input.workspaceId,
+      requestedTools: normalized.requestedTools,
+      requestedKnowledge: normalized.requestedKnowledge
+    });
     const nameAlreadyUsed = await this.dependencies.repository.existsByName(
       input.workspaceId,
       normalized.name
@@ -257,6 +377,13 @@ export class AgentLifecycleUseCases {
       role: normalized.role,
       model: normalized.model,
       instructions: normalized.instructions,
+      responsibilities: normalized.responsibilities,
+      operatingContext: normalized.operatingContext,
+      requestedTools: normalized.requestedTools,
+      requestedKnowledge: normalized.requestedKnowledge,
+      constraints: normalized.constraints,
+      escalationRules: normalized.escalationRules,
+      exampleTasks: normalized.exampleTasks,
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -275,6 +402,7 @@ export class AgentLifecycleUseCases {
       role: normalized.role,
       model: normalized.model,
       instructions: normalized.instructions,
+      runtimeConfiguration: this.mergeRuntimeConfiguration(agent.runtimeConfiguration, normalized),
       updatedAt: this.dependencies.now()
     });
   }
@@ -335,6 +463,7 @@ export class AgentLifecycleUseCases {
       role: sourceAgent.role,
       model: sourceAgent.model,
       instructions: sourceAgent.instructions,
+      runtimeConfiguration: sourceAgent.runtimeConfiguration,
       createdAt: timestamp,
       updatedAt: timestamp,
       status: "enabled"
@@ -459,7 +588,14 @@ export class AgentLifecycleUseCases {
       name: "name" in input ? input.name.trim() : undefined,
       role: input.role.trim(),
       model: input.model.trim(),
-      instructions: input.instructions.trim()
+      instructions: input.instructions.trim(),
+      responsibilities: this.normalizeStringArray((input as any).responsibilities),
+      operatingContext: this.normalizeOptionalString((input as any).operatingContext),
+      requestedTools: this.normalizeToolReferences((input as any).requestedTools),
+      requestedKnowledge: this.normalizeKnowledgeReferences((input as any).requestedKnowledge),
+      constraints: this.normalizeStringArray((input as any).constraints),
+      escalationRules: this.normalizeStringArray((input as any).escalationRules),
+      exampleTasks: this.normalizeStringArray((input as any).exampleTasks)
     };
     const issues: string[] = [];
 
@@ -498,11 +634,116 @@ export class AgentLifecycleUseCases {
     }
   }
 
+  private async assertRequestedCapabilities(input: {
+    workspaceId: EntityId<"workspaceId">;
+    requestedTools?: readonly AgentSkillToolReference[];
+    requestedKnowledge?: readonly AgentSkillKnowledgeReference[];
+  }): Promise<void> {
+    const warnings = await validateRequestedCapabilities(input, {
+      tools: this.connectedToolCatalog,
+      knowledge: this.knowledgeDocumentCatalog
+    });
+
+    const blockingWarnings = warnings.filter((warning) => warning.severity === "blocking");
+    if (blockingWarnings.length > 0) {
+      throw new AgentValidationError(
+        blockingWarnings.map((warning) => `${warning.field}: ${warning.message}`),
+        blockingWarnings
+      );
+    }
+  }
+
   private looksLikeMarkdown(markdown: string, fileName: string | undefined): boolean {
     if (fileName && /\.(md|markdown)$/i.test(fileName)) {
       return true;
     }
 
     return /(^|\n)#{1,6}\s+\S/.test(markdown) || /(^|\n)(-|\*)\s+\S/.test(markdown);
+  }
+
+  private mergeRuntimeConfiguration(
+    current: AgentRuntimeConfiguration,
+    next: Partial<AgentRuntimeConfiguration>
+  ): AgentRuntimeConfiguration {
+    return {
+      responsibilities: next.responsibilities ?? current.responsibilities,
+      operatingContext: next.operatingContext ?? current.operatingContext,
+      requestedTools: next.requestedTools ?? current.requestedTools,
+      requestedKnowledge: next.requestedKnowledge ?? current.requestedKnowledge,
+      constraints: next.constraints ?? current.constraints,
+      escalationRules: next.escalationRules ?? current.escalationRules,
+      exampleTasks: next.exampleTasks ?? current.exampleTasks
+    };
+  }
+
+  private cloneRuntimeConfiguration(
+    runtimeConfiguration: AgentRuntimeConfiguration
+  ): AgentRuntimeConfiguration {
+    return {
+      responsibilities: [...runtimeConfiguration.responsibilities],
+      operatingContext: runtimeConfiguration.operatingContext,
+      requestedTools: runtimeConfiguration.requestedTools.map((tool) => ({ ...tool })),
+      requestedKnowledge: runtimeConfiguration.requestedKnowledge.map((document) => ({ ...document })),
+      constraints: [...runtimeConfiguration.constraints],
+      escalationRules: [...runtimeConfiguration.escalationRules],
+      exampleTasks: [...runtimeConfiguration.exampleTasks]
+    };
+  }
+
+  private normalizeStringArray(values: unknown): string[] | undefined {
+    if (!Array.isArray(values)) {
+      return undefined;
+    }
+
+    return values.filter((value): value is string => typeof value === "string");
+  }
+
+  private normalizeOptionalString(value: unknown): string | undefined {
+    return typeof value === "string" ? value : undefined;
+  }
+
+  private normalizeToolReferences(values: unknown): AgentSkillToolReference[] | undefined {
+    return Array.isArray(values)
+      ? values
+          .filter((value): value is AgentSkillToolReference =>
+            typeof value === "object" &&
+            value !== null &&
+            "name" in value &&
+            typeof (value as { name?: unknown }).name === "string"
+          )
+          .map((value) => ({
+            ...("toolId" in value && typeof value.toolId === "string" ? { toolId: value.toolId } : {}),
+            name: value.name,
+            ...(typeof value.reason === "string" ? { reason: value.reason } : {})
+          }))
+      : undefined;
+  }
+
+  private normalizeKnowledgeReferences(values: unknown): AgentSkillKnowledgeReference[] | undefined {
+    return Array.isArray(values)
+      ? values
+          .filter((value): value is AgentSkillKnowledgeReference =>
+            typeof value === "object" &&
+            value !== null &&
+            "title" in value &&
+            typeof (value as { title?: unknown }).title === "string"
+          )
+          .map((value) => ({
+            ...("documentId" in value && typeof value.documentId === "string" ? { documentId: value.documentId } : {}),
+            title: value.title,
+            ...(typeof value.reason === "string" ? { reason: value.reason } : {})
+          }))
+      : undefined;
+  }
+
+  private toRuntimeAgentDirectoryName(agent: Pick<Agent, "agentId" | "name">): string {
+    const slug = agent.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 48);
+
+    return `${slug || "agent"}-${agent.agentId}`;
   }
 }

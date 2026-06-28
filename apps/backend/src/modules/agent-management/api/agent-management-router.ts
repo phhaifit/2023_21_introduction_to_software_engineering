@@ -12,15 +12,25 @@ import {
   AgentNotFoundError,
   AgentValidationError
 } from "../application/agent-lifecycle-use-cases.ts";
+import { LlmDraftingUnavailableError, LlmProviderFailure } from "../application/llm-agent-drafting-port.ts";
 import { sendAgentApiFailure, sendAgentApiSuccess, sendAgentPaginatedApiSuccess } from "./api-response.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 import { canPerform } from "../../../shared/rbac/permissions.ts";
+import type { CheckoutUseCases } from "../../subscription-payment/application/checkout-use-cases.ts";
+
 export type AgentManagementRouterDependencies = {
   useCases: AgentLifecycleUseCases;
+  checkoutUseCases?: CheckoutUseCases;
 };
 
 class AuthenticationError extends Error {}
 class AuthorizationError extends Error {}
+export class QuotaExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuotaExceededError";
+  }
+}
 
 function getRequestContext(request: Request): RequestContext {
   return (request as any).context || { requestId: "unknown" };
@@ -70,13 +80,32 @@ export function createAgentManagementRouter(
       const context = getRequestContext(request);
       enforcePermission(context, "agents:manage");
 
+      // Quota Enforcement: Chặn nếu số lượng Agent vượt mức tối đa của gói cước
+      if (dependencies.checkoutUseCases) {
+        const usage = await dependencies.checkoutUseCases.getWorkspaceResourceUsage(
+          context.workspace!.workspaceId,
+          context.user!.userId
+        );
+        if (usage.agents.used >= usage.agents.max) {
+          throw new QuotaExceededError("Hạn mức số lượng Agent của gói dịch vụ hiện tại đã đạt tối đa. Vui lòng nâng cấp gói cước để tiếp tục.");
+        }
+      }
+
       const payload = readStringPayload(request, ["name", "role", "model", "instructions"]);
+      const body = request.body as Record<string, unknown> | undefined;
       const result = await dependencies.useCases.createAgent({
         workspaceId: context.workspace!.workspaceId,
         name: payload.name,
         role: payload.role,
         model: payload.model,
-        instructions: payload.instructions
+        instructions: payload.instructions,
+        responsibilities: readOptionalStringArray(body, "responsibilities"),
+        operatingContext: readOptionalString(body, "operatingContext"),
+        requestedTools: readOptionalToolReferences(body),
+        requestedKnowledge: readOptionalKnowledgeReferences(body),
+        constraints: readOptionalStringArray(body, "constraints"),
+        escalationRules: readOptionalStringArray(body, "escalationRules"),
+        exampleTasks: readOptionalStringArray(body, "exampleTasks")
       });
 
       return result.publicSummary;
@@ -92,12 +121,25 @@ export function createAgentManagementRouter(
     });
   });
 
+  router.post("/assistant/draft", async (request, response) => {
+    await handleAgentApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "agents:manage");
+
+      const payload = readStringPayload(request, ["prompt"]);
+      return dependencies.useCases.generateAssistantDraft(context.workspace!.workspaceId, payload.prompt);
+    });
+  });
+
   router.post("/assistant/import-skill", async (request, response) => {
     await handleAgentApiRequest(request, response, async () => {
       const context = getRequestContext(request);
       enforcePermission(context, "agents:manage");
 
-      return dependencies.useCases.validateSkillMarkdownImport(readSkillImportPayload(request));
+      return dependencies.useCases.analyzeSkillMarkdownImport(
+        context.workspace!.workspaceId,
+        readSkillImportPayload(request)
+      );
     });
   });
 
@@ -140,12 +182,20 @@ export function createAgentManagementRouter(
       enforcePermission(context, "agents:manage");
 
       const payload = readStringPayload(request, ["role", "model", "instructions"]);
+      const body = request.body as Record<string, unknown> | undefined;
       const result = await dependencies.useCases.updateAgent({
         workspaceId: context.workspace!.workspaceId,
         agentId: request.params.agentId as EntityId<"agentId">,
         role: payload.role,
         model: payload.model,
-        instructions: payload.instructions
+        instructions: payload.instructions,
+        responsibilities: readOptionalStringArray(body, "responsibilities"),
+        operatingContext: readOptionalString(body, "operatingContext"),
+        requestedTools: readOptionalToolReferences(body),
+        requestedKnowledge: readOptionalKnowledgeReferences(body),
+        constraints: readOptionalStringArray(body, "constraints"),
+        escalationRules: readOptionalStringArray(body, "escalationRules"),
+        exampleTasks: readOptionalStringArray(body, "exampleTasks")
       });
 
       return result.publicSummary;
@@ -277,11 +327,30 @@ function handleAgentApiError(request: Request, response: Response, error: unknow
     return;
   }
 
+  if (error instanceof LlmDraftingUnavailableError) {
+    sendAgentApiFailure(request, response, {
+      code: "assistant.unavailable",
+      message: error.message,
+      details: { failures: error.failures },
+      statusCode: 503
+    });
+    return;
+  }
+
+  if (error instanceof LlmProviderFailure) {
+    sendAgentApiFailure(request, response, {
+      code: "assistant.provider_failure",
+      message: error.message,
+      statusCode: 400
+    });
+    return;
+  }
+
   if (error instanceof AgentValidationError) {
     sendAgentApiFailure(request, response, {
       code: "validation.invalid_input",
       message: error.message,
-      details: { issues: error.issues },
+      details: { issues: error.issues, warnings: error.warnings },
       statusCode: 400
     });
     return;
@@ -292,6 +361,15 @@ function handleAgentApiError(request: Request, response: Response, error: unknow
       code: "agent.not_available",
       message: "Agent is not available in this workspace.",
       statusCode: 404
+    });
+    return;
+  }
+
+  if (error instanceof QuotaExceededError) {
+    sendAgentApiFailure(request, response, {
+      code: "billing.quota_exceeded",
+      message: error.message,
+      statusCode: 402
     });
     return;
   }

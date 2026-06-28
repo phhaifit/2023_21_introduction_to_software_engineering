@@ -158,6 +158,58 @@ function makeAgent(overrides = {}) {
 
 {
   const { repository, useCases } = createHarness();
+  const result = await useCases.createAgent({
+    workspaceId: workspaceA,
+    name: "Runtime Agent",
+    role: "Support",
+    model: "gemini-2.5-flash",
+    instructions: "Answer support questions.",
+    responsibilities: ["Triage customer issues", "Summarize blockers"],
+    operatingContext: "Use only approved workspace context.",
+    requestedTools: [{ name: "Slack", reason: "Notify owners" }],
+    requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+    constraints: ["Do not promise refunds"],
+    escalationRules: ["Escalate billing disputes"],
+    exampleTasks: ["Draft a support response"]
+  });
+
+  const saved = await repository.findById(workspaceA, result.agent.agentId);
+  assert.deepEqual(saved.runtimeConfiguration.responsibilities, [
+    "Triage customer issues",
+    "Summarize blockers"
+  ]);
+  assert.equal(saved.runtimeConfiguration.operatingContext, "Use only approved workspace context.");
+  assert.deepEqual(saved.runtimeConfiguration.requestedTools, [
+    { name: "Slack", reason: "Notify owners" }
+  ]);
+  assert.match(result.skillConfiguration, /## Responsibilities\n- Triage customer issues/);
+  assert.match(result.skillConfiguration, /## Requested Knowledge\n- Support Handbook: Ground answers/);
+
+  const profile = await useCases.getAgentRuntimeProfile(workspaceA, result.agent.agentId);
+  assert.equal(profile.agentId, result.agent.agentId);
+  assert.equal(profile.workspaceId, workspaceA);
+  assert.equal(profile.status, "enabled");
+  assert.equal(profile.runnable, true);
+  assert.equal(profile.model, "gemini-2.5-flash");
+  assert.equal(profile.materializationHints.profileVersion, "agent-runtime-profile.v1");
+  assert.equal(profile.materializationHints.runtimeOwner, "task-orchestration-openclaw");
+  assert.equal(profile.materializationHints.skillFileName, "skill.md");
+  assert.equal(profile.materializationHints.requiresCurrentToolResolution, true);
+  assert.equal(profile.materializationHints.requiresCurrentKnowledgeResolution, true);
+  assert.match(profile.materializationHints.agentDirectoryName, /^runtime-agent-agent-1$/);
+  assert.match(profile.skillMarkdown, /# Runtime Agent/);
+  assert.match(profile.skillMarkdown, /## Constraints\n- Do not promise refunds/);
+  assert.equal(profile.runtimeConfiguration.responsibilities[0], "Triage customer issues");
+
+  const serializedProfile = JSON.stringify(profile);
+  assert.doesNotMatch(
+    serializedProfile,
+    /credential|secret|token|apiKey|rawProvider|providerError|runtimeUrl|containerId|terminalCommand|taskManifest|assignmentId|grantId/i
+  );
+}
+
+{
+  const { repository, useCases } = createHarness();
   const preview = useCases.previewSkillMarkdown({
     name: " Draft Agent ",
     role: " Analyst ",
@@ -210,6 +262,7 @@ function makeAgent(overrides = {}) {
   assert.equal(enabled.fileName, "skill.md");
   assert.match(enabled.markdown, /# Enabled Agent/);
   assert.match(disabled.markdown, /# Disabled Agent/);
+  assert.match(disabled.markdown, /## Responsibilities\n_Not specified\._/);
 
   await assert.rejects(
     () => useCases.downloadAgentSkillMarkdown(workspaceA, "agent-deleted"),
@@ -222,6 +275,47 @@ function makeAgent(overrides = {}) {
 }
 
 {
+  const { repository, useCases } = createHarness();
+  await repository.save(makeAgent({ agentId: "agent-basic", name: "Basic Agent" }));
+  await repository.save(makeAgent({ agentId: "agent-disabled", status: "disabled" }));
+  await repository.save(makeAgent({ agentId: "agent-deleted", status: "deleted" }));
+  await repository.save(
+    makeAgent({
+      agentId: "agent-other-workspace",
+      workspaceId: workspaceB,
+      name: "Other Agent"
+    })
+  );
+
+  const basicProfile = await useCases.getAgentRuntimeProfile(workspaceA, "agent-basic");
+  assert.deepEqual(basicProfile.runtimeConfiguration, {
+    responsibilities: [],
+    operatingContext: undefined,
+    requestedTools: [],
+    requestedKnowledge: [],
+    constraints: [],
+    escalationRules: [],
+    exampleTasks: []
+  });
+  assert.equal(basicProfile.materializationHints.requiresCurrentToolResolution, false);
+  assert.equal(basicProfile.materializationHints.requiresCurrentKnowledgeResolution, false);
+  assert.match(basicProfile.skillMarkdown, /## Requested Tools\n_Not specified\._/);
+
+  await assert.rejects(
+    () => useCases.getAgentRuntimeProfile(workspaceA, "agent-disabled"),
+    AgentNotFoundError
+  );
+  await assert.rejects(
+    () => useCases.getAgentRuntimeProfile(workspaceA, "agent-deleted"),
+    AgentNotFoundError
+  );
+  await assert.rejects(
+    () => useCases.getAgentRuntimeProfile(workspaceA, "agent-other-workspace"),
+    AgentNotFoundError
+  );
+}
+
+{
   const { useCases } = createHarness();
 
   assert.deepEqual(
@@ -229,7 +323,7 @@ function makeAgent(overrides = {}) {
       markdown: "# Imported Agent\n\n## Role\nSupport",
       fileName: "skill.md"
     }),
-    { accepted: true, fileName: "skill.md" }
+    { markdown: "# Imported Agent\n\n## Role\nSupport", fileName: "skill.md" }
   );
 
   assert.throws(
@@ -342,7 +436,9 @@ function makeAgent(overrides = {}) {
     agentId: "agent-update",
     role: "Analyst",
     model: "gemini-2.5-flash-lite",
-    instructions: "Prepare weekly analysis."
+    instructions: "Prepare weekly analysis.",
+    constraints: ["Cite sources"],
+    exampleTasks: ["Prepare a weekly report"]
   });
 
   assert.equal(result.agent.role, "Analyst");
@@ -350,9 +446,11 @@ function makeAgent(overrides = {}) {
   assert.equal(result.agent.instructions, "Prepare weekly analysis.");
   assert.equal(result.agent.updatedAt, "2026-06-20T01:00:00.000Z");
   assert.match(result.skillConfiguration, /## Role\nAnalyst/);
+  assert.match(result.skillConfiguration, /## Constraints\n- Cite sources/);
 
   const saved = await repository.findById(workspaceA, "agent-update");
   assert.equal(saved.role, "Analyst");
+  assert.deepEqual(saved.runtimeConfiguration.exampleTasks, ["Prepare a weekly report"]);
 
   await assert.rejects(
     () =>

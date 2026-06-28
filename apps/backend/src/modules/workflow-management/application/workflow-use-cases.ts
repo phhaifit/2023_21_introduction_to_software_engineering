@@ -15,6 +15,7 @@ export interface CreateWorkflowCommand {
   workspaceId: EntityId<"workspaceId">;
   name: string;
   description?: string;
+  status?: WorkflowStatus;
   triggerType?: "manual" | "schedule" | "webhook";
   triggerConfig?: any;
   steps: { workflowStepId?: string; agentId?: string | null; stepType?: "agent" | "approval"; stepOrder: number; nextSteps?: Array<{ targetStepId: string; condition?: string | null }> | null; inputMapping?: Record<string, string> | null }[];
@@ -80,6 +81,11 @@ export class WorkflowUseCases {
     });
 
     const workflow = createWorkflow(workflowId, command.workspaceId, command.name, command.description ?? null, command.triggerType ?? "manual", command.triggerConfig ?? null, steps);
+
+    // Apply status from command (createWorkflow defaults to "draft")
+    if (command.status) {
+      workflow.status = command.status as any;
+    }
 
     // Validate agents before creation
     const stepDtos = workflow.steps.map(toWorkflowStepDto);
@@ -204,7 +210,7 @@ export class WorkflowUseCases {
     };
   }
 
-  async executeWorkflow(command: ExecuteWorkflowCommand): Promise<void> {
+  async executeWorkflow(command: ExecuteWorkflowCommand): Promise<{ executionId: EntityId<"executionId"> }> {
     const workflow = await this.repository.findById(command.workspaceId, command.workflowId);
     if (!workflow) {
       throw new Error("Workflow not found");
@@ -221,15 +227,37 @@ export class WorkflowUseCases {
     // Validate agents to ensure they exist and are active
     await validateWorkflowAgents(command.workspaceId, workflow.steps.map(toWorkflowStepDto), this.agentProvider);
 
+    const executionId = `wfe_${crypto.randomUUID()}` as EntityId<"executionId">;
+
+    // Create execution record
+    await this.repository.createExecution({
+      executionId,
+      workspaceId: command.workspaceId,
+      workflowId: command.workflowId,
+      status: "Pending",
+      triggeredBy: command.triggeredBy,
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+    });
+
     const request: ExecuteWorkflowRequest = {
       workflowId: command.workflowId,
       workspaceId: command.workspaceId,
+      executionId,
       triggeredBy: command.triggeredBy,
       triggerType: workflow.triggerType,
       inputData: command.inputData,
     };
 
-    await this.executionHandoff.handoffExecution(request);
+    // Fire-and-forget: don't await handoff so API returns immediately with executionId
+    // The workflow runs in the background and emits events via eventBus
+    setImmediate(() => {
+      this.executionHandoff.handoffExecution(request).catch((err: any) => {
+        console.error("[WorkflowUseCases] Async handoff failed:", err);
+      });
+    });
+
+    return { executionId };
   }
 
   async deleteWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: EntityId<"workflowId">): Promise<void> {

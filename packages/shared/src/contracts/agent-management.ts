@@ -68,6 +68,40 @@ export type AgentSkillDraftInput = {
   exampleTasks?: string[];
 };
 
+export type AgentRuntimeConfiguration = {
+  responsibilities: string[];
+  operatingContext?: string;
+  requestedTools: AgentSkillToolReference[];
+  requestedKnowledge: AgentSkillKnowledgeReference[];
+  constraints: string[];
+  escalationRules: string[];
+  exampleTasks: string[];
+};
+
+export type AgentRuntimeMaterializationHints = {
+  profileVersion: "agent-runtime-profile.v1";
+  runtimeOwner: "task-orchestration-openclaw";
+  agentDirectoryName: string;
+  skillFileName: "skill.md";
+  requiresCurrentToolResolution: boolean;
+  requiresCurrentKnowledgeResolution: boolean;
+};
+
+export type AgentRuntimeProfile = {
+  agentId: EntityId<"agentId">;
+  workspaceId: EntityId<"workspaceId">;
+  name: string;
+  role: string;
+  model: string;
+  instructions: string;
+  status: "enabled";
+  runnable: true;
+  updatedAt: string;
+  runtimeConfiguration: AgentRuntimeConfiguration;
+  skillMarkdown: string;
+  materializationHints: AgentRuntimeMaterializationHints;
+};
+
 export type AgentSkillPreviewRequest = AgentSkillDraftInput;
 
 export type AgentSkillPreviewResponse = {
@@ -115,6 +149,20 @@ export type AgentCreationAssistantDraft = AgentSkillDraftInput & {
 
 export type AgentCreationAssistantDraftRequest = {
   prompt: string;
+};
+
+export type CreateAgentRequest = {
+  name: string;
+  role: string;
+  model: string;
+  instructions: string;
+  responsibilities?: string[];
+  operatingContext?: string;
+  requestedTools?: AgentSkillToolReference[];
+  requestedKnowledge?: AgentSkillKnowledgeReference[];
+  constraints?: string[];
+  escalationRules?: string[];
+  exampleTasks?: string[];
 };
 
 export type AgentCreationAssistantDraftResponse = {

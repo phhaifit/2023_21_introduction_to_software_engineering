@@ -1,4 +1,5 @@
 import type { ErrorCode } from "@vcp/shared/contracts/api.ts";
+import type { AgentPublicSummary } from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { WorkflowDto, WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
 
@@ -17,10 +18,11 @@ export type CreateWorkflowCommand = {
 };
 
 export type UpdateWorkflowCommand = Partial<CreateWorkflowCommand> & {
-  status?: "draft" | "active" | "archived";
+  status?: "draft" | "published" | "archived";
 };
 
 export type WorkflowManagementApiClient = {
+  listWorkflowAgents(workspaceId: EntityId<"workspaceId">): Promise<AgentPublicSummary[]>;
   listWorkflows(workspaceId: EntityId<"workspaceId">): Promise<WorkflowPublicSummary[]>;
   createWorkflow(
     workspaceId: EntityId<"workspaceId">,
@@ -39,7 +41,7 @@ export type WorkflowManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">,
     inputData?: Record<string, any>
-  ): Promise<void>;
+  ): Promise<{ executionId: string }>;
   deleteWorkflow(
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">
@@ -102,6 +104,11 @@ export function createWorkflowManagementApiClient(input: {
       });
     }
 
+    // Handle 204 No Content (e.g. DELETE)
+    if (response.status === 204) {
+      return undefined as unknown as T;
+    }
+
     let body: unknown;
 
     try {
@@ -149,6 +156,8 @@ export function createWorkflowManagementApiClient(input: {
   }
 
   return {
+    listWorkflowAgents: (workspaceId) =>
+      request<AgentPublicSummary[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/agents`),
     listWorkflows: (workspaceId) => request<WorkflowPublicSummary[]>(collectionPath(workspaceId)),
     createWorkflow: (workspaceId, payload) =>
       request<WorkflowPublicSummary>(collectionPath(workspaceId), {
@@ -163,7 +172,7 @@ export function createWorkflowManagementApiClient(input: {
         body: JSON.stringify(payload)
       }),
     executeWorkflow: (workspaceId, workflowId, inputData) =>
-      request<void>(`${workflowPath(workspaceId, workflowId)}/execute`, {
+      request<{ executionId: string }>(`${workflowPath(workspaceId, workflowId)}/execute`, {
         method: "POST",
         body: JSON.stringify({ inputData })
       }),

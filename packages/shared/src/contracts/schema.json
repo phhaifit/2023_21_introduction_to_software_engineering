@@ -254,7 +254,10 @@
       "AgentDraftValidationWarning",
       "AgentCreationAssistantDraft",
       "AgentCreationAssistantDraftRequest",
-      "AgentCreationAssistantDraftResponse"
+      "AgentCreationAssistantDraftResponse",
+      "AgentRuntimeConfiguration",
+      "AgentRuntimeMaterializationHints",
+      "AgentRuntimeProfile"
     ],
     "requestDtoExports": [
       "AgentSkillPreviewRequest",

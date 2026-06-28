@@ -15,11 +15,14 @@ models, application repository ports, application use cases, safe DTO mappers,
 Prisma repository adapters, deterministic in-memory repositories, a thin
 workspace-scoped HTTP API router, and a worker handoff skeleton for document
 ingestion lifecycle updates. The worker boundary also includes a deterministic
-text processing pipeline for supported text/markdown documents.
+text processing pipeline for supported text/markdown documents and an injected
+embedding/vector indexing adapter boundary for persisted chunks. It also has a
+local end-to-end flow runner that composes handoff, text processing, and
+indexing for deterministic tests.
 
-It still does not contain real file parsing, file storage adapters,
-vector/embedding adapters, full worker runtime handlers, or retrieval
-implementation.
+It still does not contain real file parsing, file storage adapters, real
+embedding provider calls, real vector database calls, full worker runtime
+handlers, or retrieval implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -132,9 +135,7 @@ Request bodies must not accept trusted fields such as
 `workspaceId`, actor/user ID, generated IDs, lifecycle status, timestamps, raw
 credentials, private object-storage paths, or vector DB internals.
 
-## Future Shared DTO Roadmap
-
-Likely future DTOs:
+## Shared DTOs
 
 - `KnowledgeDocumentDto`
 - `KnowledgeDocumentChunkDto`
@@ -153,10 +154,10 @@ Shared DTOs must be caller-safe. Do not expose credentials, tokens, secrets,
 passwords, raw provider config, private vector database fields, raw embedding
 payloads, or server-owned mutation fields.
 
-## Future Domain Event Roadmap
+## Domain Event Contracts
 
-The shared contracts currently include `knowledge.document_uploaded` and
-`knowledge.index_ready`. Future reviewed events may include:
+The shared contracts currently include legacy `knowledge.document_uploaded` and
+`knowledge.index_ready` names plus granular KB/RAG lifecycle events:
 
 - `knowledge.document.uploadValidated`
 - `knowledge.document.ingestionQueued`
@@ -208,12 +209,17 @@ Current backend foundation:
 - `infrastructure/prisma-*.ts`
 - `infrastructure/in-memory-knowledge-base-rag-repositories.ts`
 - `worker/knowledge-ingestion-handoff.ts`
+- `worker/knowledge-base-rag-local-flow-runner.ts`
 - `worker/knowledge-document-content-reader.ts`
 - `worker/knowledge-document-processing-pipeline.ts`
+- `worker/knowledge-embedding-adapter.ts`
+- `worker/knowledge-vector-index-adapter.ts`
+- `worker/knowledge-document-indexing-pipeline.ts`
+- `worker/knowledge-indexing-errors.ts`
 - `worker/knowledge-document-text-normalizer.ts`
 - `worker/knowledge-document-text-chunker.ts`
 
-Likely future files:
+Likely future production-runtime files:
 
 - `application/ports.ts`
 - `domain/upload-validation.ts`
@@ -257,9 +263,31 @@ It reads text through an injected content reader, supports text/plain and
 markdown-style content, normalizes whitespace deterministically, splits text
 into stable chunks, and persists `KnowledgeDocumentChunk` records through the
 document repository. It marks ingestion as complete while leaving
-embedding/vector indexing pending. Real PDF/DOC/DOCX parsing, OCR, object
-storage integration, embeddings, vector writes, and retrieval remain future
-adapter/runtime scope.
+embedding/vector indexing pending.
+
+The document indexing pipeline is a separate worker boundary for already
+persisted chunks. It loads chunks through the document repository, marks
+document indexing as `ingesting`, generates embeddings through an injected
+`KnowledgeEmbeddingAdapter`, upserts vectors through an injected
+`KnowledgeVectorIndexAdapter`, marks chunks ready with opaque internal
+`vectorRef` values, and marks the document indexing state `ready` or `failed`.
+It does not call OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, or any
+other real provider/client, and it does not expose embeddings or vector internals
+through public DTOs or events. It is intentionally not wired into the ingestion
+handoff automatically in this slice so the existing text-processing lifecycle
+remains narrow and predictable.
+
+Real PDF/DOC/DOCX parsing, OCR, object storage integration, provider-backed
+embeddings, provider-backed vector writes, retrieval, and queue/runtime
+orchestration remain future adapter/runtime scope.
+
+The local flow runner is test-only orchestration for prepared documents and
+ingestion jobs. It wires the existing ingestion handoff to the text processing
+pipeline, then runs the indexing pipeline over persisted chunks. Tests inject a
+fake content reader, deterministic embedding adapter, fake in-memory vector
+index adapter, clocks, and ID generators. It does not schedule background jobs,
+read real storage, call real providers, expose an HTTP route, or implement
+retrieval/RAG answer generation.
 
 ## Worker Handoff
 
@@ -273,9 +301,11 @@ Expected flow:
 3. Queue a document ingestion job.
 4. Worker handoff marks the job/document as processing.
 5. The text processing pipeline normalizes supported text and persists chunks.
-6. Future adapters embed and index through explicit boundaries.
-7. Emit public domain events.
-8. UI reads document, ingestion, and sync status through API routes.
+6. The separate indexing pipeline can embed and index persisted chunks through
+   injected fake or future real adapters.
+7. The local flow runner can compose steps 4-6 in contract tests only.
+8. Emit public domain events.
+9. UI reads document, ingestion, and sync status through API routes.
 
 ## Testing Roadmap
 

@@ -83,6 +83,13 @@ Completed, Failed, and Canceled SHALL be terminal states.
 * **THEN** the system SHALL reject the transition
 * **AND** the task SHALL remain Canceled
 
+#### Scenario: Transport interruption occurs
+
+* **GIVEN** a task is In-Progress
+* **WHEN** a transport interruption occurs between the adapter and the external runtime reference
+* **THEN** the task status SHALL remain unchanged (In-Progress)
+* **AND** transport interruption SHALL NOT by itself transition a Task to Failed.
+
 ---
 
 ### Requirement: Processing Timeline and Logs

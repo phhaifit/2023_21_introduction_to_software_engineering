@@ -28,6 +28,9 @@ export const DOMAIN_EVENTS = [
   "workflow.execution_started",
   "workflow.execution_completed",
   "workflow.execution_failed",
+  "workflow.step_started",
+  "workflow.step_completed",
+  "workflow.step_failed",
   "task.submitted",
   "task.completed",
   "knowledge.document_uploaded",
@@ -123,6 +126,32 @@ export type DomainEventPayloads = {
     workspaceId: EntityId<"workspaceId">;
     workflowId: EntityId<"workflowId">;
     executionId: EntityId<"executionId">;
+    errorMsg: string;
+  };
+  "workflow.step_started": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+    executionId: EntityId<"executionId">;
+    workflowStepId: EntityId<"workflowStepId">;
+    stepOrder: number;
+    agentId?: string;
+  };
+  "workflow.step_completed": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+    executionId: EntityId<"executionId">;
+    workflowStepId: EntityId<"workflowStepId">;
+    stepOrder: number;
+    agentId?: string;
+    outputData?: any;
+  };
+  "workflow.step_failed": {
+    workspaceId: EntityId<"workspaceId">;
+    workflowId: EntityId<"workflowId">;
+    executionId: EntityId<"executionId">;
+    workflowStepId: EntityId<"workflowStepId">;
+    stepOrder: number;
+    agentId?: string;
     errorMsg: string;
   };
   "task.submitted": {

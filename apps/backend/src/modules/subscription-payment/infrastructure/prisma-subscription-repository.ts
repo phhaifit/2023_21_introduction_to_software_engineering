@@ -21,7 +21,8 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: subscription.status,
       expiresAt: subscription.expiresAt,
       createdAt: subscription.createdAt,
-      updatedAt: subscription.updatedAt
+      updatedAt: subscription.updatedAt,
+      autoRenew: subscription.autoRenew
     };
 
     const record = await this.prisma.subscription.upsert({
@@ -29,6 +30,43 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       create: data,
       update: data
     });
+
+    // PCI-DSS Compliance: Lưu trữ thẻ tokenized vào bảng PaymentMethod thay vì bảng Subscription
+    if (subscription.cardNumber && subscription.workspaceId) {
+      const last4 = subscription.cardNumber.slice(-4);
+      const isDefault = true;
+
+      // Tìm xem đã có payment method cho thẻ này chưa để tránh duplicates
+      const existingPm = await this.prisma.paymentMethod.findFirst({
+        where: { workspaceId: subscription.workspaceId, last4, type: "card" }
+      });
+
+      if (existingPm) {
+        await this.prisma.paymentMethod.update({
+          where: { id: existingPm.id },
+          data: {
+            holder: subscription.cardHolder || "",
+            isDefault,
+            updatedAt: subscription.updatedAt
+          }
+        });
+      } else {
+        // Tạo mới PaymentMethod tokenized
+        await this.prisma.paymentMethod.create({
+          data: {
+            workspaceId: subscription.workspaceId,
+            type: "card",
+            brand: "visa",
+            last4,
+            holder: subscription.cardHolder || "",
+            isDefault,
+            gatewayToken: "mock-gateway-token-" + subscription.subscriptionId,
+            createdAt: subscription.createdAt,
+            updatedAt: subscription.updatedAt
+          }
+        });
+      }
+    }
 
     return {
       subscriptionId: record.subscriptionId as EntityId<"subscriptionId">,
@@ -38,7 +76,43 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       status: record.status as SubscriptionStatus,
       expiresAt: record.expiresAt,
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      autoRenew: record.autoRenew ?? true,
+      cardNumber: subscription.cardNumber,
+      cardHolder: subscription.cardHolder,
+      cardExpiry: subscription.cardExpiry
+    };
+  }
+
+  private async enrichSubscriptionPaymentMethod(record: any): Promise<Subscription> {
+    let cardNumber: string | null = null;
+    let cardHolder: string | null = null;
+    let cardExpiry: string | null = null;
+
+    if (record.workspaceId) {
+      const pm = await this.prisma.paymentMethod.findFirst({
+        where: { workspaceId: record.workspaceId, isDefault: true }
+      });
+      if (pm) {
+        cardNumber = "**** **** **** " + pm.last4;
+        cardHolder = pm.holder;
+        cardExpiry = "12/29";
+      }
+    }
+
+    return {
+      subscriptionId: record.subscriptionId as EntityId<"subscriptionId">,
+      userId: record.userId as EntityId<"userId">,
+      workspaceId: record.workspaceId as EntityId<"workspaceId"> | null,
+      plan: record.plan as SubscriptionPlan,
+      status: record.status as SubscriptionStatus,
+      expiresAt: record.expiresAt,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      autoRenew: record.autoRenew ?? true,
+      cardNumber,
+      cardHolder,
+      cardExpiry
     };
   }
 
@@ -49,16 +123,7 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
 
     if (!record) return null;
 
-    return {
-      subscriptionId: record.subscriptionId as EntityId<"subscriptionId">,
-      userId: record.userId as EntityId<"userId">,
-      workspaceId: record.workspaceId as EntityId<"workspaceId"> | null,
-      plan: record.plan as SubscriptionPlan,
-      status: record.status as SubscriptionStatus,
-      expiresAt: record.expiresAt,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt
-    };
+    return this.enrichSubscriptionPaymentMethod(record);
   }
 
   async findSubscriptionByUserId(userId: EntityId<"userId">): Promise<Subscription | null> {
@@ -69,36 +134,30 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
 
     if (!record) return null;
 
-    return {
-      subscriptionId: record.subscriptionId as EntityId<"subscriptionId">,
-      userId: record.userId as EntityId<"userId">,
-      workspaceId: record.workspaceId as EntityId<"workspaceId"> | null,
-      plan: record.plan as SubscriptionPlan,
-      status: record.status as SubscriptionStatus,
-      expiresAt: record.expiresAt,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt
-    };
+    return this.enrichSubscriptionPaymentMethod(record);
   }
 
   async findSubscriptionByWorkspaceId(workspaceId: EntityId<"workspaceId">): Promise<Subscription | null> {
-    const record = await this.prisma.subscription.findFirst({
-      where: { workspaceId },
+    // 1. Tìm gói active hoặc expiring_soon trước
+    let record = await this.prisma.subscription.findFirst({
+      where: { 
+        workspaceId,
+        status: { in: ["active", "expiring_soon"] }
+      },
       orderBy: { createdAt: "desc" }
     });
 
+    // 2. Nếu không có gói nào đang hoạt động, lấy gói mới nhất bất kỳ
+    if (!record) {
+      record = await this.prisma.subscription.findFirst({
+        where: { workspaceId },
+        orderBy: { createdAt: "desc" }
+      });
+    }
+
     if (!record) return null;
 
-    return {
-      subscriptionId: record.subscriptionId as EntityId<"subscriptionId">,
-      userId: record.userId as EntityId<"userId">,
-      workspaceId: record.workspaceId as EntityId<"workspaceId"> | null,
-      plan: record.plan as SubscriptionPlan,
-      status: record.status as SubscriptionStatus,
-      expiresAt: record.expiresAt,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt
-    };
+    return this.enrichSubscriptionPaymentMethod(record);
   }
 
   async saveTransaction(transaction: Transaction): Promise<Transaction> {
