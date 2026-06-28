@@ -28,15 +28,18 @@ Synchronization Scope views, plus remaining local placeholder/mock support:
 - `knowledge-base-rag-upload.tsx`: Upload Documents screen wired to
   metadata-only upload validation and prepare flows through the typed KB/RAG
   API client.
+- `knowledge-base-rag-processing-status.tsx`: Processing Status screen backed
+  by deterministic local mock jobs for queued, processing, completed, and
+  failed ingestion/indexing states.
 - `knowledge-base-rag-api-client.ts`: typed frontend API client for the
   workspace-scoped KB/RAG backend route family.
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
 Documents, Upload, Data Sources, and Synchronization Scope screens use the API
-client as their runtime source of truth. Processing Status is still
-placeholder-only. Current local view types are presentation types used to render
-shared DTOs and isolated placeholders, not public contracts.
+client as their runtime source of truth. Processing Status is currently a
+frontend-only mock status view. Current local view types are presentation types
+used to render shared DTOs and isolated local views, not public contracts.
 
 ## Frontend Scope
 

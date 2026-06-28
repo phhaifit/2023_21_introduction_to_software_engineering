@@ -9,6 +9,7 @@ import {
   createKnowledgeBaseRagApiClient,
   type KnowledgeBaseRagApiClient
 } from "./knowledge-base-rag-api-client.ts";
+import { KnowledgeBaseProcessingStatusScreen } from "./knowledge-base-rag-processing-status.tsx";
 import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
@@ -34,7 +35,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "documents",
     label: "Documents",
-    shortLabel: "Docs",
+    shortLabel: "D",
     eyebrow: "Document list management",
     title: "Documents",
     description:
@@ -48,7 +49,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "upload-documents",
     label: "Upload Documents",
-    shortLabel: "Upload",
+    shortLabel: "U",
     eyebrow: "Document upload",
     title: "Upload Documents",
     description:
@@ -62,7 +63,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "data-sources",
     label: "Data Sources",
-    shortLabel: "Sources",
+    shortLabel: "D",
     eyebrow: "External knowledge sources",
     title: "Data Sources",
     description: "Manage external knowledge sources connected to the workspace.",
@@ -75,7 +76,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "synchronization-scope",
     label: "Synchronization Scope",
-    shortLabel: "Scope",
+    shortLabel: "S",
     eyebrow: "Sync scope selection",
     title: "Synchronization Scope",
     description:
@@ -89,7 +90,7 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "processing-status",
     label: "Processing Status",
-    shortLabel: "Status",
+    shortLabel: "P",
     eyebrow: "Ingestion and sync monitoring",
     title: "Processing Status",
     description:
@@ -149,7 +150,7 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
                 onClick={() => setActiveViewId(view.id)}
               >
                 <span className="knowledge-base-rag-nav-icon" aria-hidden="true">
-                  {view.shortLabel.slice(0, 1)}
+                  {view.shortLabel}
                 </span>
                 <span>{view.label}</span>
               </button>
@@ -190,29 +191,7 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
         {activeView.id === "synchronization-scope" && (
           <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
         )}
-        {activeView.id === "processing-status" && (
-          <section className="knowledge-base-rag-content-card">
-            <div className="knowledge-base-rag-content-header">
-              <div>
-                <p>{activeView.eyebrow}</p>
-                <h2>{activeView.title}</h2>
-              </div>
-            </div>
-
-            <p className="knowledge-base-rag-content-description">
-              {activeView.description}
-            </p>
-
-            <div className="knowledge-base-rag-summary-grid">
-              {activeView.summaryItems.map((item) => (
-                <div className="knowledge-base-rag-summary-item" key={item}>
-                  <span aria-hidden="true" />
-                  <p>{item}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {activeView.id === "processing-status" && <KnowledgeBaseProcessingStatusScreen />}
       </main>
     </section>
   );
