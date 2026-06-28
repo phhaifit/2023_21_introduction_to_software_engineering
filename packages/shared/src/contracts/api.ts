@@ -5,6 +5,8 @@ export const ERROR_CODES = [
   "auth.forbidden",
   "validation.invalid_input",
   "workspace.not_found",
+  "member.not_found",
+  "workspace.conflict",
   "workspace.not_ready",
   "subscription.required",
   "subscription.payment_failed",

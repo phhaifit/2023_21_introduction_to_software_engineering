@@ -1,4 +1,4 @@
-﻿import type { Request, Response } from "express";
+import type { Request, Response } from "express";
 
 import type {
   ApiFailure,
@@ -14,6 +14,8 @@ const HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   "auth.forbidden": 403,
   "validation.invalid_input": 422,
   "workspace.not_found": 404,
+  "member.not_found": 404,
+  "workspace.conflict": 409,
   "workspace.not_ready": 503,
   "subscription.required": 402,
   "subscription.payment_failed": 402,

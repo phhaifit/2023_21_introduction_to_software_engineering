@@ -8,6 +8,7 @@ export type WorkspaceUserManagementServiceDependencies = {
   emailService: EmailService;
   frontendUrl: string;
   generateId: () => string;
+  sessionRepository?: any;
 };
 
 export class WorkspaceUserManagementService {
@@ -15,6 +16,7 @@ export class WorkspaceUserManagementService {
   private emailService: EmailService;
   private frontendUrl: string;
   private generateId: () => string;
+  private sessionRepository?: any;
   private inviteHistory: Map<string, Date[]> = new Map();
 
   constructor(deps: WorkspaceUserManagementServiceDependencies) {
@@ -22,6 +24,7 @@ export class WorkspaceUserManagementService {
     this.emailService = deps.emailService;
     this.frontendUrl = deps.frontendUrl;
     this.generateId = deps.generateId;
+    this.sessionRepository = deps.sessionRepository;
   }
 
   async listMembers(workspaceId: string): Promise<WorkspaceMemberListResponse> {
@@ -146,31 +149,67 @@ export class WorkspaceUserManagementService {
   }
 
   async updateMemberRole(workspaceId: string, targetUserId: string, newRole: WorkspaceRole): Promise<void> {
+    const member = await this.repository.getWorkspaceMember(workspaceId, targetUserId);
+    if (!member) {
+      throw new Error("Member not found.");
+    }
+    if (member.role === newRole) {
+      return;
+    }
     if (newRole !== "admin") {
       await this.ensureNotLastAdmin(workspaceId, targetUserId);
     }
+    const oldRole = member.role;
     await this.repository.updateWorkspaceMemberRole(workspaceId, targetUserId, newRole);
 
     await this.repository.addWorkspaceEvent({
       eventId: this.generateId(),
       workspaceId,
-      type: "ROLE_UPDATED",
-      description: `Member ${targetUserId}'s role updated to ${newRole === 'admin' ? 'Host' : newRole}.`,
+      type: "ROLE_CHANGED",
+      description: `Role of member ${targetUserId} changed from ${oldRole === 'admin' ? 'Host' : oldRole} to ${newRole === 'admin' ? 'Host' : newRole}.`,
       timestamp: new Date().toISOString()
     });
   }
 
   async removeMember(workspaceId: string, targetUserId: string): Promise<void> {
-    await this.ensureNotLastAdmin(workspaceId, targetUserId);
-    await this.repository.removeWorkspaceMember(workspaceId, targetUserId);
+    // 1. Try to remove active member
+    const member = await this.repository.getWorkspaceMember(workspaceId, targetUserId);
+    if (member) {
+      await this.ensureNotLastAdmin(workspaceId, targetUserId);
+      await this.repository.removeWorkspaceMember(workspaceId, targetUserId);
 
-    await this.repository.addWorkspaceEvent({
-      eventId: this.generateId(),
-      workspaceId,
-      type: "MEMBER_REMOVED",
-      description: `Member ${targetUserId} was removed.`,
-      timestamp: new Date().toISOString()
-    });
+      // Invalidate target user sessions (simulate Force Logout)
+      if (this.sessionRepository) {
+        await this.sessionRepository.revokeAllForUser(targetUserId, new Date().toISOString());
+      }
+
+      await this.repository.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId,
+        type: "MEMBER_REMOVED",
+        description: `Member ${targetUserId} was removed.`,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    // 2. Try to revoke pending invitation
+    const invitations = await this.repository.getInvitations(workspaceId);
+    const invitation = invitations.find(i => i.invitationId === targetUserId || i.email === targetUserId);
+    if (invitation && invitation.status === "pending") {
+      await this.repository.updateInvitationStatus(invitation.invitationId, "revoked");
+
+      await this.repository.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId,
+        type: "INVITE_REVOKED",
+        description: `Invitation for ${invitation.email} was revoked.`,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    throw new Error("Member not found.");
   }
 
   async listWorkspacesForUser(userId: string) {

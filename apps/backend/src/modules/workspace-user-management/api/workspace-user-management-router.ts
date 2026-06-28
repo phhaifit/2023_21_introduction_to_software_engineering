@@ -63,10 +63,19 @@ export function createWorkspaceUserManagementRouter({
       if (!body.role) {
         return sendAuthApiFailure(req, res, "validation.invalid_input", "role is required");
       }
+      if (body.role !== "admin" && body.role !== "editor" && body.role !== "viewer") {
+        return sendAuthApiFailure(req, res, "validation.invalid_input", "invalid role type");
+      }
 
       await service.updateMemberRole(workspaceContext.workspaceId, targetUserId, body.role);
       sendAuthApiSuccess(req, res, { success: true });
     } catch (err: any) {
+      if (err.message === "Member not found.") {
+        return sendAuthApiFailure(req, res, "member.not_found", err.message);
+      }
+      if (err.message.includes("last admin")) {
+        return sendAuthApiFailure(req, res, "workspace.conflict", err.message);
+      }
       sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
     }
   });
@@ -80,6 +89,12 @@ export function createWorkspaceUserManagementRouter({
       await service.removeMember(workspaceContext.workspaceId, targetUserId);
       sendAuthApiSuccess(req, res, { success: true });
     } catch (err: any) {
+      if (err.message === "Member not found.") {
+        return sendAuthApiFailure(req, res, "member.not_found", err.message);
+      }
+      if (err.message.includes("last admin")) {
+        return sendAuthApiFailure(req, res, "workspace.conflict", err.message);
+      }
       sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
     }
   });

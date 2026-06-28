@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { WorkspaceUserManagementAPI } from '../api';
 import { InviteMemberModal } from '../components/InviteMemberModal';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useAuth } from '../../authentication/authentication-context.tsx';
-import { UserPlus, Shield, User, ArrowLeft, Bell, ShieldAlert } from 'lucide-react';
+import { UserPlus, Shield, User, ArrowLeft, Bell, ShieldAlert, Trash2 } from 'lucide-react';
 import type { WorkspaceMemberListResponse } from '@vcp/shared/contracts/index.ts';
 import './WorkspaceListPage.css';
 
@@ -20,10 +21,49 @@ export const WorkspaceListPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBellOpen, setIsBellOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   const bellRef = useRef<HTMLDivElement>(null);
 
   const currentUserMember = data?.members?.find(m => m.userId === currentUser?.userId);
   const isAdmin = data ? currentUserMember?.role === 'admin' : true;
+
+  const handleRoleChange = async (userId: string, newRole: any) => {
+    try {
+      await api.updateRole(workspaceId!, userId, { role: newRole });
+      setRefreshTrigger(prev => prev + 1);
+    } catch (err: any) {
+      alert(err.message || "Failed to update member role.");
+      setRefreshTrigger(prev => prev + 1); // trigger reload to reset dropdown
+    }
+  };
+
+  const handleRemoveMember = (targetId: string, nameOrEmail: string, isInvitation: boolean) => {
+    setConfirmModal({
+      isOpen: true,
+      title: isInvitation ? 'Cancel Invitation' : 'Remove Member',
+      message: isInvitation
+        ? `Are you sure you want to revoke the pending invitation for ${nameOrEmail}?`
+        : `Are you sure you want to remove ${nameOrEmail} from this workspace? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await api.removeMember(workspaceId!, targetId);
+          setRefreshTrigger(prev => prev + 1);
+        } catch (err: any) {
+          alert(err.message || "Failed to remove member.");
+        }
+      }
+    });
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !workspaceId) return;
@@ -139,11 +179,21 @@ export const WorkspaceListPage: React.FC = () => {
                     ) : (
                       pendingInvites.map(inv => (
                         <div className="bell-popover-item" key={inv.invitationId}>
-                          <div className="bell-popover-item-email">{inv.email}</div>
-                          <div className="bell-popover-item-meta">
-                            <span className="role-badge">{inv.role === 'admin' ? 'Host' : inv.role}</span>
-                            <span>Invited: {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="bell-popover-item-email">{inv.email}</div>
+                            <div className="bell-popover-item-meta">
+                              <span className="role-badge">{inv.role === 'admin' ? 'Host' : inv.role}</span>
+                              <span>Invited: {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}</span>
+                            </div>
                           </div>
+                          <button
+                            className="btn-revoke-invite"
+                            onClick={() => handleRemoveMember(inv.invitationId, inv.email, true)}
+                            aria-label="Cancel invitation"
+                            title="Cancel invitation"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       ))
                     )}
@@ -173,6 +223,7 @@ export const WorkspaceListPage: React.FC = () => {
                   <th>Role</th>
                   <th>Status</th>
                   <th>Joined At</th>
+                  {isAdmin && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -190,10 +241,22 @@ export const WorkspaceListPage: React.FC = () => {
                       </div>
                     </td>
                     <td>
-                      <span className="role-badge">
-                        <Shield size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                        {member.role === 'admin' ? 'Host' : member.role}
-                      </span>
+                      {isAdmin ? (
+                        <select
+                          className="role-select"
+                          value={member.role}
+                          onChange={(e) => handleRoleChange(member.userId, e.target.value as any)}
+                        >
+                          <option value="admin">Host</option>
+                          <option value="editor">Editor</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
+                      ) : (
+                        <span className="role-badge">
+                          <Shield size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                          {member.role === 'admin' ? 'Host' : member.role}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className="badge badge-active">
@@ -201,11 +264,23 @@ export const WorkspaceListPage: React.FC = () => {
                       </span>
                     </td>
                     <td>{member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}</td>
+                    {isAdmin && (
+                      <td>
+                        <button
+                          className="btn-delete-member"
+                          onClick={() => handleRemoveMember(member.userId, member.userId, false)}
+                          aria-label="Remove member"
+                          title="Remove member"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {(!data?.members || data.members.length === 0) && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                    <td colSpan={isAdmin ? 5 : 4} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
                       No active members found.
                     </td>
                   </tr>
@@ -245,6 +320,14 @@ export const WorkspaceListPage: React.FC = () => {
           workspaceId={workspaceId}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

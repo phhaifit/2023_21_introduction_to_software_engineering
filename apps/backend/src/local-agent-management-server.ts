@@ -357,6 +357,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     });
   }
 
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
+
   const workspaceUserManagementRepo = new InMemoryWorkspaceUserManagementRepository();
   const emailService = new NodemailerEmailService();
   const workspaceUserManagementService = new WorkspaceUserManagementService({
@@ -364,6 +367,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     emailService: emailService,
     frontendUrl: frontendUrl,
     generateId: () => randomUUID(),
+    sessionRepository: authSessionRepository,
   });
   await workspaceUserManagementRepo.createWorkspace({
     workspaceId: DEMO_WORKSPACE_ID,
@@ -381,8 +385,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
 
   // Real Authentication Setup (Moved up to enable session token verification globally)
-  const authUserRepository = await createAuthUserRepository();
-  const authSessionRepository = await createAuthSessionRepository();
   const authPasswordHasher = new BcryptPasswordHasher();
   const authTokenHasher = new Sha256TokenHasher();
   const authenticateSessionUseCase = new AuthenticateSessionUseCase(
