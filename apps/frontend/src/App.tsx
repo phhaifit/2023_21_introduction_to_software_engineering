@@ -11,8 +11,13 @@ import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
+import { WorkspacesPage } from "./features/workspace-user-management/pages/WorkspacesPage.tsx";
+import { WorkspaceDashboardPage } from "./features/workspace-user-management/pages/WorkspaceDashboardPage.tsx";
+import { WorkspaceListPage } from "./features/workspace-user-management/pages/WorkspaceListPage.tsx";
+import { AcceptInvitePage } from "./features/workspace-user-management/pages/AcceptInvitePage.tsx";
 
 export function App() {
+
   return (
     <div className="app-shell">
       <Sidebar />
@@ -32,8 +37,13 @@ export function App() {
           <Route path="/billing" element={<SubscriptionPaymentPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/authentication" element={<AuthenticationPage />} />
+          <Route path="/workspaces" element={<WorkspacesPage />} />
+          <Route path="/workspace/:workspaceId" element={<WorkspaceDashboardPage />} />
+          <Route path="/workspace/:workspaceId/members" element={<WorkspaceListPage />} />
+          <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+
       </main>
     </div>
   );

@@ -11,7 +11,8 @@ import {
   Library,
   ListChecks,
   Settings,
-  User
+  User,
+  Users
 } from "lucide-react";
 
 import type { PageKey } from "../../types/navigation";
@@ -25,6 +26,7 @@ type NavigationItem = {
 
 const primaryItems: NavigationItem[] = [
   { key: "dashboard", label: "Home", icon: Home },
+  { key: "workspace", label: "Workspace", icon: Users },
   { key: "executions", label: "Tasks", ariaLabel: "Công việc", icon: ListChecks }
 ];
 
@@ -86,6 +88,8 @@ export function Sidebar() {
   );
 }
 
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+
 type NavigationGroupProps = {
   items: readonly NavigationItem[];
 };
@@ -95,10 +99,13 @@ function NavigationGroup({ items }: NavigationGroupProps) {
     <>
       {items.map((item) => {
         const Icon = item.icon;
+        const toPath = item.key === "workspace" 
+          ? `/workspaces` 
+          : `/${item.key}`;
 
         return (
           <NavLink
-            to={`/${item.key}`}
+            to={toPath}
             className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
             aria-label={item.ariaLabel ?? item.label}
             key={item.key}

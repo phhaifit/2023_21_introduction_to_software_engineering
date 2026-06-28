@@ -58,6 +58,16 @@ import {
   PrismaKnowledgeSyncJobRepository,
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
+import {
+  createWorkspaceListRouter,
+  createWorkspaceUserManagementRouter,
+  createAcceptInvitationRouter,
+  WorkspaceUserManagementService,
+  InMemoryWorkspaceUserManagementRepository,
+  createWorkspaceContextMiddleware
+} from "./modules/workspace-user-management/index.ts";
+import { NodemailerEmailService } from "./shared/email/email-service.ts";
+
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -347,6 +357,40 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     });
   }
 
+  const workspaceUserManagementRepo = new InMemoryWorkspaceUserManagementRepository();
+  const emailService = new NodemailerEmailService();
+  const workspaceUserManagementService = new WorkspaceUserManagementService({
+    repository: workspaceUserManagementRepo,
+    emailService: emailService,
+    frontendUrl: frontendUrl,
+    generateId: () => randomUUID(),
+  });
+  await workspaceUserManagementRepo.createWorkspace({
+    workspaceId: DEMO_WORKSPACE_ID,
+    name: "Demo Workspace",
+    createdAt: new Date().toISOString(),
+    ownerId: "local-dev-user"
+  });
+  await workspaceUserManagementRepo.addWorkspaceMember({
+    memberId: "local-member",
+    workspaceId: DEMO_WORKSPACE_ID,
+    userId: "local-dev-user",
+    role: "admin",
+    isAccepted: true,
+    joinedAt: new Date().toISOString()
+  });
+
+  // Real Authentication Setup (Moved up to enable session token verification globally)
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
+  const authPasswordHasher = new BcryptPasswordHasher();
+  const authTokenHasher = new Sha256TokenHasher();
+  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
+    authSessionRepository,
+    authUserRepository,
+    authTokenHasher
+  );
+
   const app = express();
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
@@ -360,20 +404,52 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   app.use(express.json());
 
-  // Fake Auth Middleware for local development
+  // Real Auth Session Middleware
+  app.use(async (req, res, next) => {
+    const authHeader = req.header("Authorization") ?? "";
+    if (authHeader.startsWith("Bearer ")) {
+      const rawToken = authHeader.slice("Bearer ".length);
+      try {
+        const user = await authenticateSessionUseCase.execute({ rawToken });
+        (req as any).context = {
+          ...((req as any).context ?? {}),
+          user: {
+            userId: user.userId,
+            email: user.email,
+            displayName: user.displayName
+          }
+        };
+      } catch (err) {
+        // Token invalid or expired: request.context.user remains empty, fallback to fake auth
+      }
+    }
+    next();
+  });
+
+
+  // Fake Auth Middleware for local development (only runs if real user is not resolved)
   app.use((req, res, next) => {
+    if ((req as any).context?.user) {
+      next();
+      return;
+    }
+
+    const mockUser = req.headers["x-mock-user"] as string | undefined;
     const role = (req.headers["x-mock-role"] as any) || "admin";
-    const anonymous = req.headers["x-mock-user"] === "anonymous";
     const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
     const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
 
-    if (anonymous) {
-      (req as any).context = { requestId: req.headers["x-request-id"] || randomUUID() };
+    if (mockUser === "anonymous" || !mockUser) {
+      // No mock header or anonymous: leave unauthenticated (real auth or 401)
+      if (!(req as any).context) {
+        (req as any).context = { requestId: req.headers["x-request-id"] || randomUUID() };
+      }
     } else {
+      // Explicit mock user requested (e.g. x-mock-user: local-dev-user)
       (req as any).context = {
         requestId: req.headers["x-request-id"] || randomUUID(),
         user: {
-          userId: "local-dev-user",
+          userId: mockUser,
           email: "dev@local.test",
           displayName: "Local Developer"
         },
@@ -386,6 +462,12 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     }
     next();
   });
+
+  // Apply workspace context middleware globally to all routes under /api/workspaces/:workspaceId
+  app.use(
+    "/api/workspaces/:workspaceId",
+    createWorkspaceContextMiddleware(workspaceUserManagementRepo)
+  );
 
   app.use(
     "/api/workspaces/:workspaceId/agents",
@@ -420,6 +502,18 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     conversationRepository
   );
 
+  app.use("/api/workspaces", createWorkspaceListRouter({ service: workspaceUserManagementService }));
+
+  app.use(
+    "/api/workspaces/:workspaceId/members",
+    createWorkspaceUserManagementRouter({ service: workspaceUserManagementService })
+  );
+
+  app.use(
+    "/api/invitations",
+    createAcceptInvitationRouter({ service: workspaceUserManagementService })
+  );
+
   app.use(
     "/api/workspaces/:workspaceId",
     createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter, conversationRepository })
@@ -447,10 +541,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     checkoutUseCases
   }));
 
-  const authUserRepository = await createAuthUserRepository();
-  const authSessionRepository = await createAuthSessionRepository();
-  const authPasswordHasher = new BcryptPasswordHasher();
-  const authTokenHasher = new Sha256TokenHasher();
+
   app.use(
     "/api/auth",
     createAuthenticationRouter({
@@ -462,11 +553,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         authTokenHasher
       ),
       logoutUseCase: new LogoutUseCase(authSessionRepository, authTokenHasher),
-      authenticateSessionUseCase: new AuthenticateSessionUseCase(
-        authSessionRepository,
-        authUserRepository,
-        authTokenHasher
-      ),
+      authenticateSessionUseCase,
     })
   );
 
