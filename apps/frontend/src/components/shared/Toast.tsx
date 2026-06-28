@@ -34,7 +34,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const showError = useCallback((message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, variant: "error" }]);
-    // Error toasts are persistent
+    
+    // Auto-dismiss error toasts
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
   }, []);
 
   const dismissToast = useCallback((id: string) => {

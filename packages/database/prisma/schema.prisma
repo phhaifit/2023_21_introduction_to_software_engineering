@@ -86,6 +86,7 @@ model Agent {
   role         String
   model        String
   instructions String
+  runtimeConfig Json?
   status       String @default("enabled")
   createdAt    String
   updatedAt    String
@@ -105,6 +106,7 @@ model Subscription {
   expiresAt      String
   createdAt      String
   updatedAt      String
+  autoRenew      Boolean? @default(true)
 
   @@index([userId])
   @@index([workspaceId])
@@ -541,4 +543,45 @@ model Job {
   @@index([userId])
   @@index([status])
   @@map("jobs")
+}
+
+model PaymentMethod {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  type         String   // "card" | "momo" | "vnpay"
+  brand        String?  // "visa" | "mastercard" etc.
+  last4        String
+  holder       String
+  isDefault    Boolean  @default(false)
+  gatewayToken String?  // Token thay thế số thẻ thô
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@map("payment_methods")
+}
+
+model Conversation {
+  conversationId   String        @id
+  workspaceId      String
+  title            String
+  createdAt        String
+  updatedAt        String
+  associatedTarget Json?
+  messages         ChatMessage[]
+
+  @@index([workspaceId])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  messageId      String       @id
+  conversationId String
+  role           String
+  content        String
+  timestamp      String
+  conversation   Conversation @relation(fields: [conversationId], references: [conversationId], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("chat_messages")
 }

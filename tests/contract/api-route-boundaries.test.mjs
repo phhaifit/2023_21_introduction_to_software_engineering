@@ -55,7 +55,7 @@ const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/agents/models", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents/skill-preview", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/agents/assistant/draft", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/agents/assistant/import-skill", "provisional-existing"],
+  ["POST", "/api/workspaces/:workspaceId/agents/assistant/import-skill", "implemented"],
   ["GET", "/api/workspaces/:workspaceId/agents/:agentId/skill.md", "implemented"],
   ["GET", "/api/workspaces/:workspaceId/agents/:agentId/configuration", "implemented"],
   ["PATCH", "/api/workspaces/:workspaceId/agents/:agentId", "implemented"],
@@ -103,13 +103,13 @@ for (const [method, path, status] of expectedRoutes) {
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "implemented").length,
-  20,
+  21,
   "Implemented Agent Management and Knowledge Base / RAG routes should be marked implemented by this matrix"
 );
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "provisional-existing").length,
-  5,
+  4,
   "Existing provisional routes should remain documented until full contract alignment"
 );
 

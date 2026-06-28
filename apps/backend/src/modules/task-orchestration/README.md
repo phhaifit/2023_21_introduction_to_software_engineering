@@ -1,368 +1,131 @@
-# Task & Orchestration Module Foundation
+# Task & Orchestration Module
 
-Owner: Member 8
+## Overview
 
-OpenSpec change: `implement-task-orchestration`
+The Task & Orchestration module serves as the central coordination hub for task creation, routing validation, lifecycle state tracking, and execution observation within virtual company workspaces. It operates under a strict consumer-provider architectural model, where it consumes externally provided execution runtimes while maintaining independence from infrastructure provisioning, credential management, and internal orchestration engine administration.
 
-## Context and Motivation
+## Architectural Boundaries
 
-Task & Orchestration accepts a workspace member's request, records the durable
-task intent, resolves an authoritative route, and tracks one or more execution
-attempts until a terminal outcome is reached.
+The module strictly enforces architectural boundaries to decouple domain logic from specific infrastructure or execution engines.
 
-The PA5 frontend remains a deterministic prototype, but Task 6 and later work
-must align with this production-facing boundary. This document defines that
-boundary without implementing Prisma models, HTTP handlers, repositories,
-services, workers, or events.
-
-## Ownership
-
-This module owns:
-
-* `Task`: the submitted intent, prompt, requested routing policy, submitter,
-  workspace, aggregate status, and final outcome reference.
-* `TaskWork`: one execution attempt for a task, including its Work ID,
-  resolved route, lifecycle status, timestamps, failure metadata, and result.
-* Task lifecycle transition rules.
-* Routing-request validation and routing-resolution records.
-* Task processing logs, timeline entries, cancellation state, and result
-  aggregation when those records are introduced.
-
-This module references but does not own:
-
-* `Workspace` and workspace membership from Workspace Management and Workspace
-  User Management.
-* `User` identity from Authentication.
-* `Agent` from Agent Management.
-* `Workflow` from Workflow Management.
-* Tools, knowledge documents, subscriptions, and runtime resources owned by
-  their respective modules.
-
-The module must not create or own Workspace, User, Agent, or Workflow tables.
-
-## Tenant and Identity Boundary
-
-`workspaceId` and `submittedByUserId` are authoritative values from
-`RequestContext`.
-
-The public route is:
-
-```text
-POST /api/workspaces/:workspaceId/tasks
+```
++-------------------------------------------------------------------------+
+|                        Task & Orchestration Module                      |
+|                                                                         |
+|  +-----------------------+                    +----------------------+  |
+|  |     Task / TaskRun    |                    | ExecutionSnapshot /  |  |
+|  |     Domain Models     |                    | Observability Proj.  |  |
+|  +-----------+-----------+                    +----------^-----------+  |
+|              |                                           |              |
+|  +-----------v-----------+                    +----------+-----------+  |
+|  | StartExecutionCommand |                    | NormalizedRuntime    |  |
+|  | (Provider-Neutral)    |                    | Event / Error        |  |
+|  +-----------+-----------+                    +----------^-----------+  |
+|              |                                           |              |
+|              |         +-----------------------+         |              |
+|              +--------->  TaskExecutionAdapter +---------+              |
+|                        +-----------^-----------+                        |
++------------------------------------|------------------------------------+
+                                     | (Consumes Runtime Reference)
++------------------------------------|------------------------------------+
+| Workspace / Infrastructure         |                                    |
+| +----------------------------------+----------------------------------+ |
+| | WorkspaceExecutionRuntimeResolver / WorkspaceExecutionRuntime       | |
+| +----------------------------------+----------------------------------+ |
+|                                    | (POST /v1/chat/completions)      |
+| +----------------------------------v----------------------------------+ |
+| | OpenClaw Execution Provider (apps/backend/src/shared/openclaw/*)    | |
+| +---------------------------------------------------------------------+ |
++-------------------------------------------------------------------------+
 ```
 
-The route parameter is a resource locator, not trusted tenant input. The API
-adapter receives `RequestContext` from authentication and membership
-middleware, requires the route `workspaceId` to equal
-`context.workspace.workspaceId`, and builds the application command from
-context. Missing authentication returns HTTP 401. Missing membership,
-permission failure, or route/context mismatch returns HTTP 403. Successful
-creation returns HTTP 201. The request body must not accept `workspaceId`,
-`submittedByUserId`, Task ID, Work ID, status, resolved route, or timestamps.
-No records or events are created when authorization or workspace equality
-fails.
+### Responsibility Split
 
-## Domain Model
+#### Task & Orchestration (This Module)
+- **Owns**: Task and TaskRun domain models, task creation/validation, canonical task lifecycle, routing request representation, conversation/task history, mock execution used for development and tests, provider-neutral execution contracts, consumer-side OpenClaw adapter, mapping platform requests to verified OpenClaw requests, mapping OpenClaw execution updates to normalized task events, cancellation request forwarding, execution reference association, lifecycle projection, streaming/result/error/observability presentation, task-scoped event isolation, and frontend rendering/interaction.
+- **Does Not Own**: OpenClaw installation, container creation, start/stop/restart/delete/upgrade, workspace provisioning, CPU/RAM allocation, Standard/Premium infrastructure configuration, Gateway DNS/networking, Gateway credential creation, platform-wide secret ownership, authentication implementation, workspace membership management, RBAC ownership, subscription validation implementation, payment, Agent Management, Workflow Management, Tool Management, Knowledge Base/RAG Management, custom orchestration engines, custom LLM routers, custom multi-agent collaboration engines, custom workflow runtimes, or OpenClaw internals.
 
-`Task` and `TaskWork` have a one-to-many relationship. Initial creation produces
-exactly one `TaskWork`. The model permits later retries or reruns without
-overwriting the original attempt or changing the original task identity.
+#### OpenClaw / Execution Provider
+- **Owns**: Executing AI agent/workflow tasks, processing prompts, coordinating internal sub-agents, invoking tools, managing provider-side sessions, and emitting raw execution lifecycle updates and observability diagnostics.
 
-The authoritative production status model is `TaskStatus` from `@vcp/shared`:
+#### Workspace / Infrastructure
+- **Owns**: Providing a valid `WorkspaceExecutionRuntimeResolver` and `WorkspaceExecutionRuntime`. Managing the physical lifecycle of OpenClaw containers/VMs (provisioning, starting, stopping, deleting, resizing) via `apps/backend/src/shared/openclaw/runtime-adapter.ts`.
 
-```text
-queued
-running
-requires_action
-succeeded
-failed
-cancelled
-```
+#### Agent Management
+- **Owns**: Managing the catalog of workspace-scoped selectable agents, validating agent activity status, and providing platform-agent to provider-agent mappings (`ExternalAgentCatalog`).
 
-Both `Task` and `TaskWork` use this production enum and start as `queued`.
+#### Workflow Management
+- **Owns**: Managing the catalog of workspace-scoped selectable workflows, validating workflow activity status, and providing platform-workflow to provider-workflow mappings (`ExternalWorkflowCatalog`).
 
-| Production `TaskStatus` | PA5 presentation status |
-| --- | --- |
-| `queued` | `pending` |
-| `running` | `in-progress` |
-| `requires_action` | Not produced by the PA5 prototype |
-| `succeeded` | `completed` |
-| `failed` | `failed` |
-| `cancelled` | `canceled` |
+## Core Contracts
 
-This mapping belongs only at the frontend API-adapter/view-model boundary. It
-does not belong in the domain, Prisma mapper, or shared production contract.
-The existing frontend type named `TaskStatus` must be renamed to
-`TaskPresentationStatus` in a later implementation phase; PR F0 does not
-perform that source-code rename. Two incompatible public types named
-`TaskStatus` must not remain authoritative.
+All core execution contracts reside in `packages/shared/src/contracts/task-execution.ts`.
 
-Required aggregate fields:
-
-```text
-Task
-  taskId
-  workspaceId
-  submittedByUserId
-  prompt
-  routingMode
-  requestedAgentId?
-  requestedWorkflowId?
-  status
-  createdAt
-  updatedAt
-  completedAt?
-
-TaskWork
-  workId
-  taskId
-  workspaceId
-  attemptNumber
-  status
-  resolvedAgentId?
-  resolvedWorkflowId?
-  result?
-  errorCode?
-  errorMessage?
-  queuedAt
-  startedAt?
-  finishedAt?
-  createdAt
-  updatedAt
-```
-
-## Routing Invariants
-
-The authoritative routing modes are `auto`, `specific-agent`, and
-`predefined-workflow`.
-
-* `auto`: requested agent and requested workflow are both absent.
-* `specific-agent`: requested agent is present and requested workflow is
-  absent.
-* `predefined-workflow`: requested workflow is present and requested agent is
-  absent.
-* A referenced agent or workflow must belong to the same workspace.
-* A specific agent must be selectable; a workflow must be executable.
-* The client requests a routing policy. The application service validates it.
-* The resolver writes the resolved route to `TaskWork`; it does not rewrite the
-  requested route on `Task`.
-* Agent and workflow references are scalar typed IDs, not Prisma relations,
-  because those aggregates are owned by other modules.
-
-## Public API Contract
-
-Request body:
-
+### `TaskExecutionAdapter`
+The primary consumer port interface defining the lifecycle operations for execution adapters:
 ```ts
-type CreateTaskRequest = {
-  prompt: string;
-  routing:
-    | { mode: "auto" }
-    | { mode: "specific-agent"; agentId: EntityId<"agentId"> }
-    | { mode: "predefined-workflow"; workflowId: EntityId<"workflowId"> };
-};
-```
-
-Successful response uses `ApiSuccess<CreateTaskResponse>` with HTTP 201:
-
-```ts
-type CreateTaskResponse = {
-  taskId: EntityId<"taskId">;
-  workId: EntityId<"workId">;
-  status: "queued";
-  routingMode: TaskRoutingMode;
-  requestedTargetId?: EntityId<"agentId"> | EntityId<"workflowId">;
-  createdAt: string;
-};
-```
-
-Expected failures use the shared `ApiFailure` envelope: unauthenticated,
-forbidden or workspace mismatch, invalid prompt/routing, unavailable target,
-and unexpected failure. Prisma records are never returned as API contracts.
-
-The internal command is:
-
-```ts
-type CreateTaskCommand = {
-  workspaceId: EntityId<"workspaceId">;
-  submittedByUserId: EntityId<"userId">;
-  prompt: string;
-  routing: CreateTaskRequest["routing"];
-};
-```
-
-Only the API adapter may combine transport input with authenticated context to
-construct this command.
-
-## Shared and Private Contracts
-
-The following identity kinds already come from `@vcp/shared` through
-`EntityId`:
-
-* `EntityId<"workspaceId">`
-* `EntityId<"userId">`
-* `EntityId<"agentId">`
-* `EntityId<"workflowId">`
-* `EntityId<"taskId">`
-
-Task & Orchestration imports and consumes these identities. It must not
-redefine or re-export another module's identity ownership. `EntityId<"workId">`
-already exists in the public shared identity catalog, and this compatibility
-decision does not change public shared contracts.
-
-Future shared-contract changes are limited to values required across the
-frontend, backend, workers, or event consumers that are not already present:
-
-* `TaskRoutingMode` and the discriminated public routing request.
-* `CreateTaskRequest` and `CreateTaskResponse`.
-* Proposed versioned task domain-event names and payloads, subject to the
-  reviewed envelope extension.
-* Existing shared `TaskStatus` remains the production lifecycle vocabulary.
-
-Domain entities, repository records, Prisma mappers, transition guards,
-resolved-route details, logs, timeline records, failure internals, and service
-commands remain private to this module.
-
-Any shared change requires the active specification, contract tests, and
-another module owner's review.
-
-## Persistence Plan
-
-TaskWork is the domain execution-attempt model. The existing Prisma
-compatibility model remains `TaskRun`, mapped to the preserved physical
-`task_runs` table. F3 must not create a duplicate Prisma `TaskWork` model, must
-not create a `task_works` table, and must not rename or destructively replace
-the existing `TaskRun` model or `task_runs` table.
-
-Repository conventions:
-
-* String application-generated IDs: `taskId` and `workId`.
-* `workId` is the public domain Work ID. It maps to the persistence
-  `TaskRun.taskRunId` primary key through the future repository adapter.
-* `TaskRun.taskRunId` is retained for Prisma Client compatibility.
-* `TaskRun.jobId` remains worker-handoff persistence metadata and is not part
-  of the domain TaskWork contract.
-* `attemptNumber` starts at 1. Initial Task creation creates exactly one
-  domain TaskWork attempt with attempt number 1.
-* Every retry creates a new execution-attempt row with a new Work ID while the
-  Task row remains the same.
-* Attempt numbers are unique within a Task through
-  `@@unique([taskId, attemptNumber])` after F3A adds the missing persistence
-  column and constraint.
-* Retry allocation and concurrency control are implementation concerns for a
-  later application/persistence phase.
-* Required `workspaceId` on both records for tenant-scoped queries.
-* TaskRun-to-Task ownership will be strengthened additively in F3A, preferably
-  through a workspace-safe relation from `TaskRun(workspaceId, taskId)` to
-  `Task(workspaceId, taskId)` with restrictive deletion.
-* Scalar agent and workflow IDs have no Prisma foreign keys or relations.
-* Indexes on `(workspaceId, createdAt)`, `(workspaceId, status)`, `taskId`, and
-  `(workspaceId, taskRunId)` as the persistence equivalent of domain
-  `(workspaceId, workId)`.
-* No soft-delete field and no task deletion API in the foundation. Execution
-  history is retained; retention or erasure requires a separate specification.
-
-```text
-TaskWork.workId          <-> TaskRun.taskRunId
-TaskWork.taskId          <-> TaskRun.taskId
-TaskWork.workspaceId     <-> TaskRun.workspaceId
-TaskWork.status          <-> TaskRun.status
-TaskWork.startedAt       <-> TaskRun.startedAt
-TaskWork.finishedAt      <-> TaskRun.completedAt
-```
-
-The current Prisma schema persists timestamps in `String` fields containing
-application-supplied ISO-8601 values. Domain, API, and event contracts represent
-timestamps as ISO-8601 strings; the repository does not currently use Prisma
-`DateTime` or JavaScript `Date` domain fields.
-
-## Domain Events
-
-The current shared event envelope is:
-
-```ts
-{
-  name,
-  eventId,
-  occurredAt,
-  payload
+interface TaskExecutionAdapter {
+  startExecution(command: StartExecutionCommand, runtime: WorkspaceExecutionRuntime): Promise<ExecutionBinding>;
+  cancelExecution(binding: ExecutionBinding, runtime: WorkspaceExecutionRuntime): Promise<void>;
+  getSnapshot(binding: ExecutionBinding, runtime: WorkspaceExecutionRuntime): Promise<ExecutionSnapshot>;
+  subscribeToEvents(binding: ExecutionBinding, runtime: WorkspaceExecutionRuntime, onEvent: (event: NormalizedRuntimeEvent) => void): Promise<{ unsubscribe: () => void }>;
 }
 ```
 
-`task.submitted` remains the canonical submission event.
+### `StartExecutionCommand`
+The DTO passed to initiate execution. It contains only platform-level identifiers, prompts, and routing selections, explicitly excluding raw credentials, API keys, or infrastructure configurations.
 
-Task events propose a top-level `version: 1` field. This is not part of the
-current `BaseDomainEvent` contract and requires a reviewed shared-contract
-extension and contract-test update before implementation.
+### `ExecutionBinding`
+The binding record linking the platform task to the execution runtime and provider reference:
+- `taskId`: The platform Task ID.
+- `taskRunId`: The platform TaskRun ID.
+- `workspaceId`: The workspace context.
+- `runtimeReference`: The external runtime reference provided by Workspace Management.
+- `providerExecutionReference`: The unique reference returned by the provider upon successful start.
 
-| Event | Aggregate | Trigger | Required references |
-| --- | --- | --- | --- |
-| `task.submitted` | Task | Task and initial TaskWork are created | `taskId`, initial `workId` |
-| `task.routing_resolved` | TaskWork | Routing for one execution attempt is resolved | `taskId`, `workId` |
-| `task.started` | TaskWork | One attempt starts | `taskId`, `workId` |
-| `task.completed` | Task terminal event | One attempt completes the Task successfully | `taskId`, completed `workId` |
-| `task.failed` | Task terminal event | The Task becomes terminally failed | `taskId`, terminal `workId` |
-| `task.cancelled` | Task terminal event | The Task is cancelled | `taskId`, active or latest `workId` |
+### `NormalizedRuntimeEvent`
+A closed discriminated union representing the full range of execution lifecycle and observability events:
+- `execution-accepted`: Execution successfully queued by the provider.
+- `step-started`: A new step in the execution began.
+- `partial-output-received`: Incremental streaming text received.
+- `sub-activity`: Sub-agent or tool invocation details.
+- `execution-completed`: Normal completion with final result payload.
+- `execution-failed`: Execution terminated with a `NormalizedRuntimeError`.
+- `execution-cancelled`: Execution successfully cancelled by the provider.
 
-A failed attempt alone must not automatically emit terminal `task.failed`.
-Retry-attempt events and aggregate Task terminal events are not interchangeable.
+## `OpenClawExecutionOrchestrator` Start Flow
 
-Events describe committed state and are published only after successful
-persistence. Event payloads expose IDs, status, routing mode, and safe failure
-codes; they do not expose prompts, result bodies, logs, or stack traces.
+The `OpenClawExecutionOrchestrator` coordinates the initiation of execution through exactly 10 sequential steps:
+1. **Receive authenticated and authorized request context**: Derives principal identity and verifies authorization via external authentication services.
+2. **Validate Task input**: Ensures `StartExecutionCommand` contains only platform fields and explicitly excludes raw credentials or container configurations.
+3. **Validate routing selection through external catalogs**: Verifies the active status and mappings of specific agents or workflows via `ExternalAgentCatalog` or `ExternalWorkflowCatalog`.
+4. **Create platform Task and TaskRun**: Initializes canonical persistence state in `pending`.
+5. **Resolve externally supplied execution runtime**: Invokes `WorkspaceExecutionRuntimeResolver` to obtain a verified, running runtime instance reference.
+6. **Start execution through the adapter**: Invokes `TaskExecutionAdapter.startExecution` to map the request and dispatch it via non-blocking initialization.
+7. **Store the execution association**: Records the `ExecutionBinding` linking Platform Task ↔ external runtime reference ↔ provider execution reference.
+8. **Consume normalized events**: Subscribes to incoming `NormalizedRuntimeEvent` union objects emitted by the adapter via Server-Sent Events (`chat.completion.chunk`).
+9. **Update canonical lifecycle**: Maps runtime observations to canonical task statuses (`in-progress`, `completed`, `failed`, `canceled`).
+10. **Expose state through the platform API**: Exposes the updated snapshot and event log to consumers.
 
-## Application and Persistence Boundaries
+## Cancellation Forwarding
 
-Required private interfaces:
+Cancellation follows a strict forwarding boundary:
+- When a cancellation request is received, Task & Orchestration validates task cancellability, loads the `ExecutionBinding`, forwards the cancellation request to `TaskExecutionAdapter.cancelExecution`, applies canonical cancellation after defined confirmation, and suppresses late updates.
+- It strictly **does not** terminate the OpenClaw container, stop the workspace runtime, or delete the Gateway. Stream cancellation is governed entirely at the local transport level via `AbortController.abort()`.
 
-* `TaskRepository`: create the Task with its initial TaskWork atomically, find
-  by `(workspaceId, taskId)`, and update aggregate lifecycle state.
-* `TaskWorkRepository`: find by `(workspaceId, workId)`, list attempts, and
-  perform guarded lifecycle/result updates.
-* `AgentRoutingCatalog`: verify same-workspace agent availability.
-* `WorkflowRoutingCatalog`: verify same-workspace workflow executability.
-* `TaskEventPublisher`: publish task events through the shared envelope and the
-  proposed versioned extension once approved.
-* `CreateTaskService`: validate, create IDs, persist queued records, and emit
-  `task.submitted`.
-* `TaskRoutingService`: validate or resolve routing and record the authoritative
-  route on TaskWork.
-* `TaskExecutionService`: coordinate workers and lifecycle transitions in later
-  tasks.
+## Transport Recovery & Event Protections
 
-Repositories accept `workspaceId` for every lookup or mutation. Services do not
-import another capability's private repository or service.
+To maintain resilience against network disconnects and unstable transport layers, the adapter implements three vital mechanisms:
+- **Snapshot Reconciliation**: Upon transport reconnection, the adapter fetches a fresh `ExecutionSnapshot` and reconciles any missed lifecycle transitions before resuming event consumption.
+- **Duplicate Event Protection**: The adapter maintains a registry of seen event IDs within the active session, silently dropping duplicate events to prevent duplicate lifecycle transitions or state corruption.
+- **Stale Event Protection**: The adapter verifies event timestamps and monotonic sequence numbers, ignoring delayed or out-of-order events that arrive after a more recent state transition has already occurred.
 
-## Testing Plan
+## Mock vs Production Behavior
 
-Foundation tests must verify:
+### `MockTaskExecutionAdapter`
+- **Location**: `apps/backend/src/modules/task-orchestration/application/mock-task-execution-adapter.ts`
+- **Behavior**: Operates entirely in-memory as a legitimate test and development adapter satisfying `TaskExecutionAdapter`. It resolves runtime references without provisioning them and simulates execution milestones directly.
 
-* Architecture documentation contains owned and referenced entities.
-* The route body cannot provide tenant or submitter identity.
-* Routing is a discriminated union and invalid target combinations are
-  rejected.
-* Repository interfaces require workspace-scoped identifiers.
-* Prisma design contains tenant indexes and only owned relations.
-* Shared contracts do not expose Prisma-generated types.
-* Event names, proposed versions, required identifiers, and safe payload rules.
-* Task 6 is gated on the completed foundation.
-
-Later implementation adds domain, contract, repository, API, and tenant
-isolation tests with the behavior it introduces.
-
-## Task 6 Dependency
-
-Task 6 may implement the deterministic PA5 creation flow only after Task 5A is
-complete. Its task factory and store must preserve the same routing union,
-identity separation, initial-state semantics, and authoritative transition
-boundary so the prototype can later connect to the production API without
-changing user-visible behavior.
-
-This F3R reconciliation does not complete Task 5A. Task 5A remains incomplete
-until the remaining foundation work and required verification are finished.
-
-## Explicit Non-Goals
-
-This foundation does not implement Prisma models or migrations, API handlers,
-repositories, services, workers, domain events, real agent/workflow lookup,
-streaming, cancellation, retries, or external orchestration.
+### `OpenClawTaskExecutionAdapter`
+- **Location**: `apps/backend/src/features/task-execution/adapters/openclaw-task-execution-adapter.ts`
+- **Behavior**: Operates as the full production integration adapter connecting directly to the OpenClaw Gateway. It contains complete production logic for the 10-step start flow, RBAC authorization, external catalog checks, snapshot reconciliation, security redaction (`sanitizeObservabilityPayload`), and physical network transport via `OpenClawHttpSSETransport` leveraging the official OpenAI-compatible HTTP API (`POST /v1/chat/completions`) and Server-Sent Events (`chat.completion.chunk`).
