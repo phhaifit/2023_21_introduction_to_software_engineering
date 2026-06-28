@@ -229,6 +229,25 @@
       "createdAt"
     ]
   },
+  "workspaceManagement": {
+    "dtoExports": [
+      "WorkspaceSummaryDto",
+      "WorkspaceDetailDto",
+      "CreateWorkspaceRequest",
+      "WorkspaceDeleteAckDto"
+    ],
+    "routes": [
+      { "method": "GET",    "path": "/api/workspaces",                "auth": "authenticated" },
+      { "method": "POST",   "path": "/api/workspaces",                "auth": "authenticated" },
+      { "method": "GET",    "path": "/api/workspaces/:workspaceId",   "auth": "workspace-member" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId",   "auth": "workspace:delete" }
+    ],
+    "domainEvents": [
+      "workspace.provisioning_requested",
+      "workspace.running",
+      "workspace.deleted"
+    ]
+  },
   "agentManagement": {
     "skillMarkdownSections": [
       "Role",
