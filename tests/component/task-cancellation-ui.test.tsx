@@ -484,7 +484,7 @@ describe("8. Regression", () => {
     expect(screen.getByText("Completed successfully")).toBeVisible();
 
     // Copy works
-    const copyBtn = screen.getByRole("button", { name: /Copy/i });
+    const copyBtn = screen.getByRole("button", { name: "Copy finalized result" });
     await user.click(copyBtn);
     expect(cRuntime.clipboard.writeText).toHaveBeenCalled();
 

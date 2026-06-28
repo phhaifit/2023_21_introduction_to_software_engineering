@@ -212,7 +212,7 @@ describe("Task 8B — In-Progress integration", () => {
     expect(screen.getByText("WORK-000001")).toBeVisible();
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Start now.")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(logIds.nextLogId()).toBe("LOG-0002");
   });
 

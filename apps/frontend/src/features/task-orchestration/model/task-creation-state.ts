@@ -155,6 +155,14 @@ export type TaskCreationAction =
   | {
       type: "conversations-restored";
       conversations: import("@vcp/shared").Conversation[];
+    }
+  | {
+      type: "conversation-deleted";
+      conversationId: string;
+    }
+  | {
+      type: "task-deleted";
+      taskId: EntityId<"taskId">;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -522,6 +530,91 @@ export function taskCreationReducer(
         tasks: state.tasks.map((t) => (t.taskId === updatedTask.taskId ? updatedTask : t))
       };
     }
+    case "conversation-deleted": {
+      const conversations = state.conversations ?? [];
+      const conversation = conversations.find(
+        (c) => c.conversationId === action.conversationId
+      );
+      if (!conversation) {
+        return state;
+      }
+
+      const removedTaskIds = new Set(conversation.taskIds);
+      const remainingTasks = state.tasks.filter(
+        (task) => !removedTaskIds.has(task.taskId)
+      );
+      const remainingConversations = conversations.filter(
+        (c) => c.conversationId !== action.conversationId
+      );
+
+      let activeConversationId = state.activeConversationId;
+      let activeTaskId = state.activeTaskId;
+
+      if (activeConversationId === action.conversationId) {
+        const fallbackConversation =
+          remainingConversations[remainingConversations.length - 1];
+        activeConversationId = fallbackConversation?.conversationId;
+        activeTaskId =
+          fallbackConversation && fallbackConversation.taskIds.length > 0
+            ? fallbackConversation.taskIds[fallbackConversation.taskIds.length - 1]
+            : null;
+      } else if (
+        activeTaskId &&
+        removedTaskIds.has(activeTaskId as EntityId<"taskId">)
+      ) {
+        const activeConv = remainingConversations.find(
+          (c) => c.conversationId === activeConversationId
+        );
+        activeTaskId =
+          activeConv && activeConv.taskIds.length > 0
+            ? activeConv.taskIds[activeConv.taskIds.length - 1]
+            : null;
+      }
+
+      return {
+        ...state,
+        tasks: remainingTasks,
+        conversations: remainingConversations,
+        activeConversationId,
+        activeTaskId
+      };
+    }
+    case "task-deleted": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) {
+        return state;
+      }
+
+      const remainingTasks = state.tasks.filter(
+        (t) => t.taskId !== action.taskId
+      );
+      const remainingConversations = (state.conversations ?? []).map((conv) =>
+        conv.taskIds.includes(action.taskId)
+          ? {
+              ...conv,
+              taskIds: conv.taskIds.filter((id) => id !== action.taskId)
+            }
+          : conv
+      );
+
+      let activeTaskId = state.activeTaskId;
+      if (activeTaskId === action.taskId) {
+        const activeConv = remainingConversations.find(
+          (c) => c.conversationId === state.activeConversationId
+        );
+        activeTaskId =
+          activeConv && activeConv.taskIds.length > 0
+            ? activeConv.taskIds[activeConv.taskIds.length - 1]
+            : null;
+      }
+
+      return {
+        ...state,
+        tasks: remainingTasks,
+        conversations: remainingConversations,
+        activeTaskId
+      };
+    }
     case "conversations-restored": {
       if (!action.conversations || action.conversations.length === 0) {
         return state;
@@ -677,6 +770,19 @@ export function getActiveTask(
   state: TaskCreationState
 ): CreatedTaskRecord | undefined {
   return state.tasks.find((task) => task.taskId === state.activeTaskId);
+}
+
+export function conversationHasNonTerminalTasks(
+  state: TaskCreationState,
+  conversationId: string
+): boolean {
+  return getConversationTasks(state, conversationId).some(
+    (task) => !isTerminalTaskStatus(task.status)
+  );
+}
+
+export function isTaskDeletable(task: CreatedTaskRecord): boolean {
+  return isTerminalTaskStatus(task.status);
 }
 
 function buildRoutingSelection(

@@ -224,8 +224,8 @@ describe("4. Completed Result Restriction", () => {
     }
 
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /copy finalized result/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
   });
 });
 

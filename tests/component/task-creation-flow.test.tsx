@@ -200,10 +200,13 @@ describe("Task 6B task creation UI flow", () => {
     const client = new SpyTaskCreationClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
+    const promptInput = screen.getByRole("textbox", { name: "Request" });
     if (prompt) {
-      await user.type(screen.getByRole("textbox", { name: "Request" }), prompt);
+      await user.type(promptInput, prompt);
+    } else {
+      await user.click(promptInput);
     }
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await user.keyboard("{Enter}");
 
     expect(client.calls).toHaveLength(0);
     expect(screen.queryByLabelText("Pending task")).not.toBeInTheDocument();
@@ -295,7 +298,7 @@ describe("Task 6B task creation UI flow", () => {
 
     await user.type(screen.getByRole("textbox", { name: "Request" }), "Slow task");
     await user.click(screen.getByRole("button", { name: "Send request" }));
-    await user.click(screen.getByRole("button", { name: "Sending..." }));
+    await user.click(screen.getByRole("button", { name: "Sending request" }));
     resolveCreate?.();
 
     expect(client.createTask).toHaveBeenCalledTimes(1);

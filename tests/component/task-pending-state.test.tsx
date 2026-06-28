@@ -199,9 +199,9 @@ describe("5. auto routing summary", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("Auto route this.");
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    const userMessage = screen.getByLabelText("User message");
+    expect(within(userMessage).getByText("Auto-routing")).toBeVisible();
     expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
   });
@@ -222,9 +222,9 @@ describe("6. specific-agent routing summary", () => {
       "AGT-CODE"
     );
     await submitPrompt("Review this code.");
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
+    const userMessage = screen.getByLabelText("User message");
+    expect(within(userMessage).getByText("Agent · AGT-CODE")).toBeVisible();
   });
 });
 
@@ -243,10 +243,10 @@ describe("7. predefined-workflow routing summary", () => {
       "WFL-RESEARCH-SYNTHESIS"
     );
     await submitPrompt("Research and summarize.");
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
+    const userMessage = screen.getByLabelText("User message");
     expect(
-      screen.getByText("Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS")
+      within(userMessage).getByText("Workflow · WFL-RESEARCH-SYNTHESIS")
     ).toBeVisible();
   });
 });
@@ -865,9 +865,9 @@ describe("33. routing summary remains visible after Cancel task click", () => {
 
     await submitPrompt("Routing stable.");
     await user.click(screen.getByRole("button", { name: "Cancel task" }));
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
 
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    const userMessage = screen.getByLabelText("User message");
+    expect(within(userMessage).getByText("Auto-routing")).toBeVisible();
   });
 });
 

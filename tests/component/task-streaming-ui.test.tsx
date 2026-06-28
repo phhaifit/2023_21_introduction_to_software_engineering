@@ -190,7 +190,8 @@ describe("Task 9B streaming UI integration", () => {
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
-    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    await userEvent.click(screen.getByRole("textbox", { name: "Request" }));
+    await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a task request");
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
@@ -262,7 +263,7 @@ describe("Task 9B streaming UI integration", () => {
 
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
     expect(screen.getAllByLabelText("Processing log details")[0]).toBeVisible();
     expect(screen.getAllByLabelText("Task status: In Progress")[0]).toBeVisible();

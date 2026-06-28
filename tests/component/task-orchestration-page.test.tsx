@@ -64,17 +64,20 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.queryByRole("heading", {
       name: "What should your virtual team work on?"
     })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Request")).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Request" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 
   it("renders the real controlled routing selector and composer", () => {
     render(<TaskOrchestrationPage />);
 
-    expect(screen.getByRole("group", { name: "Routing mode" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
-    expect(screen.getByLabelText("Request")).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Send request" })).toBeEnabled();
+    expect(screen.getByRole("radiogroup", { name: "Routing mode" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("textbox", { name: "Request" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
     const composer = screen.getByRole("region", { name: "Task composer area" });
     expect(within(composer).queryByRole("combobox")).not.toBeInTheDocument();
   });
@@ -83,9 +86,10 @@ describe("TaskOrchestrationPage base workspace", () => {
     const user = userEvent.setup();
     render(<TaskOrchestrationPage />);
 
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await user.click(screen.getByRole("textbox", { name: "Request" }));
+    await user.keyboard("{Enter}");
     expect(screen.getByRole("alert")).toBeVisible();
-    expect(screen.getByLabelText("Request")).toHaveAttribute(
+    expect(screen.getByRole("textbox", { name: "Request" })).toHaveAttribute(
       "aria-invalid",
       "true"
     );
@@ -94,7 +98,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     const suggestion = within(suggestions).getAllByRole("button")[0];
     await user.click(suggestion);
 
-    const prompt = screen.getByLabelText("Request");
+    const prompt = screen.getByRole("textbox", { name: "Request" });
     expect(prompt).not.toHaveValue("");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(prompt).not.toHaveAttribute("aria-invalid");
@@ -102,7 +106,10 @@ describe("TaskOrchestrationPage base workspace", () => {
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
     expect(prompt).toHaveValue("");
-    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "View processing details" }));
@@ -123,11 +130,15 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByRole("region", { name: "Main conversation region" })).toBeVisible();
   });
 
-  it("renders reconnecting and provider unavailable states along with simulation indicator", () => {
+  it("renders reconnecting and provider unavailable states along with provider badge", () => {
     render(<TaskOrchestrationPage isReconnecting isProviderUnavailable />);
 
-    expect(screen.getByText("Simulated Mock Execution")).toBeVisible();
-    expect(screen.getByText("Reconnecting to workspace gateway")).toBeVisible();
+    expect(screen.getByText("Reconnecting")).toBeVisible();
     expect(screen.getByText("Execution Provider Unavailable")).toBeVisible();
+  });
+
+  it("renders mock provider badge by default", () => {
+    render(<TaskOrchestrationPage />);
+    expect(screen.getByText("Mock / Simulated")).toBeVisible();
   });
 });

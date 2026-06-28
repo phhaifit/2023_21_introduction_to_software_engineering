@@ -275,7 +275,7 @@ describe("Task 10B Completed Result UI Integration", () => {
 
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
   });
 

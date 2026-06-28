@@ -38,7 +38,8 @@ describe("Task & Orchestration Master Test Suite Configuration", () => {
     "tests/component/task-streaming-ui.test.tsx",
     // Task 13B-2 new test files
     "tests/component/task-failed-details-model.test.ts",
-    "tests/component/task-failed-details-ui.test.tsx"
+    "tests/component/task-failed-details-ui.test.tsx",
+    "tests/component/task-polish-ui.test.tsx"
   ];
 
   it.each(testFiles)("confirms test file %s exists in the verification list", (file) => {

@@ -34,12 +34,20 @@ describe("RoutingSelector", () => {
   it("renders one accessible controlled choice from all routing modes", () => {
     renderSelector({ mode: ROUTING_MODES[1] });
 
-    expect(screen.getByRole("group", { name: "Routing mode" })).toBeVisible();
+    expect(screen.getByRole("radiogroup", { name: "Routing mode" })).toBeVisible();
     expect(screen.getAllByRole("radio")).toHaveLength(3);
-    expect(screen.getByRole("radio", { name: /Auto-routing/ })).not.toBeChecked();
-    expect(screen.getByRole("radio", { name: /Specific agent/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Predefined workflow/ }))
-      .not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /Auto-routing/ })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    expect(screen.getByRole("radio", { name: /Specific agent/ })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("radio", { name: /Predefined workflow/ })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
   });
 
   it.each([
@@ -75,8 +83,7 @@ describe("RoutingSelector", () => {
     expect(select).toBeRequired();
     expect(screen.getAllByRole("option").map((option) => option.getAttribute("value")))
       .toEqual(["", ...seedData.agents.map((agent) => agent.id)]);
-    expect(screen.getByRole("option", { name: /Code Agent \(AGT-CODE\)/ }))
-      .toBeVisible();
+    expect(screen.getByRole("option", { name: "Code Agent" })).toBeVisible();
 
     await user.selectOptions(select, "AGT-REVIEW");
     expect(props.onAgentChange).toHaveBeenCalledWith("AGT-REVIEW");
@@ -92,9 +99,7 @@ describe("RoutingSelector", () => {
     expect(select).toBeRequired();
     expect(screen.getAllByRole("option").map((option) => option.getAttribute("value")))
       .toEqual(["", ...seedData.workflows.map((workflow) => workflow.id)]);
-    expect(screen.getByRole("option", {
-      name: /Research \+ Synthesis \(WFL-RESEARCH-SYNTHESIS\)/
-    })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Research + Synthesis" })).toBeVisible();
 
     await user.selectOptions(select, "WFL-RESEARCH-SYNTHESIS");
     expect(props.onWorkflowChange).toHaveBeenCalledWith("WFL-RESEARCH-SYNTHESIS");
@@ -131,7 +136,10 @@ describe("RoutingSelector", () => {
     });
     const agentSelect = screen.getByRole("combobox", { name: "Agent" });
 
-    expect(screen.getByRole("radio", { name: /Specific agent/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Specific agent/ })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
     expect(agentSelect).toBeDisabled();
     await user.click(screen.getByRole("radio", { name: /Auto-routing/ }));
     await user.selectOptions(agentSelect, "AGT-REVIEW");
