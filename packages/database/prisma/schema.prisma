@@ -34,15 +34,21 @@ model Session {
 }
 
 model Workspace {
-  workspaceId String @id
-  userId      String
-  name        String
-  status      String @default("pending")
-  createdAt   String
-  updatedAt   String
+  workspaceId    String  @id
+  userId         String
+  name           String
+  status         String  @default("pending")
+  plan           String  @default("free")
+  runtimeUrl     String?
+  containerId    String?
+  failureReason  String?
+  subscriptionId String?
+  createdAt      String
+  updatedAt      String
 
   @@index([userId])
   @@index([status])
+  @@index([userId, status])
   @@map("workspaces")
 }
 
