@@ -9,6 +9,7 @@ import {
   createKnowledgeBaseRagApiClient,
   type KnowledgeBaseRagApiClient
 } from "./knowledge-base-rag-api-client.ts";
+import { KnowledgeBaseProcessingStatusScreen } from "./knowledge-base-rag-processing-status.tsx";
 import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
@@ -190,29 +191,7 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
         {activeView.id === "synchronization-scope" && (
           <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
         )}
-        {activeView.id === "processing-status" && (
-          <section className="knowledge-base-rag-content-card">
-            <div className="knowledge-base-rag-content-header">
-              <div>
-                <p>{activeView.eyebrow}</p>
-                <h2>{activeView.title}</h2>
-              </div>
-            </div>
-
-            <p className="knowledge-base-rag-content-description">
-              {activeView.description}
-            </p>
-
-            <div className="knowledge-base-rag-summary-grid">
-              {activeView.summaryItems.map((item) => (
-                <div className="knowledge-base-rag-summary-item" key={item}>
-                  <span aria-hidden="true" />
-                  <p>{item}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {activeView.id === "processing-status" && <KnowledgeBaseProcessingStatusScreen />}
       </main>
     </section>
   );

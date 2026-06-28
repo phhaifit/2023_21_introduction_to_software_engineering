@@ -249,8 +249,11 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         >
           {syncJobs.length > 0 ? (
             <div className="knowledge-base-rag-sync-job-list" role="list">
-              {syncJobs.map((job) => (
-                <SyncJobListItem job={job} key={job.jobId} />
+              {syncJobs.map((job, index) => (
+                <SyncJobListItem
+                  job={job}
+                  key={`${job.jobId}-${job.requestedAt}-${index}`}
+                />
               ))}
             </div>
           ) : (

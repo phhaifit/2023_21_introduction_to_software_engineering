@@ -36,16 +36,27 @@ export type UploadCandidateFile = {
 
 export type ProcessingJobStatus = "pending" | "running" | "completed" | "failed";
 
-export type IngestionJob = {
-  id: string;
+export type KnowledgeBaseProcessingJobStatus =
+  | "queued"
+  | "processing"
+  | "completed"
+  | "failed";
+
+export type ProcessingJob = {
+  jobId: string;
   documentName: string;
-  status: ProcessingJobStatus;
+  fileType: KnowledgeDocumentType;
+  sourceName: string;
+  status: KnowledgeBaseProcessingJobStatus;
   progress: number;
   currentStep: string;
-  message: string;
   startedAt: string;
-  finishedAt?: string;
+  completedAt?: string;
+  failedAt?: string;
+  safeErrorMessage?: string;
 };
+
+export type IngestionJob = ProcessingJob;
 
 export type ExternalDataSourceProvider = "google-drive" | "notion" | "confluence";
 
