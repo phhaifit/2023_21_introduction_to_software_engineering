@@ -21,6 +21,15 @@ import { InMemorySubscriptionRepository } from "./modules/subscription-payment/i
 import { MockPaymentAdapter } from "./modules/subscription-payment/infrastructure/mock-payment-adapter.ts";
 import { InMemoryEventBus } from "./shared/events/event-bus.ts";
 
+// Workspace Management
+import { createWorkspaceManagementRouter } from "./modules/workspace-management/api/workspace-management-router.ts";
+import { WorkspaceUseCases } from "./modules/workspace-management/application/workspace-use-cases.ts";
+import { PrismaWorkspaceRepository } from "./modules/workspace-management/infrastructure/prisma-workspace-repository.ts";
+import { InMemoryWorkspaceRepository } from "./modules/workspace-management/infrastructure/in-memory-workspace-repository.ts";
+import { MockOpenClawRuntimeAdapter } from "./modules/workspace-management/infrastructure/mock-openclaw-runtime-adapter.ts";
+import type { WorkspaceRepository } from "./modules/workspace-management/application/workspace-repository.ts";
+import { PLAN_ENTITLEMENTS } from "@vcp/shared/contracts/plans.ts";
+
 import { createWorkflowManagementRouter } from "./modules/workflow-management/api/workflow-router.ts";
 import { WorkflowUseCases } from "./modules/workflow-management/application/workflow-use-cases.ts";
 import { PrismaWorkflowRepository } from "./modules/workflow-management/infrastructure/prisma-workflow-repository.ts";
@@ -218,6 +227,14 @@ async function createAuthSessionRepository(): Promise<any> {
   return new InMemorySessionRepository();
 }
 
+async function createWorkspaceRepository(): Promise<WorkspaceRepository> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    return new PrismaWorkspaceRepository(prisma);
+  }
+  return new InMemoryWorkspaceRepository();
+}
+
 async function createConversationRepository(): Promise<any> {
   const prisma = await getPrismaClient();
   if (prisma) {
@@ -386,6 +403,68 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     }
     next();
   });
+
+  // ── Workspace Management ───────────────────────────────────────────────────
+  // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
+  const nullSafePrisma = prisma ?? {
+    agent:           { count: async () => 0 },
+    workflow:        { count: async () => 0 },
+    toolConnection:  { count: async () => 0 },
+    workspaceMember: { findFirst: async () => null }
+  };
+
+  const workspaceRepository = await createWorkspaceRepository();
+  const workspaceUseCases = new WorkspaceUseCases({
+    repository: workspaceRepository,
+    prisma: nullSafePrisma as any,
+    eventBus,
+    now: () => new Date().toISOString(),
+    generateWorkspaceId: () => randomUUID() as any,
+    generateEventId: () => randomUUID() as any
+  });
+
+  // Bridge: EventBus → in-process provisioning (local dev; prod uses @vcp/workers)
+  const runtimeAdapter = new MockOpenClawRuntimeAdapter();
+  eventBus.subscribe("workspace.provisioning_requested", async (event) => {
+    const { workspaceId, plan } = event.payload;
+    const now = new Date().toISOString();
+    try {
+      const ws = await workspaceRepository.findById(workspaceId);
+      const result = await runtimeAdapter.provision({
+        workspaceId,
+        displayName: ws?.name ?? workspaceId,
+        entitlement: PLAN_ENTITLEMENTS[plan]
+      });
+      await workspaceRepository.updateStatus(workspaceId, {
+        status: "running",
+        runtimeUrl: result.runtimeUrl,
+        containerId: result.containerId
+      }, now);
+    } catch (err) {
+      await workspaceRepository.updateStatus(workspaceId, {
+        status: "failed",
+        failureReason: err instanceof Error ? err.message : "Provisioning failed"
+      }, now);
+    }
+  });
+
+  eventBus.subscribe("workspace.deleted", async (event) => {
+    const { workspaceId } = event.payload;
+    try {
+      await runtimeAdapter.stop(workspaceId);
+      await runtimeAdapter.delete(workspaceId);
+    } catch (_err) {
+      // best-effort cleanup
+    }
+    await workspaceRepository.updateStatus(
+      workspaceId,
+      { status: "deleted" },
+      new Date().toISOString()
+    );
+  });
+
+  // Must be mounted BEFORE /:workspaceId/agents and /:workspaceId routes
+  app.use("/api/workspaces", createWorkspaceManagementRouter(workspaceUseCases));
 
   app.use(
     "/api/workspaces/:workspaceId/agents",
