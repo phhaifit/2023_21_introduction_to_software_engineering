@@ -87,6 +87,44 @@ function createClient(overrides: Partial<AgentManagementApiClient> = {}) {
       ].join("\n"),
       fileName: "skill.md" as const,
     })),
+    createAssistantDraft: vi.fn(async () => ({
+      draft: {
+        name: "Assistant Support Agent",
+        role: "Support specialist",
+        model: "gemini-2.5-flash",
+        instructions: "Answer support questions.",
+        responsibilities: ["Triage support issues"],
+        operatingContext: "Use the support handbook.",
+        requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+        requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: ["Draft a support reply"],
+        warnings: [],
+        clarifyingQuestions: [],
+      },
+      warnings: [],
+      clarifyingQuestions: [],
+      provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false },
+    })),
+    analyzeSkillImport: vi.fn(async () => ({
+      draft: {
+        name: "Imported Support Agent",
+        role: "Support specialist",
+        model: "gemini-2.5-flash",
+        instructions: "Answer support questions.",
+        responsibilities: ["Triage support issues"],
+        operatingContext: "Use the support handbook.",
+        requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+        requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: []
+      },
+      warnings: [],
+      clarifyingQuestions: [],
+      provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false }
+    })),
     createAgent: vi.fn(async () => enabledAgent),
     getAgentConfiguration: vi.fn(async () => ({
       ...enabledAgent,
@@ -190,7 +228,8 @@ describe("AgentManagementPage API integration", () => {
     await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
     expect(screen.getByRole("button", { name: "Generate draft" })).toBeDisabled();
     await user.click(screen.getByRole("tab", { name: "Import skill.md" }));
-    expect(screen.getByRole("button", { name: "Analyze skill.md" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Analyze skill.md" })).not.toBeDisabled();
+    expect(screen.getByLabelText("Markdown content")).toBeTruthy();
     expect(client.createAgent).not.toHaveBeenCalled();
   });
 
@@ -279,8 +318,244 @@ describe("AgentManagementPage API integration", () => {
       role: "Planner",
       model: "gemini-2.5-flash",
       instructions: "Create execution plans.",
+      responsibilities: [],
+      operatingContext: undefined,
+      requestedTools: undefined,
+      requestedKnowledge: undefined,
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: [],
     });
     expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
+  });
+
+  it("completes the guided assistant happy path from draft to enabled list row", async () => {
+    const createdAgent = {
+      ...enabledAgent,
+      agentId: "agent-assistant-created" as EntityId<"agentId">,
+      name: "Assistant Support Agent",
+      role: "Support specialist",
+    };
+    const listAgents = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [enabledAgent],
+        pagination: defaultPagination,
+      })
+      .mockResolvedValueOnce({
+        items: [enabledAgent, createdAgent],
+        pagination: { ...defaultPagination, totalItems: 2 },
+      });
+    const client = createClient({ listAgents });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    await user.type(
+      screen.getByPlaceholderText("I need an agent that..."),
+      "Create a support agent that uses Slack and the support handbook.",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(await screen.findByText("Draft Ready")).toBeTruthy();
+    expect(screen.getByText("Assistant Support Agent")).toBeTruthy();
+    expect(client.createAssistantDraft).toHaveBeenCalledWith(workspaceId, {
+      prompt: "Create a support agent that uses Slack and the support handbook.",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Edit in Template" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Assistant Support Agent");
+    await waitFor(() => expect(client.previewSkillMarkdown).toHaveBeenCalled());
+    expect(
+      screen.getByText((_, element) =>
+        element?.tagName.toLowerCase() === "pre" &&
+        element.textContent?.includes("# Assistant Support Agent") === true
+      ),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(await screen.findByText("Assistant Support Agent")).toBeTruthy();
+    expect(client.createAgent).toHaveBeenCalledWith(workspaceId, {
+      name: "Assistant Support Agent",
+      role: "Support specialist",
+      model: "gemini-2.5-flash",
+      instructions: [
+        "Responsibilities:",
+        "- Triage support issues",
+        "",
+        "Operating Context:",
+        "Use the support handbook.",
+        "",
+        "Instructions:",
+        "Answer support questions.",
+        "",
+        "Requested Tools:",
+        "- Slack: Notify support team",
+        "",
+        "Requested Knowledge:",
+        "- Support Handbook: Ground answers",
+        "",
+        "Example Tasks:",
+        "- Draft a support reply",
+      ].join("\n"),
+      responsibilities: ["Triage support issues"],
+      operatingContext: "Use the support handbook.",
+      requestedTools: [{ name: "Slack", reason: "Notify support team" }],
+      requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }],
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: ["Draft a support reply"],
+    });
+    expect(screen.queryByRole("dialog", { name: "Create agent" })).toBeNull();
+  });
+
+  it("shows blocking capability warnings and allows submit after resolution", async () => {
+    const createAgent = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Invalid agent configuration: requestedTools"), {
+          code: "validation.invalid_input",
+          kind: "api",
+          status: 400,
+          details: {
+            issues: [
+              'requestedTools: Requested tool "PagerDuty" is not connected in this workspace.',
+            ],
+            warnings: [
+              {
+                code: "tool.missing",
+                message: 'Requested tool "PagerDuty" is not connected in this workspace.',
+                severity: "blocking",
+                field: "requestedTools",
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(enabledAgent);
+    const client = createClient({ createAgent });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await fillCreateForm(user);
+    await user.type(screen.getByLabelText("Requested tools"), "PagerDuty");
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    await waitFor(() => expect(createAgent).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("alert").some((alert) =>
+          alert.textContent?.includes('Requested tool "PagerDuty"'),
+        ),
+      ).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+
+    await user.clear(screen.getByLabelText("Requested tools"));
+    await user.type(screen.getByLabelText("Requested tools"), "Slack: Notify owners");
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(createAgent).toHaveBeenLastCalledWith(workspaceId, {
+      name: "Planning Agent",
+      role: "Planner",
+      model: "gemini-2.5-flash",
+      instructions: [
+        "Instructions:",
+        "Create execution plans.",
+        "",
+        "Requested Tools:",
+        "- Slack: Notify owners",
+      ].join("\n"),
+      responsibilities: [],
+      operatingContext: undefined,
+      requestedTools: [{ name: "Slack", reason: "Notify owners" }],
+      requestedKnowledge: undefined,
+      constraints: [],
+      escalationRules: [],
+      exampleTasks: [],
+    });
+  });
+
+  it("keeps an assistant draft uncreated when capability warnings are blocking", async () => {
+    const createAgent = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Invalid agent configuration: requestedTools"), {
+        code: "validation.invalid_input",
+        kind: "api",
+        status: 400,
+        details: {
+          issues: [
+            'requestedTools: Requested tool "PagerDuty" is not connected in this workspace.',
+          ],
+          warnings: [
+            {
+              code: "tool.missing",
+              message: 'Requested tool "PagerDuty" is not connected in this workspace.',
+              severity: "blocking",
+              field: "requestedTools",
+            },
+          ],
+        },
+      }),
+    );
+    const client = createClient({
+      createAssistantDraft: vi.fn(async () => ({
+        draft: {
+          name: "Incident Agent",
+          role: "Incident responder",
+          model: "gemini-2.5-flash",
+          instructions: "Coordinate incidents.",
+          responsibilities: ["Triage incidents"],
+          requestedTools: [{ name: "PagerDuty", reason: "Page responders" }],
+          requestedKnowledge: [],
+          constraints: [],
+          escalationRules: [],
+          exampleTasks: [],
+          warnings: [],
+          clarifyingQuestions: [],
+        },
+        warnings: [
+          {
+            code: "tool.missing",
+            message: 'Requested tool "PagerDuty" is not connected in this workspace.',
+            severity: "blocking",
+            field: "requestedTools",
+          },
+        ],
+        clarifyingQuestions: [],
+        provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false },
+      })),
+      createAgent,
+    });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await openCreateModal(user);
+    await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    await user.type(
+      screen.getByPlaceholderText("I need an agent that..."),
+      "Create an incident response agent that uses PagerDuty.",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(
+      await screen.findByText('Requested tool "PagerDuty" is not connected in this workspace.'),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Edit in Template" }));
+    await waitFor(() => expect(client.previewSkillMarkdown).toHaveBeenCalled());
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    await waitFor(() => expect(createAgent).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Research Agent")).toBeTruthy();
+    expect(screen.queryByText("Incident Agent", { selector: "td" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+    expect(screen.getByLabelText("Requested tools")).toHaveValue("PagerDuty: Page responders");
   });
 
   it("prevents template creation when required fields are missing", async () => {
@@ -671,6 +946,177 @@ describe("AgentManagementPage API integration", () => {
       enabledAgent.agentId,
       "New Name",
     );
+  });
+
+  it("handles prompt assistant submit, loading, fallback-provider, clarification, and success draft review", async () => {
+    let mockDraftResolve: (value: any) => void = () => {};
+    const mockDraftPromise = new Promise((resolve) => {
+      mockDraftResolve = resolve;
+    });
+    
+    const client = createClient({
+      createAssistantDraft: vi.fn().mockReturnValue(mockDraftPromise)
+    });
+
+    renderPage(client);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    });
+
+    const newAgentButton = screen.getByRole("button", { name: "New Agent" });
+    await userEvent.click(newAgentButton);
+
+    const promptAssistantButton = screen.getByRole("tab", { name: "Prompt Assistant" });
+    await userEvent.click(promptAssistantButton);
+
+    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    await userEvent.type(promptInput, "Help me write tests.");
+
+    const generateButton = screen.getByRole("button", { name: "Generate draft" });
+    await userEvent.click(generateButton);
+
+    expect(screen.getByRole("button", { name: "Generating..." })).toBeDisabled();
+    expect(promptInput).toBeDisabled();
+
+    // Resolve with fallback provider and clarifying questions
+    mockDraftResolve({
+      draft: {
+        name: "Test Assistant",
+        role: "QA",
+        model: "openrouter/owl-alpha",
+        instructions: "Write tests.",
+        responsibilities: [],
+        operatingContext: "",
+        constraints: [],
+        escalationRules: [],
+        exampleTasks: []
+      },
+      warnings: [],
+      clarifyingQuestions: ["What framework?"],
+      provider: { providerId: "openrouter", modelId: "openrouter/owl-alpha", fallbackUsed: true }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Draft Ready")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Note: Primary provider failed. Used fallback provider: openrouter/owl-alpha")).toBeInTheDocument();
+    expect(screen.getByText("Test Assistant")).toBeInTheDocument();
+    
+    const editInTemplateButton = screen.getByRole("button", { name: "Edit in Template" });
+    await userEvent.click(editInTemplateButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Test Assistant");
+      expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Write tests.");
+    });
+  });
+
+  it("ensures all-provider failure preserves user input and asks the user to retry", async () => {
+    const client = createClient({
+      createAssistantDraft: vi.fn().mockRejectedValue(new Error("Assistant unavailable"))
+    });
+
+    renderPage(client);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "New Agent" })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+
+    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    await userEvent.type(promptInput, "Help me write tests.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Assistant unavailable")).toBeInTheDocument();
+    });
+
+    expect(promptInput).toHaveValue("Help me write tests.");
+    expect(screen.getByRole("button", { name: "Generate draft" })).not.toBeDisabled();
+  });
+
+  it("analyzes pasted skill markdown and moves the extracted draft into review", async () => {
+    const client = createClient();
+    renderPage(client);
+
+    await screen.findByText("Research Agent");
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
+
+    const markdownInput = screen.getByLabelText("Markdown content");
+    await userEvent.type(markdownInput, "# Support Agent\n\n## Role\nSupport");
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+
+    await waitFor(() => {
+      expect(client.analyzeSkillImport).toHaveBeenCalledWith(workspaceId, {
+        markdown: "# Support Agent\n\n## Role\nSupport",
+        fileName: undefined
+      });
+    });
+    expect(await screen.findByText("Imported Draft Ready")).toBeInTheDocument();
+    expect(screen.getByText((_, element) =>
+      element?.textContent === "Requested tools: Slack"
+    )).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit in Template" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Imported Support Agent");
+    expect(screen.getByRole("textbox", { name: "Requested tools" })).toHaveValue("Slack: Notify support team");
+    expect(screen.getByRole("textbox", { name: "Requested knowledge" })).toHaveValue("Support Handbook: Ground answers");
+  });
+
+  it("analyzes uploaded skill markdown files", async () => {
+    const client = createClient();
+    renderPage(client);
+
+    await screen.findByText("Research Agent");
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
+
+    const file = new File(["# File Agent\n\n## Role\nSupport"], "support.skill.md", {
+      type: "text/markdown"
+    });
+    const fileInput = screen.getByLabelText("Markdown file");
+    await userEvent.upload(fileInput, file);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Markdown content")).toHaveValue("# File Agent\n\n## Role\nSupport");
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+
+    await waitFor(() => {
+      expect(client.analyzeSkillImport).toHaveBeenCalledWith(workspaceId, {
+        markdown: "# File Agent\n\n## Role\nSupport",
+        fileName: "support.skill.md"
+      });
+    });
+  });
+
+  it("keeps skill markdown available after invalid import and provider failure", async () => {
+    const client = createClient({
+      analyzeSkillImport: vi.fn().mockRejectedValue(new Error("Import analysis unavailable"))
+    });
+    renderPage(client);
+
+    await screen.findByText("Research Agent");
+    await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+    expect(screen.getByText("Markdown content is required.")).toBeInTheDocument();
+
+    const markdownInput = screen.getByLabelText("Markdown content");
+    await userEvent.type(markdownInput, "# Support Agent");
+    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Unable to analyze skill.md. Please try again.")).toBeInTheDocument();
+    });
+    expect(markdownInput).toHaveValue("# Support Agent");
+    expect(screen.getByRole("button", { name: "Retry analysis" })).not.toBeDisabled();
   });
 
   it("renders viewer mode without mutation controls or mutation API calls", async () => {

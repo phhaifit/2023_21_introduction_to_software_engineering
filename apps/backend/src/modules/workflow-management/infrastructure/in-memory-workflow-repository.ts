@@ -43,4 +43,33 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
     }
     return false;
   }
+
+  private readonly executions: Map<string, any> = new Map();
+  private readonly stepLogs: Map<string, any> = new Map();
+
+  async createExecution(execution: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto): Promise<void> {
+    this.executions.set(execution.executionId, execution);
+  }
+
+  async updateExecutionStatus(workspaceId: EntityId<"workspaceId">, executionId: EntityId<"executionId">, status: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionStatus, completedAt?: string): Promise<void> {
+    const exec = this.executions.get(executionId);
+    if (exec && exec.workspaceId === workspaceId) {
+      exec.status = status;
+      if (completedAt) exec.completedAt = completedAt;
+    }
+  }
+
+  async createStepLog(log: import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto): Promise<void> {
+    this.stepLogs.set(log.logId, log);
+  }
+
+  async updateStepLog(logId: EntityId<"logId">, status: string, outputData?: any, errorMsg?: string, completedAt?: string): Promise<void> {
+    const log = this.stepLogs.get(logId);
+    if (log) {
+      log.status = status;
+      if (outputData) log.outputData = outputData;
+      if (errorMsg) log.errorMsg = errorMsg;
+      if (completedAt) log.completedAt = completedAt;
+    }
+  }
 }

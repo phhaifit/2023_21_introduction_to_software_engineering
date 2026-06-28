@@ -2,7 +2,11 @@ import type {
   AgentModelCatalogEntry,
   AgentPublicSummary,
   AgentSkillPreviewRequest,
-  AgentSkillPreviewResponse
+  AgentSkillPreviewResponse,
+  AgentCreationAssistantDraftRequest,
+  AgentCreationAssistantDraftResponse,
+  AgentSkillImportAnalysisRequest,
+  CreateAgentRequest
 } from "@vcp/shared/contracts/agent-management.ts";
 import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -23,12 +27,7 @@ export type AgentEditableConfiguration = {
   updatedAt: string;
 };
 
-export type CreateAgentPayload = {
-  name: string;
-  role: string;
-  model: string;
-  instructions: string;
-};
+export type CreateAgentPayload = CreateAgentRequest;
 
 export type UpdateAgentPayload = Omit<CreateAgentPayload, "name">;
 
@@ -53,6 +52,14 @@ export type AgentManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     payload: AgentSkillPreviewRequest
   ): Promise<AgentSkillPreviewResponse>;
+  createAssistantDraft(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentCreationAssistantDraftRequest
+  ): Promise<AgentCreationAssistantDraftResponse>;
+  analyzeSkillImport(
+    workspaceId: EntityId<"workspaceId">,
+    payload: AgentSkillImportAnalysisRequest
+  ): Promise<AgentCreationAssistantDraftResponse>;
   createAgent(
     workspaceId: EntityId<"workspaceId">,
     payload: CreateAgentPayload
@@ -210,6 +217,16 @@ export function createAgentManagementApiClient(input: {
       (await request<AgentModelCatalogEntry[]>(`${collectionPath(workspaceId)}/models`)).data,
     previewSkillMarkdown: async (workspaceId, payload) =>
       (await request<AgentSkillPreviewResponse>(`${collectionPath(workspaceId)}/skill-preview`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
+    createAssistantDraft: async (workspaceId, payload) =>
+      (await request<AgentCreationAssistantDraftResponse>(`${collectionPath(workspaceId)}/assistant/draft`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      })).data,
+    analyzeSkillImport: async (workspaceId, payload) =>
+      (await request<AgentCreationAssistantDraftResponse>(`${collectionPath(workspaceId)}/assistant/import-skill`, {
         method: "POST",
         body: JSON.stringify(payload)
       })).data,

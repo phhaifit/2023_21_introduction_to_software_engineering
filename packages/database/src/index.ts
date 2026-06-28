@@ -3,6 +3,8 @@ export { PrismaClient } from "../generated/client/client.ts";
 export type {
   Agent,
   AgentToolAssignment,
+  Conversation,
+  ChatMessage,
   Document,
   Invitation,
   Job,

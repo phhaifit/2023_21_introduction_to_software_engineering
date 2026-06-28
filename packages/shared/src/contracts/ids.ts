@@ -14,7 +14,10 @@ export const ENTITY_ID_KINDS = [
   "eventId",
   "jobId",
   "executionId",
-  "workflowStepId"
+  "workflowStepId",
+  "conversationId",
+  "logId",
+  "messageId"
 ] as const;
 
 export type EntityIdKind = (typeof ENTITY_ID_KINDS)[number];

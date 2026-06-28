@@ -9,7 +9,8 @@ UI.
 
 ## Current Status
 
-The feature currently has a local PA5 prototype:
+The feature currently has API-backed Documents, Upload, Data Sources, and
+Synchronization Scope views, plus remaining local placeholder/mock support:
 
 - `knowledge-base-rag-page.tsx`: base shell and local navigation.
 - `knowledge-base-rag-data-sources.tsx`: Data Sources screen wired to
@@ -32,10 +33,10 @@ The feature currently has a local PA5 prototype:
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
-Documents, Upload, Data Sources, and Synchronization Scope screens now use the
-API client as their runtime source of truth. Processing Status is still
-placeholder-only. Current local view types are presentation types used to
-render shared DTOs, not public contracts.
+Documents, Upload, Data Sources, and Synchronization Scope screens use the API
+client as their runtime source of truth. Processing Status is still
+placeholder-only. Current local view types are presentation types used to render
+shared DTOs and isolated placeholders, not public contracts.
 
 ## Frontend Scope
 
@@ -50,9 +51,8 @@ render shared DTOs, not public contracts.
 
 ## Architecture Alignment
 
-Do not continue UI-only implementation for new KB/RAG flows until DB/API,
-shared contract, and event foundation is defined. Existing mock views may stay
-local until shared DTOs exist.
+Do not add new UI-only KB/RAG flows without a scoped API/DTO/runtime boundary.
+Existing mock views may stay local for placeholder and isolated test use.
 
 The frontend API client follows the Agent Management and Workflow Management
 pattern:
@@ -68,7 +68,7 @@ pattern:
 
 ## DTO Alignment
 
-Future UI integration should align with shared DTOs such as:
+Runtime UI integration aligns with shared DTOs such as:
 
 - `KnowledgeDocumentDto`
 - `UploadCandidateFileDto`
@@ -99,11 +99,11 @@ should follow the same pattern for Processing Status.
   flows.
 - Add component/API-client tests with future behavior changes.
 
-## Out Of Scope For Architecture-Only Issues
+## Out Of Scope For Cleanup/Boundary Issues
 
 - New UI screens.
 - Runtime upload handling.
-- Backend integration.
-- Worker integration.
+- New backend routes.
+- Production worker/runtime integration.
 - Shared contract changes.
 - Prisma schema or migration changes.
