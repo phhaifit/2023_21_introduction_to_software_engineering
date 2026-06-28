@@ -100,21 +100,8 @@
 
 .knowledge-base-rag-upload-file {
   border: 1px solid #e5e7eb;
-  border-left-width: 0.25rem;
   border-radius: 0.75rem;
   background: #ffffff;
-}
-
-.knowledge-base-rag-upload-file--valid {
-  border-left-color: #10b981;
-}
-
-.knowledge-base-rag-upload-file--invalid {
-  border-left-color: #ef4444;
-}
-
-.knowledge-base-rag-upload-file--pending {
-  border-left-color: #f59e0b;
 }
 
 .knowledge-base-rag-upload-file__main {

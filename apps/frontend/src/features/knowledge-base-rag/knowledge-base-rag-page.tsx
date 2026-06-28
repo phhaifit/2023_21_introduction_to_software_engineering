@@ -9,6 +9,7 @@ import {
   createKnowledgeBaseRagApiClient,
   type KnowledgeBaseRagApiClient
 } from "./knowledge-base-rag-api-client.ts";
+import { KnowledgeBaseTabs } from "./knowledge-base-rag-components.tsx";
 import { KnowledgeBaseProcessingStatusScreen } from "./knowledge-base-rag-processing-status.tsx";
 import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
@@ -24,7 +25,6 @@ type KnowledgeBaseRagViewId =
 type KnowledgeBaseRagView = {
   id: KnowledgeBaseRagViewId;
   label: string;
-  shortLabel: string;
   eyebrow: string;
   title: string;
   description: string;
@@ -35,7 +35,6 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "documents",
     label: "Documents",
-    shortLabel: "D",
     eyebrow: "Document list management",
     title: "Documents",
     description:
@@ -49,7 +48,6 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "upload-documents",
     label: "Upload Documents",
-    shortLabel: "U",
     eyebrow: "Document upload",
     title: "Upload Documents",
     description:
@@ -63,7 +61,6 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "data-sources",
     label: "Data Sources",
-    shortLabel: "D",
     eyebrow: "External knowledge sources",
     title: "Data Sources",
     description: "Manage external knowledge sources connected to the workspace.",
@@ -76,7 +73,6 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "synchronization-scope",
     label: "Synchronization Scope",
-    shortLabel: "S",
     eyebrow: "Sync scope selection",
     title: "Synchronization Scope",
     description:
@@ -90,7 +86,6 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
   {
     id: "processing-status",
     label: "Processing Status",
-    shortLabel: "P",
     eyebrow: "Ingestion and sync monitoring",
     title: "Processing Status",
     description:
@@ -121,44 +116,13 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
       knowledgeBaseViews[0],
     [activeViewId]
   );
+  const tabItems = useMemo(
+    () => knowledgeBaseViews.map((view) => ({ id: view.id, label: view.label })),
+    []
+  );
 
   return (
     <section className="knowledge-base-rag-shell" aria-label="Knowledge Base RAG Management">
-      <aside className="knowledge-base-rag-sidebar">
-        <div className="knowledge-base-rag-brand">
-          <div className="knowledge-base-rag-logo" aria-hidden="true">
-            K
-          </div>
-          <div>
-            <p className="knowledge-base-rag-brand-title">Knowledge Base</p>
-            <p className="knowledge-base-rag-brand-subtitle">Manager</p>
-          </div>
-        </div>
-
-        <nav className="knowledge-base-rag-nav" aria-label="Knowledge Base views">
-          {knowledgeBaseViews.map((view) => {
-            const isActive = view.id === activeView.id;
-
-            return (
-              <button
-                key={view.id}
-                type="button"
-                className={`knowledge-base-rag-nav-item${
-                  isActive ? " knowledge-base-rag-nav-item-active" : ""
-                }`}
-                aria-current={isActive ? "page" : undefined}
-                onClick={() => setActiveViewId(view.id)}
-              >
-                <span className="knowledge-base-rag-nav-icon" aria-hidden="true">
-                  {view.shortLabel}
-                </span>
-                <span>{view.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
       <main className="knowledge-base-rag-main">
         <header className="knowledge-base-rag-header">
           <div>
@@ -170,6 +134,13 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
             </p>
           </div>
         </header>
+
+        <KnowledgeBaseTabs
+          activeItemId={activeView.id}
+          className="knowledge-base-rag-nav"
+          items={tabItems}
+          onSelect={(itemId) => setActiveViewId(itemId as KnowledgeBaseRagViewId)}
+        />
 
         {activeView.id === "documents" && (
           <KnowledgeBaseDocumentsScreen
