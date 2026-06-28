@@ -8,6 +8,9 @@ import { SubscriptionPaymentPage } from "./features/subscription-payment/subscri
 import { TaskOrchestrationPage } from "./features/task-orchestration/task-orchestration-page.tsx";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
+import { WorkspaceListPage } from "./features/workspace-management/WorkspaceListPage.tsx";
+import { WorkspaceCreatePage } from "./features/workspace-management/WorkspaceCreatePage.tsx";
+import { WorkspaceDetailPage } from "./features/workspace-management/WorkspaceDetailPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
@@ -31,6 +34,9 @@ export function App() {
           <Route path="/knowledge-base-rag" element={<KnowledgeBaseRagPage />} />
           <Route path="/billing" element={<SubscriptionPaymentPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/workspaces" element={<WorkspaceListPage />} />
+          <Route path="/workspaces/new" element={<WorkspaceCreatePage />} />
+          <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="/authentication" element={<AuthenticationPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
