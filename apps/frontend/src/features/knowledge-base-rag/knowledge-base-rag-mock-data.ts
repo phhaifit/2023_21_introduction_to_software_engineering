@@ -1,7 +1,7 @@
 import type {
   ExternalDataSource,
-  IngestionJob,
   KnowledgeDocument,
+  ProcessingJob,
   SyncJob,
   SyncScopeNode,
   UploadCandidateFile
@@ -125,46 +125,54 @@ export const mockUploadCandidateFiles: UploadCandidateFile[] = [
   }
 ];
 
-export const mockIngestionJobs: IngestionJob[] = [
+export const mockProcessingJobs: ProcessingJob[] = [
   {
-    id: "ingestion-employee-handbook-2026",
+    jobId: "processing-employee-handbook-2026",
     documentName: "Employee Handbook 2026.pdf",
+    fileType: "pdf",
+    sourceName: "Upload",
     status: "completed",
     progress: 100,
-    currentStep: "Index ready",
-    message: "Document parsed, chunked, embedded, and indexed successfully.",
+    currentStep: "Ready for retrieval",
     startedAt: "2026-06-18 09:22",
-    finishedAt: "2026-06-18 09:29"
+    completedAt: "2026-06-18 09:29"
   },
   {
-    id: "ingestion-remote-work-policy",
+    jobId: "processing-remote-work-policy",
     documentName: "Remote Work Policy.docx",
-    status: "running",
+    fileType: "docx",
+    sourceName: "Upload",
+    status: "processing",
     progress: 62,
-    currentStep: "Generating embeddings",
-    message: "Processing policy sections and preparing searchable chunks.",
+    currentStep: "Indexing content",
     startedAt: "2026-06-19 14:46"
   },
   {
-    id: "ingestion-engineering-onboarding-guide",
+    jobId: "processing-engineering-onboarding-guide",
     documentName: "Engineering Onboarding Guide",
-    status: "pending",
+    fileType: "page",
+    sourceName: "Notion",
+    status: "queued",
     progress: 0,
-    currentStep: "Waiting for worker",
-    message: "Document is queued for ingestion.",
+    currentStep: "Queued for processing",
     startedAt: "2026-06-20 10:31"
   },
   {
-    id: "ingestion-customer-support-playbook",
+    jobId: "processing-customer-support-playbook",
     documentName: "Customer Support Playbook",
+    fileType: "page",
+    sourceName: "Confluence",
     status: "failed",
     progress: 48,
     currentStep: "Parsing page content",
-    message: "Some linked sections could not be read. Review source permissions and retry.",
     startedAt: "2026-06-17 16:06",
-    finishedAt: "2026-06-17 16:09"
+    failedAt: "2026-06-17 16:09",
+    safeErrorMessage:
+      "Some selected content could not be read. Review source access and retry the job."
   }
 ];
+
+export const mockIngestionJobs = mockProcessingJobs;
 
 export const mockExternalDataSources: ExternalDataSource[] = [
   {

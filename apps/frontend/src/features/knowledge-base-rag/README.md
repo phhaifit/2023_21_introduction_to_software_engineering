@@ -10,11 +10,11 @@ UI.
 ## Current Status
 
 The feature currently has API-backed Documents, Upload, Data Sources, and
-Synchronization Scope views, plus remaining local placeholder/mock support:
+Synchronization Scope views, plus remaining local mock support:
 
 - `knowledge-base-rag-page.tsx`: base shell and local navigation.
 - `knowledge-base-rag-data-sources.tsx`: Data Sources screen wired to
-  `listDataSources` and safe placeholder `connectDataSource` calls.
+  `listDataSources` and safe connection intent `connectDataSource` calls.
 - `knowledge-base-rag-sync-scope.tsx`: Synchronization Scope screen wired to
   `getSyncScope`, `updateSyncScope`, `requestManualSync`, and `listSyncJobs`.
 - `knowledge-base-rag-components.tsx`: shared presentational components such as
@@ -28,15 +28,18 @@ Synchronization Scope views, plus remaining local placeholder/mock support:
 - `knowledge-base-rag-upload.tsx`: Upload Documents screen wired to
   metadata-only upload validation and prepare flows through the typed KB/RAG
   API client.
+- `knowledge-base-rag-processing-status.tsx`: Processing Status screen backed
+  by deterministic local mock jobs for queued, processing, completed, and
+  failed ingestion/indexing states.
 - `knowledge-base-rag-api-client.ts`: typed frontend API client for the
   workspace-scoped KB/RAG backend route family.
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
 Documents, Upload, Data Sources, and Synchronization Scope screens use the API
-client as their runtime source of truth. Processing Status is still
-placeholder-only. Current local view types are presentation types used to render
-shared DTOs and isolated placeholders, not public contracts.
+client as their runtime source of truth. Processing Status is currently a
+frontend-only mock status view. Current local view types are presentation types
+used to render shared DTOs and isolated local views, not public contracts.
 
 ## Frontend Scope
 
@@ -44,15 +47,15 @@ shared DTOs and isolated placeholders, not public contracts.
 - Upload candidate review.
 - Upload validation display.
 - Processing and indexing status display.
-- API-backed data source placeholders.
-- API-backed synchronization scope placeholders.
-- API-backed manual sync status placeholders in Synchronization Scope.
+- API-backed data source connections.
+- API-backed synchronization scope selections.
+- API-backed manual sync status in Synchronization Scope.
 - Future agent knowledge permission controls after contracts exist.
 
 ## Architecture Alignment
 
 Do not add new UI-only KB/RAG flows without a scoped API/DTO/runtime boundary.
-Existing mock views may stay local for placeholder and isolated test use.
+Existing mock views may stay local for isolated test use.
 
 The frontend API client follows the Agent Management and Workflow Management
 pattern:
@@ -92,11 +95,10 @@ should follow the same pattern for Processing Status.
 - Do not modify Agent Management or other feature folders.
 - Do not import backend, worker, database, Prisma, or private module files.
 - Do not wire UI screens to API calls outside a scoped integration task.
-- Do not add React Router for this feature unless a later app-shell issue
+- Do not add React Router for this feature unless a future app-shell change
   explicitly requires route-based navigation.
 - Follow existing frontend style: React components, feature-prefixed CSS
-  classes, small files, and deterministic mock data for isolated prototype
-  flows.
+  classes, small files, and deterministic mock data for isolated UI flows.
 - Add component/API-client tests with future behavior changes.
 
 ## Out Of Scope For Cleanup/Boundary Issues
