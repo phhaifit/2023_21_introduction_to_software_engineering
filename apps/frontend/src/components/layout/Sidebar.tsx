@@ -2,6 +2,7 @@ import { useState, type ComponentType } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Bot,
+  Building2,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -25,6 +26,7 @@ type NavigationItem = {
 
 const primaryItems: NavigationItem[] = [
   { key: "dashboard", label: "Home", icon: Home },
+  { key: "workspaces", label: "Workspaces", icon: Building2 },
   { key: "executions", label: "Tasks", ariaLabel: "Công việc", icon: ListChecks }
 ];
 
