@@ -188,6 +188,7 @@ const expectedModels = {
       role: "String",
       model: "String",
       instructions: "String",
+      runtimeConfig: "Json?",
       status: "String",
       createdAt: "String",
       updatedAt: "String"

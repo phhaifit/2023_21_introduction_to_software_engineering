@@ -9,7 +9,7 @@ import { createAgent } from "@vcp/backend/modules/agent-management/domain/agent.
 import { createAgentManagementRouter } from "@vcp/backend/modules/agent-management/api/agent-management-router.ts";
 import { InMemoryAgentRepository } from "@vcp/backend/modules/agent-management/infrastructure/in-memory-agent-repository.ts";
 
-function createUseCases(repository = new InMemoryAgentRepository(), draftingPort = undefined) {
+function createUseCases(repository = new InMemoryAgentRepository(), draftingPort = undefined, overrides = {}) {
   let idSequence = 0;
   let timeSequence = 0;
 
@@ -18,6 +18,7 @@ function createUseCases(repository = new InMemoryAgentRepository(), draftingPort
     useCases: new AgentLifecycleUseCases({
       repository,
       draftingPort,
+      ...overrides,
       now: () => `2026-06-20T00:00:0${timeSequence++}.000Z`,
       generateAgentId: () => `agent-created-${++idSequence}`
     })
@@ -258,7 +259,12 @@ function makeAgent(overrides = {}) {
         name: "Planning Agent",
         role: "Planner",
         model: "gemini-2.5-flash",
-        instructions: "Create execution plans."
+        instructions: "Create execution plans.",
+        responsibilities: ["Break goals into steps"],
+        operatingContext: "Use approved workspace context.",
+        constraints: ["Ask before changing scope"],
+        escalationRules: ["Escalate blocked plans"],
+        exampleTasks: ["Prepare a weekly plan"]
       }
     });
 
@@ -273,6 +279,11 @@ function makeAgent(overrides = {}) {
 
     const stored = await repository.findById("workspace-created", "agent-created-1");
     assert.equal(stored.workspaceId, "workspace-created");
+    assert.deepEqual(stored.runtimeConfiguration.responsibilities, ["Break goals into steps"]);
+    assert.equal(stored.runtimeConfiguration.operatingContext, "Use approved workspace context.");
+    assert.deepEqual(stored.runtimeConfiguration.constraints, ["Ask before changing scope"]);
+    assert.deepEqual(stored.runtimeConfiguration.escalationRules, ["Escalate blocked plans"]);
+    assert.deepEqual(stored.runtimeConfiguration.exampleTasks, ["Prepare a weekly plan"]);
 
     const invalidModel = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
       method: "POST",
@@ -289,6 +300,132 @@ function makeAgent(overrides = {}) {
     assert.equal(invalidModel.body.error.code, "validation.invalid_input");
     assert.ok(
       invalidModel.body.error.details.issues.includes("model must match an enabled catalog model")
+    );
+  });
+}
+
+{
+  const repository = new InMemoryAgentRepository();
+  const connectedToolCatalog = {
+    calls: [],
+    async listConnectedTools(workspaceId) {
+      this.calls.push(workspaceId);
+      return [
+        { toolId: "tool-slack", name: "Slack", connected: true, available: true },
+        { toolId: "tool-crm", name: "CRM", connected: false, available: true }
+      ];
+    }
+  };
+  const knowledgeDocumentCatalog = {
+    calls: [],
+    async listKnowledgeDocuments(workspaceId) {
+      this.calls.push(workspaceId);
+      return [
+        { documentId: "document-support", title: "Support Handbook", ready: true, status: "ready" },
+        { documentId: "document-draft", title: "Draft Policy", ready: false, status: "pending" }
+      ];
+    }
+  };
+  const { useCases } = createUseCases(repository, undefined, {
+    connectedToolCatalog,
+    knowledgeDocumentCatalog
+  });
+
+  await withAgentApi(useCases, async (baseUrl) => {
+    const valid = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Validated Assistant",
+        role: "Support",
+        model: "gemini-2.5-flash",
+        instructions: "Support customers.",
+        responsibilities: ["Triage issues"],
+        constraints: ["Do not change account plans"],
+        requestedTools: [{ name: "Slack", reason: "Notify owners" }],
+        requestedKnowledge: [{ title: "Support Handbook", reason: "Ground answers" }]
+      }
+    });
+
+    assert.equal(valid.status, 200);
+    assert.equal(valid.body.ok, true);
+    assert.equal(valid.body.data.name, "Validated Assistant");
+    const stored = await repository.findById("workspace-created", "agent-created-1");
+    assert.deepEqual(stored.runtimeConfiguration.responsibilities, ["Triage issues"]);
+    assert.deepEqual(stored.runtimeConfiguration.constraints, ["Do not change account plans"]);
+    assert.deepEqual(stored.runtimeConfiguration.requestedTools, [
+      { name: "Slack", reason: "Notify owners" }
+    ]);
+    assert.deepEqual(stored.runtimeConfiguration.requestedKnowledge, [
+      { title: "Support Handbook", reason: "Ground answers" }
+    ]);
+    assert.deepEqual(connectedToolCatalog.calls, ["workspace-created"]);
+    assert.deepEqual(knowledgeDocumentCatalog.calls, ["workspace-created"]);
+
+    const disconnected = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Disconnected Tool Agent",
+        role: "Support",
+        model: "gemini-2.5-flash",
+        instructions: "Support customers.",
+        requestedTools: [{ name: "CRM" }]
+      }
+    });
+
+    assert.equal(disconnected.status, 400);
+    assert.equal(disconnected.body.error.code, "validation.invalid_input");
+    assert.equal(disconnected.body.error.details.warnings[0].code, "tool.disconnected");
+    assert.equal(disconnected.body.error.details.warnings[0].field, "requestedTools");
+
+    const missingTool = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Missing Tool Agent",
+        role: "Support",
+        model: "gemini-2.5-flash",
+        instructions: "Support customers.",
+        requestedTools: [{ name: "PagerDuty" }]
+      }
+    });
+
+    assert.equal(missingTool.status, 400);
+    assert.equal(missingTool.body.error.details.warnings[0].code, "tool.missing");
+
+    const missingKnowledge = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Missing Knowledge Agent",
+        role: "Support",
+        model: "gemini-2.5-flash",
+        instructions: "Support customers.",
+        requestedKnowledge: [{ title: "Legacy Runbook" }]
+      }
+    });
+
+    assert.equal(missingKnowledge.status, 400);
+    assert.equal(missingKnowledge.body.error.details.warnings[0].code, "knowledge.missing");
+    assert.equal(missingKnowledge.body.error.details.warnings[0].field, "requestedKnowledge");
+
+    const unreadyKnowledge = await requestJson(baseUrl, "/api/workspaces/workspace-created/agents", {
+      method: "POST",
+      body: {
+        name: "Unready Knowledge Agent",
+        role: "Support",
+        model: "gemini-2.5-flash",
+        instructions: "Support customers.",
+        requestedKnowledge: [{ title: "Draft Policy" }]
+      }
+    });
+
+    assert.equal(unreadyKnowledge.status, 400);
+    assert.equal(unreadyKnowledge.body.error.details.warnings[0].code, "knowledge.unready");
+
+    const list = await repository.listByWorkspace("workspace-created", {
+      statuses: ["enabled", "disabled"]
+    });
+    assert.deepEqual(
+      list.agents.map((agent) => agent.name),
+      ["Validated Assistant"]
     );
   });
 }
