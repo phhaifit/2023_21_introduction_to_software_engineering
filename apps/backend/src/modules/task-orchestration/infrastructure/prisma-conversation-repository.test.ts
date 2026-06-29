@@ -17,6 +17,7 @@ describe("PrismaConversationRepository", () => {
       },
       chatMessage: {
         create: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockResolvedValue({}),
         deleteMany: vi.fn().mockResolvedValue({ count: 0 })
       }
     };
@@ -85,7 +86,7 @@ describe("PrismaConversationRepository", () => {
     expect(list[0].conversationId).toBe("conv_1");
   });
 
-  it("should append a message and update updatedAt", async () => {
+  it("should upsert a message and update updatedAt", async () => {
     mockPrisma.conversation.findUnique.mockResolvedValue({
       conversationId: "conv_1",
       workspaceId: "ws_1"
@@ -101,7 +102,23 @@ describe("PrismaConversationRepository", () => {
 
     await repository.appendMessage("conv_1" as any, msg);
 
-    expect(mockPrisma.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.chatMessage.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.chatMessage.upsert).toHaveBeenCalledWith({
+      where: { messageId: "msg_1" },
+      create: {
+        messageId: "msg_1",
+        conversationId: "conv_1",
+        role: "user",
+        content: "Hello AI",
+        timestamp: "2026-06-27T10:05:00.000Z"
+      },
+      update: {
+        conversationId: "conv_1",
+        role: "user",
+        content: "Hello AI",
+        timestamp: "2026-06-27T10:05:00.000Z"
+      }
+    });
     expect(mockPrisma.conversation.update).toHaveBeenCalledTimes(1);
     expect(mockPrisma.conversation.update.mock.calls[0][0].data).toEqual({ updatedAt: "2026-06-27T10:05:00.000Z" });
   });

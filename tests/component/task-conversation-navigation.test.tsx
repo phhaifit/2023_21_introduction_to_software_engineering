@@ -269,8 +269,8 @@ describe("Conversation Navigation & Switching", () => {
     await user.click(clearBtn);
     expect(within(navigation).getByText("Distinct Beta Request")).toBeVisible();
 
-    // 2. Search input filtering by Task ID (e.g. TASK-000002)
-    await user.type(searchInput, "TASK-000002");
+    // 2. Search input filtering by visible conversation prompt text
+    await user.type(searchInput, "Beta");
     expect(within(navigation).getByText("Distinct Beta Request")).toBeVisible();
     expect(within(navigation).queryByText("Unique Alpha Prompt")).not.toBeInTheDocument();
     await user.click(within(navigation).getByRole("button", { name: /^clear filters$/i }));

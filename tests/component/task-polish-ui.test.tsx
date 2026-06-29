@@ -167,6 +167,8 @@ describe("Polish UI: copy actions", () => {
         name: "More actions for this work"
       })
     );
+    expect(screen.queryByRole("menuitem", { name: "Copy Task ID" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Copy Work ID" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "Copy query" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalledWith("Copy me");
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
@@ -183,10 +185,11 @@ describe("Polish UI: copy actions", () => {
     act(() => { cRuntime.scheduler.advance(); });
 
     await user.click(
-      within(screen.getByLabelText("User message")).getByRole("button", {
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
         name: "More actions for this work"
       })
     );
+    expect(screen.queryByRole("menuitem", { name: "Delete message" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalledWith("Final completed text result");
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();

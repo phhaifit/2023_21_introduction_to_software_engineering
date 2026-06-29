@@ -178,6 +178,7 @@ export function TaskAssistantMessage({
             prompt={task.prompt}
             clipboardWriter={clipboardWriter}
             canDelete={canDeleteTask}
+            showDelete={false}
             deleteDisabledReason={deleteTaskDisabledReason}
             onViewDetails={onOpenDetails}
             onDelete={onDeleteTask}

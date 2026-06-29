@@ -128,9 +128,16 @@ export class PrismaConversationRepository implements ConversationRepository {
 
     const timestamp = message.timestamp || new Date().toISOString();
 
-    await this.prisma.chatMessage.create({
-      data: {
+    await this.prisma.chatMessage.upsert({
+      where: { messageId: message.messageId as string },
+      create: {
         messageId: message.messageId as string,
+        conversationId: conversationId as string,
+        role: message.role,
+        content: message.content,
+        timestamp
+      },
+      update: {
         conversationId: conversationId as string,
         role: message.role,
         content: message.content,

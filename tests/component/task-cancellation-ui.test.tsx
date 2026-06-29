@@ -430,7 +430,8 @@ describe("7. Isolation and Lifecycle", () => {
     // Open dialog on Task B
     await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     const dialogB = screen.getByRole("dialog", { name: "Cancel task?" });
-    expect(within(dialogB).getByText("WORK-000002")).toBeVisible(); // correct Work ID for B
+    expect(within(dialogB).queryByText("WORK-000002")).not.toBeInTheDocument();
+    expect(within(dialogB).getByLabelText("Task status: Pending")).toBeVisible();
 
     await user.click(within(dialogB).getByRole("button", { name: "Confirm cancellation" }));
     expect(screen.getByLabelText("Task status: Canceled")).toBeVisible();

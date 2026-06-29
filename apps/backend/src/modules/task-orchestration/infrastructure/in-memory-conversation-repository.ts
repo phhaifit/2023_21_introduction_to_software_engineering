@@ -27,7 +27,14 @@ export class InMemoryConversationRepository implements ConversationRepository {
     if (!conv) {
       throw new Error(`Conversation not found: ${conversationId}`);
     }
-    conv.messages.push({ ...message });
+    const existingIndex = conv.messages.findIndex(
+      (existing) => existing.messageId === message.messageId
+    );
+    if (existingIndex >= 0) {
+      conv.messages[existingIndex] = { ...message };
+    } else {
+      conv.messages.push({ ...message });
+    }
     conv.updatedAt = message.timestamp || new Date().toISOString();
   }
 

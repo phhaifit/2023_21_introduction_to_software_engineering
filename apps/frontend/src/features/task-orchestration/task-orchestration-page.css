@@ -1284,7 +1284,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 
@@ -1305,6 +1305,7 @@
 
 .task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,
 .task-conversation-navigation__item-row:focus-within .task-conversation-navigation__item-menu-btn,
+.task-conversation-navigation__item-row--active .task-conversation-navigation__item-menu-btn,
 .task-conversation-navigation__item--menu-open .task-conversation-navigation__item-menu-btn {
   opacity: 1;
   pointer-events: auto;
@@ -1513,7 +1514,7 @@ button.task-conversation-navigation__new-btn:focus-visible {
   gap: 12px;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding-block-start: 18px;
 }
 
@@ -1536,7 +1537,7 @@ button.task-conversation-navigation__new-btn:focus-visible {
   margin: 0;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
 }
 
@@ -1544,7 +1545,7 @@ button.task-conversation-navigation__new-btn:focus-visible {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 

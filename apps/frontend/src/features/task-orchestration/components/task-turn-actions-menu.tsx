@@ -10,6 +10,7 @@ export interface TaskTurnActionsMenuProps {
   prompt: string;
   clipboardWriter: TaskClipboardWriter;
   canDelete: boolean;
+  showDelete?: boolean;
   deleteDisabledReason?: string;
   onViewDetails: () => void;
   onDelete: () => void;
@@ -31,6 +32,7 @@ export function TaskTurnActionsMenu({
   prompt,
   clipboardWriter,
   canDelete,
+  showDelete = true,
   deleteDisabledReason,
   onViewDetails,
   onDelete
@@ -122,24 +124,6 @@ export function TaskTurnActionsMenu({
               </button>
             </li>
           ) : null}
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => handleMenuAction(() => copyText(task.taskId as string))}
-            >
-              Copy Task ID
-            </button>
-          </li>
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => handleMenuAction(() => copyText(task.workId as string))}
-            >
-              Copy Work ID
-            </button>
-          </li>
           {task.status === "failed" && task.error ? (
             <li role="none">
               <button
@@ -162,22 +146,24 @@ export function TaskTurnActionsMenu({
               </button>
             </li>
           ) : null}
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className="task-turn-actions__menu-item--danger"
-              disabled={!canDelete}
-              title={!canDelete ? deleteDisabledReason : undefined}
-              onClick={() => {
-                if (canDelete) {
-                  handleMenuAction(onDelete);
-                }
-              }}
-            >
-              Delete message
-            </button>
-          </li>
+          {showDelete ? (
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                className="task-turn-actions__menu-item--danger"
+                disabled={!canDelete}
+                title={!canDelete ? deleteDisabledReason : undefined}
+                onClick={() => {
+                  if (canDelete) {
+                    handleMenuAction(onDelete);
+                  }
+                }}
+              >
+                Delete message
+              </button>
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </div>

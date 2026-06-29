@@ -92,6 +92,38 @@ describe("InMemoryConversationRepository", () => {
     expect(updated?.updatedAt).toBe("2026-06-27T10:05:00.000Z");
   });
 
+  it("should replace an existing message with the same ID", async () => {
+    const conv: Conversation = {
+      conversationId: "conv_1" as any,
+      workspaceId: "ws_1" as any,
+      title: "Idempotent Conv",
+      messages: [],
+      createdAt: "2026-06-27T10:00:00.000Z",
+      updatedAt: "2026-06-27T10:00:00.000Z"
+    };
+
+    await repository.saveConversation(conv);
+    await repository.appendMessage("conv_1" as any, {
+      messageId: "msg_1" as any,
+      conversationId: "conv_1" as any,
+      role: "user",
+      content: "First write",
+      timestamp: "2026-06-27T10:05:00.000Z"
+    });
+    await repository.appendMessage("conv_1" as any, {
+      messageId: "msg_1" as any,
+      conversationId: "conv_1" as any,
+      role: "user",
+      content: "Replay write",
+      timestamp: "2026-06-27T10:06:00.000Z"
+    });
+
+    const updated = await repository.getConversation("conv_1" as any);
+    expect(updated?.messages).toHaveLength(1);
+    expect(updated?.messages[0].content).toBe("Replay write");
+    expect(updated?.updatedAt).toBe("2026-06-27T10:06:00.000Z");
+  });
+
   it("should update associated target", async () => {
     const conv: Conversation = {
       conversationId: "conv_1" as any,
