@@ -453,61 +453,60 @@ export function TaskOrchestrationPage({
         }`}
         aria-label="Task workspace sidebar"
       >
-        {!conversationSidebarCollapsed ? (
-          <div className="task-workspace__sidebar-header">
-            <div>
-              <p className="task-workspace__eyebrow">Conversations</p>
-              <h2>Workspace sessions</h2>
-            </div>
+        {conversationSidebarCollapsed ? (
+          <div className="task-workspace__sidebar-rail">
+            <TaskConversationNavigation
+              items={navigationItems}
+              activeConversationId={taskState.activeConversationId}
+              isCollapsed
+              onCreateConversation={handleCreateConversation}
+              onSelectConversation={handleSelectConversation}
+              onDeleteConversation={handleDeleteConversationRequest}
+            />
             <button
               type="button"
-              className="task-workspace__sidebar-toggle"
-              aria-expanded={!conversationSidebarCollapsed}
-              aria-label="Collapse conversations"
-              title="Collapse conversations"
-              onClick={() => setConversationSidebarCollapsed(true)}
+              className="task-workspace__sidebar-toggle task-workspace__sidebar-toggle--expand"
+              aria-expanded={false}
+              aria-label="Expand conversations"
+              title="Expand conversations"
+              onClick={() => setConversationSidebarCollapsed(false)}
             >
-              ⟨
+              ›
             </button>
           </div>
-        ) : null}
-        <TaskConversationNavigation
-          items={navigationItems}
-          activeConversationId={taskState.activeConversationId}
-          isCollapsed={conversationSidebarCollapsed}
-          onCreateConversation={handleCreateConversation}
-          onSelectConversation={handleSelectConversation}
-          onDeleteConversation={handleDeleteConversationRequest}
-        />
-        {conversationSidebarCollapsed ? (
-          <button
-            type="button"
-            className="task-workspace__sidebar-toggle task-workspace__sidebar-toggle--expand"
-            aria-expanded={!conversationSidebarCollapsed}
-            aria-label="Expand conversations"
-            title="Expand conversations"
-            onClick={() => setConversationSidebarCollapsed(false)}
-          >
-            ⟩
-          </button>
-        ) : null}
+        ) : (
+          <>
+            <div className="task-workspace__sidebar-header">
+              <div>
+                <p className="task-workspace__eyebrow">Conversations</p>
+                <h2>Workspace sessions</h2>
+              </div>
+              <button
+                type="button"
+                className="task-workspace__sidebar-toggle"
+                aria-expanded={true}
+                aria-label="Collapse conversations"
+                title="Collapse conversations"
+                onClick={() => setConversationSidebarCollapsed(true)}
+              >
+                ‹
+              </button>
+            </div>
+            <TaskConversationNavigation
+              items={navigationItems}
+              activeConversationId={taskState.activeConversationId}
+              isCollapsed={false}
+              onCreateConversation={handleCreateConversation}
+              onSelectConversation={handleSelectConversation}
+              onDeleteConversation={handleDeleteConversationRequest}
+            />
+          </>
+        )}
       </aside>
 
       <div className="task-workspace__main">
         <header className="task-workspace__header">
           <div className="task-workspace__header-copy">
-            {conversationSidebarCollapsed ? (
-              <button
-                type="button"
-                className="task-workspace__sidebar-toggle task-workspace__sidebar-toggle--header"
-                aria-expanded={!conversationSidebarCollapsed}
-                aria-label="Expand conversations"
-                title="Expand conversations"
-                onClick={() => setConversationSidebarCollapsed(false)}
-              >
-                ☰
-              </button>
-            ) : null}
             <div>
               <p className="task-workspace__eyebrow">Workspace</p>
               <h2 id="task-workspace-title">Task &amp; Orchestration</h2>

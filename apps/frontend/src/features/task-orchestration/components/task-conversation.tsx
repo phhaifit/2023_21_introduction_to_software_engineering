@@ -7,7 +7,8 @@ import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
 import { TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
-import { TaskStatusBadge } from "./task-status-badge";import type { TaskClipboardWriter } from "../model/task-completion-runtime";
+import { TaskStatusBadge } from "./task-status-badge";
+import type { TaskClipboardWriter } from "../model/task-completion-runtime";
 
 export interface TaskConversationProps {
   task: CreatedTaskRecord;
@@ -158,7 +159,8 @@ export function TaskAssistantMessage({
             {!isNonTerminal && presentationStatus ? (
               <TaskStatusBadge status={presentationStatus} />
             ) : null}
-          </div>          <TaskTurnActionsMenu
+          </div>
+          <TaskTurnActionsMenu
             task={task}
             prompt={task.prompt}
             clipboardWriter={clipboardWriter}

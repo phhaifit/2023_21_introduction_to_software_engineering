@@ -1,6 +1,7 @@
 import type { CreatedTaskRecord } from "../model/task-types";
 import { toTaskPresentationStatus } from "../model/task-lifecycle";
 import { TaskStatusBadge } from "./task-status-badge";
+
 export interface TaskAssistantProgressSummaryProps {
   task: CreatedTaskRecord;
 }
@@ -21,7 +22,9 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
       : `${activeStep ? activeStep.label : "Processing"} · ${completedSteps.length}/${totalSteps} steps`;
 
   return (
-    <div className="task-assistant-progress" aria-live="polite">      {presentationStatus ? <TaskStatusBadge status={presentationStatus} /> : null}
+    <div className="task-assistant-progress" aria-live="polite">
+      {presentationStatus ? <TaskStatusBadge status={presentationStatus} /> : null}
       <span className="task-assistant-progress__steps">{stepSummary}</span>
     </div>
-  );}
+  );
+}

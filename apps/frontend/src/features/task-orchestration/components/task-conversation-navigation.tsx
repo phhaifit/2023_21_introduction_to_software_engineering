@@ -94,7 +94,7 @@ function ConversationItemMenu({
     <div className="task-conversation-navigation__item-menu" ref={containerRef}>
       <button
         type="button"
-        className="task-conversation-navigation__item-menu-btn"
+        className="task-conversation-navigation__item-menu-btn task-conversation-navigation__more-button"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={menuId}
@@ -166,7 +166,7 @@ function ConversationNavigationItem({
       >
         <button
           type="button"
-          className="task-conversation-navigation__btn"
+          className="task-conversation-navigation__btn task-conversation-navigation__conversation-button"
           aria-label={item.title}
           aria-current={isActive ? "page" : undefined}
           onClick={() => onSelectConversation(item.conversationId)}
@@ -252,6 +252,12 @@ export function TaskConversationNavigation({
   const activeItem = items.find((item) => item.conversationId === activeConversationId);
 
   if (isCollapsed) {
+    const activeItemLabel = activeItem
+      ? `Active conversation: ${activeItem.title}${
+          activeItem.latestStatus ? `, ${STATUS_LABELS[activeItem.latestStatus]}` : ""
+        }`
+      : "No active conversation";
+
     return (
       <nav
         className="task-conversation-navigation task-conversation-navigation--collapsed"
@@ -267,13 +273,25 @@ export function TaskConversationNavigation({
           +
         </button>
         {activeItem ? (
-          <div className="task-conversation-navigation__collapsed-active" title={activeItem.title}>
-            <span className="task-conversation-navigation__collapsed-title">{activeItem.title}</span>
-            {activeItem.latestStatus ? (
+          <div
+            className="task-conversation-navigation__collapsed-active"
+            aria-label={activeItemLabel}
+            title={activeItem.title}
+          >
+            <span
+              className={`task-conversation-navigation__collapsed-status-dot${
+                activeItem.latestStatus
+                  ? ` task-conversation-navigation__collapsed-status-dot--${activeItem.latestStatus}`
+                  : ""
+              }`}
+              aria-hidden="true"
+            />
+            {typeof activeItem.taskCount === "number" && activeItem.taskCount > 0 ? (
               <span
-                className={`task-conversation-navigation__status task-conversation-navigation__status--${activeItem.latestStatus}`}
+                className="task-conversation-navigation__collapsed-count"
+                aria-hidden="true"
               >
-                {STATUS_LABELS[activeItem.latestStatus]}
+                {activeItem.taskCount}
               </span>
             ) : null}
           </div>

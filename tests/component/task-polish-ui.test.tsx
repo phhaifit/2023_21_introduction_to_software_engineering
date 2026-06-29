@@ -226,10 +226,42 @@ describe("Polish UI: composer cancel and inline progress", () => {
 });
 
 describe("Polish UI: sidebar collapse", () => {
+  it("keeps conversation row content and more actions unified for long titles", async () => {
+    const user = userEvent.setup();
+    render(<TaskOrchestrationPage />);
+    const longTitle =
+      "This is a deliberately long conversation title that should truncate inside Recent work";
+    await submitPrompt(longTitle);
+
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    const item = within(navigation).getByRole("listitem");
+    const selectButton = item.querySelector<HTMLButtonElement>(
+      ".task-conversation-navigation__conversation-button"
+    );
+    const moreButton = within(item).getByRole("button", {
+      name: /More actions for conversation This is a deliberately long conversation/
+    });
+
+    expect(selectButton).not.toBeNull();
+    expect(item).toContainElement(selectButton);
+    expect(item).toContainElement(moreButton);
+    expect(selectButton?.getAttribute("aria-label")).toMatch(
+      /This is a deliberately long conversation/
+    );
+    expect(selectButton).toHaveClass("task-conversation-navigation__conversation-button");
+    expect(moreButton).toHaveClass("task-conversation-navigation__more-button");
+    expect(item.querySelector(".task-conversation-navigation__title")).toHaveTextContent(
+      longTitle.slice(0, 40)
+    );
+
+    await user.click(moreButton);
+    expect(screen.getByRole("menuitem", { name: "Delete conversation" })).toBeVisible();
+  });
+
   it("collapses and expands conversation sidebar without changing active conversation", async () => {
     const user = userEvent.setup();
     render(<TaskOrchestrationPage />);
-    await submitPrompt("Collapse test");
+    await submitPrompt("Collapse test with full title hidden from rail");
 
     const sidebar = screen.getByRole("complementary", { name: "Task workspace sidebar" });
     const collapseBtn = screen.getByRole("button", { name: "Collapse conversations" });
@@ -240,10 +272,25 @@ describe("Polish UI: sidebar collapse", () => {
       within(sidebar).getByRole("button", { name: "Expand conversations" })
     ).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("searchbox", { name: /search conversations/i })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: /conversation/i })).getByText("Collapse test")).toBeVisible();
+    expect(screen.queryByRole("combobox", { name: /filter by status/i })).not.toBeInTheDocument();
+    expect(within(sidebar).queryByText("Recent work")).not.toBeInTheDocument();
+    expect(within(sidebar).queryByText("Pending")).not.toBeInTheDocument();
+    expect(
+      within(sidebar).queryByText("Collapse test with full title hidden from rail")
+    ).not.toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: "New chat" })).toBeVisible();
+    expect(
+      within(sidebar).getByLabelText(/Active conversation: Collapse test with full title hidden/)
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: /conversation/i })).getByText(
+        "Collapse test with full title hidden from rail"
+      )
+    ).toBeVisible();
 
     await user.click(within(sidebar).getByRole("button", { name: "Expand conversations" }));
     expect(screen.getByRole("searchbox", { name: /search conversations/i })).toBeVisible();
+    expect(within(screen.getByRole("navigation", { name: /conversations/i })).getByText("Recent work")).toBeVisible();
   });
 });
 

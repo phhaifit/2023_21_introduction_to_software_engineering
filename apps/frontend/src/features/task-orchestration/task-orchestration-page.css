@@ -17,19 +17,38 @@
 .task-workspace__sidebar {
   background: #f8fafc;
   border-inline-end: 1px solid #e2e8f0;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 20px 16px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   flex-shrink: 0;
-  min-width: 0;
 }
 
 .task-workspace__sidebar--collapsed {
   align-items: center;
   gap: 12px;
-  padding: 16px 8px;
+  max-width: 56px;
+  min-width: 56px;
+  overflow: hidden;
+  padding: 12px 8px;
+  width: 56px;
+}
+
+.task-workspace__sidebar-rail {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
 }
 
 .task-workspace__sidebar-header {
@@ -41,17 +60,22 @@
 }
 
 .task-workspace__sidebar-toggle {
+  align-items: center;
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border-radius: 999px;
   color: #475569;
   cursor: pointer;
+  display: inline-flex;
   flex: none;
   font: inherit;
   font-weight: 700;
-  min-height: 32px;
-  min-width: 32px;
-  padding: 4px 8px;
+  justify-content: center;
+  line-height: 1;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  width: 28px;
 }
 
 .task-workspace__sidebar-toggle:focus-visible {
@@ -60,11 +84,9 @@
 }
 
 .task-workspace__sidebar-toggle--expand {
-  width: 100%;
-}
-
-.task-workspace__sidebar-toggle--header {
-  margin-inline-end: 8px;
+  min-height: 36px;
+  min-width: 36px;
+  width: 36px;
 }
 
 .task-workspace h2,
@@ -79,20 +101,6 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.task-workspace__sidebar button {
-  border: 0;
-  border-radius: 8px;
-  font-weight: 700;
-  min-height: 40px;
-  padding: 10px 14px;
-}
-
-.task-workspace__sidebar button {
-  background: #e0e7ff;
-  color: #4338ca;
-  width: 100%;
 }
 
 .task-workspace button:disabled,
@@ -945,14 +953,13 @@
   }
 
   .task-conversation-navigation__list {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    flex-direction: column;
+    overflow-x: hidden;
+    padding-bottom: 0;
   }
 
   .task-conversation-navigation__item {
-    flex: 0 0 auto;
-    width: 200px;
+    width: 100%;
   }
 }
 
@@ -1009,7 +1016,6 @@
 
 .task-conversation__turn-toolbar .task-turn-actions {
   flex: none;
-  margin-inline-start: auto;
 }
 
 .task-conversation__bubble--assistant {
@@ -1017,7 +1023,8 @@
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-  padding: 16px 20px;
+  padding: 16px 56px 16px 20px;
+  position: relative;
 }
 
 .task-assistant-progress {
@@ -1074,7 +1081,8 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 16px 56px 16px 20px;
+  position: relative;
 }
 
 .task-conversation__prompt {
@@ -1182,7 +1190,10 @@
 }
 
 .task-turn-actions {
-  position: relative;
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 5;
 }
 
 .task-turn-actions__trigger,
@@ -1225,6 +1236,11 @@
   inset-inline-end: 0;
   top: calc(100% + 0.5rem);
   z-index: 20;
+}
+
+.task-turn-actions__menu {
+  max-width: min(18rem, calc(100vw - 2rem));
+  min-width: 12rem;
 }
 
 .task-turn-actions__menu button,
@@ -1319,10 +1335,12 @@
 .task-conversation-navigation__item-row {
   align-items: stretch;
   box-sizing: border-box;
-  display: flex;
-  gap: 4px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
   max-width: 100%;
   min-width: 0;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -1338,6 +1356,7 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
+  width: 28px;
 }
 
 .task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,
@@ -1355,8 +1374,12 @@
 .task-conversation-navigation__meta-row {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .task-conversation-navigation__task-count,
@@ -1364,6 +1387,10 @@
   color: #94a3b8;
   font-size: 0.68rem;
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-conversation-navigation__item-menu {
@@ -1372,34 +1399,58 @@
 
 .task-conversation-navigation--collapsed {
   align-items: center;
+  box-sizing: border-box;
+  gap: 12px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   width: 100%;
 }
 
 button.task-conversation-navigation__new-btn--compact {
   min-height: 36px;
+  min-width: 36px;
   padding: 8px;
   width: 36px;
 }
 
 .task-conversation-navigation__collapsed-active {
+  align-items: center;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   justify-items: center;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   width: 100%;
 }
 
-.task-conversation-navigation__collapsed-title {
-  color: #334155;
-  font-size: 0.68rem;
-  font-weight: 700;
-  overflow: hidden;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: 100%;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  max-height: 120px;
+.task-conversation-navigation__collapsed-status-dot {
+  background: #94a3b8;
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
+}
+
+.task-conversation-navigation__collapsed-status-dot--pending { background: #d97706; }
+.task-conversation-navigation__collapsed-status-dot--in-progress { background: #2563eb; }
+.task-conversation-navigation__collapsed-status-dot--completed { background: #16a34a; }
+.task-conversation-navigation__collapsed-status-dot--failed { background: #dc2626; }
+.task-conversation-navigation__collapsed-status-dot--canceled { background: #64748b; }
+
+.task-conversation-navigation__collapsed-count {
+  align-items: center;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  color: #4338ca;
+  display: inline-flex;
+  font-size: 0.7rem;
+  font-weight: 800;
+  height: 22px;
+  justify-content: center;
+  min-width: 22px;
+  padding-inline: 5px;
 }
 
 .task-workspace__provider-badge {
@@ -1477,14 +1528,20 @@ button.task-conversation-navigation__new-btn--compact {
 }
 
 .task-conversation-navigation {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   width: 100%;
 }
 
 .task-conversation-navigation__header {
   display: flex;
+  max-width: 100%;
+  min-width: 0;
   width: 100%;
 }
 
@@ -1516,8 +1573,12 @@ button.task-conversation-navigation__new-btn:focus-visible {
 
 .task-conversation-navigation__list-container {
   border-block-start: 1px solid #e2e8f0;
+  box-sizing: border-box;
   display: grid;
   gap: 12px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding-block-start: 18px;
 }
 
@@ -1538,6 +1599,9 @@ button.task-conversation-navigation__new-btn:focus-visible {
   gap: 6px;
   list-style: none;
   margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 0;
 }
 
@@ -1554,16 +1618,19 @@ button.task-conversation-navigation__btn {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
+  box-sizing: border-box;
   color: #334155;
   cursor: pointer;
   display: flex;
-  flex: 1;
   flex-direction: column;
   gap: 4px;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
   padding: 8px 10px;
   text-align: left;
   transition: all 0.2s ease;
+  width: 100%;
 }
 
 button.task-conversation-navigation__btn:hover {
@@ -1585,8 +1652,11 @@ button.task-conversation-navigation__btn:focus-visible {
 }
 
 .task-conversation-navigation__title {
+  display: block;
   font-size: 0.9rem;
   line-height: 1.25;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1610,6 +1680,9 @@ button.task-conversation-navigation__btn:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .task-conversation-navigation__search-input,
@@ -1620,7 +1693,10 @@ button.task-conversation-navigation__btn:focus-visible {
   color: #334155;
   font: inherit;
   font-size: 0.85rem;
+  max-width: 100%;
+  min-width: 0;
   padding: 8px 12px;
+  box-sizing: border-box;
   width: 100%;
 }
 
