@@ -128,9 +128,16 @@ export class PrismaConversationRepository implements ConversationRepository {
 
     const timestamp = message.timestamp || new Date().toISOString();
 
-    await this.prisma.chatMessage.create({
-      data: {
+    await this.prisma.chatMessage.upsert({
+      where: { messageId: message.messageId as string },
+      create: {
         messageId: message.messageId as string,
+        conversationId: conversationId as string,
+        role: message.role,
+        content: message.content,
+        timestamp
+      },
+      update: {
         conversationId: conversationId as string,
         role: message.role,
         content: message.content,
@@ -141,6 +148,33 @@ export class PrismaConversationRepository implements ConversationRepository {
     await this.prisma.conversation.update({
       where: { conversationId: conversationId as string },
       data: { updatedAt: timestamp }
+    });
+  }
+
+  async deleteConversation(conversationId: EntityId<"conversationId">): Promise<void> {
+    await this.prisma.conversation.delete({
+      where: { conversationId: conversationId as string }
+    });
+  }
+
+  async deleteMessages(
+    conversationId: EntityId<"conversationId">,
+    messageIds: readonly EntityId<"messageId">[]
+  ): Promise<void> {
+    if (messageIds.length === 0) {
+      return;
+    }
+
+    await this.prisma.chatMessage.deleteMany({
+      where: {
+        conversationId: conversationId as string,
+        messageId: { in: messageIds.map((id) => id as string) }
+      }
+    });
+
+    await this.prisma.conversation.update({
+      where: { conversationId: conversationId as string },
+      data: { updatedAt: new Date().toISOString() }
     });
   }
 

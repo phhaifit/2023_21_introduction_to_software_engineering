@@ -230,9 +230,7 @@ export function TaskConversationNavigation({
         if (item.tasks) {
           const taskMatch = item.tasks.some(
             (t) =>
-              t.prompt.toLowerCase().includes(query) ||
-              t.taskId.toLowerCase().includes(query) ||
-              (t.workId && t.workId.toLowerCase().includes(query))
+              t.prompt.toLowerCase().includes(query)
           );
           if (taskMatch) {
             return true;
@@ -321,7 +319,7 @@ export function TaskConversationNavigation({
             id="conversation-search"
             type="search"
             className="task-conversation-navigation__search-input"
-            placeholder="Search title, prompt, Task/Work ID..."
+            placeholder="Search conversations"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

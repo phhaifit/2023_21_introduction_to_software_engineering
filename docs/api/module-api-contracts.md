@@ -128,6 +128,9 @@ Owner module: `apps/backend/src/modules/task-orchestration`
 | `POST` | `/api/workspaces/:workspaceId/tasks/:taskId/cancel` | Workspace member | Route `workspaceId` | cancellation request DTO | `ApiResponse` task detail | `planned` | Terminal tasks must preserve final state. |
 | `GET` | `/api/workspaces/:workspaceId/tasks/:taskId/runs` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiPaginatedSuccess` task run summaries | `planned` | Lists execution attempts or work records. |
 | `GET` | `/api/workspaces/:workspaceId/tasks/:taskId/logs` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiPaginatedSuccess` task log entries | `planned` | Lists processing logs without private worker internals. |
+| `GET` | `/api/workspaces/:workspaceId/conversations` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` conversation list | `implemented` | Lists persisted task conversations and message history for the workspace. |
+| `DELETE` | `/api/workspaces/:workspaceId/conversations/:conversationId` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` deletion acknowledgement | `implemented` | Deletes the conversation and cascades its persisted query/response messages. |
+| `DELETE` | `/api/workspaces/:workspaceId/conversations/:conversationId/turns/:taskId` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` deletion acknowledgement | `implemented` | Deletes the persisted user query and assistant response pair for the selected task turn. |
 
 ## Knowledge Base / RAG
 

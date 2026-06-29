@@ -460,8 +460,8 @@ export class OpenClawExecutionOrchestrator {
     }
 
     // Bridge active conversation with agent and workflow catalogs
+    const convId = command.conversationId;
     if (this.conversationRepository) {
-      const convId = (command as any).conversationId || command.workId;
       let conv = await this.conversationRepository.getConversation(convId);
       if (!conv) {
         conv = {
@@ -515,7 +515,18 @@ export class OpenClawExecutionOrchestrator {
       const task = this.taskStore.get(taskIdStr);
       if (task) {
         if (event.type === "execution-started") task.status = "in-progress";
-        else if (event.type === "execution-completed") task.status = "completed";
+        else if (event.type === "execution-completed") {
+          task.status = "completed";
+          if (this.conversationRepository) {
+            void this.conversationRepository.appendMessage(convId, {
+              messageId: `${taskIdStr}-assistant` as any,
+              conversationId: convId,
+              role: "assistant",
+              content: event.finalOutput,
+              timestamp: event.timestamp
+            }).catch(() => undefined);
+          }
+        }
         else if (event.type === "execution-failed") task.status = "failed";
         else if (event.type === "execution-canceled") task.status = "canceled";
       }

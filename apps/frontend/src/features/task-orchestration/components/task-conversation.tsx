@@ -1,4 +1,4 @@
-import type { CreatedTaskRecord } from "../model/task-types";
+import type { CreatedTaskRecord, TaskPresentationStatus } from "../model/task-types";
 import { selectAccumulatedPartialText } from "../model/task-streaming";
 import { toTaskPresentationStatus } from "../model/task-lifecycle";
 import { TaskCompletedResult } from "./task-completed-result";
@@ -7,8 +7,15 @@ import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
 import { TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
-import { TaskStatusBadge } from "./task-status-badge";
 import type { TaskClipboardWriter } from "../model/task-completion-runtime";
+
+const TASK_STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
+  pending: "Pending",
+  "in-progress": "In Progress",
+  completed: "Completed",
+  failed: "Failed",
+  canceled: "Canceled"
+};
 
 export interface TaskConversationProps {
   task: CreatedTaskRecord;
@@ -140,6 +147,10 @@ export function TaskAssistantMessage({
   const isSucceeded = task.status === "succeeded";
   const isNonTerminal = task.status === "queued" || task.status === "running";
   const presentationStatus = toTaskPresentationStatus(task.status);
+  const presentationStatusLabel = presentationStatus
+    ? TASK_STATUS_LABELS[presentationStatus]
+    : null;
+  const toolbarStatusLabel = isNonTerminal ? null : presentationStatusLabel;
 
   return (
     <div
@@ -156,8 +167,10 @@ export function TaskAssistantMessage({
         <div className="task-conversation__turn-toolbar">
           <div className="task-conversation__turn-toolbar-labels">
             <span className="task-conversation__assistant-label">Assistant</span>
-            {!isNonTerminal && presentationStatus ? (
-              <TaskStatusBadge status={presentationStatus} />
+            {toolbarStatusLabel ? (
+              <span className="sr-only" aria-label={`Task status: ${toolbarStatusLabel}`}>
+                {toolbarStatusLabel}
+              </span>
             ) : null}
           </div>
           <TaskTurnActionsMenu
@@ -165,6 +178,7 @@ export function TaskAssistantMessage({
             prompt={task.prompt}
             clipboardWriter={clipboardWriter}
             canDelete={canDeleteTask}
+            showDelete={false}
             deleteDisabledReason={deleteTaskDisabledReason}
             onViewDetails={onOpenDetails}
             onDelete={onDeleteTask}

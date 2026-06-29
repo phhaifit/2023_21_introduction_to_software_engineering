@@ -438,65 +438,9 @@
 }
 
 .task-completed-result {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-  padding: 14px 16px;
-}
-
-.task-completed-result__header {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.task-completed-result h4 {
-  color: #0f172a;
-  font-size: 1rem;
-  margin: 0;
-}
-
-.task-completed-result__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.task-completed-result__copy-btn {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
   color: #475569;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 6px 12px;
-}
-
-.task-completed-result__copy-btn:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
-
-.task-completed-result__feedback {
-  font-size: 0.8rem;
-  color: #10b981;
-}
-
-.task-completed-result__feedback--error {
-  color: #ef4444;
-}
-
-.task-completed-result__body {
-  color: #0f172a;
   line-height: 1.55;
+  min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -1340,7 +1284,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 
@@ -1361,6 +1305,7 @@
 
 .task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,
 .task-conversation-navigation__item-row:focus-within .task-conversation-navigation__item-menu-btn,
+.task-conversation-navigation__item-row--active .task-conversation-navigation__item-menu-btn,
 .task-conversation-navigation__item--menu-open .task-conversation-navigation__item-menu-btn {
   opacity: 1;
   pointer-events: auto;
@@ -1569,7 +1514,7 @@ button.task-conversation-navigation__new-btn:focus-visible {
   gap: 12px;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding-block-start: 18px;
 }
 
@@ -1592,7 +1537,7 @@ button.task-conversation-navigation__new-btn:focus-visible {
   margin: 0;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
 }
 
@@ -1600,7 +1545,7 @@ button.task-conversation-navigation__new-btn:focus-visible {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 

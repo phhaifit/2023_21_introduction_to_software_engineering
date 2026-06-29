@@ -164,5 +164,102 @@ export function createTaskOrchestrationRouter(
     }
   });
 
+  router.delete("/conversations/:conversationId", async (request, response) => {
+    try {
+      const context = getRequestContext(request);
+      const { workspaceId, conversationId } = request.params;
+      const conversation = await dependencies.conversationRepository.getConversation(
+        conversationId as any
+      );
+
+      if (!conversation || conversation.workspaceId !== workspaceId) {
+        response.status(404).json({
+          ok: false,
+          error: {
+            code: "conversation-not-found",
+            message: "Conversation not found"
+          },
+          meta: {
+            requestId: context.requestId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      await dependencies.conversationRepository.deleteConversation(conversationId as any);
+      response.status(200).json({
+        ok: true,
+        data: { conversationId, deleted: true },
+        meta: {
+          requestId: context.requestId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error: any) {
+      response.status(400).json({
+        ok: false,
+        error: {
+          code: "delete-conversation-failed",
+          message: error.message || "Failed to delete conversation"
+        },
+        meta: {
+          requestId: getRequestContext(request).requestId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  });
+
+  router.delete("/conversations/:conversationId/turns/:taskId", async (request, response) => {
+    try {
+      const context = getRequestContext(request);
+      const { workspaceId, conversationId, taskId } = request.params;
+      const conversation = await dependencies.conversationRepository.getConversation(
+        conversationId as any
+      );
+
+      if (!conversation || conversation.workspaceId !== workspaceId) {
+        response.status(404).json({
+          ok: false,
+          error: {
+            code: "conversation-not-found",
+            message: "Conversation not found"
+          },
+          meta: {
+            requestId: context.requestId,
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      await dependencies.conversationRepository.deleteMessages(conversationId as any, [
+        taskId as any,
+        `${taskId}-assistant` as any
+      ]);
+      response.status(200).json({
+        ok: true,
+        data: { conversationId, taskId, deleted: true },
+        meta: {
+          requestId: context.requestId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error: any) {
+      response.status(400).json({
+        ok: false,
+        error: {
+          code: "delete-conversation-turn-failed",
+          message: error.message || "Failed to delete conversation turn"
+        },
+        meta: {
+          requestId: getRequestContext(request).requestId,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  });
+
   return router;
 }

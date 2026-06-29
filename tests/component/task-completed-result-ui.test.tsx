@@ -251,7 +251,7 @@ describe("Task 10B Completed Result UI Integration", () => {
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
     
-    // Partial output alone does not render Completed
+    // Partial output alone does not render final assistant response.
     expect(screen.queryByRole("region", { name: /completed result/i })).not.toBeInTheDocument();
     expect(scheduler.pendingCount(COMPLETION_MS)).toBe(0);
   });
@@ -265,8 +265,9 @@ describe("Task 10B Completed Result UI Integration", () => {
     await act(() => { scheduler.flushNext(COMPLETION_MS); });
 
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
-    expect(screen.getByRole("region", { name: /completed result/i })).toBeVisible();
     expect(screen.getByText("Alpha Beta Gamma")).toBeVisible();
+    expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy finalized result" })).not.toBeInTheDocument();
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Complete me.")).toBeVisible();
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
@@ -295,7 +296,7 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
   });
 
-  it("supports copy behavior with feedback, clipboard writer injection", async () => {
+  it("supports response copy from the assistant actions menu", async () => {
     const { scheduler, clipboardWriter } = renderPage();
     const user = userEvent.setup();
 
@@ -303,15 +304,15 @@ describe("Task 10B Completed Result UI Integration", () => {
     await completeTask(scheduler);
     await act(() => { scheduler.flushNext(COMPLETION_MS); });
 
-    const copyBtn = screen.getByRole("button", { name: "Copy finalized result" });
-    await user.click(copyBtn);
+    await user.click(
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
+        name: "More actions for this work"
+      })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
 
     expect(clipboardWriter.writtenText).toBe("Alpha Beta Gamma");
     expect(screen.getByRole("status")).toHaveTextContent("Copied");
-    
-    clipboardWriter.shouldFail = true;
-    await user.click(copyBtn);
-    expect(screen.getByRole("status")).toHaveTextContent("Failed to copy");
   });
 
   it("stops stale sessions when task changes or unmounts, tasks isolated", async () => {
@@ -332,7 +333,7 @@ describe("Task 10B Completed Result UI Integration", () => {
 
     const items = within(navigation).getAllByRole("listitem");
     await user.click(within(items[0]!).getByRole("button", { name: "First task." }));
-    expect(screen.getAllByRole("region", { name: /completed result/i })).toHaveLength(1);
+    expect(screen.getAllByText("Alpha Beta Gamma")).toHaveLength(1);
 
     await user.click(within(items[1]!).getByRole("button", { name: "Second task." }));
     const feed = screen.getByRole("region", { name: /conversation/i });
@@ -353,7 +354,7 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(strict.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
     await act(() => { strict.scheduler.flushNext(COMPLETION_MS); });
     expect(strict.scheduler.pendingCount(COMPLETION_MS)).toBe(0);
-    expect(within(screen.getByRole("region", { name: /completed result/i })).getAllByText(/Alpha Beta Gamma/)).toHaveLength(1);
+    expect(screen.getAllByText(/Alpha Beta Gamma/)).toHaveLength(1);
   });
 
   it("preserves Task 7-9 UI contracts and architecture boundaries", () => {

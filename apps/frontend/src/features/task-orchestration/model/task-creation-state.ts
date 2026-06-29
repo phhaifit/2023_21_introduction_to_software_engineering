@@ -628,7 +628,13 @@ export function taskCreationReducer(
 
         for (const msg of conv.messages || []) {
           if (msg.role === "user") {
-            const taskId = `task-${msg.messageId}`;
+            const taskId = msg.messageId as string;
+            const assistantMessage = conv.messages.find(
+              (m) =>
+                m.role === "assistant" &&
+                (m.messageId === `${taskId}-assistant` ||
+                  m.timestamp >= msg.timestamp)
+            );
             taskIds.push(taskId as any);
             if (!newTasks.some((t) => t.taskId === taskId)) {
               newTasks.push({
@@ -641,8 +647,8 @@ export function taskCreationReducer(
                 processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
                 streamingSnapshot: createInitialStreamingSnapshot(),
                 finalizedResult: {
-                  text: conv.messages.find((m) => m.role === "assistant" && (m.timestamp >= msg.timestamp || m.messageId > msg.messageId))?.content || "",
-                  finalizedAt: msg.timestamp || conv.updatedAt,
+                  text: assistantMessage?.content || "",
+                  finalizedAt: assistantMessage?.timestamp || msg.timestamp || conv.updatedAt,
                   artifacts: [],
                   followUpPromptSuggestions: []
                 }

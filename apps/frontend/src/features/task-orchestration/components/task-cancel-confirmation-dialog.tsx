@@ -101,11 +101,7 @@ export function TaskCancelConfirmationDialog({
             {error}
           </div>
         ) : null}
-        <dl className="task-cancel-confirmation-dialog__meta" aria-label="Task identifiers">
-          <div>
-            <dt>Work ID</dt>
-            <dd>{task.workId}</dd>
-          </div>
+        <dl className="task-cancel-confirmation-dialog__meta" aria-label="Task cancellation status">
           {presentationStatus ? (
             <div>
               <dt>Status</dt>
