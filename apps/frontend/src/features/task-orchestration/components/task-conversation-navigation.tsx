@@ -1,10 +1,14 @@
-import { useState, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { TaskPresentationStatus } from "../model/task-types";
 
 export interface TaskConversationNavigationItem {
   readonly conversationId: string;
   readonly title: string;
   readonly latestStatus?: TaskPresentationStatus;
+  readonly updatedAt?: string;
+  readonly taskCount?: number;
+  readonly canDelete?: boolean;
+  readonly deleteDisabledReason?: string;
   readonly tasks?: readonly {
     readonly taskId: string;
     readonly workId?: string;
@@ -15,8 +19,10 @@ export interface TaskConversationNavigationItem {
 export interface TaskConversationNavigationProps {
   readonly items: readonly TaskConversationNavigationItem[];
   readonly activeConversationId?: string;
+  readonly isCollapsed?: boolean;
   readonly onCreateConversation: () => void;
   readonly onSelectConversation: (conversationId: string) => void;
+  readonly onDeleteConversation?: (conversationId: string) => void;
 }
 
 const STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
@@ -27,11 +33,183 @@ const STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
   canceled: "Canceled"
 };
 
+function formatShortTimestamp(value?: string): string | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function ConversationItemMenu({
+  conversationId,
+  title,
+  canDelete,
+  deleteDisabledReason,
+  onDelete,
+  onOpenChange
+}: {
+  conversationId: string;
+  title: string;
+  canDelete?: boolean;
+  deleteDisabledReason?: string;
+  onDelete?: (conversationId: string) => void;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const menuId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const menuLabel = `More actions for conversation ${title}`;
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    function handlePointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isOpen]);
+
+  if (!onDelete) {
+    return null;
+  }
+
+  return (
+    <div className="task-conversation-navigation__item-menu" ref={containerRef}>
+      <button
+        type="button"
+        className="task-conversation-navigation__item-menu-btn task-conversation-navigation__more-button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        aria-label={menuLabel}
+        title={menuLabel}
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsOpen((open) => !open);
+        }}
+      >
+        ⋯
+      </button>
+      {isOpen ? (
+        <ul
+          id={menuId}
+          className="task-conversation-navigation__item-menu-list"
+          role="menu"
+          aria-label={menuLabel}
+        >
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              className="task-conversation-navigation__delete-btn"
+              disabled={!canDelete}
+              title={!canDelete ? deleteDisabledReason : undefined}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (canDelete) {
+                  onDelete(conversationId);
+                  setIsOpen(false);
+                }
+              }}
+            >
+              Delete conversation
+            </button>
+          </li>
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function ConversationNavigationItem({
+  item,
+  isActive,
+  shortTimestamp,
+  onSelectConversation,
+  onDeleteConversation
+}: {
+  item: TaskConversationNavigationItem;
+  isActive: boolean;
+  shortTimestamp: string | null;
+  onSelectConversation: (conversationId: string) => void;
+  onDeleteConversation?: (conversationId: string) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <li
+      className={`task-conversation-navigation__item${
+        menuOpen ? " task-conversation-navigation__item--menu-open" : ""
+      }`}
+    >
+      <div
+        className={`task-conversation-navigation__item-row${
+          isActive ? " task-conversation-navigation__item-row--active" : ""
+        }`}
+      >
+        <button
+          type="button"
+          className="task-conversation-navigation__btn task-conversation-navigation__conversation-button"
+          aria-label={item.title}
+          aria-current={isActive ? "page" : undefined}
+          onClick={() => onSelectConversation(item.conversationId)}
+        >
+          <span className="task-conversation-navigation__title">{item.title}</span>
+          <span className="task-conversation-navigation__meta-row">
+            {item.latestStatus ? (
+              <span
+                className={`task-conversation-navigation__status task-conversation-navigation__status--${item.latestStatus}`}
+              >
+                {STATUS_LABELS[item.latestStatus]}
+              </span>
+            ) : null}
+            {typeof item.taskCount === "number" && item.taskCount > 0 ? (
+              <span className="task-conversation-navigation__task-count">
+                {item.taskCount} task{item.taskCount === 1 ? "" : "s"}
+              </span>
+            ) : null}
+            {shortTimestamp ? (
+              <span className="task-conversation-navigation__timestamp">{shortTimestamp}</span>
+            ) : null}
+          </span>
+        </button>
+        <ConversationItemMenu
+          conversationId={item.conversationId}
+          title={item.title}
+          canDelete={item.canDelete}
+          deleteDisabledReason={item.deleteDisabledReason}
+          onDelete={onDeleteConversation}
+          onOpenChange={setMenuOpen}
+        />
+      </div>
+    </li>
+  );
+}
+
 export function TaskConversationNavigation({
   items,
   activeConversationId,
+  isCollapsed = false,
   onCreateConversation,
-  onSelectConversation
+  onSelectConversation,
+  onDeleteConversation
 }: TaskConversationNavigationProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -71,6 +249,57 @@ export function TaskConversationNavigation({
     items.some((item) => item.conversationId === activeConversationId) &&
     !filteredItems.some((item) => item.conversationId === activeConversationId);
 
+  const activeItem = items.find((item) => item.conversationId === activeConversationId);
+
+  if (isCollapsed) {
+    const activeItemLabel = activeItem
+      ? `Active conversation: ${activeItem.title}${
+          activeItem.latestStatus ? `, ${STATUS_LABELS[activeItem.latestStatus]}` : ""
+        }`
+      : "No active conversation";
+
+    return (
+      <nav
+        className="task-conversation-navigation task-conversation-navigation--collapsed"
+        aria-label="Conversations"
+      >
+        <button
+          type="button"
+          className="task-conversation-navigation__new-btn task-conversation-navigation__new-btn--compact"
+          onClick={onCreateConversation}
+          aria-label="New chat"
+          title="New chat"
+        >
+          +
+        </button>
+        {activeItem ? (
+          <div
+            className="task-conversation-navigation__collapsed-active"
+            aria-label={activeItemLabel}
+            title={activeItem.title}
+          >
+            <span
+              className={`task-conversation-navigation__collapsed-status-dot${
+                activeItem.latestStatus
+                  ? ` task-conversation-navigation__collapsed-status-dot--${activeItem.latestStatus}`
+                  : ""
+              }`}
+              aria-hidden="true"
+            />
+            {typeof activeItem.taskCount === "number" && activeItem.taskCount > 0 ? (
+              <span
+                className="task-conversation-navigation__collapsed-count"
+                aria-hidden="true"
+              >
+                {activeItem.taskCount}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </nav>
+    );
+  }
+
   return (
     <nav className="task-conversation-navigation" aria-label="Conversations">
       <div className="task-conversation-navigation__header">
@@ -85,7 +314,9 @@ export function TaskConversationNavigation({
 
       <div className="task-conversation-navigation__filters" aria-label="Conversation filters">
         <div className="task-conversation-navigation__search-group">
-          <label htmlFor="conversation-search" className="sr-only">Search conversations</label>
+          <label htmlFor="conversation-search" className="sr-only">
+            Search conversations
+          </label>
           <input
             id="conversation-search"
             type="search"
@@ -96,7 +327,9 @@ export function TaskConversationNavigation({
           />
         </div>
         <div className="task-conversation-navigation__status-group">
-          <label htmlFor="conversation-status-filter" className="sr-only">Filter by status</label>
+          <label htmlFor="conversation-status-filter" className="sr-only">
+            Filter by status
+          </label>
           <select
             id="conversation-status-filter"
             className="task-conversation-navigation__status-select"
@@ -125,32 +358,29 @@ export function TaskConversationNavigation({
         )}
       </div>
 
-      <section className="task-conversation-navigation__list-container" aria-labelledby="recent-work-title">
+      <section
+        className="task-conversation-navigation__list-container"
+        aria-labelledby="recent-work-title"
+      >
         <h3 id="recent-work-title">Recent work</h3>
         {filteredItems.length === 0 ? (
           <p className="task-conversation-navigation__empty" aria-live="polite">
-            {items.length === 0 ? "No conversations yet" : "No matching conversations found"}
+            {items.length === 0 ? "No conversations yet" : "No matches"}
           </p>
         ) : (
           <ul className="task-conversation-navigation__list">
             {filteredItems.map((item) => {
               const isActive = item.conversationId === activeConversationId;
+              const shortTimestamp = formatShortTimestamp(item.updatedAt);
               return (
-                <li key={item.conversationId} className="task-conversation-navigation__item">
-                  <button
-                    type="button"
-                    className={`task-conversation-navigation__btn ${isActive ? "task-conversation-navigation__btn--active" : ""}`}
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={() => onSelectConversation(item.conversationId)}
-                  >
-                    <span className="task-conversation-navigation__title">{item.title}</span>
-                    {item.latestStatus && (
-                      <span className={`task-conversation-navigation__status task-conversation-navigation__status--${item.latestStatus}`}>
-                        {STATUS_LABELS[item.latestStatus]}
-                      </span>
-                    )}
-                  </button>
-                </li>
+                <ConversationNavigationItem
+                  key={item.conversationId}
+                  item={item}
+                  isActive={isActive}
+                  shortTimestamp={shortTimestamp}
+                  onSelectConversation={onSelectConversation}
+                  onDeleteConversation={onDeleteConversation}
+                />
               );
             })}
           </ul>
@@ -174,7 +404,7 @@ export function TaskConversationNavigation({
       )}
 
       <footer className="task-conversation-navigation__notice">
-        <p>History data is session-scoped (in-memory).</p>
+        <p>Session-scoped history (in-memory).</p>
       </footer>
     </nav>
   );

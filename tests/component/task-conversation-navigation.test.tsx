@@ -104,7 +104,7 @@ describe("Conversation Navigation & Switching", () => {
     expect(screen.queryByLabelText(/orchestration dock/i)).not.toBeInTheDocument();
 
     // Verify Task A remains in state and is not canceled by switching back to A
-    await user.click(within(items[0]).getByRole("button", { name: /Task A prompt/i }));
+    await user.click(within(items[0]).getByRole("button", { name: "Task A prompt" }));
     expect(within(feed).getByText("Task A prompt")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
   });
@@ -141,7 +141,7 @@ describe("Conversation Navigation & Switching", () => {
 
   it("Test 3 — A → B → A history restoration", async () => {
     const user = userEvent.setup();
-    const client = new ConfigurableClient("queued");
+    const client = new ConfigurableClient("succeeded");
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     // Create conversation A with two turns
@@ -160,25 +160,25 @@ describe("Conversation Navigation & Switching", () => {
     // Select A
     const items = within(navigation).getAllByRole("listitem");
     // items[0] is A, items[1] is B
-    await user.click(within(items[0]).getByRole("button", { name: /Conversation A turn 1/i }));
+    await user.click(within(items[0]).getByRole("button", { name: "Conversation A turn 1" }));
     expect(within(feed).getByText("Conversation A turn 1")).toBeVisible();
     expect(within(feed).getByText("Conversation A turn 2")).toBeVisible();
     expect(within(feed).queryByText("Conversation B turn 1")).not.toBeInTheDocument();
 
     // Select B
-    await user.click(within(items[1]).getByRole("button", { name: /Conversation B turn 1/i }));
+    await user.click(within(items[1]).getByRole("button", { name: "Conversation B turn 1" }));
     expect(within(feed).getByText("Conversation B turn 1")).toBeVisible();
     expect(within(feed).queryByText("Conversation A turn 1")).not.toBeInTheDocument();
     expect(within(feed).queryByText("Conversation A turn 2")).not.toBeInTheDocument();
 
     // Select A again
-    await user.click(within(items[0]).getByRole("button", { name: /Conversation A turn 1/i }));
+    await user.click(within(items[0]).getByRole("button", { name: "Conversation A turn 1" }));
     expect(within(feed).getByText("Conversation A turn 1")).toBeVisible();
     expect(within(feed).getByText("Conversation A turn 2")).toBeVisible();
     expect(within(feed).queryByText("Conversation B turn 1")).not.toBeInTheDocument();
   });
 
-  it("Test 4 — Dock and details isolation", async () => {
+  it("Test 4 — Assistant progress and details isolation", async () => {
     const user = userEvent.setup();
     const client = new ConfigurableClient("queued");
     const pRuntime = new FakeProcessingRuntime();
@@ -198,20 +198,30 @@ describe("Conversation Navigation & Switching", () => {
     expect(await within(feed).findByText("Task B prompt")).toBeVisible();
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
-    // Select A and verify A's dock/details (items[0] is A)
+    // Select A and verify A's assistant details (items[0] is A)
     const items = within(navigation).getAllByRole("listitem");
-    await user.click(within(items[0]).getByRole("button", { name: /Task A prompt/i }));
+    await user.click(within(items[0]).getByRole("button", { name: "Task A prompt" }));
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
+        name: "More actions for this work"
+      })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
-    // Select B and verify B's dock/details (items[1] is B)
-    await user.click(within(items[1]).getByRole("button", { name: /Task B prompt/i }));
+    // Select B and verify B's assistant details (items[1] is B)
+    await user.click(within(items[1]).getByRole("button", { name: "Task B prompt" }));
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await user.click(
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
+        name: "More actions for this work"
+      })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("TASK-000002")).toBeVisible();
     expect(screen.getByText("WORK-000002")).toBeVisible();
@@ -219,9 +229,9 @@ describe("Conversation Navigation & Switching", () => {
     expect(screen.queryByText("WORK-000001")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
-    // Verify selecting an empty conversation hides the dock/details trigger
+    // Verify selecting an empty conversation hides the details trigger
     await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
-    expect(screen.queryByRole("button", { name: "View processing details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "View processing details" })).not.toBeInTheDocument();
   });
 
   it("Test 5 — History filtering, search matching, empty conversation filtering rules, and presentation-only scoping", async () => {
@@ -245,7 +255,7 @@ describe("Conversation Navigation & Switching", () => {
     expect(within(navigation).getByText("New conversation")).toBeVisible();
 
     // Verify explicit visual notice confirming history data is session-scoped
-    expect(within(navigation).getByText("History data is session-scoped (in-memory).")).toBeVisible();
+    expect(within(navigation).getByText("Session-scoped history (in-memory).")).toBeVisible();
 
     // 1. Search input filtering by prompt text
     const searchInput = within(navigation).getByRole("searchbox", { name: /search conversations/i });
@@ -282,17 +292,15 @@ describe("Conversation Navigation & Switching", () => {
 
   it("Test 6 — Conversation containing multiple Tasks correctly matches status of the latest Task", async () => {
     const user = userEvent.setup();
-    const client = new ConfigurableClient("queued");
-    const runtime = new FakeProcessingRuntime();
-    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={runtime} />);
+    const client = new ConfigurableClient("succeeded");
+    render(<TaskOrchestrationPage taskCreationClient={client} />);
 
-    // Create Task 1 (queued -> pending) in Conversation A
+    // Create Task 1 (completed) in Conversation A
     await submitPrompt("First task prompt");
     const navigation = screen.getByRole("navigation", { name: /conversations/i });
     expect(within(navigation).getByText("First task prompt")).toBeVisible();
 
-    // Now change client status to succeeded (completed) and submit Task 2 in the SAME conversation
-    client.status = "succeeded";
+    // Submit Task 2 in the SAME conversation
     await submitPrompt("Second task prompt");
 
     // Filter by 'completed' (status of the latest Task in Conversation A)

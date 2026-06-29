@@ -14,11 +14,12 @@ import {
 } from "./model/task-creation-client";
 import {
   buildCreateTaskRequest,
-  getActiveTask,
+  conversationHasNonTerminalTasks,
   getActiveConversation,
   getConversationTasks,
   getLatestConversationTask,
   initialTaskCreationState,
+  isTaskDeletable,
   taskCreationReducer
 } from "./model/task-creation-state";
 import { toTaskPresentationStatus } from "./model/task-lifecycle";
@@ -40,6 +41,7 @@ import {
 } from "./model/task-completion-runtime";
 import { TaskProcessingDetailModal } from "./components/task-processing-detail-modal";
 import { TaskCancelConfirmationDialog } from "./components/task-cancel-confirmation-dialog";
+import { TaskConfirmDialog } from "./components/task-confirm-dialog";
 import { buildTaskProcessingDetail } from "./model/task-processing-detail";
 import type { TaskCancellationCoordinator } from "./model/task-cancellation-coordinator";
 import {
@@ -48,15 +50,10 @@ import {
   type CreatedTaskRecord
 } from "./model/task-types";
 import { TaskConversation } from "./components/task-conversation";
-import { TaskOrchestrationDock } from "./components/task-orchestration-dock";
 import {
   TaskConversationNavigation,
   type TaskConversationNavigationItem
 } from "./components/task-conversation-navigation";
-import {
-  createTaskRuntimeRegistry,
-  type TaskRuntimeRegistry
-} from "./model/task-runtime-registry";
 import {
   resolveTaskOrchestrationProvider,
   DEFAULT_PROVIDER_CONFIG,
@@ -75,6 +72,7 @@ type TaskOrchestrationPageProps = {
   isLoading?: boolean;
   isReconnecting?: boolean;
   isProviderUnavailable?: boolean;
+  providerMode?: "mock" | "http" | "neutral";
   taskCreationClient?: TaskCreationClient;
   taskOrchestrationClient?: TaskOrchestrationClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
@@ -98,10 +96,37 @@ const suggestedPrompts = [
 
 const routingOptions = createTaskOrchestrationSeedData();
 
+const RUNNING_DELETE_REASON =
+  "Cannot delete while a task is still running or queued in this conversation.";
+
+const RUNNING_TASK_DELETE_REASON =
+  "Cannot delete a task that is still running or queued.";
+
+function resolveProviderBadgeLabel(options: {
+  isReconnecting: boolean;
+  isProviderUnavailable: boolean;
+  providerMode?: "mock" | "http" | "neutral";
+}): { label: string; tone: "mock" | "live" | "reconnecting" | "unavailable" | "neutral" } {
+  if (options.isReconnecting) {
+    return { label: "Reconnecting", tone: "reconnecting" };
+  }
+  if (options.isProviderUnavailable) {
+    return { label: "Provider unavailable", tone: "unavailable" };
+  }
+  if (options.providerMode === "http") {
+    return { label: "HTTP / OpenClaw Gateway", tone: "live" };
+  }
+  if (options.providerMode === "mock") {
+    return { label: "Mock / Simulated", tone: "mock" };
+  }
+  return { label: "Execution provider", tone: "neutral" };
+}
+
 export function TaskOrchestrationPage({
   isLoading = false,
   isReconnecting = false,
   isProviderUnavailable = false,
+  providerMode = "mock",
   taskCreationClient,
   taskOrchestrationClient,
   onCancelTaskRequested,
@@ -121,9 +146,14 @@ export function TaskOrchestrationPage({
     taskCreationReducer,
     initialTaskCreationState
   );
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [conversationSidebarCollapsed, setConversationSidebarCollapsed] = useState(false);
+  const [detailModalTaskId, setDetailModalTaskId] = useState<string | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [cancelTargetTaskId, setCancelTargetTaskId] = useState<string | null>(null);
+  const [deleteConversationTargetId, setDeleteConversationTargetId] = useState<string | null>(
+    null
+  );
+  const [deleteTaskTargetId, setDeleteTaskTargetId] = useState<string | null>(null);
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
@@ -171,25 +201,56 @@ export function TaskOrchestrationPage({
     : undefined;
 
   const activeTask = latestActiveConversationTask;
-  const activeTaskPresentationStatus = activeTask
-    ? toTaskPresentationStatus(activeTask.status)
-    : null;
+  const cancellableActiveTask =
+    activeTask && (activeTask.status === "queued" || activeTask.status === "running")
+      ? activeTask
+      : undefined;
+  const detailModalTask = detailModalTaskId
+    ? taskState.tasks.find((task) => task.taskId === detailModalTaskId)
+    : undefined;
+  const providerBadge = resolveProviderBadgeLabel({
+    isReconnecting,
+    isProviderUnavailable,
+    providerMode
+  });
 
   const navigationItems: TaskConversationNavigationItem[] = taskState.conversations.map((conv) => {
     const latestTask = getLatestConversationTask(taskState, conv.conversationId);
     const convTasks = getConversationTasks(taskState, conv.conversationId);
+    const hasRunningTasks = conversationHasNonTerminalTasks(taskState, conv.conversationId);
     return {
       conversationId: conv.conversationId,
       title: conv.title,
       latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined,
+      updatedAt: conv.updatedAt,
+      taskCount: convTasks.length,
+      canDelete: !hasRunningTasks,
+      deleteDisabledReason: hasRunningTasks ? RUNNING_DELETE_REASON : undefined,
       tasks: convTasks
     };
   });
 
-  function handleSelectConversation(conversationId: string): void {
-    setIsDetailModalOpen(false);
+  function clearModalTargets(): void {
+    setDetailModalTaskId(null);
     setIsCancelDialogOpen(false);
     setCancelTargetTaskId(null);
+    setDeleteConversationTargetId(null);
+    setDeleteTaskTargetId(null);
+  }
+
+  function cleanupTaskSubscriptions(taskIds: readonly string[]): void {
+    const client = clientRef.current;
+    for (const taskId of taskIds) {
+      const sub = subscriptionsRef.current.get(taskId);
+      if (sub) {
+        client.unsubscribeFromTaskEvents(sub);
+        subscriptionsRef.current.delete(taskId);
+      }
+    }
+  }
+
+  function handleSelectConversation(conversationId: string): void {
+    clearModalTargets();
     dispatchTaskAction({
       type: "conversation-selected",
       conversationId
@@ -197,14 +258,87 @@ export function TaskOrchestrationPage({
   }
 
   function handleCreateConversation(): void {
-    setIsDetailModalOpen(false);
-    setIsCancelDialogOpen(false);
-    setCancelTargetTaskId(null);
+    clearModalTargets();
     setPrompt("");
     dispatchTaskAction({
       type: "conversation-created",
       createdAt: runtimeRef.current.clock.now()
     });
+  }
+
+  function handleDeleteConversationRequest(conversationId: string): void {
+    if (conversationHasNonTerminalTasks(taskState, conversationId)) {
+      return;
+    }
+    setDeleteConversationTargetId(conversationId);
+  }
+
+  function handleConfirmDeleteConversation(): void {
+    if (!deleteConversationTargetId) {
+      return;
+    }
+    const conversation = taskState.conversations.find(
+      (conv) => conv.conversationId === deleteConversationTargetId
+    );
+    if (!conversation || conversationHasNonTerminalTasks(taskState, conversation.conversationId)) {
+      setDeleteConversationTargetId(null);
+      return;
+    }
+
+    cleanupTaskSubscriptions(conversation.taskIds.map((id) => id as string));
+    if (
+      detailModalTaskId &&
+      conversation.taskIds.some((id) => (id as string) === detailModalTaskId)
+    ) {
+      setDetailModalTaskId(null);
+    }
+    if (
+      cancelTargetTaskId &&
+      conversation.taskIds.some((id) => (id as string) === cancelTargetTaskId)
+    ) {
+      setIsCancelDialogOpen(false);
+      setCancelTargetTaskId(null);
+    }
+
+    dispatchTaskAction({
+      type: "conversation-deleted",
+      conversationId: deleteConversationTargetId
+    });
+    setDeleteConversationTargetId(null);
+  }
+
+  function handleDeleteTaskRequest(taskId: string): void {
+    const task = taskState.tasks.find((t) => (t.taskId as string) === taskId);
+    if (!task || !isTaskDeletable(task)) {
+      return;
+    }
+    setDeleteTaskTargetId(taskId);
+  }
+
+  function handleConfirmDeleteTask(): void {
+    if (!deleteTaskTargetId) {
+      return;
+    }
+    const task = taskState.tasks.find((t) => (t.taskId as string) === deleteTaskTargetId);
+    if (!task || !isTaskDeletable(task)) {
+      setDeleteTaskTargetId(null);
+      return;
+    }
+
+    cleanupTaskSubscriptions([deleteTaskTargetId]);
+    if (detailModalTaskId === deleteTaskTargetId) {
+      setDetailModalTaskId(null);
+    }
+    if (cancelTargetTaskId === deleteTaskTargetId) {
+      setIsCancelDialogOpen(false);
+      setCancelTargetTaskId(null);
+    }
+
+    dispatchTaskAction({
+      type: "task-deleted",
+      taskId: task.taskId
+    });
+    setDeleteTaskTargetId(null);
   }
 
   useEffect(() => {
@@ -226,19 +360,39 @@ export function TaskOrchestrationPage({
         client.unsubscribeFromTaskEvents(sub);
       }
       subs.clear();
-      if ("reset" in client && typeof (client as any).reset === "function") {
-        (client as any).reset();
+      if ("reset" in client && typeof (client as { reset?: () => void }).reset === "function") {
+        (client as { reset: () => void }).reset();
       }
     };
   }, []);
 
   useEffect(() => {
-    setIsDetailModalOpen(false);
+    if (
+      detailModalTaskId &&
+      !taskState.tasks.some((task) => (task.taskId as string) === detailModalTaskId)
+    ) {
+      setDetailModalTaskId(null);
+    }
+  }, [detailModalTaskId, taskState.tasks]);
+
+  useEffect(() => {
     setIsCancelDialogOpen(false);
     setCancelTargetTaskId(null);
   }, [activeTask?.taskId]);
 
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
+
+  function handleCancelActiveTask(): void {
+    if (!cancellableActiveTask) {
+      return;
+    }
+    if (onCancelTaskRequested) {
+      onCancelTaskRequested(cancellableActiveTask.taskId);
+      return;
+    }
+    setIsCancelDialogOpen(true);
+    setCancelTargetTaskId(cancellableActiveTask.taskId);
+  }
 
   async function handleAcceptedSubmission() {
     if (taskState.isSubmitting) {
@@ -287,43 +441,109 @@ export function TaskOrchestrationPage({
   }
 
   return (
-    <section className="task-workspace" aria-labelledby="task-workspace-title">
-      <aside className="task-workspace__sidebar" aria-label="Task workspace sidebar">
-        <div>
-          <p className="task-workspace__eyebrow">Conversations</p>
-          <h2>Workspace sessions</h2>
-        </div>
-        <TaskConversationNavigation
-          items={navigationItems}
-          activeConversationId={taskState.activeConversationId}
-          onCreateConversation={handleCreateConversation}
-          onSelectConversation={handleSelectConversation}
-        />
+    <section
+      className={`task-workspace${
+        conversationSidebarCollapsed ? " task-workspace--sidebar-collapsed" : ""
+      }`}
+      aria-labelledby="task-workspace-title"
+    >
+      <aside
+        className={`task-workspace__sidebar${
+          conversationSidebarCollapsed ? " task-workspace__sidebar--collapsed" : ""
+        }`}
+        aria-label="Task workspace sidebar"
+      >
+        {conversationSidebarCollapsed ? (
+          <div className="task-workspace__sidebar-rail">
+            <TaskConversationNavigation
+              items={navigationItems}
+              activeConversationId={taskState.activeConversationId}
+              isCollapsed
+              onCreateConversation={handleCreateConversation}
+              onSelectConversation={handleSelectConversation}
+              onDeleteConversation={handleDeleteConversationRequest}
+            />
+            <button
+              type="button"
+              className="task-workspace__sidebar-toggle task-workspace__sidebar-toggle--expand"
+              aria-expanded={false}
+              aria-label="Expand conversations"
+              title="Expand conversations"
+              onClick={() => setConversationSidebarCollapsed(false)}
+            >
+              ›
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="task-workspace__sidebar-header">
+              <div>
+                <p className="task-workspace__eyebrow">Conversations</p>
+                <h2>Workspace sessions</h2>
+              </div>
+              <button
+                type="button"
+                className="task-workspace__sidebar-toggle"
+                aria-expanded={true}
+                aria-label="Collapse conversations"
+                title="Collapse conversations"
+                onClick={() => setConversationSidebarCollapsed(true)}
+              >
+                ‹
+              </button>
+            </div>
+            <TaskConversationNavigation
+              items={navigationItems}
+              activeConversationId={taskState.activeConversationId}
+              isCollapsed={false}
+              onCreateConversation={handleCreateConversation}
+              onSelectConversation={handleSelectConversation}
+              onDeleteConversation={handleDeleteConversationRequest}
+            />
+          </>
+        )}
       </aside>
 
       <div className="task-workspace__main">
         <header className="task-workspace__header">
-          <div>
-            <p className="task-workspace__eyebrow">Workspace</p>
-            <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
-            <p>Bring a request to your virtual team and keep the work in one conversation.</p>
+          <div className="task-workspace__header-copy">
+            <div>
+              <p className="task-workspace__eyebrow">Workspace</p>
+              <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
+              {activeConversation ? (
+                <p className="task-workspace__active-conversation">
+                  {activeConversation.title}
+                </p>
+              ) : (
+                <p className="task-workspace__header-subtitle">
+                  Bring a request to your virtual team and keep the work in one conversation.
+                </p>
+              )}
+            </div>
           </div>
-          <div className="task-workspace__simulation-indicator" aria-label="Simulation mode active" title="Simulation mode active">
-            <span className="task-workspace__simulation-dot" aria-hidden="true" />
-            <span>Simulated Mock Execution</span>
+          <div
+            className={`task-workspace__provider-badge task-workspace__provider-badge--${providerBadge.tone}`}
+            aria-label={`Execution provider: ${providerBadge.label}`}
+            title={providerBadge.label}
+          >
+            <span className="task-workspace__provider-dot" aria-hidden="true" />
+            <span>{providerBadge.label}</span>
           </div>
         </header>
 
-        <section
-          className="task-workspace__conversation"
-          aria-label="Main conversation region"
-        >
+        <section className="task-workspace__conversation" aria-label="Main conversation region">
           {isReconnecting ? (
             <div className="task-workspace__reconnecting" role="status" aria-live="polite">
-              <span className="task-workspace__spinner task-workspace__spinner--reconnecting" aria-hidden="true" />
+              <span
+                className="task-workspace__spinner task-workspace__spinner--reconnecting"
+                aria-hidden="true"
+              />
               <div>
                 <h3>Reconnecting to workspace gateway</h3>
-                <p>Restoring live synchronization. Your canonical task processing continues in the background.</p>
+                <p>
+                  Restoring live synchronization. Your canonical task processing continues in the
+                  background.
+                </p>
               </div>
             </div>
           ) : null}
@@ -332,7 +552,10 @@ export function TaskOrchestrationPage({
             <div className="task-workspace__provider-unavailable" role="alert">
               <div>
                 <h3>Execution Provider Unavailable</h3>
-                <p>The external OpenClaw runtime is currently unreachable or stopped. Tasks will remain queued or use simulated mock execution.</p>
+                <p>
+                  The external OpenClaw runtime is currently unreachable or stopped. Tasks will
+                  remain queued or use simulated mock execution.
+                </p>
               </div>
             </div>
           ) : null}
@@ -370,7 +593,14 @@ export function TaskOrchestrationPage({
                   >
                     <TaskConversation
                       task={task}
+                      routingSummary={formatCompactRoutingSummary(task.requestedRouting)}
                       clipboardWriter={completionRuntimeRef.current.clipboard}
+                      canDeleteTask={isTaskDeletable(task)}
+                      deleteTaskDisabledReason={
+                        isTaskDeletable(task) ? undefined : RUNNING_TASK_DELETE_REASON
+                      }
+                      onOpenDetails={() => setDetailModalTaskId(task.taskId as string)}
+                      onDeleteTask={() => handleDeleteTaskRequest(task.taskId as string)}
                     />
                   </article>
                 );
@@ -378,10 +608,14 @@ export function TaskOrchestrationPage({
             </div>
           ) : (
             <div className="task-workspace__empty">
-              <span className="task-workspace__empty-mark" aria-hidden="true">✦</span>
+              <span className="task-workspace__empty-mark" aria-hidden="true">
+                ✦
+              </span>
               <p className="task-workspace__eyebrow">Start a conversation</p>
               <h3>What should your virtual team work on?</h3>
-              <p>Describe an outcome, choose a suggestion, or prepare your own request.</p>
+              <p className="task-workspace__empty-subtitle">
+                Pick a suggestion or describe your own request below.
+              </p>
               <ul className="task-workspace__suggestions" aria-label="Suggested prompts">
                 {suggestedPrompts.map((suggestion) => (
                   <li key={suggestion}>
@@ -399,16 +633,18 @@ export function TaskOrchestrationPage({
           )}
         </section>
 
-        {isDetailModalOpen && activeTask ? (
+        {detailModalTask ? (
           <TaskProcessingDetailModal
-            detail={buildTaskProcessingDetail(activeTask)!}
-            onClose={() => setIsDetailModalOpen(false)}
+            detail={buildTaskProcessingDetail(detailModalTask)!}
+            onClose={() => setDetailModalTaskId(null)}
           />
         ) : null}
 
         {(() => {
           const cancelTargetTask = taskState.tasks.find((t) => t.taskId === cancelTargetTaskId);
-          return isCancelDialogOpen && cancelTargetTask && (cancelTargetTask.status === "queued" || cancelTargetTask.status === "running") ? (
+          return isCancelDialogOpen &&
+            cancelTargetTask &&
+            (cancelTargetTask.status === "queued" || cancelTargetTask.status === "running") ? (
             <TaskCancelConfirmationDialog
               task={cancelTargetTask}
               onConfirm={() => {
@@ -424,40 +660,34 @@ export function TaskOrchestrationPage({
           ) : null;
         })()}
 
-        {activeTask ? (
-          <TaskOrchestrationDock
-            task={activeTask}
-            onOpenDetails={() => setIsDetailModalOpen(true)}
-            onCancelClick={() => {
-              if (onCancelTaskRequested) {
-                onCancelTaskRequested(activeTask.taskId);
-              } else {
-                setIsCancelDialogOpen(true);
-                setCancelTargetTaskId(activeTask.taskId);
-              }
-            }}
+        {deleteConversationTargetId ? (
+          <TaskConfirmDialog
+            title="Delete conversation?"
+            description="This removes the conversation and its tasks from this session. Running work cannot be deleted."
+            confirmLabel="Delete conversation"
+            onConfirm={handleConfirmDeleteConversation}
+            onDismiss={() => setDeleteConversationTargetId(null)}
+          />
+        ) : null}
+
+        {deleteTaskTargetId ? (
+          <TaskConfirmDialog
+            title="Delete work/task?"
+            description="This removes the selected task from this conversation in the current session."
+            confirmLabel="Delete work/task"
+            onConfirm={handleConfirmDeleteTask}
+            onDismiss={() => setDeleteTaskTargetId(null)}
           />
         ) : null}
 
         <section className="task-composer" aria-label="Task composer area">
-          <RoutingSelector
-            mode={routingMode}
-            selectedAgentId={selectedAgentId}
-            selectedWorkflowId={selectedWorkflowId}
-            agents={routingOptions.agents}
-            workflows={routingOptions.workflows}
-            isDisabled={interactionIsDisabled}
-            onModeChange={setRoutingMode}
-            onAgentChange={setSelectedAgentId}
-            onWorkflowChange={setSelectedWorkflowId}
-          />
           {taskState.validationError ? (
-            <p className="task-workspace__feedback" role="alert">
+            <p className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
               {taskState.validationError}
             </p>
           ) : null}
           {taskState.submissionError ? (
-            <p className="task-workspace__feedback" role="alert">
+            <p className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
               {taskState.submissionError}
             </p>
           ) : null}
@@ -465,8 +695,23 @@ export function TaskOrchestrationPage({
             prompt={prompt}
             isDisabled={isLoading}
             isSubmitting={taskState.isSubmitting}
+            cancellableTaskActive={Boolean(cancellableActiveTask)}
             onPromptChange={setPrompt}
             onSubmit={handleAcceptedSubmission}
+            onCancelTask={handleCancelActiveTask}
+            toolbar={
+              <RoutingSelector
+                mode={routingMode}
+                selectedAgentId={selectedAgentId}
+                selectedWorkflowId={selectedWorkflowId}
+                agents={routingOptions.agents}
+                workflows={routingOptions.workflows}
+                isDisabled={interactionIsDisabled}
+                onModeChange={setRoutingMode}
+                onAgentChange={setSelectedAgentId}
+                onWorkflowChange={setSelectedWorkflowId}
+              />
+            }
           />
         </section>
       </div>
@@ -484,4 +729,16 @@ export function formatRoutingSummary(routing: TaskRoutingSelection): string {
   }
 
   return "Routing: Auto-routing";
+}
+
+export function formatCompactRoutingSummary(routing: TaskRoutingSelection): string {
+  if (routing.mode === "specific-agent") {
+    return `Agent · ${routing.agentId}`;
+  }
+
+  if (routing.mode === "predefined-workflow") {
+    return `Workflow · ${routing.workflowId}`;
+  }
+
+  return "Auto-routing";
 }

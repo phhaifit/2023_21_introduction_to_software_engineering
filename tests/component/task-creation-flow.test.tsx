@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
+
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import {
@@ -17,6 +19,7 @@ import {
   initialTaskCreationState,
   taskCreationReducer
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
+import type { TaskStatus as ProductionTaskStatus } from "@vcp/shared";
 import {
   canTransitionTaskStatus,
   isTerminalTaskStatus,
@@ -69,6 +72,7 @@ beforeEach(() => {
 class SpyTaskCreationClient implements TaskCreationClient {
   calls: Parameters<TaskCreationClient["createTask"]>[0][] = [];
   shouldReject = false;
+  status: ProductionTaskStatus = "queued";
 
   async createTask(request: Parameters<TaskCreationClient["createTask"]>[0]) {
     this.calls.push(structuredClone(request));
@@ -81,7 +85,7 @@ class SpyTaskCreationClient implements TaskCreationClient {
     return {
       taskId: `TASK-${sequence}` as ReturnType<typeof createTaskId>,
       workId: `WORK-${sequence}` as ReturnType<typeof createWorkId>,
-      status: "queued" as const,
+      status: this.status,
       createdAt: `2026-06-24T12:00:0${this.calls.length}.000Z`
     };
   }
@@ -122,7 +126,7 @@ describe("Task 6B task creation UI flow", () => {
     expect(within(feed).getByText("Draft the weekly report.")).toBeVisible();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText("WORK-000001")).toBeVisible();
@@ -157,7 +161,7 @@ describe("Task 6B task creation UI flow", () => {
       }
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("workflowId");
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
   });
@@ -185,7 +189,7 @@ describe("Task 6B task creation UI flow", () => {
       }
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("agentId");
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText(
       "Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS"
@@ -200,10 +204,13 @@ describe("Task 6B task creation UI flow", () => {
     const client = new SpyTaskCreationClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
 
+    const promptInput = screen.getByRole("textbox", { name: "Request" });
     if (prompt) {
-      await user.type(screen.getByRole("textbox", { name: "Request" }), prompt);
+      await user.type(promptInput, prompt);
+    } else {
+      await user.click(promptInput);
     }
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await user.keyboard("{Enter}");
 
     expect(client.calls).toHaveLength(0);
     expect(screen.queryByLabelText("Pending task")).not.toBeInTheDocument();
@@ -230,15 +237,15 @@ describe("Task 6B task creation UI flow", () => {
 
   it("keeps unique task records across multiple successful submissions", async () => {
     const client = new SpyTaskCreationClient();
-    const pRuntime = new FakeProcessingRuntime();
-    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
+    client.status = "succeeded";
+    render(<TaskOrchestrationPage taskCreationClient={client} />);
 
     await submitPrompt("First task.");
     await submitPrompt("Second task.");
 
     expect(client.calls).toHaveLength(2);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("TASK-000002")).toBeVisible();
     expect(screen.getByText("WORK-000002")).toBeVisible();
@@ -295,7 +302,7 @@ describe("Task 6B task creation UI flow", () => {
 
     await user.type(screen.getByRole("textbox", { name: "Request" }), "Slow task");
     await user.click(screen.getByRole("button", { name: "Send request" }));
-    await user.click(screen.getByRole("button", { name: "Sending..." }));
+    await user.click(screen.getByRole("button", { name: "Sending request" }));
     resolveCreate?.();
 
     expect(client.createTask).toHaveBeenCalledTimes(1);

@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
 import { TaskOrchestrationPage } from "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import { resetTaskIdentitySequence } from "@vcp/frontend/features/task-orchestration/model/task-id.ts";
 import { formatOccurredAt } from "@vcp/frontend/features/task-orchestration/components/task-error-details.tsx";
@@ -224,8 +225,8 @@ describe("4. Completed Result Restriction", () => {
     }
 
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /copy finalized result/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
   });
 });
 
@@ -241,8 +242,7 @@ describe("5. Failed Processing Details Modal", () => {
       act(() => { pRuntime.scheduler.advance(); });
     }
 
-    const detailBtn = screen.getByRole("button", { name: "View processing details" });
-    await user.click(detailBtn);
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const dialog = screen.getByRole("dialog", { name: "Processing details" });
     expect(dialog).toBeVisible();
@@ -284,7 +284,7 @@ describe("6. Failed Timeline & Logs", () => {
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getAllByRole("button", { name: /Show Advanced details/i })[0]);
 
     const timeline = screen.getAllByLabelText(/processing timeline/i)[0]!;
@@ -402,8 +402,7 @@ describe("9. Accessibility", () => {
     expect(within(alertDiv).getByLabelText("Error metadata")).toBeVisible();
 
     // Modal accessibility
-    const detailBtn = screen.getByRole("button", { name: "View processing details" });
-    await user.click(detailBtn);
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const modal = screen.getByRole("dialog", { name: "Processing details" });
     expect(modal).toHaveAttribute("aria-labelledby", "processing-detail-title");

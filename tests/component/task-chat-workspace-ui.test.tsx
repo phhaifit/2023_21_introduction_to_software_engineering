@@ -205,30 +205,29 @@ describe("Chat-First Workspace Presentation & Absence of Raw Metadata", () => {
   });
 });
 
-describe("Compact Orchestration Dock & Expandable Details", () => {
-  it("8-18: Compact dock shows status/step/progress; Details trigger opens modal; Timeline/IDs/Logs/ErrorCode correctly hidden/shown via Advanced details", async () => {
+describe("Assistant progress summary & expandable details", () => {
+  it("8-18: Assistant response shows status/step/progress; Details opens modal; Timeline/IDs/Logs/ErrorCode correctly hidden/shown via Advanced details", async () => {
     const user = userEvent.setup();
     const client = new ConfigurableClient("queued");
     const pRuntime = new FakeProcessingRuntime();
     render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
 
-    await submitPrompt("FAIL_SIMULATION: check dock and details");
+    await submitPrompt("FAIL_SIMULATION: check progress and details");
 
-    const dock = screen.getByLabelText("Compact orchestration dock");
-    expect(dock).toBeVisible();
+    expect(screen.queryByLabelText("Compact orchestration dock")).not.toBeInTheDocument();
 
-    // 8. Compact dock shows canonical status
-    expect(within(dock).getByText("Pending")).toBeVisible();
+    const assistant = screen.getByLabelText("Assistant response");
+    expect(within(assistant).getByLabelText("Task status: Pending")).toBeVisible();
 
     // Advance into running state
     act(() => { pRuntime.scheduler.advance(); }); // validate-input active
-    expect(within(dock).getByText("In Progress")).toBeVisible();
+    expect(within(assistant).getByLabelText("Task status: In Progress")).toBeVisible();
 
-    // 9. Running dock shows current step
-    expect(within(dock).getByText(/Validate input/i)).toBeVisible();
+    // 9. Running assistant shows current step
+    expect(within(assistant).getByText(/Validate input/i)).toBeVisible();
 
-    // 10. Running dock shows meaningful progress
-    expect(within(dock).getByText(/0\/6 steps/)).toBeVisible();
+    // 10. Running assistant shows meaningful progress
+    expect(within(assistant).getByText(/0\/6 steps/)).toBeVisible();
 
     // Advance to failure at aggregate-result
     act(() => { pRuntime.scheduler.advance(); }); // analyze-request
@@ -237,17 +236,20 @@ describe("Compact Orchestration Dock & Expandable Details", () => {
     act(() => { pRuntime.scheduler.advance(); }); // aggregate-result
     act(() => { pRuntime.scheduler.advance(); }); // fail
 
-    expect(within(dock).getByText("Failed")).toBeVisible();
+    expect(within(assistant).getByText("Không thể tổng hợp kết quả")).toBeVisible();
 
-    // 11. Details trigger is an accessible button
-    const detailsBtn = within(dock).getByRole("button", { name: "View processing details" });
+    // 11. Details trigger is available from the turn menu
+    await user.click(
+      within(assistant).getByRole("button", { name: "More actions for this work" })
+    );
+    const detailsBtn = screen.getByRole("menuitem", { name: "View processing details" });
     expect(detailsBtn).toBeVisible();
-    expect(detailsBtn).toHaveTextContent("View error");
 
     // 12. Details open correctly
     await user.click(detailsBtn);
     const dialog = screen.getByRole("dialog", { name: "Processing details" });
     expect(dialog).toBeVisible();
+    expect(within(dialog).getByLabelText("Task status: Failed")).toBeVisible();
 
     // 13. Timeline appears only in expanded details
     expect(within(dialog).getByRole("region", { name: "Processing timeline details" })).toBeVisible();
@@ -315,8 +317,10 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
 
     await submitPrompt("Check cancel button");
 
-    const dock = screen.getByLabelText("Compact orchestration dock");
-    expect(within(dock).getByRole("button", { name: /Cancel task/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cancel current task" })).toBeVisible();
+    expect(screen.getByLabelText("Assistant response")).toBeVisible();
+    expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
+    expect(screen.queryByLabelText("Compact orchestration dock")).not.toBeInTheDocument();
 
     // Advance to completion
     for (let i = 0; i < 6; i++) {
@@ -327,8 +331,8 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
     act(() => { sRuntime.scheduler.advance(); });
     act(() => { cRuntime.scheduler.advance(); });
 
-    expect(within(dock).getByText("Completed")).toBeVisible();
-    expect(within(dock).queryByRole("button", { name: /Cancel task/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Cancel current task/i })).not.toBeInTheDocument();
   });
 
   it("23: Active Task data does not leak to another Task", async () => {
@@ -349,7 +353,7 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
     expect(screen.getByText("What should your virtual team work on?")).toBeVisible();
   });
 
-  it("24: Strict Mode does not duplicate the dock or dialog", async () => {
+  it("24: Strict Mode does not duplicate processing detail or cancel controls", async () => {
     const client = new ConfigurableClient("queued");
     const pRuntime = new FakeProcessingRuntime();
     render(
@@ -359,7 +363,8 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
     );
 
     await submitPrompt("Strict mode test");
-    expect(await screen.findAllByLabelText("Compact orchestration dock")).toHaveLength(1);
+    expect(await screen.findAllByRole("button", { name: "Cancel current task" })).toHaveLength(1);
+    expect(screen.queryByLabelText("Compact orchestration dock")).not.toBeInTheDocument();
   });
 
   it("25: Keyboard and focus behavior remains accessible", async () => {

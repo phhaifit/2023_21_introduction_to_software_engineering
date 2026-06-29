@@ -37,9 +37,6 @@ describe("TaskComposer", () => {
     const prompt = screen.getByRole("textbox", { name: "Request" });
     expect(prompt.tagName).toBe("TEXTAREA");
     expect(prompt).toHaveValue("Prepare the weekly summary.");
-    expect(prompt).toHaveAccessibleDescription(
-      "Describe the outcome your virtual team should produce."
-    );
   });
 
   it("emits prompt changes without mutating the supplied value", () => {
@@ -58,12 +55,14 @@ describe("TaskComposer", () => {
   it.each([
     ["empty", ""],
     ["whitespace-only", "   \n  "]
-  ])("rejects an %s prompt with accessible feedback", async (_case, prompt) => {
+  ])("rejects an %s prompt with accessible feedback", async (_case, promptValue) => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
-    renderComposer({ prompt, onSubmit });
+    renderComposer({ prompt: promptValue, onSubmit });
 
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    const promptField = screen.getByRole("textbox", { name: "Request" });
+    await user.click(promptField);
+    await user.keyboard("{Enter}");
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -80,7 +79,9 @@ describe("TaskComposer", () => {
     const onSubmit = vi.fn();
     renderComposer({ prompt: "Prepare a report.", onSubmit });
 
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    const prompt = screen.getByRole("textbox", { name: "Request" });
+    await user.click(prompt);
+    await user.keyboard("{Enter}");
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -89,14 +90,12 @@ describe("TaskComposer", () => {
   it("clears validation after the user corrects the prompt", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
-      <TaskComposer
-        prompt=""
-        onPromptChange={vi.fn()}
-        onSubmit={vi.fn()}
-      />
+      <TaskComposer prompt="" onPromptChange={vi.fn()} onSubmit={vi.fn()} />
     );
 
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    const prompt = screen.getByRole("textbox", { name: "Request" });
+    await user.click(prompt);
+    await user.keyboard("{Enter}");
     expect(screen.getByRole("alert")).toBeVisible();
 
     rerender(
@@ -117,26 +116,72 @@ describe("TaskComposer", () => {
     renderComposer({ prompt: "Ready", isSubmitting: true });
 
     expect(screen.getByRole("textbox", { name: "Request" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Sending..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sending request" })).toBeDisabled();
+  });
+
+  it("disables submit when prompt is empty", () => {
+    renderComposer({ prompt: "" });
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 
   it("keeps attachment upload explicitly unavailable", () => {
     renderComposer();
 
     expect(screen.getByRole("button", { name: "Add attachment" })).toBeDisabled();
-    expect(screen.getByText(
-      "Attachments are not supported in this prototype."
-    )).toBeVisible();
+    expect(
+      screen.getByText("Attachments are not supported in this prototype.")
+    ).toBeInTheDocument();
   });
 
-  it("supports keyboard submission through the native submit control", async () => {
+  it("supports keyboard submission from the textarea", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     renderComposer({ prompt: "Keyboard request", onSubmit });
 
-    screen.getByRole("button", { name: "Send request" }).focus();
+    screen.getByRole("textbox", { name: "Request" }).focus();
+    const prompt = screen.getByRole("textbox", { name: "Request" });
+    await user.click(prompt);
     await user.keyboard("{Enter}");
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Stop as primary action when a task is cancellable", async () => {
+    const user = userEvent.setup();
+    const onCancelTask = vi.fn();
+    render(
+      <TaskComposer
+        prompt=""
+        cancellableTaskActive
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancelTask={onCancelTask}
+      />
+    );
+
+    const cancelBtn = screen.getByRole("button", { name: "Cancel current task" });
+    expect(cancelBtn).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Send request" })).not.toBeInTheDocument();
+
+    await user.click(cancelBtn);
+    expect(onCancelTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not submit on Enter while cancel mode is active", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <TaskComposer
+        prompt=""
+        cancellableTaskActive
+        onPromptChange={vi.fn()}
+        onSubmit={onSubmit}
+        onCancelTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("textbox", { name: "Request" }));
+    await user.keyboard("{Enter}");
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

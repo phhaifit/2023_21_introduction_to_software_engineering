@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
+
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import type { TaskCreationClient } from
@@ -270,12 +272,12 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
   });
 
@@ -286,7 +288,7 @@ describe("Task 10B Completed Result UI Integration", () => {
     await act(() => { scheduler.flushNext(COMPLETION_MS); });
 
     expect(scheduler.pendingCount(COMPLETION_MS)).toBe(0);
-    expect(screen.queryByRole("button", { name: "Cancel task" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
 
     // No late logs or steps or streaming chunks
     expect(scheduler.pendingCount(STEP_MS)).toBe(0);
@@ -313,11 +315,14 @@ describe("Task 10B Completed Result UI Integration", () => {
   });
 
   it("stops stale sessions when task changes or unmounts, tasks isolated", async () => {
+    const user = userEvent.setup();
     const first = renderPage({ client: new SpyClient() });
     await submitPrompt("First task.");
     await completeTask(first.scheduler);
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
 
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
     await submitPrompt("Second task.");
     // Creating another Task does not stop the first Task; the first Task continues in the background.
     expect(first.scheduler.pendingCount(COMPLETION_MS)).toBe(1);
@@ -325,8 +330,11 @@ describe("Task 10B Completed Result UI Integration", () => {
     // Flush the background completion for Task 1
     await act(() => { first.scheduler.flushNext(COMPLETION_MS); });
 
-    // In a multi-turn conversation feed, Task 1's completed result remains visible, while Task 2 is still pending/in-progress
+    const items = within(navigation).getAllByRole("listitem");
+    await user.click(within(items[0]!).getByRole("button", { name: "First task." }));
     expect(screen.getAllByRole("region", { name: /completed result/i })).toHaveLength(1);
+
+    await user.click(within(items[1]!).getByRole("button", { name: "Second task." }));
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Second task.")).toBeVisible();
 

@@ -9,19 +9,12 @@ import {
 
 import "./routing-selector.css";
 
-const ROUTING_MODE_PRESENTATION = [
-  {
-    label: "Auto-routing",
-    description: "Let the workspace choose an agent or workflow later."
-  },
-  {
-    label: "Specific agent",
-    description: "Send the task to one available mock agent."
-  },
-  {
-    label: "Predefined workflow",
-    description: "Use one deterministic multi-agent workflow."
-  }
+const ROUTING_MODE_LABELS = ["Auto", "Agent", "Workflow"] as const;
+
+const ROUTING_MODE_ARIA_LABELS = [
+  "Auto-routing",
+  "Specific agent",
+  "Predefined workflow"
 ] as const;
 
 export interface RoutingSelectorProps {
@@ -49,10 +42,10 @@ export function RoutingSelector({
 }: RoutingSelectorProps) {
   const groupName = useId();
   const agentSelectId = `${groupName}-agent`;
-  const agentDescriptionId = `${agentSelectId}-description`;
   const workflowSelectId = `${groupName}-workflow`;
-  const workflowDescriptionId = `${workflowSelectId}-description`;
   const availableAgents = agents.filter((agent) => agent.available);
+  const selectedAgent = availableAgents.find((agent) => agent.id === selectedAgentId);
+  const selectedWorkflow = workflows.find((workflow) => workflow.id === selectedWorkflowId);
 
   function handleModeChange(nextMode: RoutingMode) {
     if (isDisabled) {
@@ -84,76 +77,91 @@ export function RoutingSelector({
   }
 
   return (
-    <fieldset className="routing-selector" disabled={isDisabled}>
-      <legend>Routing mode</legend>
-
-      <div className="routing-selector__modes">
-        {ROUTING_MODES.map((routingMode, index) => {
-          const presentation = ROUTING_MODE_PRESENTATION[index];
-
-          return (
-            <label className="routing-selector__mode" key={routingMode}>
-              <input
-                type="radio"
-                name={groupName}
-                value={routingMode}
-                checked={mode === routingMode}
-                onChange={() => handleModeChange(routingMode)}
-              />
-              <span>
-                <strong>{presentation.label}</strong>
-                <small>{presentation.description}</small>
-              </span>
-            </label>
-          );
-        })}
+    <div className={`routing-selector${isDisabled ? " routing-selector--disabled" : ""}`}>
+      <div
+        className="routing-selector__segmented"
+        role="radiogroup"
+        aria-label="Routing mode"
+      >
+        {ROUTING_MODES.map((routingMode, index) => (
+          <button
+            key={routingMode}
+            type="button"
+            role="radio"
+            name={groupName}
+            aria-checked={mode === routingMode}
+            aria-label={ROUTING_MODE_ARIA_LABELS[index]}
+            className={`routing-selector__segment${
+              mode === routingMode ? " routing-selector__segment--active" : ""
+            }`}
+            disabled={isDisabled}
+            onClick={() => handleModeChange(routingMode)}
+          >
+            {ROUTING_MODE_LABELS[index]}
+          </button>
+        ))}
       </div>
 
       {mode === ROUTING_MODES[1] ? (
         <div className="routing-selector__target">
-          <label htmlFor={agentSelectId}>Agent</label>
+          <label className="sr-only" htmlFor={agentSelectId}>
+            Agent
+          </label>
           <select
             id={agentSelectId}
+            className="routing-selector__select"
             value={selectedAgentId ?? ""}
             onChange={handleAgentChange}
-            aria-describedby={agentDescriptionId}
+            disabled={isDisabled}
             required
+            aria-label="Agent"
           >
-            <option value="">Select an available agent</option>
+            <option value="">Select agent</option>
             {availableAgents.map((agent) => (
               <option value={agent.id} key={agent.id}>
-                {agent.name} ({agent.id}) — {agent.description}
+                {agent.name}
               </option>
             ))}
           </select>
-          <small id={agentDescriptionId}>
-            An available agent is required for this routing mode.
-          </small>
+          {selectedAgent ? (
+            <span className="routing-selector__chip" aria-label={`Selected agent ${selectedAgent.name}`}>
+              {selectedAgent.name}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
       {mode === ROUTING_MODES[2] ? (
         <div className="routing-selector__target">
-          <label htmlFor={workflowSelectId}>Workflow</label>
+          <label className="sr-only" htmlFor={workflowSelectId}>
+            Workflow
+          </label>
           <select
             id={workflowSelectId}
+            className="routing-selector__select"
             value={selectedWorkflowId ?? ""}
             onChange={handleWorkflowChange}
-            aria-describedby={workflowDescriptionId}
+            disabled={isDisabled}
             required
+            aria-label="Workflow"
           >
-            <option value="">Select a predefined workflow</option>
+            <option value="">Select workflow</option>
             {workflows.map((workflow) => (
               <option value={workflow.id} key={workflow.id}>
-                {workflow.name} ({workflow.id}) — {workflow.description}
+                {workflow.name}
               </option>
             ))}
           </select>
-          <small id={workflowDescriptionId}>
-            A workflow is required for this routing mode.
-          </small>
+          {selectedWorkflow ? (
+            <span
+              className="routing-selector__chip"
+              aria-label={`Selected workflow ${selectedWorkflow.name}`}
+            >
+              {selectedWorkflow.name}
+            </span>
+          ) : null}
         </div>
       ) : null}
-    </fieldset>
+    </div>
   );
 }

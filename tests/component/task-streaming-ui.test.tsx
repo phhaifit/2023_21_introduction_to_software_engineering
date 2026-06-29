@@ -13,6 +13,8 @@ import { join } from "node:path";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
+
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import type { TaskCreationClient } from
@@ -190,7 +192,8 @@ describe("Task 9B streaming UI integration", () => {
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
-    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    await userEvent.click(screen.getByRole("textbox", { name: "Request" }));
+    await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a task request");
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
@@ -257,12 +260,12 @@ describe("Task 9B streaming UI integration", () => {
     expect(within(feed).getByText("Keep context visible.")).toBeVisible();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
     expect(screen.getAllByLabelText("Processing log details")[0]).toBeVisible();
     expect(screen.getAllByLabelText("Task status: In Progress")[0]).toBeVisible();
@@ -288,33 +291,45 @@ describe("Task 9B streaming UI integration", () => {
   });
 
   it("stops stale sessions when a new task is created and keeps task partial output isolated", async () => {
+    const user = userEvent.setup();
     const { scheduler } = renderPage({ client: new SpyClient() });
     await submitPrompt("First task.");
     await reachExecuteStep(scheduler);
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
     expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Alpha");
 
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
     await submitPrompt("Second task.");
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Second task.")).toBeVisible();
-    expect(screen.getByText(/Alpha/)).toBeVisible();
+
+    const items = within(navigation).getAllByRole("listitem");
+    await user.click(within(items[0]!).getByRole("button", { name: "First task." }));
+    expect(within(feed).getByText(/Alpha/)).toBeVisible();
+    await user.click(within(items[1]!).getByRole("button", { name: "Second task." }));
     // Task A streaming continues in the background
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
 
     // Flush Task 1's next background fragment (Beta)
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
+    await user.click(within(items[0]!).getByRole("button", { name: "First task." }));
     expect(screen.getByText(/Alpha Beta/)).toBeVisible();
 
     // Advance Task 2 to execute step (Task 1 also advances in background)
+    await user.click(within(items[1]!).getByRole("button", { name: "Second task." }));
     await reachExecuteStep(scheduler);
     await act(() => { scheduler.flushNext(STEP_MS); });
     await act(() => { scheduler.flushNext(STEP_MS); });
     // Now both Task 1 (Gamma) and Task 2 (Second) have pending fragments
     await act(() => { scheduler.flushNext(FRAGMENT_MS); }); // Flush Task 1 (Gamma)
     await act(() => { scheduler.flushNext(FRAGMENT_MS); }); // Flush Task 2 (Second)
-    const partials = screen.getAllByLabelText("Accumulated partial result");
-    expect(partials[0]).toHaveTextContent("Alpha Beta Gamma");
-    expect(partials[1]).toHaveTextContent("Second");
+
+    await user.click(within(items[0]!).getByRole("button", { name: "First task." }));
+    expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Alpha Beta Gamma");
+
+    await user.click(within(items[1]!).getByRole("button", { name: "Second task." }));
+    expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Second");
   });
 
   it("cancels pending streaming schedules on unmount and remains Strict Mode safe", async () => {
