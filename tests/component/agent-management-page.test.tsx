@@ -224,13 +224,31 @@ describe("AgentManagementPage API integration", () => {
     expect(screen.getByRole("tab", { name: "Template" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Prompt Assistant" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Import skill.md" })).toBeTruthy();
+    expect(screen.getByText("Start from a structured template")).toBeTruthy();
+    expect(screen.getByText("Agent identity")).toBeTruthy();
+    expect(screen.getByText("Resources and guardrails")).toBeTruthy();
+    expect(screen.getByText("Preview is waiting for required fields")).toBeTruthy();
+    expect(screen.getByText("Agent name")).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
+    expect(screen.getByText(/Describe the outcome, source material, and boundaries/)).toBeTruthy();
+    expect(screen.getByText("Useful starting points")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Generate draft" })).toBeDisabled();
     await user.click(screen.getByRole("tab", { name: "Import skill.md" }));
-    expect(screen.getByRole("button", { name: "Analyze skill.md" })).not.toBeDisabled();
+    expect(screen.getByText("Choose a Markdown file")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Analyze skill.md" })).toBeDisabled();
     expect(screen.getByLabelText("Markdown content")).toBeTruthy();
     expect(client.createAgent).not.toHaveBeenCalled();
+  });
+
+  it("shows one status summary region instead of duplicating list counts", async () => {
+    renderPage();
+
+    await screen.findByText("Research Agent");
+
+    expect(screen.getByLabelText("Current workspace agent summary")).toBeTruthy();
+    expect(screen.queryByLabelText("Agent status summary")).toBeNull();
+    expect(screen.getByText("Showing 2 agents from this workspace.")).toBeTruthy();
   });
 
   it("renders skill.md preview from the current template draft", async () => {
@@ -284,6 +302,69 @@ describe("AgentManagementPage API integration", () => {
 
     expect(await screen.findByText("Research Agent")).toBeTruthy();
     expect(listAgents).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens an agent information popup from row selection and loads configuration", async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await user.click(agentRow("Research Agent"));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Research Agent",
+    });
+    expect(within(dialog).getByText("Agent profile")).toBeTruthy();
+    expect(within(dialog).getByText("Researcher")).toBeTruthy();
+    expect(within(dialog).getByText("gemini-2.5-flash")).toBeTruthy();
+    expect(
+      await within(dialog).findByText("Prepare market research."),
+    ).toBeTruthy();
+    expect(client.getAgentConfiguration).toHaveBeenCalledWith(
+      workspaceId,
+      enabledAgent.agentId,
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Close agent information" }),
+    );
+    expect(screen.queryByRole("dialog", { name: "Research Agent" })).toBeNull();
+    expect(client.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it("keeps popup summary visible when configuration loading fails and supports retry", async () => {
+    const getAgentConfiguration = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new AgentApiClientError({
+          message: "Configuration unavailable",
+          kind: "api",
+        }),
+      )
+      .mockResolvedValueOnce({
+        ...enabledAgent,
+        instructions: "Prepare market research.",
+      });
+    const client = createClient({ getAgentConfiguration });
+    const user = userEvent.setup();
+    renderPage(client);
+    await screen.findByText("Research Agent");
+
+    await user.click(agentRow("Research Agent"));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Research Agent",
+    });
+    expect(within(dialog).getByText("Researcher")).toBeTruthy();
+    expect(
+      await within(dialog).findByText("Configuration unavailable"),
+    ).toBeTruthy();
+
+    await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+    expect(
+      await within(dialog).findByText("Prepare market research."),
+    ).toBeTruthy();
+    expect(getAgentConfiguration).toHaveBeenCalledTimes(2);
   });
 
   it("creates an agent, refreshes the list, and resets the form", async () => {
@@ -354,7 +435,7 @@ describe("AgentManagementPage API integration", () => {
     await openCreateModal(user);
     await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
     await user.type(
-      screen.getByPlaceholderText("I need an agent that..."),
+      screen.getByLabelText("Agent description"),
       "Create a support agent that uses Slack and the support handbook.",
     );
     await user.click(screen.getByRole("button", { name: "Generate draft" }));
@@ -539,7 +620,7 @@ describe("AgentManagementPage API integration", () => {
     await openCreateModal(user);
     await user.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
     await user.type(
-      screen.getByPlaceholderText("I need an agent that..."),
+      screen.getByLabelText("Agent description"),
       "Create an incident response agent that uses PagerDuty.",
     );
     await user.click(screen.getByRole("button", { name: "Generate draft" }));
@@ -970,7 +1051,7 @@ describe("AgentManagementPage API integration", () => {
     const promptAssistantButton = screen.getByRole("tab", { name: "Prompt Assistant" });
     await userEvent.click(promptAssistantButton);
 
-    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    const promptInput = screen.getByLabelText("Agent description");
     await userEvent.type(promptInput, "Help me write tests.");
 
     const generateButton = screen.getByRole("button", { name: "Generate draft" });
@@ -1027,7 +1108,7 @@ describe("AgentManagementPage API integration", () => {
     await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
     await userEvent.click(screen.getByRole("tab", { name: "Prompt Assistant" }));
 
-    const promptInput = screen.getByPlaceholderText("I need an agent that...");
+    const promptInput = screen.getByLabelText("Agent description");
     await userEvent.type(promptInput, "Help me write tests.");
 
     await userEvent.click(screen.getByRole("button", { name: "Generate draft" }));
@@ -1105,8 +1186,8 @@ describe("AgentManagementPage API integration", () => {
     await userEvent.click(screen.getByRole("button", { name: "New Agent" }));
     await userEvent.click(screen.getByRole("tab", { name: "Import skill.md" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Analyze skill.md" }));
-    expect(screen.getByText("Markdown content is required.")).toBeInTheDocument();
+    expect(screen.getByText("Paste Markdown or choose a file to continue.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analyze skill.md" })).toBeDisabled();
 
     const markdownInput = screen.getByLabelText("Markdown content");
     await userEvent.type(markdownInput, "# Support Agent");
@@ -1150,5 +1231,16 @@ describe("AgentManagementPage API integration", () => {
     expect(client.enableAgent).not.toHaveBeenCalled();
     expect(client.disableAgent).not.toHaveBeenCalled();
     expect(client.deleteAgent).not.toHaveBeenCalled();
+
+    await userEvent.click(agentRow("Research Agent"));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Research Agent",
+    });
+    expect(within(dialog).getByText("Viewer mode can inspect this agent without changing configuration.")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Configure" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /Rename/ })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /Delete/ })).toBeNull();
+    expect(client.getAgentConfiguration).toHaveBeenCalledTimes(1);
+    expect(client.updateAgent).not.toHaveBeenCalled();
   });
 });
