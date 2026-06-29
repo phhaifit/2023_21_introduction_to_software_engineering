@@ -153,7 +153,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       };
 
       const binding = await adapter.startExecution(cmd);
-      expect(binding.verifiedProviderFields.target).toBe("openclaw-auto-coordinator");
+      expect(binding.verifiedProviderFields.target).toBe("openclaw/default");
       expect(binding.verifiedProviderFields.mode).toBe("auto");
     });
 
@@ -215,7 +215,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
   });
 
   describe("3. Runtime Unavailable & No Silent Fallback", () => {
-    it("3.1 & 3.2 & 3.3: should implement explicit runtime unavailable behavior ensuring that when valid Task submitted for real execution and no running execution runtime can be resolved, Task & Orchestration returns normalized execution-unavailable failure, SHALL NOT provision runtime, and SHALL NOT silently switch to mock execution", async () => {
+    it("3.1 & 3.2 & 3.3: should implement explicit runtime unavailable behavior ensuring that when valid Task submitted for real execution and no running execution runtime can be resolved, Task & Orchestration returns normalized execution-unavailable failure, SHALL NOT provision runtime, and SHALL NOT silently switch to local substitute execution", async () => {
       const unavailableResolver: WorkspaceExecutionRuntimeResolver = {
         resolve: vi.fn().mockResolvedValue({
           provider: "openclaw",
@@ -238,7 +238,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       };
 
       await expect(unavailAdapter.startExecution(cmd)).rejects.toThrow(/execution-runtime-unavailable/);
-      await expect(unavailAdapter.startExecution(cmd)).rejects.toThrow(/it SHALL NOT provision a runtime AND it SHALL NOT silently switch to mock execution/);
+      await expect(unavailAdapter.startExecution(cmd)).rejects.toThrow(/it SHALL NOT provision a runtime AND it SHALL NOT silently switch to local substitute execution/);
     });
   });
 
@@ -572,7 +572,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       expect(invalidLabels.toolLabel).toBe("Inactive Tool: tool-invalid");
     });
 
-    it("5.1 & 5.2 & 5.3: should verify cross-change dependency order documentation, out-of-scope compliance, and mock execution framing", () => {
+    it("5.1 & 5.2 & 5.3: should verify cross-change dependency order documentation, out-of-scope compliance, and production execution boundary", () => {
       const dependencyOrder = orchestrator.verifyCrossChangeDependencyOrder();
       expect(dependencyOrder.orderValid).toBe(true);
       expect(dependencyOrder.dependencies).toContain("extend-openclaw-execution-observability");
@@ -584,26 +584,27 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       expect(outOfScope.noSecretOwnership).toBe(true);
       expect(outOfScope.noDirectApiInvocations).toBe(true);
 
-      const mockFraming = orchestrator.verifyMockExecutionFraming();
-      expect(mockFraming.legitimateTestAdapter).toBe(true);
-      expect(mockFraming.noSilentFallbackFromProduction).toBe(true);
+      const productionBoundary = orchestrator.verifyProductionExecutionBoundary();
+      expect(productionBoundary.openClawGatewayRequired).toBe(true);
+      expect(productionBoundary.noSilentFallbackFromProduction).toBe(true);
     });
   });
 
   describe("7. OpenClaw Network Transport Adapter Integration", () => {
-    it("4.1 & 4.2: should inject OpenClawNetworkTransport into OpenClawTaskExecutionAdapter and replace simulated event path for production transport while preserving test-only simulation", async () => {
+    it("4.1 & 4.2: should inject OpenClawNetworkTransport into OpenClawTaskExecutionAdapter and consume OpenAI-compatible provider events", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-1", status: "started", startedAt: "2023-01-01" }),
         cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-1", status: "canceled", canceledAt: "2023-01-01" }),
         subscribeEventStream: vi.fn().mockImplementation((endpoint, cred, execRef, onEvent, onError) => {
-          // Simulate incoming raw provider event
           setTimeout(() => {
             onEvent({
-              eventType: "progress",
+              object: "chat.completion.chunk",
               executionId: execRef,
-              stepId: "step-net-1",
-              stepName: "Network Step",
-              status: "started",
+              openclaw_extension: {
+                stepId: "step-net-1",
+                stepName: "Network Step",
+                status: "started"
+              },
               timestamp: Date.now()
             });
           }, 10);
@@ -658,7 +659,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       await netAdapter.releaseResources();
     });
 
-    it("4.3 & 4.4 & 4.5: should preserve duplicate/stale event protections and snapshot reconciliation behavior with mock transport", async () => {
+    it("4.3 & 4.4 & 4.5: should preserve duplicate/stale event protections and snapshot reconciliation behavior with injected OpenClaw transport", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "started", startedAt: "2023-01-01" }),
         cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "canceled", canceledAt: "2023-01-01" }),

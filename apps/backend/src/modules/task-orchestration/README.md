@@ -42,7 +42,7 @@ The module strictly enforces architectural boundaries to decouple domain logic f
 ### Responsibility Split
 
 #### Task & Orchestration (This Module)
-- **Owns**: Task and TaskRun domain models, task creation/validation, canonical task lifecycle, routing request representation, conversation/task history, mock execution used for development and tests, provider-neutral execution contracts, consumer-side OpenClaw adapter, mapping platform requests to verified OpenClaw requests, mapping OpenClaw execution updates to normalized task events, cancellation request forwarding, execution reference association, lifecycle projection, streaming/result/error/observability presentation, task-scoped event isolation, and frontend rendering/interaction.
+- **Owns**: Task and TaskRun domain models, task creation/validation, canonical task lifecycle, routing request representation, conversation/task history, provider-neutral execution contracts, consumer-side OpenClaw adapter, mapping platform requests to verified OpenClaw requests, mapping OpenClaw execution updates to normalized task events, cancellation request forwarding, execution reference association, lifecycle projection, streaming/result/error/observability presentation, task-scoped event isolation, and frontend rendering/interaction.
 - **Does Not Own**: OpenClaw installation, container creation, start/stop/restart/delete/upgrade, workspace provisioning, CPU/RAM allocation, Standard/Premium infrastructure configuration, Gateway DNS/networking, Gateway credential creation, platform-wide secret ownership, authentication implementation, workspace membership management, RBAC ownership, subscription validation implementation, payment, Agent Management, Workflow Management, Tool Management, Knowledge Base/RAG Management, custom orchestration engines, custom LLM routers, custom multi-agent collaboration engines, custom workflow runtimes, or OpenClaw internals.
 
 #### OpenClaw / Execution Provider
@@ -120,11 +120,7 @@ To maintain resilience against network disconnects and unstable transport layers
 - **Duplicate Event Protection**: The adapter maintains a registry of seen event IDs within the active session, silently dropping duplicate events to prevent duplicate lifecycle transitions or state corruption.
 - **Stale Event Protection**: The adapter verifies event timestamps and monotonic sequence numbers, ignoring delayed or out-of-order events that arrive after a more recent state transition has already occurred.
 
-## Mock vs Production Behavior
-
-### `MockTaskExecutionAdapter`
-- **Location**: `apps/backend/src/modules/task-orchestration/application/mock-task-execution-adapter.ts`
-- **Behavior**: Operates entirely in-memory as a legitimate test and development adapter satisfying `TaskExecutionAdapter`. It resolves runtime references without provisioning them and simulates execution milestones directly.
+## Production Execution Behavior
 
 ### `OpenClawTaskExecutionAdapter`
 - **Location**: `apps/backend/src/features/task-execution/adapters/openclaw-task-execution-adapter.ts`

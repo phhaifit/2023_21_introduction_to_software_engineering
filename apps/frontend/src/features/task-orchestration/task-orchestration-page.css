@@ -1464,11 +1464,6 @@ button.task-conversation-navigation__new-btn--compact {
   padding: 4px 10px;
 }
 
-.task-workspace__provider-badge--mock {
-  background: #f8fafc;
-  color: #475569;
-}
-
 .task-workspace__provider-badge--live {
   background: #ecfdf5;
   border-color: #bbf7d0;
@@ -1505,10 +1500,6 @@ button.task-conversation-navigation__new-btn--compact {
 
 .task-workspace__provider-badge--unavailable .task-workspace__provider-dot {
   background: #ef4444;
-}
-
-.task-workspace__provider-badge--mock .task-workspace__provider-dot {
-  background: #6366f1;
 }
 
 @keyframes taskMessageAppear {

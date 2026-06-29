@@ -4,14 +4,11 @@ import type { TaskRoutingSelection } from "@vcp/shared";
 import { RoutingSelector } from "./components/routing-selector";
 import { TaskComposer } from "./components/task-composer";
 import {
-  createTaskOrchestrationSeedData,
-  DEMO_PROMPTS,
-  DEMO_TIMINGS
-} from "./mocks/task-orchestration-mocks";
-import {
-  createMockTaskCreationClient,
-  type TaskCreationClient
-} from "./model/task-creation-client";
+  createTaskRoutingOptions,
+  DEFAULT_TASK_RUNTIME_TIMINGS,
+  SUGGESTED_TASK_PROMPTS
+} from "./data/task-routing-options";
+import type { TaskCreationClient } from "./model/task-creation-client";
 import {
   buildCreateTaskRequest,
   conversationHasNonTerminalTasks,
@@ -57,6 +54,7 @@ import {
 import {
   resolveTaskOrchestrationProvider,
   DEFAULT_PROVIDER_CONFIG,
+  LocalTaskOrchestrationTestProvider,
   type TaskOrchestrationClient,
   type TaskEventSubscription
 } from "./model/task-orchestration-provider";
@@ -72,7 +70,7 @@ type TaskOrchestrationPageProps = {
   isLoading?: boolean;
   isReconnecting?: boolean;
   isProviderUnavailable?: boolean;
-  providerMode?: "mock" | "http" | "neutral";
+  providerMode?: "http" | "neutral";
   taskCreationClient?: TaskCreationClient;
   taskOrchestrationClient?: TaskOrchestrationClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
@@ -89,12 +87,12 @@ type TaskOrchestrationPageProps = {
 };
 
 const suggestedPrompts = [
-  DEMO_PROMPTS.weeklyProgressReport,
-  DEMO_PROMPTS.specificAgentProductDescription,
-  DEMO_PROMPTS.researchAndSynthesis
+  SUGGESTED_TASK_PROMPTS.weeklyProgressReport,
+  SUGGESTED_TASK_PROMPTS.specificAgentProductDescription,
+  SUGGESTED_TASK_PROMPTS.researchAndSynthesis
 ] as const;
 
-const routingOptions = createTaskOrchestrationSeedData();
+const routingOptions = createTaskRoutingOptions();
 
 const RUNNING_DELETE_REASON =
   "Cannot delete while a task is still running or queued in this conversation.";
@@ -105,8 +103,8 @@ const RUNNING_TASK_DELETE_REASON =
 function resolveProviderBadgeLabel(options: {
   isReconnecting: boolean;
   isProviderUnavailable: boolean;
-  providerMode?: "mock" | "http" | "neutral";
-}): { label: string; tone: "mock" | "live" | "reconnecting" | "unavailable" | "neutral" } {
+  providerMode?: "http" | "neutral";
+}): { label: string; tone: "live" | "reconnecting" | "unavailable" | "neutral" } {
   if (options.isReconnecting) {
     return { label: "Reconnecting", tone: "reconnecting" };
   }
@@ -116,9 +114,6 @@ function resolveProviderBadgeLabel(options: {
   if (options.providerMode === "http") {
     return { label: "HTTP / OpenClaw Gateway", tone: "live" };
   }
-  if (options.providerMode === "mock") {
-    return { label: "Mock / Simulated", tone: "mock" };
-  }
   return { label: "Execution provider", tone: "neutral" };
 }
 
@@ -126,7 +121,7 @@ export function TaskOrchestrationPage({
   isLoading = false,
   isReconnecting = false,
   isProviderUnavailable = false,
-  providerMode = "mock",
+  providerMode = "http",
   taskCreationClient,
   taskOrchestrationClient,
   onCancelTaskRequested,
@@ -161,13 +156,13 @@ export function TaskOrchestrationPage({
   const mountedRef = useRef(false);
 
   const runtimeRef = useRef(processingRuntime ?? createBrowserTaskProcessingRuntime());
-  const delaysRef = useRef(processingDelays ?? DEMO_TIMINGS);
+  const delaysRef = useRef(processingDelays ?? DEFAULT_TASK_RUNTIME_TIMINGS);
   const streamingRuntimeRef = useRef(
     streamingRuntime ?? createDefaultTaskStreamingRuntime()
   );
   const streamingDelaysRef = useRef(
     streamingDelays ?? {
-      fragmentMs: DEMO_TIMINGS.streamChunkMs ?? DEFAULT_TASK_STREAMING_DELAYS.fragmentMs
+      fragmentMs: DEFAULT_TASK_RUNTIME_TIMINGS.streamChunkMs ?? DEFAULT_TASK_STREAMING_DELAYS.fragmentMs
     }
   );
   const completionRuntimeRef = useRef(
@@ -176,19 +171,40 @@ export function TaskOrchestrationPage({
   const completionDelaysRef = useRef(
     completionDelays ?? DEFAULT_TASK_COMPLETION_DELAYS
   );
+  const hasInjectedRuntimeDependencies = Boolean(
+    taskCreationClient ||
+      processingRuntime ||
+      processingDelays ||
+      streamingRuntime ||
+      streamingDelays ||
+      completionRuntime ||
+      completionDelays ||
+      cancellationCoordinator
+  );
 
   const clientRef = useRef(
     taskOrchestrationClient ??
-      resolveTaskOrchestrationProvider(DEFAULT_PROVIDER_CONFIG, {
-        taskCreationClient,
-        processingRuntime: runtimeRef.current,
-        processingDelays: delaysRef.current,
-        streamingRuntime: streamingRuntimeRef.current,
-        streamingDelays: streamingDelaysRef.current,
-        completionRuntime: completionRuntimeRef.current,
-        completionDelays: completionDelaysRef.current,
-        cancellationCoordinator
-      })
+      (hasInjectedRuntimeDependencies
+        ? new LocalTaskOrchestrationTestProvider({
+            taskCreationClient,
+            processingRuntime: runtimeRef.current,
+            processingDelays: delaysRef.current,
+            streamingRuntime: streamingRuntimeRef.current,
+            streamingDelays: streamingDelaysRef.current,
+            completionRuntime: completionRuntimeRef.current,
+            completionDelays: completionDelaysRef.current,
+            cancellationCoordinator
+          })
+        : resolveTaskOrchestrationProvider(DEFAULT_PROVIDER_CONFIG, {
+            taskCreationClient,
+            processingRuntime: runtimeRef.current,
+            processingDelays: delaysRef.current,
+            streamingRuntime: streamingRuntimeRef.current,
+            streamingDelays: streamingDelaysRef.current,
+            completionRuntime: completionRuntimeRef.current,
+            completionDelays: completionDelaysRef.current,
+            cancellationCoordinator
+          }))
   );
   const subscriptionsRef = useRef(new Map<string, TaskEventSubscription>());
 
@@ -554,7 +570,7 @@ export function TaskOrchestrationPage({
                 <h3>Execution Provider Unavailable</h3>
                 <p>
                   The external OpenClaw runtime is currently unreachable or stopped. Tasks will
-                  remain queued or use simulated mock execution.
+                  remain queued until the Gateway connection is restored.
                 </p>
               </div>
             </div>

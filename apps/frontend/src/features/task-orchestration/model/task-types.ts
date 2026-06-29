@@ -102,7 +102,7 @@ export interface CreatedTaskRecord {
   error?: TaskError;
 }
 
-export interface MockAgent {
+export interface RoutingAgentOption {
   id: string;
   name: string;
   description: string;
@@ -110,7 +110,7 @@ export interface MockAgent {
   available: boolean;
 }
 
-export interface MockWorkflow {
+export interface RoutingWorkflowOption {
   id: string;
   name: string;
   description: string;

@@ -1,13 +1,14 @@
 import type { EntityId } from "@vcp/shared";
 import type { CreatedTaskRecord, TaskError } from "./task-types";
 import { createTaskRuntimeRegistry, type TaskRuntimeRegistry } from "./task-runtime-registry";
-import { createMockTaskCreationClient, type TaskCreationClient } from "./task-creation-client";
+import { createLocalTaskCreationClient, type TaskCreationClient } from "./task-creation-client";
 import { taskCreationReducer, createTaskRecord } from "./task-creation-state";
+import { createTaskIdentity } from "./task-id";
 import { createBrowserTaskProcessingRuntime, type TaskProcessingRuntime } from "./task-processing-runtime";
 import { createDefaultTaskStreamingRuntime, DEFAULT_TASK_STREAMING_DELAYS, type TaskStreamingDelays, type TaskStreamingRuntime } from "./task-streaming-runtime";
 import { createBrowserTaskCompletionRuntime, DEFAULT_TASK_COMPLETION_DELAYS, type TaskCompletionDelays, type TaskCompletionRuntime } from "./task-completion-runtime";
 import type { TaskCancellationCoordinator } from "./task-cancellation-coordinator";
-import { DEMO_TIMINGS } from "../mocks/task-orchestration-mocks";
+import { DEFAULT_TASK_RUNTIME_TIMINGS } from "../data/task-routing-options";
 import { isTerminalTaskStatus } from "./task-lifecycle";
 
 export interface TaskRuntimeEventBase {
@@ -74,7 +75,6 @@ export type TaskRuntimeEvent =
   | TaskCanceledEvent;
 
 export type ProviderConfig =
-  | { readonly type: "mock" }
   | { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number };
 
 export const TASK_RUNTIME_EVENT_STATUS_MAPPING: Record<TaskRuntimeEvent["kind"], import("@vcp/shared").TaskStatus | null> = {
@@ -106,7 +106,7 @@ export interface TaskOrchestrationClient {
   fetchConversations(workspaceId: string): Promise<import("@vcp/shared").Conversation[]>;
 }
 
-export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
+export class LocalTaskOrchestrationTestProvider implements TaskOrchestrationClient {
   private tasks = new Map<string, CreatedTaskRecord>();
   private subscriptions = new Map<string, Set<(event: TaskRuntimeEvent) => void>>();
   private subscriptionHandles = new Map<string, { taskId: string; handler: (event: TaskRuntimeEvent) => void }>();
@@ -126,13 +126,13 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
     completionDelays?: TaskCompletionDelays;
     cancellationCoordinator?: TaskCancellationCoordinator;
   }) {
-    this.taskCreationClient = options?.taskCreationClient ?? createMockTaskCreationClient();
+    this.taskCreationClient = options?.taskCreationClient ?? createLocalTaskCreationClient();
     const processingRuntime = options?.processingRuntime ?? createBrowserTaskProcessingRuntime();
     this.clock = processingRuntime.clock;
-    const processingDelays = options?.processingDelays ?? DEMO_TIMINGS;
+    const processingDelays = options?.processingDelays ?? DEFAULT_TASK_RUNTIME_TIMINGS;
     const streamingRuntime = options?.streamingRuntime ?? createDefaultTaskStreamingRuntime();
     const streamingDelays = options?.streamingDelays ?? {
-      fragmentMs: DEMO_TIMINGS.streamChunkMs ?? DEFAULT_TASK_STREAMING_DELAYS.fragmentMs
+      fragmentMs: DEFAULT_TASK_RUNTIME_TIMINGS.streamChunkMs ?? DEFAULT_TASK_STREAMING_DELAYS.fragmentMs
     };
     const completionRuntime = options?.completionRuntime ?? createBrowserTaskCompletionRuntime();
     const completionDelays = options?.completionDelays ?? DEFAULT_TASK_COMPLETION_DELAYS;
@@ -182,10 +182,7 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 
   cancelTask(taskId: string): Promise<void> {
     const task = this.tasks.get(taskId);
-    if (!task) {
-      return Promise.resolve();
-    }
-    if (isTerminalTaskStatus(task.status)) {
+    if (!task || isTerminalTaskStatus(task.status)) {
       return Promise.resolve();
     }
     this.registry.cancelTask(task.taskId);
@@ -200,7 +197,7 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
     }
     handlers.add(handler);
 
-    const subscriptionId = `sub-${this.subIdCounter++}`;
+    const subscriptionId = `sub-local-${this.subIdCounter++}`;
     this.subscriptionHandles.set(subscriptionId, { taskId, handler });
     return { subscriptionId, taskId };
   }
@@ -275,7 +272,11 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 
       if (action.stepId === "select-routing") {
         const routingMode = updatedTask.requestedRouting.mode;
-        const targetId = updatedTask.requestedRouting.mode === "specific-agent" ? updatedTask.requestedRouting.agentId : updatedTask.requestedRouting.mode === "predefined-workflow" ? updatedTask.requestedRouting.workflowId : undefined;
+        const targetId = updatedTask.requestedRouting.mode === "specific-agent"
+          ? updatedTask.requestedRouting.agentId
+          : updatedTask.requestedRouting.mode === "predefined-workflow"
+          ? updatedTask.requestedRouting.workflowId
+          : undefined;
         this.emitEvent({ ...base, kind: "routing-resolved", routingMode, targetId });
       }
     } else if (action.type === "processing-step-completed") {
@@ -294,12 +295,12 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 
     if (event) {
       this.emitEvent(event);
-    } else {
-      const activeStep = updatedTask.processingSnapshot.steps.find((s) => s.status === "active") ?? updatedTask.processingSnapshot.steps[0];
-      const stepIndex = updatedTask.processingSnapshot.steps.findIndex((s) => s.id === activeStep.id);
-      event = { ...base, kind: "step-started", stepName: activeStep.label ?? activeStep.id, stepIndex: Math.max(0, stepIndex) };
-      this.emitEvent(event);
+      return;
     }
+
+    const activeStep = updatedTask.processingSnapshot.steps.find((s) => s.status === "active") ?? updatedTask.processingSnapshot.steps[0];
+    const stepIndex = updatedTask.processingSnapshot.steps.findIndex((s) => s.id === activeStep.id);
+    this.emitEvent({ ...base, kind: "step-started", stepName: activeStep.label ?? activeStep.id, stepIndex: Math.max(0, stepIndex) });
   }
 
   private emitEvent(event: TaskRuntimeEvent): void {
@@ -322,46 +323,58 @@ export class MockTaskOrchestrationProvider implements TaskOrchestrationClient {
 export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private baseUrl: string;
   private timeoutMs: number;
-  private taskCreationClient: TaskCreationClient;
   private tasks = new Map<string, CreatedTaskRecord>();
   private eventSources = new Map<string, EventSource>();
   private subIdCounter = 1;
 
-  constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }, options?: { taskCreationClient?: TaskCreationClient }) {
+  constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
     if (!config.baseUrl) {
       throw new Error("HttpTaskOrchestrationProvider requires a non-empty baseUrl.");
     }
     this.baseUrl = config.baseUrl;
     this.timeoutMs = config.timeoutMs ?? 30000;
-    this.taskCreationClient = options?.taskCreationClient ?? createMockTaskCreationClient();
   }
 
   async createTask(input: import("@vcp/shared").CreateTaskRequest): Promise<CreatedTaskRecord> {
-    const response = await this.taskCreationClient.createTask(input);
-    const task = createTaskRecord(input, response);
-    this.tasks.set(task.taskId as string, task);
-
+    const identity = createTaskIdentity();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    let payload: any;
     try {
-      setTimeout(() => {
-        fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            taskId: task.taskId,
-            workId: task.workId,
-            workspaceId: "demo_workspace_1" as any,
-            conversationId: "cnv_default",
-            prompt: input.prompt,
-            routing: input.routing
-          })
-        }).catch((err) => {
-          console.warn("Failed to reach backend execution start API, continuing with local state", err);
-        });
-      }, 50);
+      const response = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: identity.taskId,
+          workId: identity.workId,
+          workspaceId: "demo_workspace_1" as any,
+          conversationId: "cnv_default",
+          prompt: input.prompt,
+          routing: input.routing
+        }),
+        signal: controller.signal
+      });
+      payload = await response.json().catch(() => undefined);
+      if (!response.ok || payload?.ok === false || payload?.data?.status === "failed") {
+        throw new Error(
+          payload?.error?.message ||
+            payload?.data?.error?.message ||
+            `OpenClaw execution start failed with status ${response.status}`
+        );
+      }
     } catch (err) {
-      console.warn("Failed to schedule backend execution start API", err);
+      const message = err instanceof Error ? err.message : "OpenClaw execution start failed.";
+      throw new Error(message);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
+    const task = createTaskRecord(input, {
+      ...identity,
+      status: "queued",
+      createdAt: payload?.meta?.timestamp || new Date().toISOString()
+    });
+    this.tasks.set(task.taskId as string, task);
     return task;
   }
 
@@ -398,16 +411,14 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   }
 
   async cancelTask(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (task) {
-      task.status = "cancelled";
-    }
-    try {
-      await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/cancel`, {
-        method: "POST"
-      });
-    } catch (err) {
-      console.warn("Failed to reach backend execution cancel API", err);
+    const response = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/cancel`, {
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => undefined);
+    if (!response.ok || payload?.ok === false) {
+      throw new Error(
+        payload?.error?.message || `OpenClaw execution cancel failed with status ${response.status}`
+      );
     }
   }
 
@@ -526,14 +537,11 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
 }
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig =
-  (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test") ||
-  (typeof (import.meta as any) !== "undefined" && (import.meta as any).env && (import.meta as any).env.MODE === "test")
-    ? { type: "mock" }
-    : { type: "http", baseUrl: "http://127.0.0.1:3001" };
+  { type: "http", baseUrl: "http://127.0.0.1:3001" };
 
 export function resolveTaskOrchestrationProvider(
   config: ProviderConfig = DEFAULT_PROVIDER_CONFIG,
-  options?: {
+  _options?: {
     taskCreationClient?: TaskCreationClient;
     processingRuntime?: TaskProcessingRuntime;
     processingDelays?: Readonly<{ pendingMs: number; stepMs: number }>;
@@ -544,8 +552,5 @@ export function resolveTaskOrchestrationProvider(
     cancellationCoordinator?: TaskCancellationCoordinator;
   }
 ): TaskOrchestrationClient {
-  if (config.type === "http") {
-    return new HttpTaskOrchestrationProvider(config, options);
-  }
-  return new MockTaskOrchestrationProvider(options);
+  return new HttpTaskOrchestrationProvider(config);
 }

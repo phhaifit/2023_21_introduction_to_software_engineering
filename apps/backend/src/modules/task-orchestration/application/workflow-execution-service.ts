@@ -189,7 +189,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
             
             const context = {
               principalId: triggeredBy as string,
-              roles: ["workspace-admin"], // mock
+              roles: ["workspace-admin"], // TODO: wire workflow execution auth context.
               permissions: ["start-task-execution"]
             };
 

@@ -169,7 +169,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer cred-123",
-          "x-openclaw-model": "gemini-3.1-flash-lite",
+          "x-openclaw-model": "gemini-3.1-pro-preview",
           "x-openclaw-session-key": "session-123"
         },
         body: JSON.stringify({
@@ -211,13 +211,13 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("should handle event stream subscription and mock stream errors", async () => {
+    it("should report an unavailable stream when no active OpenClaw stream exists", async () => {
       const transport = new OpenClawHttpSSETransport();
       const onError = vi.fn();
-      const sub = transport.subscribeEventStream("https://openclaw.mock-stream-error", "cred-123", "exec-1", () => {}, onError);
+      const sub = transport.subscribeEventStream("https://openclaw.internal", "cred-123", "exec-1", () => {}, onError);
       
-      await new Promise(resolve => setTimeout(resolve, 20));
       expect(onError).toHaveBeenCalled();
+      expect(onError.mock.calls[0][0].message).toMatch(/Streaming transport unavailable/);
       sub.unsubscribe();
     });
 

@@ -2,8 +2,8 @@ import { useId, type ChangeEvent } from "react";
 
 import {
   ROUTING_MODES,
-  type MockAgent,
-  type MockWorkflow,
+  type RoutingAgentOption,
+  type RoutingWorkflowOption,
   type RoutingMode
 } from "../model/task-types";
 
@@ -21,8 +21,8 @@ export interface RoutingSelectorProps {
   mode: RoutingMode;
   selectedAgentId?: string;
   selectedWorkflowId?: string;
-  agents: readonly MockAgent[];
-  workflows: readonly MockWorkflow[];
+  agents: readonly RoutingAgentOption[];
+  workflows: readonly RoutingWorkflowOption[];
   isDisabled?: boolean;
   onModeChange: (mode: RoutingMode) => void;
   onAgentChange: (agentId: string | undefined) => void;

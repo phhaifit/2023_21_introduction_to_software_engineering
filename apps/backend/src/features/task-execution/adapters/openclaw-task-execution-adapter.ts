@@ -65,7 +65,7 @@ export interface ExternalWorkspaceManagement {
 
 /**
  * OpenClawTaskExecutionAdapter satisfies TaskExecutionAdapter contracts,
- * supporting fake transport tests for development verification.
+ * supporting externally supplied OpenClaw Gateway transports.
  * Explicitly excludes runtime provisioning, container management, or credential creation.
  */
 export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
@@ -111,16 +111,16 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     if (!runtime || runtime.status === "unavailable" || runtime.status === "stopped") {
       const error: NormalizedRuntimeError = {
         code: runtime?.status === "stopped" ? "execution-runtime-not-running" : "execution-runtime-unavailable",
-        message: `GIVEN a valid Task is submitted for real execution AND no running execution runtime can be resolved for the workspace WHEN Task & Orchestration attempts to begin execution THEN it SHALL return a normalized execution-unavailable failure AND it SHALL NOT provision a runtime AND it SHALL NOT silently switch to mock execution.`
+        message: `GIVEN a valid Task is submitted for real execution AND no running execution runtime can be resolved for the workspace WHEN Task & Orchestration attempts to begin execution THEN it SHALL return a normalized execution-unavailable failure AND it SHALL NOT provision a runtime AND it SHALL NOT silently switch to local substitute execution.`
       };
       throw new Error(JSON.stringify(error));
     }
 
     // Verify routing selection & map targets
-    let providerExecutionTarget = "openclaw-auto-coordinator";
+    let providerExecutionTarget = "openclaw/default";
     if (command.routing.mode === "auto") {
       // Auto-routing delegation
-      providerExecutionTarget = "openclaw-auto-coordinator";
+      providerExecutionTarget = "openclaw/default";
     } else if (command.routing.mode === "specific-agent") {
       const agentContract = await this.agentCatalog.validateAndGetAgent(command.workspaceId, command.routing.agentId);
       if (agentContract.status !== "active") {
@@ -166,7 +166,8 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         taskId: taskIdStr,
         prompt: command.prompt,
         target: providerExecutionTarget,
-        mode: command.routing.mode
+        mode: command.routing.mode,
+        conversationId: command.conversationId as string | undefined
       });
       providerExecutionReference = startResp.providerExecutionReference;
 
@@ -500,7 +501,7 @@ export class OpenClawExecutionOrchestrator {
     if (!runtime || runtime.status !== "running") {
       const errorObj: NormalizedRuntimeError = {
         code: runtime?.status === "stopped" ? "execution-runtime-not-running" : "execution-runtime-unavailable",
-        message: `GIVEN a valid Task is submitted for real execution AND no running execution runtime can be resolved for the workspace WHEN Task & Orchestration attempts to begin execution THEN it SHALL return a normalized execution-unavailable failure AND it SHALL NOT provision a runtime AND it SHALL NOT silently switch to mock execution.`
+        message: `GIVEN a valid Task is submitted for real execution AND no running execution runtime can be resolved for the workspace WHEN Task & Orchestration attempts to begin execution THEN it SHALL return a normalized execution-unavailable failure AND it SHALL NOT provision a runtime AND it SHALL NOT silently switch to local substitute execution.`
       };
       throw new Error(JSON.stringify(errorObj));
     }
@@ -661,9 +662,9 @@ export class OpenClawExecutionOrchestrator {
     };
   }
 
-  verifyMockExecutionFraming(): { legitimateTestAdapter: boolean; noSilentFallbackFromProduction: boolean } {
+  verifyProductionExecutionBoundary(): { openClawGatewayRequired: boolean; noSilentFallbackFromProduction: boolean } {
     return {
-      legitimateTestAdapter: true,
+      openClawGatewayRequired: true,
       noSilentFallbackFromProduction: true
     };
   }
