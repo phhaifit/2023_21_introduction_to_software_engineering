@@ -1,4 +1,4 @@
-import { DEMO_TIMINGS } from "../mocks/task-orchestration-mocks";
+import { DEFAULT_TASK_RUNTIME_TIMINGS } from "../data/task-routing-options";
 import type { TaskFinalizedResult } from "./task-completion";
 import type { TaskFinalizedResultSource } from "./task-completion-controller";
 import type { TaskProcessingScheduler } from "./task-processing-controller";
@@ -20,7 +20,7 @@ export interface TaskCompletionDelays {
 }
 
 export const DEFAULT_TASK_COMPLETION_DELAYS: TaskCompletionDelays = {
-  completionMs: DEMO_TIMINGS.stepMs ?? 800
+  completionMs: DEFAULT_TASK_RUNTIME_TIMINGS.stepMs ?? 800
 };
 
 export function createDefaultFinalizedResultSource(): TaskFinalizedResultSource {

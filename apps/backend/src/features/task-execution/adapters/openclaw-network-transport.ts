@@ -70,6 +70,8 @@ export interface OpenClawNetworkTransport {
   getSnapshot(endpoint: string, credentialReference: string, providerExecutionReference: string): Promise<unknown>;
 }
 
+const DEFAULT_OPENCLAW_MODEL = "gemini-3.1-pro-preview";
+
 // 2.1 Implement OpenClawRawEventMapper.
 export class OpenClawRawEventMapper {
   // 2.2 Map OpenAI-compatible SSE chunks directly to NormalizedRuntimeEvent union objects.
@@ -191,7 +193,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
     }
 
-    if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+    if (false) {
       console.log(`\n[OpenClaw Transport] === STARTING EXECUTION REQUEST ===`);
       console.log(`[OpenClaw Transport] Target Gateway Endpoint: ${endpoint}/v1/chat/completions`);
       console.log(`[OpenClaw Transport] Authorization Bearer Token: ${credentialReference.substring(0, 8)}... (Length: ${credentialReference.length})`);
@@ -204,11 +206,11 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${credentialReference}`,
-          "x-openclaw-model": request.target === "openclaw" || request.target === "openclaw-auto-coordinator" ? "qwen2.5-coder:3b" : (request.target || "qwen2.5-coder:3b"),
+          "x-openclaw-model": DEFAULT_OPENCLAW_MODEL,
           "x-openclaw-session-key": request.conversationId || "default-session"
         },
         body: JSON.stringify({
-          model: request.target === "openclaw-auto-coordinator" ? "openclaw/default" : (request.target || "openclaw/default"),
+          model: request.target || "openclaw/default",
           messages: [{ role: "user", content: request.prompt || "Start execution" }],
           stream: true,
           user: request.conversationId || "default-user"
@@ -216,12 +218,12 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         signal: abortController.signal
       });
 
-      if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      if (false) {
         console.log(`[OpenClaw Transport] Gateway Response HTTP Status: ${response.status} ${response.statusText}`);
       }
 
       if (response.status === 401 || response.status === 403) {
-        if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+        if (false) {
           console.error(`[OpenClaw Transport] ❌ Authentication Rejected (401/403). Check OPENCLAW_GATEWAY_TOKEN.`);
         }
         throw new Error(JSON.stringify({ code: "provider-authentication-rejected", message: "Provider authentication rejected by OpenClaw runtime" }));
@@ -230,7 +232,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       if (!response.ok) {
         let errText = "";
         try { errText = await response.text(); } catch (e) {}
-        if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+        if (false) {
           console.error(`[OpenClaw Transport] ❌ Execution Start Rejected with status ${response.status}: ${errText}`);
         }
         throw new Error(JSON.stringify({ code: "execution-start-rejected", message: `Execution start rejected with status ${response.status}` }));
@@ -238,7 +240,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
       let providerExecutionReference = `openclaw-exec-${Date.now()}`;
       if (response.body && typeof (response.body as any).getReader === "function") {
-        if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+        if (false) {
           console.log(`[OpenClaw Transport] ✓ Successfully received ReadableStream from Gateway. Ready for SSE streaming.`);
         }
         this.activeStreams.set(providerExecutionReference, response.body);
@@ -260,7 +262,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         startedAt: new Date().toISOString()
       };
     } catch (err: any) {
-      if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      if (false) {
         console.error(`[OpenClaw Transport] ❌ Network/Execution failure:`, err.message);
         if (err.cause) {
           console.error(`[OpenClaw Transport] ❌ Error Cause:`, err.cause);
@@ -278,7 +280,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
     }
 
-    if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+    if (false) {
       console.log(`[OpenClaw Transport] Canceling active execution: ${request.providerExecutionReference}`);
     }
 
@@ -287,7 +289,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       controller.abort();
       this.activeControllers.delete(request.providerExecutionReference);
       this.activeStreams.delete(request.providerExecutionReference);
-      if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      if (false) {
         console.log(`[OpenClaw Transport] ✓ Successfully aborted gateway connection stream.`);
       }
     }
@@ -314,7 +316,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     let isSubscribed = true;
 
     if (this.activeStreams.has(providerExecutionReference)) {
-      if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+      if (false) {
         console.log(`[OpenClaw Transport] Subscribing to incoming SSE stream for execution: ${providerExecutionReference}`);
       }
       const stream = this.activeStreams.get(providerExecutionReference)!;
@@ -329,7 +331,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
           while (isSubscribed) {
             const { done, value } = await reader.read();
             if (done) {
-              if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+              if (false) {
                 console.log(`[OpenClaw Transport] SSE stream reader finished [DONE].`);
               }
               if (started) {
@@ -363,7 +365,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
                     if (!started) {
                       started = true;
-                      if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+                      if (false) {
                         console.log(`[OpenClaw Transport] 📥 Received SSE Event: Chat started`);
                       }
                       onEvent({
@@ -386,7 +388,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
                       }
 
                       if (choice.finish_reason) {
-                        if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+                        if (false) {
                           console.log(`[OpenClaw Transport] 📥 Received SSE Event: finished (reason: ${choice.finish_reason})`);
                         }
                         data.finalOutput = accumulatedOutput;
@@ -403,7 +405,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
           }
         } catch (err: any) {
           if (isSubscribed) {
-            if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+            if (false) {
               console.error(`[OpenClaw Transport] ❌ Streaming transport error:`, err.message);
             }
             onError(new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: `Streaming transport disconnected: ${err.message}` })));
@@ -428,16 +430,11 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       };
     }
 
-    const timer = setTimeout(() => {
-      if (isSubscribed && endpoint.includes("mock-stream-error")) {
-        onError(new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Streaming transport disconnected" })));
-      }
-    }, 10);
+    onError(new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Streaming transport unavailable: no active OpenClaw stream for execution reference" })));
 
     return {
       unsubscribe: () => {
         isSubscribed = false;
-        clearTimeout(timer);
       }
     };
   }
@@ -447,7 +444,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
     }
 
-    if (!this.isCustomFetcher && !endpoint.includes("openclaw.internal") && !endpoint.includes("mock-stream-error")) {
+    if (false) {
       return { status: "in-progress" };
     }
 

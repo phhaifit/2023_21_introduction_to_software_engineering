@@ -20,7 +20,6 @@ export function createTaskOrchestrationRouter(
 
   router.post("/executions/start", async (request, response) => {
     console.log(`\n[Backend API] 📥 Received POST /api/workspaces/${request.params.workspaceId}/executions/start`);
-    console.log(`[Backend API] Request Body:`, JSON.stringify(request.body));
     try {
       const context = getRequestContext(request);
       const command = request.body as StartExecutionCommand;
@@ -122,7 +121,6 @@ export function createTaskOrchestrationRouter(
     response.flushHeaders();
 
     const onEvent = (event: NormalizedRuntimeEvent) => {
-      console.log(`[Backend API] 📤 Streaming event to client:`, JSON.stringify(event));
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 

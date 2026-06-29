@@ -10,11 +10,10 @@ import {
   TASK_STATUSES
 } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 import {
-  createTaskOrchestrationSeedData,
-  DEMO_PROMPTS,
-  DEMO_TIMINGS,
-  MOCK_RESULTS
-} from "@vcp/frontend/features/task-orchestration/mocks/task-orchestration-mocks.ts";
+  createTaskRoutingOptions,
+  DEFAULT_TASK_RUNTIME_TIMINGS,
+  SUGGESTED_TASK_PROMPTS
+} from "@vcp/frontend/features/task-orchestration/data/task-routing-options.ts";
 
 beforeEach(() => {
   resetTaskIdentitySequence();
@@ -78,9 +77,9 @@ describe("task identity generation", () => {
   });
 });
 
-describe("deterministic task orchestration seed data", () => {
+describe("task orchestration routing options", () => {
   it("provides all required agents", () => {
-    const { agents } = createTaskOrchestrationSeedData();
+    const { agents } = createTaskRoutingOptions();
 
     expect(agents.map(({ id, name }) => ({ id, name }))).toEqual([
       { id: "AGT-CODE", name: "Code Agent" },
@@ -96,7 +95,7 @@ describe("deterministic task orchestration seed data", () => {
   });
 
   it("provides both required workflows and agent mappings", () => {
-    const { workflows } = createTaskOrchestrationSeedData();
+    const { workflows } = createTaskRoutingOptions();
 
     expect(workflows.map(({ id, agentIds }) => ({ id, agentIds }))).toEqual([
       {
@@ -114,12 +113,12 @@ describe("deterministic task orchestration seed data", () => {
   });
 
   it("returns fresh arrays and nested arrays on every retrieval", () => {
-    const first = createTaskOrchestrationSeedData();
+    const first = createTaskRoutingOptions();
     first.agents.pop();
     first.agents[0].capabilities.push("consumer mutation");
     first.workflows[0].agentIds.push("AGT-SYNTHESIS");
 
-    const restored = createTaskOrchestrationSeedData();
+    const restored = createTaskRoutingOptions();
 
     expect(restored.agents).toHaveLength(4);
     expect(restored.agents[0].capabilities).not.toContain("consumer mutation");
@@ -130,25 +129,17 @@ describe("deterministic task orchestration seed data", () => {
   });
 });
 
-describe("deterministic demo configuration", () => {
-  it("uses the required failure prompt prefix", () => {
-    expect(DEMO_PROMPTS.failureSimulation).toMatch(/^FAIL_SIMULATION:/);
-    expect(Object.keys(DEMO_PROMPTS)).toHaveLength(5);
+describe("task orchestration local UI configuration", () => {
+  it("provides suggested prompts without execution simulation triggers", () => {
+    expect(Object.keys(SUGGESTED_TASK_PROMPTS)).toHaveLength(3);
+    expect(Object.values(SUGGESTED_TASK_PROMPTS).every((prompt) => prompt.length > 0)).toBe(true);
+    expect(Object.values(SUGGESTED_TASK_PROMPTS).join(" ")).not.toMatch(/FAIL_SIMULATION/);
   });
 
-  it.each(Object.entries(DEMO_TIMINGS))(
+  it.each(Object.entries(DEFAULT_TASK_RUNTIME_TIMINGS))(
     "defines positive timing value %s",
     (_name, value) => {
       expect(value).toBeGreaterThan(0);
     }
   );
-
-  it("provides the required mock result keys", () => {
-    expect(Object.keys(MOCK_RESULTS)).toEqual([
-      "weeklyProgressReport",
-      "productDescription",
-      "researchSummary"
-    ]);
-    expect(Object.values(MOCK_RESULTS).every((result) => result.length > 0)).toBe(true);
-  });
 });

@@ -1,6 +1,6 @@
 import type {
-  MockAgent,
-  MockWorkflow
+  RoutingAgentOption,
+  RoutingWorkflowOption
 } from "../model/task-types";
 
 const CANONICAL_AGENTS = [
@@ -49,12 +49,12 @@ const CANONICAL_WORKFLOWS = [
   }
 ] as const;
 
-export interface TaskOrchestrationSeedData {
-  agents: MockAgent[];
-  workflows: MockWorkflow[];
+export interface TaskRoutingOptions {
+  agents: RoutingAgentOption[];
+  workflows: RoutingWorkflowOption[];
 }
 
-export function createTaskOrchestrationSeedData(): TaskOrchestrationSeedData {
+export function createTaskRoutingOptions(): TaskRoutingOptions {
   return {
     agents: CANONICAL_AGENTS.map((agent) => ({
       ...agent,
@@ -67,29 +67,16 @@ export function createTaskOrchestrationSeedData(): TaskOrchestrationSeedData {
   };
 }
 
-export const DEMO_PROMPTS = {
+export const SUGGESTED_TASK_PROMPTS = {
   weeklyProgressReport:
-    "Lập báo cáo tiến độ tuần dựa trên số liệu mẫu.",
+    "Lap bao cao tien do tuan dua tren so lieu dau vao.",
   specificAgentProductDescription:
-    "Viết một đoạn mô tả ngắn cho sản phẩm mới của công ty.",
+    "Viet mot doan mo ta ngan cho san pham moi cua cong ty.",
   researchAndSynthesis:
-    "Nghiên cứu thông tin và tổng hợp thành báo cáo ngắn.",
-  longRunningCancellation:
-    "Tạo một báo cáo dài cần nhiều bước xử lý.",
-  failureSimulation:
-    "FAIL_SIMULATION: mô phỏng lỗi khi tổng hợp kết quả."
+    "Nghien cuu thong tin va tong hop thanh bao cao ngan."
 } as const;
 
-export const MOCK_RESULTS = {
-  weeklyProgressReport:
-    "Tiến độ tuần ổn định: các hạng mục chính đúng kế hoạch và rủi ro đã được ghi nhận.",
-  productDescription:
-    "Sản phẩm giúp đội ngũ phối hợp công việc nhanh hơn trong một không gian thống nhất.",
-  researchSummary:
-    "Nghiên cứu cho thấy giải pháp phù hợp khi ưu tiên luồng làm việc rõ ràng và kết quả có thể kiểm chứng."
-} as const;
-
-export const DEMO_TIMINGS = {
+export const DEFAULT_TASK_RUNTIME_TIMINGS = {
   pendingMs: 600,
   stepMs: 700,
   streamChunkMs: 150

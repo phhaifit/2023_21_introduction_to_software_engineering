@@ -17,10 +17,10 @@ import {
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
 import { ROUTING_MODES } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 import { RoutingSelector } from "@vcp/frontend/features/task-orchestration/components/routing-selector.tsx";
-import { createTaskOrchestrationSeedData } from "@vcp/frontend/features/task-orchestration/mocks/task-orchestration-mocks.ts";
+import { createTaskRoutingOptions } from "@vcp/frontend/features/task-orchestration/data/task-routing-options.ts";
 
 const FIXED_TS = "2026-06-25T12:00:00.000Z";
-const seedData = createTaskOrchestrationSeedData();
+const seedData = createTaskRoutingOptions();
 
 class FakeScheduler {
   callbacks: (() => void)[] = [];
@@ -228,7 +228,7 @@ describe("Polish UI: composer cancel and inline progress", () => {
 describe("Polish UI: sidebar collapse", () => {
   it("keeps conversation row content and more actions unified for long titles", async () => {
     const user = userEvent.setup();
-    render(<TaskOrchestrationPage />);
+    render(<TaskOrchestrationPage taskCreationClient={new ConfigurableClient()} />);
     const longTitle =
       "This is a deliberately long conversation title that should truncate inside Recent work";
     await submitPrompt(longTitle);
@@ -260,7 +260,7 @@ describe("Polish UI: sidebar collapse", () => {
 
   it("collapses and expands conversation sidebar without changing active conversation", async () => {
     const user = userEvent.setup();
-    render(<TaskOrchestrationPage />);
+    render(<TaskOrchestrationPage taskCreationClient={new ConfigurableClient()} />);
     await submitPrompt("Collapse test with full title hidden from rail");
 
     const sidebar = screen.getByRole("complementary", { name: "Task workspace sidebar" });

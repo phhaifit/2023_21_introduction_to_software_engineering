@@ -6,14 +6,14 @@ import {
   RoutingSelector,
   type RoutingSelectorProps
 } from "@vcp/frontend/features/task-orchestration/components/routing-selector.tsx";
-import { createTaskOrchestrationSeedData } from
-  "@vcp/frontend/features/task-orchestration/mocks/task-orchestration-mocks.ts";
+import { createTaskRoutingOptions } from
+  "@vcp/frontend/features/task-orchestration/data/task-routing-options.ts";
 import { ROUTING_MODES } from
   "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 
 afterEach(cleanup);
 
-const seedData = createTaskOrchestrationSeedData();
+const seedData = createTaskRoutingOptions();
 
 function renderSelector(overrides: Partial<RoutingSelectorProps> = {}) {
   const props: RoutingSelectorProps = {

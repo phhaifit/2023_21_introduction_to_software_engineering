@@ -24,6 +24,8 @@ vi.mock("@vcp/frontend/features/workflow-management/WorkflowsPage.tsx", () => ({
 import { App } from "@vcp/frontend/App.tsx";
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
+import { createLocalTaskCreationClient } from
+  "@vcp/frontend/features/task-orchestration/model/task-creation-client.ts";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -86,7 +88,7 @@ describe("TaskOrchestrationPage base workspace", () => {
 
   it("uses deterministic suggestions and renders Pending after accepted submit", async () => {
     const user = userEvent.setup();
-    render(<TaskOrchestrationPage />);
+    render(<TaskOrchestrationPage taskCreationClient={createLocalTaskCreationClient()} />);
 
     await user.click(screen.getByRole("textbox", { name: "Request" }));
     await user.keyboard("{Enter}");
@@ -139,8 +141,8 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByText("Execution Provider Unavailable")).toBeVisible();
   });
 
-  it("renders mock provider badge by default", () => {
+  it("renders OpenClaw Gateway provider badge by default", () => {
     render(<TaskOrchestrationPage />);
-    expect(screen.getByText("Mock / Simulated")).toBeVisible();
+    expect(screen.getByText("HTTP / OpenClaw Gateway")).toBeVisible();
   });
 });

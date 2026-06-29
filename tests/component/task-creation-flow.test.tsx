@@ -9,7 +9,7 @@ import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.t
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import {
-  createMockTaskCreationClient,
+  createLocalTaskCreationClient,
   type TaskCreationClient
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-client.ts";
 import { resetTaskIdentitySequence } from
@@ -359,12 +359,12 @@ describe("Task 6B model boundaries", () => {
     expect(canTransitionTaskStatus("succeeded", "running")).toBe(false);
   });
 
-  it("creates deterministic mock responses without request aliasing", async () => {
-    const client = createMockTaskCreationClient({
+  it("creates deterministic local client responses without request aliasing", async () => {
+    const client = createLocalTaskCreationClient({
       now: () => "2026-06-24T12:00:00.000Z"
     });
     const request = buildCreateTaskRequest({
-      prompt: "  Mock task  ",
+      prompt: "  Local task  ",
       routingMode: "auto"
     });
     expect(request.ok).toBe(true);
