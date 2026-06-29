@@ -17,10 +17,27 @@ import {
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
 import { ROUTING_MODES } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 import { RoutingSelector } from "@vcp/frontend/features/task-orchestration/components/routing-selector.tsx";
-import { createTaskRoutingOptions } from "@vcp/frontend/features/task-orchestration/data/task-routing-options.ts";
 
 const FIXED_TS = "2026-06-25T12:00:00.000Z";
-const seedData = createTaskRoutingOptions();
+const seedData = {
+  agents: [
+    {
+      id: "AGT-CODE",
+      name: "Code Agent",
+      description: "Implements focused software changes.",
+      capabilities: ["code generation"],
+      available: true
+    }
+  ],
+  workflows: [
+    {
+      id: "WFL-CODE-REVIEW",
+      name: "Code + Review",
+      description: "Creates and reviews a software change.",
+      agentIds: ["AGT-CODE"]
+    }
+  ]
+};
 
 class FakeScheduler {
   callbacks: (() => void)[] = [];
