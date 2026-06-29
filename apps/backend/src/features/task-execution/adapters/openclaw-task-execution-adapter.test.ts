@@ -659,6 +659,106 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       await netAdapter.releaseResources();
     });
 
+    it("4.1: should pass selected specific-agent mapping and routing instruction to OpenClaw transport", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn().mockResolvedValue({
+          status: "active",
+          providerAgentMapping: "openclaw/agent/agent-research",
+          agentId: "agent-research",
+          name: "Research Agent",
+          role: "Market researcher",
+          model: "gemini-2.5-flash",
+          instructions: "Track market signals."
+        })
+      };
+      const workflowCat: any = { validateAndGetWorkflow: vi.fn() };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-agent-101" as any,
+        workId: "work-agent-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-agent-1" as any,
+        prompt: "Research market size",
+        routing: { mode: "specific-agent", agentId: "agent-research" }
+      });
+
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/agent/agent-research",
+          mode: "specific-agent",
+          targetLabel: "Research Agent",
+          routingInstruction: expect.stringContaining("Use exactly this selected workspace agent: Research Agent")
+        })
+      );
+    });
+
+    it("4.1: should pass selected workflow mapping and routing instruction to OpenClaw transport", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-workflow-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-workflow-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = { validateAndGetAgent: vi.fn() };
+      const workflowCat: any = {
+        validateAndGetWorkflow: vi.fn().mockResolvedValue({
+          status: "active",
+          providerWorkflowMapping: "openclaw/workflow/workflow-research",
+          workflowId: "workflow-research",
+          name: "Research Workflow",
+          description: "Research then synthesize."
+        })
+      };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-workflow-101" as any,
+        workId: "work-workflow-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-workflow-1" as any,
+        prompt: "Prepare a research brief",
+        routing: { mode: "predefined-workflow", workflowId: "workflow-research" }
+      });
+
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/workflow/workflow-research",
+          mode: "predefined-workflow",
+          targetLabel: "Research Workflow",
+          routingInstruction: expect.stringContaining("Execute exactly this selected workspace workflow: Research Workflow")
+        })
+      );
+    });
+
     it("4.3 & 4.4 & 4.5: should preserve duplicate/stale event protections and snapshot reconciliation behavior with injected OpenClaw transport", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "started", startedAt: "2023-01-01" }),

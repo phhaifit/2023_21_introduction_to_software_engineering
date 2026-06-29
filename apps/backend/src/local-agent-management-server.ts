@@ -81,25 +81,66 @@ import {
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
 import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
 import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
+import type { WorkflowRepository } from "./modules/workflow-management/infrastructure/workflow-repository.ts";
 
 class ServerAgentCatalog implements ExternalAgentCatalog {
+  private readonly repository: AgentRepository;
+
+  constructor(repository: AgentRepository) {
+    this.repository = repository;
+  }
+
   async validateAndGetAgent(workspaceId: EntityId<"workspaceId">, agentId: string) {
+    const agent = await this.repository.findById(workspaceId, agentId as EntityId<"agentId">);
+
+    if (!agent || agent.status !== "enabled") {
+      return {
+        agentId,
+        workspaceId: workspaceId as string,
+        providerAgentMapping: "",
+        status: "inactive" as const
+      };
+    }
+
     return {
       agentId,
       workspaceId: workspaceId as string,
-      providerAgentMapping: "openclaw-agent-super-coder",
-      status: "active" as const
+      providerAgentMapping: `openclaw/agent/${agent.agentId}`,
+      status: "active" as const,
+      name: agent.name,
+      role: agent.role,
+      model: agent.model,
+      instructions: agent.instructions
     };
   }
 }
 
 class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
+  private readonly repository: WorkflowRepository;
+
+  constructor(repository: WorkflowRepository) {
+    this.repository = repository;
+  }
+
   async validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string) {
+    const workflow = await this.repository.findById(workspaceId, workflowId as EntityId<"workflowId">);
+
+    if (!workflow || workflow.status !== "published") {
+      return {
+        workflowId,
+        workspaceId: workspaceId as string,
+        providerWorkflowMapping: "",
+        status: "inactive" as const
+      };
+    }
+
     return {
       workflowId,
       workspaceId: workspaceId as string,
-      providerWorkflowMapping: "openclaw-workflow-ci-cd",
-      status: "active" as const
+      providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
+      status: "active" as const,
+      name: workflow.name,
+      description: workflow.description
     };
   }
 }
@@ -477,8 +518,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   );
 
   const serverWorkspaceMgmt = new ServerWorkspaceManagement();
-  const serverAgentCatalog = new ServerAgentCatalog();
-  const serverWorkflowCatalog = new ServerWorkflowCatalog();
+  const serverAgentCatalog = new ServerAgentCatalog(repository);
+  const serverWorkflowCatalog = new ServerWorkflowCatalog(workflowRepository);
   const serverAuthService = new ServerAuthenticationService();
 
   const conversationRepository = await createConversationRepository();

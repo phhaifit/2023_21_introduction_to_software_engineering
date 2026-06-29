@@ -182,6 +182,49 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       });
     });
 
+    it("should include selected routing instruction in OpenClaw messages", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ providerExecutionReference: "exec-http-2", status: "started", startedAt: "2023-01-01" })
+      });
+
+      const transport = new OpenClawHttpSSETransport(mockFetch as any);
+      await transport.startExecution("https://openclaw.internal", "cred-123", {
+        taskId: "task-123",
+        prompt: "Summarize this report",
+        target: "openclaw/agent/agent-research",
+        mode: "specific-agent",
+        conversationId: "session-123",
+        routingInstruction:
+          "Task & Orchestration routing mode: specific-agent. Use exactly this selected workspace agent: Research Agent."
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith("https://openclaw.internal/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer cred-123",
+          "x-openclaw-model": "google/gemini-3.1-flash-lite",
+          "x-openclaw-session-key": "session-123"
+        },
+        body: JSON.stringify({
+          model: "openclaw/agent/agent-research",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Task & Orchestration routing mode: specific-agent. Use exactly this selected workspace agent: Research Agent."
+            },
+            { role: "user", content: "Summarize this report" }
+          ],
+          stream: true,
+          user: "session-123"
+        }),
+        signal: expect.any(AbortSignal)
+      });
+    });
+
     it("should handle authentication failure (401) during startExecution", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,

@@ -19,6 +19,10 @@ export interface ExternalAgentContract {
   workspaceId: string;
   providerAgentMapping: string;
   status: "active" | "inactive";
+  name?: string;
+  role?: string;
+  model?: string;
+  instructions?: string;
 }
 
 export interface ExternalAgentCatalog {
@@ -30,6 +34,8 @@ export interface ExternalWorkflowContract {
   workspaceId: string;
   providerWorkflowMapping: string;
   status: "active" | "inactive";
+  name?: string;
+  description?: string | null;
 }
 
 export interface ExternalWorkflowCatalog {
@@ -118,6 +124,8 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
 
     // Verify routing selection & map targets
     let providerExecutionTarget = "openclaw/default";
+    let routingInstruction = buildAutoRoutingInstruction();
+    let targetLabel = "Auto routing";
     if (command.routing.mode === "auto") {
       // Auto-routing delegation
       providerExecutionTarget = "openclaw/default";
@@ -127,12 +135,16 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         throw new Error("Routing target unavailable: specified agent is inactive or invalid");
       }
       providerExecutionTarget = agentContract.providerAgentMapping;
+      targetLabel = agentContract.name || command.routing.agentId;
+      routingInstruction = buildSpecificAgentRoutingInstruction(agentContract);
     } else if (command.routing.mode === "predefined-workflow") {
       const workflowContract = await this.workflowCatalog.validateAndGetWorkflow(command.workspaceId, command.routing.workflowId);
       if (workflowContract.status !== "active") {
         throw new Error("Routing target unavailable: specified workflow is inactive or invalid");
       }
       providerExecutionTarget = workflowContract.providerWorkflowMapping;
+      targetLabel = workflowContract.name || command.routing.workflowId;
+      routingInstruction = buildWorkflowRoutingInstruction(workflowContract);
     }
 
     // Set up transport state and initial snapshot
@@ -167,7 +179,9 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         prompt: command.prompt,
         target: providerExecutionTarget,
         mode: command.routing.mode,
-        conversationId: command.conversationId as string | undefined
+        conversationId: command.conversationId as string | undefined,
+        routingInstruction,
+        targetLabel
       });
       providerExecutionReference = startResp.providerExecutionReference;
 
@@ -201,7 +215,8 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
       verifiedProviderFields: {
         endpointReference: runtime.endpointReference,
         target: providerExecutionTarget,
-        mode: command.routing.mode
+        mode: command.routing.mode,
+        targetLabel
       }
     };
 
@@ -392,6 +407,36 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     if (event.providerSessionReference && expectedScope.providerSessionReference && event.providerSessionReference !== expectedScope.providerSessionReference) return false;
     return true;
   }
+}
+
+function buildAutoRoutingInstruction(): string {
+  return [
+    "Task & Orchestration routing mode: auto.",
+    "Use the OpenClaw coordinator to choose the best available agent or workflow for the user request.",
+    "Do not ignore workspace routing constraints."
+  ].join(" ");
+}
+
+function buildSpecificAgentRoutingInstruction(agent: ExternalAgentContract): string {
+  return [
+    "Task & Orchestration routing mode: specific-agent.",
+    `Use exactly this selected workspace agent: ${agent.name || agent.agentId}.`,
+    `Platform agent ID: ${agent.agentId}.`,
+    agent.role ? `Agent role: ${agent.role}.` : "",
+    agent.model ? `Preferred model: ${agent.model}.` : "",
+    agent.instructions ? `Agent instructions: ${agent.instructions}` : "",
+    "Do not auto-route to a different agent unless the selected agent is unavailable."
+  ].filter(Boolean).join(" ");
+}
+
+function buildWorkflowRoutingInstruction(workflow: ExternalWorkflowContract): string {
+  return [
+    "Task & Orchestration routing mode: predefined-workflow.",
+    `Execute exactly this selected workspace workflow: ${workflow.name || workflow.workflowId}.`,
+    `Platform workflow ID: ${workflow.workflowId}.`,
+    workflow.description ? `Workflow description: ${workflow.description}.` : "",
+    "Do not replace it with auto-routing unless the selected workflow is unavailable."
+  ].filter(Boolean).join(" ");
 }
 
 /**

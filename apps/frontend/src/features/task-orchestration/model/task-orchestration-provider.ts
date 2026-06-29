@@ -1,4 +1,5 @@
 import type { EntityId } from "@vcp/shared";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { CreatedTaskRecord, TaskError } from "./task-types";
 import { createTaskRuntimeRegistry, type TaskRuntimeRegistry } from "./task-runtime-registry";
 import { createLocalTaskCreationClient, type TaskCreationClient } from "./task-creation-client";
@@ -374,13 +375,13 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
     let payload: any;
     try {
-      const response = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/start`, {
+      const response = await fetch(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskId: identity.taskId,
           workId: identity.workId,
-          workspaceId: "demo_workspace_1" as any,
+          workspaceId: DEMO_WORKSPACE_ID as any,
           conversationId: options?.conversationId || (identity.workId as string),
           prompt: input.prompt,
           routing: input.routing
@@ -415,7 +416,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     const task = this.tasks.get(taskId);
     if (!task) return null;
     try {
-      const res = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/state`);
+      const res = await fetch(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/state`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.data && data.data.status) {
@@ -444,7 +445,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   }
 
   async cancelTask(taskId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/cancel`, {
+    const response = await fetch(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/cancel`, {
       method: "POST"
     });
     const payload = await response.json().catch(() => undefined);
@@ -473,7 +474,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       this.tasks.delete(taskId);
       return;
     }
-    const workspaceId = options?.workspaceId || "demo_workspace_1";
+    const workspaceId = options?.workspaceId || DEMO_WORKSPACE_ID;
     const response = await fetch(
       `${this.baseUrl}/api/workspaces/${workspaceId}/conversations/${conversationId}/turns/${taskId}`,
       { method: "DELETE" }
@@ -489,12 +490,12 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
 
   /**
    * Subscribes to runtime events for a task.
-   * Connects to Server-Sent Events (SSE) stream at URL pattern: `${baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/stream`
+   * Connects to Server-Sent Events (SSE) stream at URL pattern: `${baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/stream`
    */
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
     const subscriptionId = `sub-http-${this.subIdCounter++}`;
     try {
-      const es = new EventSource(`${this.baseUrl}/api/workspaces/demo_workspace_1/executions/${taskId}/stream`);
+      const es = new EventSource(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/stream`);
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);

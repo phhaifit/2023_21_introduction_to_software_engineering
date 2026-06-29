@@ -8,6 +8,8 @@ export interface OpenClawExecutionRequest {
   target: string;
   mode: string;
   conversationId?: string;
+  routingInstruction?: string;
+  targetLabel?: string;
 }
 
 export interface OpenClawExecutionResponse {
@@ -211,7 +213,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         },
         body: JSON.stringify({
           model: request.target || "openclaw/default",
-          messages: [{ role: "user", content: request.prompt || "Start execution" }],
+          messages: buildOpenClawMessages(request),
           stream: true,
           user: request.conversationId || "default-user"
         }),
@@ -460,4 +462,25 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
     return await response.json();
   }
+}
+
+function buildOpenClawMessages(request: OpenClawExecutionRequest): Array<{
+  role: "system" | "user";
+  content: string;
+}> {
+  const messages: Array<{ role: "system" | "user"; content: string }> = [];
+
+  if (request.routingInstruction) {
+    messages.push({
+      role: "system",
+      content: request.routingInstruction
+    });
+  }
+
+  messages.push({
+    role: "user",
+    content: request.prompt || "Start execution"
+  });
+
+  return messages;
 }
