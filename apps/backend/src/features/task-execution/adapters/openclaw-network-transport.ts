@@ -70,7 +70,7 @@ export interface OpenClawNetworkTransport {
   getSnapshot(endpoint: string, credentialReference: string, providerExecutionReference: string): Promise<unknown>;
 }
 
-const DEFAULT_OPENCLAW_MODEL = "gemini-3.1-pro-preview";
+const DEFAULT_OPENCLAW_MODEL = "google/gemini-3.1-flash-lite";
 
 // 2.1 Implement OpenClawRawEventMapper.
 export class OpenClawRawEventMapper {

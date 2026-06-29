@@ -5,7 +5,7 @@ export async function openProcessingDetailsFromAssistantMenu(user: UserEvent): P
   const assistants = screen.getAllByLabelText("Assistant response");
   const assistant = assistants[assistants.length - 1]!;
   await user.click(
-    within(assistant).getByRole("button", { name: "More actions for this work" })
+    within(assistant).getByRole("button", { name: "More response actions" })
   );
   await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
 }

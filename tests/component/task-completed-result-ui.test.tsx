@@ -306,10 +306,9 @@ describe("Task 10B Completed Result UI Integration", () => {
 
     await user.click(
       within(screen.getByLabelText("Assistant response")).getByRole("button", {
-        name: "More actions for this work"
+        name: "Copy response"
       })
     );
-    await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
 
     expect(clipboardWriter.writtenText).toBe("Alpha Beta Gamma");
     expect(screen.getByRole("status")).toHaveTextContent("Copied");

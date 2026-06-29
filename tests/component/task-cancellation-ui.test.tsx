@@ -494,13 +494,12 @@ describe("8. Regression", () => {
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy finalized result" })).not.toBeInTheDocument();
 
-    // Copy response remains available from the assistant actions menu.
+    // Copy response remains available below the assistant message.
     await user.click(
       within(screen.getByLabelText("Assistant response")).getByRole("button", {
-        name: "More actions for this work"
+        name: "Copy response"
       })
     );
-    await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalled();
 
     // Processing Detail modal works for succeeded

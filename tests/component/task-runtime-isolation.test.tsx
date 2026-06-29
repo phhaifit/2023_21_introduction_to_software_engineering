@@ -188,9 +188,7 @@ function IsolationTestHarness({
             task={activeTask}
             routingSummary="Auto-routing"
             clipboardWriter={cRuntime.clipboard}
-            canDeleteTask={false}
             onOpenDetails={() => undefined}
-            onDeleteTask={() => undefined}
           />
         ) : (
           <p>No active task</p>

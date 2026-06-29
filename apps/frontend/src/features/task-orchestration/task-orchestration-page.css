@@ -967,7 +967,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-  padding: 16px 56px 16px 20px;
+  padding: 16px 20px 12px;
   position: relative;
 }
 
@@ -1025,7 +1025,7 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 16px 56px 16px 20px;
+  padding: 16px 20px 12px;
   position: relative;
 }
 
@@ -1134,13 +1134,17 @@
 }
 
 .task-turn-actions {
-  position: absolute;
-  right: 14px;
-  top: 14px;
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  min-height: 28px;
+  position: relative;
   z-index: 5;
 }
 
-.task-turn-actions__trigger,
+.task-turn-actions__icon-button,
 .task-conversation-navigation__item-menu-btn {
   background: transparent;
   border: 1px solid transparent;
@@ -1148,17 +1152,28 @@
   color: #64748b;
   cursor: pointer;
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1;
   min-height: 28px;
   min-width: 28px;
   padding: 2px 6px;
 }
 
-.task-turn-actions__trigger:hover,
+.task-turn-actions__icon-button:hover,
 .task-conversation-navigation__item-menu-btn:hover {
   background: #f1f5f9;
   border-color: #e2e8f0;
+  color: #334155;
+}
+
+.task-turn-actions__icon-button:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.task-turn-actions__icon-button:focus-visible {
+  outline: 2px solid #c7d2fe;
+  outline-offset: 1px;
 }
 
 .task-turn-actions__menu,
