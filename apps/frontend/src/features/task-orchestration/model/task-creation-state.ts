@@ -8,10 +8,14 @@ import type {
 import {
   appendProcessingLog,
   activateNextStep,
+  activateProviderStep,
   cancelActiveStep,
+  completeAllProviderSteps,
   completeActiveStep,
+  completeProviderStep,
   createInitialProcessingSnapshot,
   startProcessing,
+  startProviderProcessing,
   failActiveStep
 } from "./task-processing";
 import {
@@ -90,16 +94,35 @@ export type TaskCreationAction =
       startedAt: string;
     }
   | {
+      type: "provider-processing-started";
+      taskId: EntityId<"taskId">;
+      startedAt: string;
+    }
+  | {
       /** Marks a waiting step as active in the processing snapshot. */
       type: "processing-step-activated";
       taskId: EntityId<"taskId">;
       stepId: string;
     }
   | {
+      type: "provider-step-started";
+      taskId: EntityId<"taskId">;
+      stepId: string;
+      stepName: string;
+      startedAt: string;
+    }
+  | {
       /** Marks the currently active step as completed. */
       type: "processing-step-completed";
       taskId: EntityId<"taskId">;
       stepId: string;
+      completedAt: string;
+    }
+  | {
+      type: "provider-step-completed";
+      taskId: EntityId<"taskId">;
+      stepId: string;
+      stepName?: string;
       completedAt: string;
     }
   | {
@@ -338,12 +361,52 @@ export function taskCreationReducer(
         )
       };
     }
+    case "provider-processing-started": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const transitionResult = transitionTaskStatus(task, "running");
+      if (!transitionResult.ok) return state;
+      if (task.processingSnapshot.startedAt !== undefined) return state;
+      const processingResult = startProviderProcessing(task.processingSnapshot, action.startedAt);
+      if (!processingResult.ok) return state;
+      const updatedTask: CreatedTaskRecord = {
+        ...transitionResult.task,
+        processingSnapshot: processingResult.snapshot
+      };
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId ? updatedTask : t
+        )
+      };
+    }
     case "processing-step-activated": {
       const task = state.tasks.find((t) => t.taskId === action.taskId);
       if (!task || !task.processingSnapshot) return state;
       if (task.status !== "running") return state;
       if (isTerminalTaskStatus(task.status)) return state;
       const result = activateNextStep(task.processingSnapshot, action.stepId);
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "provider-step-started": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = activateProviderStep(task.processingSnapshot, {
+        id: action.stepId,
+        label: action.stepName,
+        startedAt: action.startedAt
+      });
       if (!result.ok) return state;
       return {
         ...state,
@@ -364,6 +427,26 @@ export function taskCreationReducer(
         action.stepId,
         action.completedAt
       );
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "provider-step-completed": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = completeProviderStep(task.processingSnapshot, {
+        id: action.stepId,
+        label: action.stepName,
+        completedAt: action.completedAt
+      });
       if (!result.ok) return state;
       return {
         ...state,
@@ -453,10 +536,14 @@ export function taskCreationReducer(
       if (!isValidFinalizedResult(action.result)) return state;
       const transitionResult = transitionTaskStatus(task, "succeeded");
       if (!transitionResult.ok) return state;
+      const finalStep = task.processingSnapshot.steps.at(-1);
+      const shouldCompleteProviderSteps = !(finalStep?.id === "finalize" && finalStep.status === "active");
 
       const updatedTask: CreatedTaskRecord = {
         ...transitionResult.task,
-        processingSnapshot: task.processingSnapshot,
+        processingSnapshot: shouldCompleteProviderSteps
+          ? completeAllProviderSteps(task.processingSnapshot, action.result.finalizedAt)
+          : task.processingSnapshot,
         streamingSnapshot: task.streamingSnapshot,
         finalizedResult: { ...action.result }
       };
