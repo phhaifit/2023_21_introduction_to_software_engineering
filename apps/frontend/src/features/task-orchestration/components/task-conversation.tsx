@@ -1,12 +1,13 @@
 import type { CreatedTaskRecord } from "../model/task-types";
 import { selectAccumulatedPartialText } from "../model/task-streaming";
+import { toTaskPresentationStatus } from "../model/task-lifecycle";
 import { TaskCompletedResult } from "./task-completed-result";
 import { TaskPartialResult } from "./task-partial-result";
 import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
-import type { TaskClipboardWriter } from "../model/task-completion-runtime";
-import { useCopyToClipboard } from "./use-copy-to-clipboard";
+import { TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
+import { TaskStatusBadge } from "./task-status-badge";import type { TaskClipboardWriter } from "../model/task-completion-runtime";
 
 export interface TaskConversationProps {
   task: CreatedTaskRecord;
@@ -85,45 +86,28 @@ export function TaskUserMessage({
   onOpenDetails: () => void;
   onDeleteTask: () => void;
 }) {
-  const { copyText, feedback } = useCopyToClipboard(clipboardWriter);
-
   return (
     <div
-      className="task-conversation__message task-conversation__message--user"
+      className="task-conversation__turn task-conversation__turn--user"
       aria-label="User message"
     >
       <div className="task-conversation__avatar task-conversation__avatar--user" aria-hidden="true">
         U
       </div>
       <div className="task-conversation__bubble task-conversation__bubble--user">
-        <div className="task-conversation__message-header">
+        <div className="task-conversation__turn-toolbar">
           <span className="task-conversation__routing-summary">{routingSummary}</span>
-          <div className="task-conversation__message-actions">
-            <button
-              type="button"
-              className="task-conversation__copy-btn"
-              aria-label="Copy query"
-              onClick={() => copyText(prompt)}
-            >
-              Copy
-            </button>
-            <TaskTurnActionsMenu
-              task={task}
-              prompt={prompt}
-              clipboardWriter={clipboardWriter}
-              canDelete={canDeleteTask}
-              deleteDisabledReason={deleteTaskDisabledReason}
-              onViewDetails={onOpenDetails}
-              onDelete={onDeleteTask}
-            />
-          </div>
+          <TaskTurnActionsMenu
+            task={task}
+            prompt={prompt}
+            clipboardWriter={clipboardWriter}
+            canDelete={canDeleteTask}
+            deleteDisabledReason={deleteTaskDisabledReason}
+            onViewDetails={onOpenDetails}
+            onDelete={onDeleteTask}
+          />
         </div>
         <p className="task-conversation__prompt">{prompt}</p>
-        {feedback !== "idle" ? (
-          <span className="task-conversation__copy-feedback" role="status" aria-live="polite">
-            {feedback === "copied" ? "Copied" : "Copy unavailable"}
-          </span>
-        ) : null}
       </div>
     </div>
   );
@@ -153,10 +137,12 @@ export function TaskAssistantMessage({
   const isFailed = task.status === "failed";
   const isCanceled = task.status === "cancelled";
   const isSucceeded = task.status === "succeeded";
+  const isNonTerminal = task.status === "queued" || task.status === "running";
+  const presentationStatus = toTaskPresentationStatus(task.status);
 
   return (
     <div
-      className="task-conversation__message task-conversation__message--assistant"
+      className="task-conversation__turn task-conversation__turn--assistant"
       aria-label="Assistant response"
     >
       <div
@@ -166,9 +152,13 @@ export function TaskAssistantMessage({
         ✦
       </div>
       <div className="task-conversation__bubble task-conversation__bubble--assistant">
-        <div className="task-conversation__message-header">
-          <span className="task-conversation__assistant-label">Assistant</span>
-          <TaskTurnActionsMenu
+        <div className="task-conversation__turn-toolbar">
+          <div className="task-conversation__turn-toolbar-labels">
+            <span className="task-conversation__assistant-label">Assistant</span>
+            {!isNonTerminal && presentationStatus ? (
+              <TaskStatusBadge status={presentationStatus} />
+            ) : null}
+          </div>          <TaskTurnActionsMenu
             task={task}
             prompt={task.prompt}
             clipboardWriter={clipboardWriter}
@@ -178,6 +168,8 @@ export function TaskAssistantMessage({
             onDelete={onDeleteTask}
           />
         </div>
+
+        {isNonTerminal ? <TaskAssistantProgressSummary task={task} /> : null}
 
         {isSucceeded && task.finalizedResult ? (
           <TaskCompletedResult result={task.finalizedResult} clipboardWriter={clipboardWriter} />
@@ -196,7 +188,7 @@ export function TaskAssistantMessage({
             ) : null}
             <p className="task-conversation__partial-text" aria-live="polite">
               {partialText ||
-                (task.status === "queued" ? "Task is queued..." : "Processing started...")}
+                (task.status === "queued" ? "Preparing your request..." : "Processing started...")}
             </p>
           </div>
         )}

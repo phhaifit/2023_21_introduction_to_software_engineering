@@ -136,7 +136,7 @@ describe("Polish UI: chat presentation and details", () => {
 
     await user.click(
       within(screen.getByLabelText("User message")).getByRole("button", {
-        name: /More actions for work WORK-000001/i
+        name: "More actions for this work"
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
@@ -162,7 +162,12 @@ describe("Polish UI: copy actions", () => {
     );
 
     await submitPrompt("Copy me");
-    await user.click(screen.getByRole("button", { name: "Copy query" }));
+    await user.click(
+      within(screen.getByLabelText("User message")).getByRole("button", {
+        name: "More actions for this work"
+      })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Copy query" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalledWith("Copy me");
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
@@ -179,12 +184,44 @@ describe("Polish UI: copy actions", () => {
 
     await user.click(
       within(screen.getByLabelText("User message")).getByRole("button", {
-        name: /More actions for work WORK-000001/i
+        name: "More actions for this work"
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalledWith("Final completed text result");
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
+  });
+});
+
+describe("Polish UI: composer cancel and inline progress", () => {
+  it("shows cancel in composer and progress in assistant without a default dock", async () => {
+    const user = userEvent.setup();
+    const client = new ConfigurableClient("queued");
+    const pRuntime = new FakeProcessingRuntime();
+    render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);
+
+    await submitPrompt("Running cancel test");
+    expect(screen.queryByLabelText("Compact orchestration dock")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel current task" })).toBeVisible();
+
+    const assistant = screen.getByLabelText("Assistant response");
+    expect(within(assistant).getByLabelText("Task status: Pending")).toBeVisible();
+
+    act(() => { pRuntime.scheduler.advance(); });
+    expect(within(assistant).getByLabelText("Task status: In Progress")).toBeVisible();
+    expect(within(assistant).getByText(/\/6 steps/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
+    expect(screen.getByRole("dialog", { name: "Cancel task?" })).toBeVisible();
+  });
+
+  it("returns composer to Send when the latest task is terminal", async () => {
+    const client = new ConfigurableClient("succeeded");
+    render(<TaskOrchestrationPage taskCreationClient={client} />);
+
+    await submitPrompt("Terminal task");
+    expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 });
 
@@ -231,7 +268,7 @@ describe("Polish UI: delete conversation and task", () => {
     await submitPrompt("Task to delete");
     await user.click(
       within(screen.getByLabelText("User message")).getByRole("button", {
-        name: /More actions for work WORK-000002/i
+        name: "More actions for this work"
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "Delete work/task" }));

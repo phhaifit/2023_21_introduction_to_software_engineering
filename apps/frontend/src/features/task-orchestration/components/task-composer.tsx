@@ -8,18 +8,22 @@ interface TaskComposerProps {
   prompt: string;
   isDisabled?: boolean;
   isSubmitting?: boolean;
+  cancellableTaskActive?: boolean;
   toolbar?: ReactNode;
   onPromptChange: (value: string) => void;
   onSubmit: () => void;
+  onCancelTask?: () => void;
 }
 
 export function TaskComposer({
   prompt,
   isDisabled = false,
   isSubmitting = false,
+  cancellableTaskActive = false,
   toolbar,
   onPromptChange,
-  onSubmit
+  onSubmit,
+  onCancelTask
 }: TaskComposerProps) {
   const promptId = useId();
   const errorId = `${promptId}-error`;
@@ -27,8 +31,10 @@ export function TaskComposer({
   const [invalidSubmitAttempted, setInvalidSubmitAttempted] = useState(false);
   const promptIsValid = prompt.trim().length > 0;
   const interactionIsDisabled = isDisabled || isSubmitting;
-  const showValidationError = invalidSubmitAttempted && !promptIsValid;
-  const submitDisabled = interactionIsDisabled || !promptIsValid;
+  const primaryIsCancel = cancellableTaskActive && !isSubmitting;
+  const showValidationError = invalidSubmitAttempted && !promptIsValid && !primaryIsCancel;
+  const sendDisabled = !primaryIsCancel && (interactionIsDisabled || !promptIsValid);
+  const cancelDisabled = interactionIsDisabled;
 
   function handlePromptChange(value: string) {
     if (value.trim().length > 0) {
@@ -39,6 +45,10 @@ export function TaskComposer({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (primaryIsCancel) {
+      return;
+    }
 
     if (interactionIsDisabled) {
       return;
@@ -51,6 +61,12 @@ export function TaskComposer({
 
     setInvalidSubmitAttempted(false);
     onSubmit();
+  }
+
+  function handlePrimaryClick() {
+    if (primaryIsCancel) {
+      onCancelTask?.();
+    }
   }
 
   return (
@@ -79,7 +95,7 @@ export function TaskComposer({
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              if (interactionIsDisabled) {
+              if (primaryIsCancel || interactionIsDisabled) {
                 return;
               }
               if (!promptIsValid) {
@@ -103,14 +119,26 @@ export function TaskComposer({
           📎
         </button>
 
-        <button
-          type="submit"
-          className="task-composer__send-btn"
-          disabled={submitDisabled}
-          aria-label={isSubmitting ? "Sending request" : "Send request"}
-        >
-          {isSubmitting ? "…" : "Send"}
-        </button>
+        {primaryIsCancel ? (
+          <button
+            type="button"
+            className="task-composer__send-btn task-composer__send-btn--cancel"
+            disabled={cancelDisabled}
+            aria-label="Cancel current task"
+            onClick={handlePrimaryClick}
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="task-composer__send-btn"
+            disabled={sendDisabled}
+            aria-label={isSubmitting ? "Sending request" : "Send request"}
+          >
+            {isSubmitting ? "…" : "Send"}
+          </button>
+        )}
       </div>
 
       <p className="task-composer__attachment-note" id={attachmentDescriptionId}>

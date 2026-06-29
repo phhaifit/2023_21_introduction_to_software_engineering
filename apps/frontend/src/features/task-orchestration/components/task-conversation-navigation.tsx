@@ -54,18 +54,24 @@ function ConversationItemMenu({
   title,
   canDelete,
   deleteDisabledReason,
-  onDelete
+  onDelete,
+  onOpenChange
 }: {
   conversationId: string;
   title: string;
   canDelete?: boolean;
   deleteDisabledReason?: string;
   onDelete?: (conversationId: string) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const menuLabel = `More actions for conversation ${title}`;
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -129,6 +135,71 @@ function ConversationItemMenu({
         </ul>
       ) : null}
     </div>
+  );
+}
+
+function ConversationNavigationItem({
+  item,
+  isActive,
+  shortTimestamp,
+  onSelectConversation,
+  onDeleteConversation
+}: {
+  item: TaskConversationNavigationItem;
+  isActive: boolean;
+  shortTimestamp: string | null;
+  onSelectConversation: (conversationId: string) => void;
+  onDeleteConversation?: (conversationId: string) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <li
+      className={`task-conversation-navigation__item${
+        menuOpen ? " task-conversation-navigation__item--menu-open" : ""
+      }`}
+    >
+      <div
+        className={`task-conversation-navigation__item-row${
+          isActive ? " task-conversation-navigation__item-row--active" : ""
+        }`}
+      >
+        <button
+          type="button"
+          className="task-conversation-navigation__btn"
+          aria-label={item.title}
+          aria-current={isActive ? "page" : undefined}
+          onClick={() => onSelectConversation(item.conversationId)}
+        >
+          <span className="task-conversation-navigation__title">{item.title}</span>
+          <span className="task-conversation-navigation__meta-row">
+            {item.latestStatus ? (
+              <span
+                className={`task-conversation-navigation__status task-conversation-navigation__status--${item.latestStatus}`}
+              >
+                {STATUS_LABELS[item.latestStatus]}
+              </span>
+            ) : null}
+            {typeof item.taskCount === "number" && item.taskCount > 0 ? (
+              <span className="task-conversation-navigation__task-count">
+                {item.taskCount} task{item.taskCount === 1 ? "" : "s"}
+              </span>
+            ) : null}
+            {shortTimestamp ? (
+              <span className="task-conversation-navigation__timestamp">{shortTimestamp}</span>
+            ) : null}
+          </span>
+        </button>
+        <ConversationItemMenu
+          conversationId={item.conversationId}
+          title={item.title}
+          canDelete={item.canDelete}
+          deleteDisabledReason={item.deleteDisabledReason}
+          onDelete={onDeleteConversation}
+          onOpenChange={setMenuOpen}
+        />
+      </div>
+    </li>
   );
 }
 
@@ -284,49 +355,14 @@ export function TaskConversationNavigation({
               const isActive = item.conversationId === activeConversationId;
               const shortTimestamp = formatShortTimestamp(item.updatedAt);
               return (
-                <li key={item.conversationId} className="task-conversation-navigation__item">
-                  <div
-                    className={`task-conversation-navigation__item-row${
-                      isActive ? " task-conversation-navigation__item-row--active" : ""
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className="task-conversation-navigation__btn"
-                      aria-label={item.title}
-                      aria-current={isActive ? "page" : undefined}
-                      onClick={() => onSelectConversation(item.conversationId)}
-                    >
-                      <span className="task-conversation-navigation__title">{item.title}</span>
-                      <span className="task-conversation-navigation__meta-row">
-                        {item.latestStatus ? (
-                          <span
-                            className={`task-conversation-navigation__status task-conversation-navigation__status--${item.latestStatus}`}
-                          >
-                            {STATUS_LABELS[item.latestStatus]}
-                          </span>
-                        ) : null}
-                        {typeof item.taskCount === "number" && item.taskCount > 0 ? (
-                          <span className="task-conversation-navigation__task-count">
-                            {item.taskCount} task{item.taskCount === 1 ? "" : "s"}
-                          </span>
-                        ) : null}
-                        {shortTimestamp ? (
-                          <span className="task-conversation-navigation__timestamp">
-                            {shortTimestamp}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                    <ConversationItemMenu
-                      conversationId={item.conversationId}
-                      title={item.title}
-                      canDelete={item.canDelete}
-                      deleteDisabledReason={item.deleteDisabledReason}
-                      onDelete={onDeleteConversation}
-                    />
-                  </div>
-                </li>
+                <ConversationNavigationItem
+                  key={item.conversationId}
+                  item={item}
+                  isActive={isActive}
+                  shortTimestamp={shortTimestamp}
+                  onSelectConversation={onSelectConversation}
+                  onDeleteConversation={onDeleteConversation}
+                />
               );
             })}
           </ul>

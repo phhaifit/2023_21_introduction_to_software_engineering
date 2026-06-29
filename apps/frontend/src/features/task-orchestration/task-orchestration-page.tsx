@@ -50,7 +50,6 @@ import {
   type CreatedTaskRecord
 } from "./model/task-types";
 import { TaskConversation } from "./components/task-conversation";
-import { TaskOrchestrationDock } from "./components/task-orchestration-dock";
 import {
   TaskConversationNavigation,
   type TaskConversationNavigationItem
@@ -202,6 +201,10 @@ export function TaskOrchestrationPage({
     : undefined;
 
   const activeTask = latestActiveConversationTask;
+  const cancellableActiveTask =
+    activeTask && (activeTask.status === "queued" || activeTask.status === "running")
+      ? activeTask
+      : undefined;
   const detailModalTask = detailModalTaskId
     ? taskState.tasks.find((task) => task.taskId === detailModalTaskId)
     : undefined;
@@ -378,6 +381,18 @@ export function TaskOrchestrationPage({
   }, [activeTask?.taskId]);
 
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
+
+  function handleCancelActiveTask(): void {
+    if (!cancellableActiveTask) {
+      return;
+    }
+    if (onCancelTaskRequested) {
+      onCancelTaskRequested(cancellableActiveTask.taskId);
+      return;
+    }
+    setIsCancelDialogOpen(true);
+    setCancelTargetTaskId(cancellableActiveTask.taskId);
+  }
 
   async function handleAcceptedSubmission() {
     if (taskState.isSubmitting) {
@@ -666,21 +681,6 @@ export function TaskOrchestrationPage({
           />
         ) : null}
 
-        {activeTask ? (
-          <TaskOrchestrationDock
-            task={activeTask}
-            onOpenDetails={() => setDetailModalTaskId(activeTask.taskId as string)}
-            onCancelClick={() => {
-              if (onCancelTaskRequested) {
-                onCancelTaskRequested(activeTask.taskId);
-              } else {
-                setIsCancelDialogOpen(true);
-                setCancelTargetTaskId(activeTask.taskId);
-              }
-            }}
-          />
-        ) : null}
-
         <section className="task-composer" aria-label="Task composer area">
           {taskState.validationError ? (
             <p className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
@@ -696,8 +696,10 @@ export function TaskOrchestrationPage({
             prompt={prompt}
             isDisabled={isLoading}
             isSubmitting={taskState.isSubmitting}
+            cancellableTaskActive={Boolean(cancellableActiveTask)}
             onPromptChange={setPrompt}
             onSubmit={handleAcceptedSubmission}
+            onCancelTask={handleCancelActiveTask}
             toolbar={
               <RoutingSelector
                 mode={routingMode}

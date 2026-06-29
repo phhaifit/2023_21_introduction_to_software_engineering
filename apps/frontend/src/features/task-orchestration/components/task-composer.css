@@ -75,6 +75,16 @@
   font-size: 0.82rem;
 }
 
+.task-composer__send-btn--cancel {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+}
+
+.task-composer__send-btn--cancel:not(:disabled):hover {
+  background: #ffe4e6;
+}
+
 .task-composer__send-btn:disabled,
 .task-composer__attachment-btn:disabled {
   cursor: not-allowed;

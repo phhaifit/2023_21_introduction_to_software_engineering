@@ -145,4 +145,43 @@ describe("TaskComposer", () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it("shows Stop as primary action when a task is cancellable", async () => {
+    const user = userEvent.setup();
+    const onCancelTask = vi.fn();
+    render(
+      <TaskComposer
+        prompt=""
+        cancellableTaskActive
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancelTask={onCancelTask}
+      />
+    );
+
+    const cancelBtn = screen.getByRole("button", { name: "Cancel current task" });
+    expect(cancelBtn).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Send request" })).not.toBeInTheDocument();
+
+    await user.click(cancelBtn);
+    expect(onCancelTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not submit on Enter while cancel mode is active", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <TaskComposer
+        prompt=""
+        cancellableTaskActive
+        onPromptChange={vi.fn()}
+        onSubmit={onSubmit}
+        onCancelTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("textbox", { name: "Request" }));
+    await user.keyboard("{Enter}");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

@@ -3,6 +3,8 @@ import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
+
 vi.mock("@vcp/frontend/features/agent-management/agent-management-page.tsx", () => ({
   AgentManagementPage: () => <section>Agent management placeholder</section>
 }));
@@ -112,7 +114,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     );
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     expect(screen.getByText(/Task ID/i)).toBeVisible();

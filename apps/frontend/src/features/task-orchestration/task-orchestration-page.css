@@ -972,7 +972,68 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
   width: 100%;
+}
+
+.task-conversation__turn {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+  position: relative;
+  width: 100%;
+}
+
+.task-conversation__turn-toolbar-labels {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.task-conversation__turn-toolbar-labels .task-status-badge {
+  flex: none;
+}
+
+.task-conversation__turn-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  min-width: 0;
+  position: relative;
+}
+
+.task-conversation__turn-toolbar .task-turn-actions {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.task-conversation__bubble--assistant {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  padding: 16px 20px;
+}
+
+.task-assistant-progress {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.task-assistant-progress__steps {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .task-conversation__message {
@@ -1155,11 +1216,14 @@
   gap: 2px;
   list-style: none;
   margin: 0;
+  max-height: min(24rem, calc(100vh - 6rem));
+  max-width: min(18rem, calc(100vw - 2rem));
   min-width: 190px;
+  overflow: auto;
   padding: 6px;
   position: absolute;
   inset-inline-end: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.5rem);
   z-index: 20;
 }
 
@@ -1254,9 +1318,33 @@
 
 .task-conversation-navigation__item-row {
   align-items: stretch;
+  box-sizing: border-box;
   display: flex;
   gap: 4px;
+  max-width: 100%;
+  min-width: 0;
   width: 100%;
+}
+
+.task-conversation-navigation__item-row:hover,
+.task-conversation-navigation__item-row:focus-within,
+.task-conversation-navigation__item--menu-open .task-conversation-navigation__item-row {
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.task-conversation-navigation__item-menu-btn {
+  flex: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,
+.task-conversation-navigation__item-row:focus-within .task-conversation-navigation__item-menu-btn,
+.task-conversation-navigation__item--menu-open .task-conversation-navigation__item-menu-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .task-conversation-navigation__item-row--active .task-conversation-navigation__btn {
@@ -1454,6 +1542,10 @@ button.task-conversation-navigation__new-btn:focus-visible {
 }
 
 .task-conversation-navigation__item {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   width: 100%;
 }
 

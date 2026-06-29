@@ -40,6 +40,7 @@ export function TaskTurnActionsMenu({
   const [isOpen, setIsOpen] = useState(false);
   const { copyText, feedback } = useCopyToClipboard(clipboardWriter);
   const responseText = getCopyableResponse(task);
+  const menuLabel = `More actions for this work`;
 
   useEffect(() => {
     if (!isOpen) {
@@ -50,8 +51,17 @@ export function TaskTurnActionsMenu({
         setIsOpen(false);
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen]);
 
   async function handleMenuAction(action: () => void | Promise<void>) {
@@ -59,10 +69,11 @@ export function TaskTurnActionsMenu({
     setIsOpen(false);
   }
 
-  const menuLabel = `More actions for work ${task.workId}`;
-
   return (
-    <div className="task-turn-actions" ref={containerRef}>
+    <div
+      className={`task-turn-actions${isOpen ? " task-turn-actions--open" : ""}`}
+      ref={containerRef}
+    >
       <button
         type="button"
         className="task-turn-actions__trigger"
@@ -76,7 +87,7 @@ export function TaskTurnActionsMenu({
         ⋯
       </button>
       {feedback !== "idle" ? (
-        <span className="task-turn-actions__feedback" role="status" aria-live="polite">
+        <span className="task-turn-actions__feedback sr-only" role="status" aria-live="polite">
           {feedback === "copied" ? "Copied" : "Copy unavailable"}
         </span>
       ) : null}
