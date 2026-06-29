@@ -175,7 +175,7 @@ export function TaskTurnActionsMenu({
                 }
               }}
             >
-              Delete work/task
+              Delete message
             </button>
           </li>
         </ul>

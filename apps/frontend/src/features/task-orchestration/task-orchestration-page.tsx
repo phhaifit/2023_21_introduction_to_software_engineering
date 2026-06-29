@@ -289,7 +289,14 @@ export function TaskOrchestrationPage({
     setDeleteConversationTargetId(conversationId);
   }
 
-  function handleConfirmDeleteConversation(): void {
+  function getPendingSubmissionConversationId(): string {
+    return (
+      taskState.activeConversationId ??
+      `CONV-${String(taskState.conversationSequence ?? 1).padStart(6, "0")}`
+    );
+  }
+
+  async function handleConfirmDeleteConversation(): Promise<void> {
     if (!deleteConversationTargetId) {
       return;
     }
@@ -297,6 +304,20 @@ export function TaskOrchestrationPage({
       (conv) => conv.conversationId === deleteConversationTargetId
     );
     if (!conversation || conversationHasNonTerminalTasks(taskState, conversation.conversationId)) {
+      setDeleteConversationTargetId(null);
+      return;
+    }
+
+    try {
+      await clientRef.current.deleteConversation(
+        "demo_workspace_1",
+        deleteConversationTargetId
+      );
+    } catch {
+      dispatchTaskAction({
+        type: "submission-failed",
+        message: "Conversation could not be deleted. Try again after sync completes."
+      });
       setDeleteConversationTargetId(null);
       return;
     }
@@ -331,12 +352,26 @@ export function TaskOrchestrationPage({
     setDeleteTaskTargetId(taskId);
   }
 
-  function handleConfirmDeleteTask(): void {
+  async function handleConfirmDeleteTask(): Promise<void> {
     if (!deleteTaskTargetId) {
       return;
     }
     const task = taskState.tasks.find((t) => (t.taskId as string) === deleteTaskTargetId);
     if (!task || !isTaskDeletable(task)) {
+      setDeleteTaskTargetId(null);
+      return;
+    }
+
+    try {
+      await clientRef.current.deleteTask(deleteTaskTargetId, {
+        conversationId: taskState.activeConversationId,
+        workspaceId: "demo_workspace_1"
+      });
+    } catch {
+      dispatchTaskAction({
+        type: "submission-failed",
+        message: "Message could not be deleted. Try again after sync completes."
+      });
       setDeleteTaskTargetId(null);
       return;
     }
@@ -433,12 +468,15 @@ export function TaskOrchestrationPage({
     dispatchTaskAction({ type: "submit-started" });
 
     try {
-      const response = await clientRef.current.createTask(requestResult.request);
+      const conversationId = getPendingSubmissionConversationId();
+      const response = await clientRef.current.createTask(requestResult.request, {
+        conversationId
+      });
       dispatchTaskAction({
         type: "task-created",
         request: requestResult.request,
         response,
-        conversationId: taskState.activeConversationId
+        conversationId
       });
       setPrompt("");
 
@@ -688,9 +726,9 @@ export function TaskOrchestrationPage({
 
         {deleteTaskTargetId ? (
           <TaskConfirmDialog
-            title="Delete work/task?"
-            description="This removes the selected task from this conversation in the current session."
-            confirmLabel="Delete work/task"
+            title="Delete message?"
+            description="This removes the selected query and response from this conversation."
+            confirmLabel="Delete message"
             onConfirm={handleConfirmDeleteTask}
             onDismiss={() => setDeleteTaskTargetId(null)}
           />

@@ -488,12 +488,18 @@ describe("8. Regression", () => {
 
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
 
-    // Completed Result view works
+    // Final assistant response renders naturally.
     expect(screen.getByText("Completed successfully")).toBeVisible();
+    expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy finalized result" })).not.toBeInTheDocument();
 
-    // Copy works
-    const copyBtn = screen.getByRole("button", { name: "Copy finalized result" });
-    await user.click(copyBtn);
+    // Copy response remains available from the assistant actions menu.
+    await user.click(
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
+        name: "More actions for this work"
+      })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalled();
 
     // Processing Detail modal works for succeeded

@@ -95,9 +95,14 @@ export interface TaskEventSubscription {
 }
 
 export interface TaskOrchestrationClient {
-  createTask(input: import("@vcp/shared").CreateTaskRequest): Promise<CreatedTaskRecord>;
+  createTask(
+    input: import("@vcp/shared").CreateTaskRequest,
+    options?: { conversationId?: string }
+  ): Promise<CreatedTaskRecord>;
   getTask(taskId: string): Promise<CreatedTaskRecord | null>;
   cancelTask(taskId: string): Promise<void>;
+  deleteConversation(workspaceId: string, conversationId: string): Promise<void>;
+  deleteTask(taskId: string, options?: { conversationId?: string; workspaceId?: string }): Promise<void>;
   subscribeToTaskEvents(
     taskId: string,
     handler: (event: TaskRuntimeEvent) => void
@@ -111,6 +116,7 @@ export class LocalTaskOrchestrationTestProvider implements TaskOrchestrationClie
   private subscriptions = new Map<string, Set<(event: TaskRuntimeEvent) => void>>();
   private subscriptionHandles = new Map<string, { taskId: string; handler: (event: TaskRuntimeEvent) => void }>();
   private terminalTasks = new Set<string>();
+  private taskConversationIds = new Map<string, string>();
   private subIdCounter = 1;
   private registry: TaskRuntimeRegistry;
   private taskCreationClient: TaskCreationClient;
@@ -154,10 +160,16 @@ export class LocalTaskOrchestrationTestProvider implements TaskOrchestrationClie
     });
   }
 
-  async createTask(input: import("@vcp/shared").CreateTaskRequest): Promise<CreatedTaskRecord> {
+  async createTask(
+    input: import("@vcp/shared").CreateTaskRequest,
+    options?: { conversationId?: string }
+  ): Promise<CreatedTaskRecord> {
     const response = await this.taskCreationClient.createTask(input);
     const task = createTaskRecord(input, response);
     this.tasks.set(task.taskId as string, task);
+    if (options?.conversationId) {
+      this.taskConversationIds.set(task.taskId as string, options.conversationId);
+    }
     this.registry.syncTasks(Array.from(this.tasks.values()));
 
     const event: TaskRuntimeEvent = {
@@ -178,6 +190,23 @@ export class LocalTaskOrchestrationTestProvider implements TaskOrchestrationClie
 
   async fetchConversations(workspaceId: string): Promise<import("@vcp/shared").Conversation[]> {
     return [];
+  }
+
+  async deleteConversation(_workspaceId: string, conversationId: string): Promise<void> {
+    const idsToRemove = Array.from(this.taskConversationIds.entries())
+      .filter(([, id]) => id === conversationId)
+      .map(([taskId]) => taskId);
+    for (const taskId of idsToRemove) {
+      this.tasks.delete(taskId);
+      this.taskConversationIds.delete(taskId);
+    }
+    this.registry.syncTasks(Array.from(this.tasks.values()));
+  }
+
+  async deleteTask(taskId: string): Promise<void> {
+    this.tasks.delete(taskId);
+    this.taskConversationIds.delete(taskId);
+    this.registry.syncTasks(Array.from(this.tasks.values()));
   }
 
   cancelTask(taskId: string): Promise<void> {
@@ -225,6 +254,7 @@ export class LocalTaskOrchestrationTestProvider implements TaskOrchestrationClie
       }
     }
     this.tasks.clear();
+    this.taskConversationIds.clear();
     this.terminalTasks.clear();
     this.registry.stopAll();
   }
@@ -335,7 +365,10 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     this.timeoutMs = config.timeoutMs ?? 30000;
   }
 
-  async createTask(input: import("@vcp/shared").CreateTaskRequest): Promise<CreatedTaskRecord> {
+  async createTask(
+    input: import("@vcp/shared").CreateTaskRequest,
+    options?: { conversationId?: string }
+  ): Promise<CreatedTaskRecord> {
     const identity = createTaskIdentity();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -348,7 +381,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
           taskId: identity.taskId,
           workId: identity.workId,
           workspaceId: "demo_workspace_1" as any,
-          conversationId: "cnv_default",
+          conversationId: options?.conversationId || (identity.workId as string),
           prompt: input.prompt,
           routing: input.routing
         }),
@@ -420,6 +453,38 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
         payload?.error?.message || `OpenClaw execution cancel failed with status ${response.status}`
       );
     }
+  }
+
+  async deleteConversation(workspaceId: string, conversationId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/workspaces/${workspaceId}/conversations/${conversationId}`, {
+      method: "DELETE"
+    });
+    const payload = await response.json().catch(() => undefined);
+    if (!response.ok || payload?.ok === false) {
+      throw new Error(
+        payload?.error?.message || `Conversation delete failed with status ${response.status}`
+      );
+    }
+  }
+
+  async deleteTask(taskId: string, options?: { conversationId?: string; workspaceId?: string }): Promise<void> {
+    const conversationId = options?.conversationId;
+    if (!conversationId) {
+      this.tasks.delete(taskId);
+      return;
+    }
+    const workspaceId = options?.workspaceId || "demo_workspace_1";
+    const response = await fetch(
+      `${this.baseUrl}/api/workspaces/${workspaceId}/conversations/${conversationId}/turns/${taskId}`,
+      { method: "DELETE" }
+    );
+    const payload = await response.json().catch(() => undefined);
+    if (!response.ok || payload?.ok === false) {
+      throw new Error(
+        payload?.error?.message || `Conversation turn delete failed with status ${response.status}`
+      );
+    }
+    this.tasks.delete(taskId);
   }
 
   /**

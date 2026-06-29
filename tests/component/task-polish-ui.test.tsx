@@ -318,8 +318,8 @@ describe("Polish UI: delete conversation and task", () => {
         name: "More actions for this work"
       })
     );
-    await user.click(screen.getByRole("menuitem", { name: "Delete work/task" }));
-    await user.click(screen.getByRole("button", { name: "Delete work/task" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete message" }));
+    await user.click(screen.getByRole("button", { name: "Delete message" }));
 
     expect(
       within(screen.getByRole("region", { name: /conversation/i })).queryByText("Task to delete")

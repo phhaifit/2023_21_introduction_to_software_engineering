@@ -144,6 +144,33 @@ export class PrismaConversationRepository implements ConversationRepository {
     });
   }
 
+  async deleteConversation(conversationId: EntityId<"conversationId">): Promise<void> {
+    await this.prisma.conversation.delete({
+      where: { conversationId: conversationId as string }
+    });
+  }
+
+  async deleteMessages(
+    conversationId: EntityId<"conversationId">,
+    messageIds: readonly EntityId<"messageId">[]
+  ): Promise<void> {
+    if (messageIds.length === 0) {
+      return;
+    }
+
+    await this.prisma.chatMessage.deleteMany({
+      where: {
+        conversationId: conversationId as string,
+        messageId: { in: messageIds.map((id) => id as string) }
+      }
+    });
+
+    await this.prisma.conversation.update({
+      where: { conversationId: conversationId as string },
+      data: { updatedAt: new Date().toISOString() }
+    });
+  }
+
   async updateAssociatedTarget(
     conversationId: EntityId<"conversationId">,
     target: { type: "agent" | "workflow" | "auto"; targetId?: string }

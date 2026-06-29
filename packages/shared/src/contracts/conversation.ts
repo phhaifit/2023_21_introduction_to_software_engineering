@@ -26,6 +26,11 @@ export interface ConversationRepository {
   getConversation(conversationId: EntityId<"conversationId">): Promise<Conversation | null>;
   listConversationsByWorkspace(workspaceId: EntityId<"workspaceId">): Promise<Conversation[]>;
   appendMessage(conversationId: EntityId<"conversationId">, message: ChatMessage): Promise<void>;
+  deleteConversation(conversationId: EntityId<"conversationId">): Promise<void>;
+  deleteMessages(
+    conversationId: EntityId<"conversationId">,
+    messageIds: readonly EntityId<"messageId">[]
+  ): Promise<void>;
   updateAssociatedTarget(
     conversationId: EntityId<"conversationId">,
     target: { type: "agent" | "workflow" | "auto"; targetId?: string }

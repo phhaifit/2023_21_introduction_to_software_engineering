@@ -31,6 +31,23 @@ export class InMemoryConversationRepository implements ConversationRepository {
     conv.updatedAt = message.timestamp || new Date().toISOString();
   }
 
+  async deleteConversation(conversationId: EntityId<"conversationId">): Promise<void> {
+    this.conversations.delete(conversationId as string);
+  }
+
+  async deleteMessages(
+    conversationId: EntityId<"conversationId">,
+    messageIds: readonly EntityId<"messageId">[]
+  ): Promise<void> {
+    const conv = this.conversations.get(conversationId as string);
+    if (!conv) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    const ids = new Set(messageIds.map((id) => id as string));
+    conv.messages = conv.messages.filter((message) => !ids.has(message.messageId as string));
+    conv.updatedAt = new Date().toISOString();
+  }
+
   async updateAssociatedTarget(
     conversationId: EntityId<"conversationId">,
     target: { type: "agent" | "workflow" | "auto"; targetId?: string }
