@@ -23,6 +23,18 @@ test.describe('Workflow Import/Export Feature', () => {
   });
 
   test('should export an existing workflow successfully', async ({ page }) => {
+    // Seed a workflow via API request before loading the page
+    const createResponse = await page.request.post('/api/workspaces/demo_workspace_1/workflows', {
+      data: {
+        name: "E2E Test Workflow",
+        description: "Workflow created for E2E verification",
+        status: "published",
+        triggerType: "manual",
+        steps: []
+      }
+    });
+    expect(createResponse.ok()).toBeTruthy();
+
     await page.goto('/workflows');
     await page.getByRole('button', { name: 'List' }).click();
     await expect(page.getByRole('table')).toBeVisible();

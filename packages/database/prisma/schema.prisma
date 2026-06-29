@@ -215,7 +215,7 @@ model WorkflowStep {
   createdAt      String
   updatedAt      String
 
-  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
   logs          WorkflowStepLog[]
 
   @@index([workspaceId])
@@ -233,7 +233,7 @@ model WorkflowExecution {
   startedAt     String
   completedAt   String?
 
-  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
   logs          WorkflowStepLog[]
 
   @@index([workspaceId])
@@ -253,8 +253,8 @@ model WorkflowStepLog {
   startedAt       String
   completedAt     String?
 
-  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId])
-  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId])
+  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([executionId])

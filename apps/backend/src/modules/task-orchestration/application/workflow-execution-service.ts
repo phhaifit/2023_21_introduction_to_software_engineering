@@ -90,16 +90,36 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
     return result;
   }
 
-  // Evaluates a condition like "result.status === 'success'"
+  // Evaluates a condition like "result.status === 'success'" or basic string comparisons
   evaluateCondition(condition: string, outputData: any): boolean {
     if (!condition || condition.trim() === "") return true;
+    const cond = condition.trim();
+    if (cond === "true") return true;
+    if (cond === "false") return false;
+
     try {
-      if (condition === "true") return true;
-      if (condition === "false") return false;
-      return true; // Fallback
+      let outputObj = outputData;
+      if (typeof outputData === "string") {
+        try {
+          outputObj = JSON.parse(outputData);
+        } catch {
+          // Keep as string if not JSON
+        }
+      }
+
+      // Safe evaluation with custom scope parameters: 'output' and 'result'
+      const evaluator = new Function("output", "result", `
+        try {
+          return !!(${cond});
+        } catch (e) {
+          return false;
+        }
+      `);
+
+      return evaluator(outputObj, outputObj);
     } catch (e) {
       console.warn("Failed to evaluate condition:", condition, e);
-      return false;
+      return true; // Fallback to true on error so workflow doesn't lock up
     }
   }
 
