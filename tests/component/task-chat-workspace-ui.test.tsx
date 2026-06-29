@@ -240,7 +240,7 @@ describe("Assistant progress summary & expandable details", () => {
 
     // 11. Details trigger is available from the turn menu
     await user.click(
-      within(assistant).getByRole("button", { name: "More actions for this work" })
+      within(assistant).getByRole("button", { name: "More response actions" })
     );
     const detailsBtn = screen.getByRole("menuitem", { name: "View processing details" });
     expect(detailsBtn).toBeVisible();
