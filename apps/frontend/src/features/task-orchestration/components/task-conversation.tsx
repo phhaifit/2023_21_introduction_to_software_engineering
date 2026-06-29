@@ -21,20 +21,14 @@ export interface TaskConversationProps {
   task: CreatedTaskRecord;
   routingSummary: string;
   clipboardWriter: TaskClipboardWriter;
-  canDeleteTask: boolean;
-  deleteTaskDisabledReason?: string;
   onOpenDetails: () => void;
-  onDeleteTask: () => void;
 }
 
 export function TaskConversation({
   task,
   routingSummary,
   clipboardWriter,
-  canDeleteTask,
-  deleteTaskDisabledReason,
-  onOpenDetails,
-  onDeleteTask
+  onOpenDetails
 }: TaskConversationProps) {
   const partialText = selectAccumulatedPartialText(task.streamingSnapshot);
   const isStreaming = task.streamingSnapshot.phase === "streaming";
@@ -55,10 +49,7 @@ export function TaskConversation({
         routingSummary={routingSummary}
         task={task}
         clipboardWriter={clipboardWriter}
-        canDeleteTask={canDeleteTask}
-        deleteTaskDisabledReason={deleteTaskDisabledReason}
         onOpenDetails={onOpenDetails}
-        onDeleteTask={onDeleteTask}
       />
       <TaskAssistantMessage
         task={task}
@@ -66,10 +57,7 @@ export function TaskConversation({
         isStreaming={isStreaming}
         shouldShowPartialResult={shouldShowPartialResult}
         clipboardWriter={clipboardWriter}
-        canDeleteTask={canDeleteTask}
-        deleteTaskDisabledReason={deleteTaskDisabledReason}
         onOpenDetails={onOpenDetails}
-        onDeleteTask={onDeleteTask}
       />
     </div>
   );
@@ -80,19 +68,13 @@ export function TaskUserMessage({
   routingSummary,
   task,
   clipboardWriter,
-  canDeleteTask,
-  deleteTaskDisabledReason,
-  onOpenDetails,
-  onDeleteTask
+  onOpenDetails
 }: {
   prompt: string;
   routingSummary: string;
   task: CreatedTaskRecord;
   clipboardWriter: TaskClipboardWriter;
-  canDeleteTask: boolean;
-  deleteTaskDisabledReason?: string;
   onOpenDetails: () => void;
-  onDeleteTask: () => void;
 }) {
   return (
     <div
@@ -105,17 +87,15 @@ export function TaskUserMessage({
       <div className="task-conversation__bubble task-conversation__bubble--user">
         <div className="task-conversation__turn-toolbar">
           <span className="task-conversation__routing-summary">{routingSummary}</span>
-          <TaskTurnActionsMenu
-            task={task}
-            prompt={prompt}
-            clipboardWriter={clipboardWriter}
-            canDelete={canDeleteTask}
-            deleteDisabledReason={deleteTaskDisabledReason}
-            onViewDetails={onOpenDetails}
-            onDelete={onDeleteTask}
-          />
         </div>
         <p className="task-conversation__prompt">{prompt}</p>
+        <TaskTurnActionsMenu
+          task={task}
+          prompt={prompt}
+          clipboardWriter={clipboardWriter}
+          variant="query"
+          onViewDetails={onOpenDetails}
+        />
       </div>
     </div>
   );
@@ -127,20 +107,14 @@ export function TaskAssistantMessage({
   isStreaming,
   shouldShowPartialResult,
   clipboardWriter,
-  canDeleteTask,
-  deleteTaskDisabledReason,
-  onOpenDetails,
-  onDeleteTask
+  onOpenDetails
 }: {
   task: CreatedTaskRecord;
   partialText: string;
   isStreaming: boolean;
   shouldShowPartialResult: boolean;
   clipboardWriter: TaskClipboardWriter;
-  canDeleteTask: boolean;
-  deleteTaskDisabledReason?: string;
   onOpenDetails: () => void;
-  onDeleteTask: () => void;
 }) {
   const isFailed = task.status === "failed";
   const isCanceled = task.status === "cancelled";
@@ -161,7 +135,7 @@ export function TaskAssistantMessage({
         className="task-conversation__avatar task-conversation__avatar--assistant"
         aria-hidden="true"
       >
-        ✦
+        *
       </div>
       <div className="task-conversation__bubble task-conversation__bubble--assistant">
         <div className="task-conversation__turn-toolbar">
@@ -173,16 +147,6 @@ export function TaskAssistantMessage({
               </span>
             ) : null}
           </div>
-          <TaskTurnActionsMenu
-            task={task}
-            prompt={task.prompt}
-            clipboardWriter={clipboardWriter}
-            canDelete={canDeleteTask}
-            showDelete={false}
-            deleteDisabledReason={deleteTaskDisabledReason}
-            onViewDetails={onOpenDetails}
-            onDelete={onDeleteTask}
-          />
         </div>
 
         {isNonTerminal ? <TaskAssistantProgressSummary task={task} /> : null}
@@ -208,6 +172,13 @@ export function TaskAssistantMessage({
             </p>
           </div>
         )}
+        <TaskTurnActionsMenu
+          task={task}
+          prompt={task.prompt}
+          clipboardWriter={clipboardWriter}
+          variant="response"
+          onViewDetails={onOpenDetails}
+        />
       </div>
     </div>
   );

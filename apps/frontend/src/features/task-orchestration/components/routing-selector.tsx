@@ -24,6 +24,10 @@ export interface RoutingSelectorProps {
   agents: readonly RoutingAgentOption[];
   workflows: readonly RoutingWorkflowOption[];
   isDisabled?: boolean;
+  isCatalogLoading?: boolean;
+  catalogError?: string | null;
+  createAgentHref?: string;
+  createWorkflowHref?: string;
   onModeChange: (mode: RoutingMode) => void;
   onAgentChange: (agentId: string | undefined) => void;
   onWorkflowChange: (workflowId: string | undefined) => void;
@@ -36,6 +40,10 @@ export function RoutingSelector({
   agents,
   workflows,
   isDisabled = false,
+  isCatalogLoading = false,
+  catalogError,
+  createAgentHref = "/agents",
+  createWorkflowHref = "/workflows",
   onModeChange,
   onAgentChange,
   onWorkflowChange
@@ -112,11 +120,17 @@ export function RoutingSelector({
             className="routing-selector__select"
             value={selectedAgentId ?? ""}
             onChange={handleAgentChange}
-            disabled={isDisabled}
+            disabled={isDisabled || isCatalogLoading || availableAgents.length === 0}
             required
             aria-label="Agent"
           >
-            <option value="">Select agent</option>
+            <option value="">
+              {isCatalogLoading
+                ? "Loading agents..."
+                : availableAgents.length === 0
+                  ? "Danh sách trống"
+                  : "Select agent"}
+            </option>
             {availableAgents.map((agent) => (
               <option value={agent.id} key={agent.id}>
                 {agent.name}
@@ -127,6 +141,11 @@ export function RoutingSelector({
             <span className="routing-selector__chip" aria-label={`Selected agent ${selectedAgent.name}`}>
               {selectedAgent.name}
             </span>
+          ) : null}
+          {!isCatalogLoading && availableAgents.length === 0 ? (
+            <a className="routing-selector__empty-link" href={createAgentHref}>
+              Danh sách trống, tạo ngay
+            </a>
           ) : null}
         </div>
       ) : null}
@@ -141,11 +160,17 @@ export function RoutingSelector({
             className="routing-selector__select"
             value={selectedWorkflowId ?? ""}
             onChange={handleWorkflowChange}
-            disabled={isDisabled}
+            disabled={isDisabled || isCatalogLoading || workflows.length === 0}
             required
             aria-label="Workflow"
           >
-            <option value="">Select workflow</option>
+            <option value="">
+              {isCatalogLoading
+                ? "Loading workflows..."
+                : workflows.length === 0
+                  ? "Danh sách trống"
+                  : "Select workflow"}
+            </option>
             {workflows.map((workflow) => (
               <option value={workflow.id} key={workflow.id}>
                 {workflow.name}
@@ -160,7 +185,17 @@ export function RoutingSelector({
               {selectedWorkflow.name}
             </span>
           ) : null}
+          {!isCatalogLoading && workflows.length === 0 ? (
+            <a className="routing-selector__empty-link" href={createWorkflowHref}>
+              Danh sách trống, tạo ngay
+            </a>
+          ) : null}
         </div>
+      ) : null}
+      {catalogError ? (
+        <span className="routing-selector__error" aria-live="polite">
+          {catalogError}
+        </span>
       ) : null}
     </div>
   );

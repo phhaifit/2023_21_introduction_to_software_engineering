@@ -49,8 +49,9 @@ export function ConfirmDeleteDialog({ row, disabled, onClose, onConfirm }: Confi
           
           <div className="agent-dialog-content">
             <p className="agent-dialog-warning">
-              This action cannot be undone. Deleting an agent prevents future selection for new tasks, 
-              but existing tasks will retain the agent's historical configuration.
+              This action cannot be undone. Deleting an agent removes it from
+              the setup workspace and prevents future selection in Agent
+              Management.
             </p>
           </div>
           

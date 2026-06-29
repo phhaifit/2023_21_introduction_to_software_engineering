@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { TaskRoutingSelection } from "@vcp/shared";
 
 import { RoutingSelector } from "./components/routing-selector";
@@ -8,6 +9,11 @@ import {
   DEFAULT_TASK_RUNTIME_TIMINGS,
   SUGGESTED_TASK_PROMPTS
 } from "./data/task-routing-options";
+import {
+  createTaskRoutingCatalogClient,
+  createLocalTaskRoutingCatalogClient,
+  type TaskRoutingCatalogClient
+} from "./model/task-routing-catalog-client";
 import type { TaskCreationClient } from "./model/task-creation-client";
 import {
   buildCreateTaskRequest,
@@ -16,7 +22,6 @@ import {
   getConversationTasks,
   getLatestConversationTask,
   initialTaskCreationState,
-  isTaskDeletable,
   taskCreationReducer
 } from "./model/task-creation-state";
 import { toTaskPresentationStatus } from "./model/task-lifecycle";
@@ -73,6 +78,7 @@ type TaskOrchestrationPageProps = {
   providerMode?: "http" | "neutral";
   taskCreationClient?: TaskCreationClient;
   taskOrchestrationClient?: TaskOrchestrationClient;
+  routingCatalogClient?: TaskRoutingCatalogClient;
   onCancelTaskRequested?: TaskCancellationRequestHandler;
   processingRuntime?: TaskProcessingRuntime;
   processingDelays?: Readonly<{
@@ -92,13 +98,8 @@ const suggestedPrompts = [
   SUGGESTED_TASK_PROMPTS.researchAndSynthesis
 ] as const;
 
-const routingOptions = createTaskRoutingOptions();
-
 const RUNNING_DELETE_REASON =
   "Cannot delete while a task is still running or queued in this conversation.";
-
-const RUNNING_TASK_DELETE_REASON =
-  "Cannot delete a task that is still running or queued.";
 
 function resolveProviderBadgeLabel(options: {
   isReconnecting: boolean;
@@ -124,6 +125,7 @@ export function TaskOrchestrationPage({
   providerMode = "http",
   taskCreationClient,
   taskOrchestrationClient,
+  routingCatalogClient,
   onCancelTaskRequested,
   processingRuntime,
   processingDelays,
@@ -137,6 +139,9 @@ export function TaskOrchestrationPage({
   const [routingMode, setRoutingMode] = useState<RoutingMode>(ROUTING_MODES[0]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>();
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>();
+  const [routingOptions, setRoutingOptions] = useState(createTaskRoutingOptions);
+  const [isRoutingCatalogLoading, setIsRoutingCatalogLoading] = useState(true);
+  const [routingCatalogError, setRoutingCatalogError] = useState<string | null>(null);
   const [taskState, dispatchTaskAction] = useReducer(
     taskCreationReducer,
     initialTaskCreationState
@@ -148,7 +153,6 @@ export function TaskOrchestrationPage({
   const [deleteConversationTargetId, setDeleteConversationTargetId] = useState<string | null>(
     null
   );
-  const [deleteTaskTargetId, setDeleteTaskTargetId] = useState<string | null>(null);
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
@@ -207,6 +211,12 @@ export function TaskOrchestrationPage({
           }))
   );
   const subscriptionsRef = useRef(new Map<string, TaskEventSubscription>());
+  const routingCatalogClientRef = useRef(
+    routingCatalogClient ??
+      (hasInjectedRuntimeDependencies
+        ? createLocalTaskRoutingCatalogClient()
+        : createTaskRoutingCatalogClient())
+  );
 
   const activeConversation = getActiveConversation(taskState);
   const activeConversationTasks = taskState.activeConversationId
@@ -251,7 +261,6 @@ export function TaskOrchestrationPage({
     setIsCancelDialogOpen(false);
     setCancelTargetTaskId(null);
     setDeleteConversationTargetId(null);
-    setDeleteTaskTargetId(null);
   }
 
   function cleanupTaskSubscriptions(taskIds: readonly string[]): void {
@@ -344,54 +353,6 @@ export function TaskOrchestrationPage({
     setDeleteConversationTargetId(null);
   }
 
-  function handleDeleteTaskRequest(taskId: string): void {
-    const task = taskState.tasks.find((t) => (t.taskId as string) === taskId);
-    if (!task || !isTaskDeletable(task)) {
-      return;
-    }
-    setDeleteTaskTargetId(taskId);
-  }
-
-  async function handleConfirmDeleteTask(): Promise<void> {
-    if (!deleteTaskTargetId) {
-      return;
-    }
-    const task = taskState.tasks.find((t) => (t.taskId as string) === deleteTaskTargetId);
-    if (!task || !isTaskDeletable(task)) {
-      setDeleteTaskTargetId(null);
-      return;
-    }
-
-    try {
-      await clientRef.current.deleteTask(deleteTaskTargetId, {
-        conversationId: taskState.activeConversationId,
-        workspaceId: "demo_workspace_1"
-      });
-    } catch {
-      dispatchTaskAction({
-        type: "submission-failed",
-        message: "Message could not be deleted. Try again after sync completes."
-      });
-      setDeleteTaskTargetId(null);
-      return;
-    }
-
-    cleanupTaskSubscriptions([deleteTaskTargetId]);
-    if (detailModalTaskId === deleteTaskTargetId) {
-      setDetailModalTaskId(null);
-    }
-    if (cancelTargetTaskId === deleteTaskTargetId) {
-      setIsCancelDialogOpen(false);
-      setCancelTargetTaskId(null);
-    }
-
-    dispatchTaskAction({
-      type: "task-deleted",
-      taskId: task.taskId
-    });
-    setDeleteTaskTargetId(null);
-  }
-
   useEffect(() => {
     mountedRef.current = true;
     const client = clientRef.current;
@@ -414,6 +375,51 @@ export function TaskOrchestrationPage({
       if ("reset" in client && typeof (client as { reset?: () => void }).reset === "function") {
         (client as { reset: () => void }).reset();
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsRoutingCatalogLoading(true);
+    setRoutingCatalogError(null);
+
+    routingCatalogClientRef.current
+      .listRoutingCatalog(DEMO_WORKSPACE_ID)
+      .then((catalog) => {
+        if (cancelled) {
+          return;
+        }
+
+        setRoutingOptions(catalog);
+        setSelectedAgentId((current) =>
+          current && catalog.agents.some((agent) => agent.id === current && agent.available)
+            ? current
+            : undefined
+        );
+        setSelectedWorkflowId((current) =>
+          current && catalog.workflows.some((workflow) => workflow.id === current)
+            ? current
+            : undefined
+        );
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+
+        setRoutingOptions(createTaskRoutingOptions());
+        setSelectedAgentId(undefined);
+        setSelectedWorkflowId(undefined);
+        setRoutingCatalogError("Unable to load routing catalog.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsRoutingCatalogLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -649,12 +655,7 @@ export function TaskOrchestrationPage({
                       task={task}
                       routingSummary={formatCompactRoutingSummary(task.requestedRouting)}
                       clipboardWriter={completionRuntimeRef.current.clipboard}
-                      canDeleteTask={isTaskDeletable(task)}
-                      deleteTaskDisabledReason={
-                        isTaskDeletable(task) ? undefined : RUNNING_TASK_DELETE_REASON
-                      }
                       onOpenDetails={() => setDetailModalTaskId(task.taskId as string)}
-                      onDeleteTask={() => handleDeleteTaskRequest(task.taskId as string)}
                     />
                   </article>
                 );
@@ -724,16 +725,6 @@ export function TaskOrchestrationPage({
           />
         ) : null}
 
-        {deleteTaskTargetId ? (
-          <TaskConfirmDialog
-            title="Delete message?"
-            description="This removes the selected query and response from this conversation."
-            confirmLabel="Delete message"
-            onConfirm={handleConfirmDeleteTask}
-            onDismiss={() => setDeleteTaskTargetId(null)}
-          />
-        ) : null}
-
         <section className="task-composer" aria-label="Task composer area">
           {taskState.validationError ? (
             <p className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
@@ -761,6 +752,10 @@ export function TaskOrchestrationPage({
                 agents={routingOptions.agents}
                 workflows={routingOptions.workflows}
                 isDisabled={interactionIsDisabled}
+                isCatalogLoading={isRoutingCatalogLoading}
+                catalogError={routingCatalogError}
+                createAgentHref="/agents"
+                createWorkflowHref="/workflows"
                 onModeChange={setRoutingMode}
                 onAgentChange={setSelectedAgentId}
                 onWorkflowChange={setSelectedWorkflowId}

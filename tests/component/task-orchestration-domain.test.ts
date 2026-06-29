@@ -78,54 +78,31 @@ describe("task identity generation", () => {
 });
 
 describe("task orchestration routing options", () => {
-  it("provides all required agents", () => {
+  it("starts without fixed agent options", () => {
     const { agents } = createTaskRoutingOptions();
 
-    expect(agents.map(({ id, name }) => ({ id, name }))).toEqual([
-      { id: "AGT-CODE", name: "Code Agent" },
-      { id: "AGT-REVIEW", name: "Review Agent" },
-      { id: "AGT-RESEARCH", name: "Research Agent" },
-      { id: "AGT-SYNTHESIS", name: "Synthesis Agent" }
-    ]);
-    expect(agents.every((agent) =>
-      agent.description.length > 0 &&
-      agent.capabilities.length > 0 &&
-      agent.available
-    )).toBe(true);
+    expect(agents).toEqual([]);
   });
 
-  it("provides both required workflows and agent mappings", () => {
+  it("starts without fixed workflow options", () => {
     const { workflows } = createTaskRoutingOptions();
 
-    expect(workflows.map(({ id, agentIds }) => ({ id, agentIds }))).toEqual([
-      {
-        id: "WFL-CODE-REVIEW",
-        agentIds: ["AGT-CODE", "AGT-REVIEW"]
-      },
-      {
-        id: "WFL-RESEARCH-SYNTHESIS",
-        agentIds: ["AGT-RESEARCH", "AGT-SYNTHESIS"]
-      }
-    ]);
-    expect(workflows.every((workflow) =>
-      workflow.name.length > 0 && workflow.description.length > 0
-    )).toBe(true);
+    expect(workflows).toEqual([]);
   });
 
-  it("returns fresh arrays and nested arrays on every retrieval", () => {
+  it("returns fresh arrays on every retrieval", () => {
     const first = createTaskRoutingOptions();
-    first.agents.pop();
-    first.agents[0].capabilities.push("consumer mutation");
-    first.workflows[0].agentIds.push("AGT-SYNTHESIS");
+    first.agents.push({
+      id: "AGT-TEST",
+      name: "Test Agent",
+      description: "Fixture",
+      capabilities: [],
+      available: true
+    });
 
     const restored = createTaskRoutingOptions();
 
-    expect(restored.agents).toHaveLength(4);
-    expect(restored.agents[0].capabilities).not.toContain("consumer mutation");
-    expect(restored.workflows[0].agentIds).toEqual([
-      "AGT-CODE",
-      "AGT-REVIEW"
-    ]);
+    expect(restored.agents).toEqual([]);
   });
 });
 

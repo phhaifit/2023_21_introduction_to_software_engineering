@@ -17,10 +17,27 @@ import {
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
 import { ROUTING_MODES } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 import { RoutingSelector } from "@vcp/frontend/features/task-orchestration/components/routing-selector.tsx";
-import { createTaskRoutingOptions } from "@vcp/frontend/features/task-orchestration/data/task-routing-options.ts";
 
 const FIXED_TS = "2026-06-25T12:00:00.000Z";
-const seedData = createTaskRoutingOptions();
+const seedData = {
+  agents: [
+    {
+      id: "AGT-CODE",
+      name: "Code Agent",
+      description: "Implements focused software changes.",
+      capabilities: ["code generation"],
+      available: true
+    }
+  ],
+  workflows: [
+    {
+      id: "WFL-CODE-REVIEW",
+      name: "Code + Review",
+      description: "Creates and reviews a software change.",
+      agentIds: ["AGT-CODE"]
+    }
+  ]
+};
 
 class FakeScheduler {
   callbacks: (() => void)[] = [];
@@ -135,8 +152,8 @@ describe("Polish UI: chat presentation and details", () => {
     expect(within(conversation).queryByRole("region", { name: /timeline/i })).not.toBeInTheDocument();
 
     await user.click(
-      within(screen.getByLabelText("User message")).getByRole("button", {
-        name: "More actions for this work"
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
+        name: "More response actions"
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
@@ -164,12 +181,11 @@ describe("Polish UI: copy actions", () => {
     await submitPrompt("Copy me");
     await user.click(
       within(screen.getByLabelText("User message")).getByRole("button", {
-        name: "More actions for this work"
+        name: "Copy query"
       })
     );
     expect(screen.queryByRole("menuitem", { name: "Copy Task ID" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Copy Work ID" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("menuitem", { name: "Copy query" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalledWith("Copy me");
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
@@ -186,11 +202,10 @@ describe("Polish UI: copy actions", () => {
 
     await user.click(
       within(screen.getByLabelText("Assistant response")).getByRole("button", {
-        name: "More actions for this work"
+        name: "Copy response"
       })
     );
     expect(screen.queryByRole("menuitem", { name: "Delete message" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("menuitem", { name: "Copy response" }));
     expect(cRuntime.clipboard.writeText).toHaveBeenCalledWith("Final completed text result");
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
   });
@@ -297,8 +312,8 @@ describe("Polish UI: sidebar collapse", () => {
   });
 });
 
-describe("Polish UI: delete conversation and task", () => {
-  it("deletes terminal conversation and task with confirmation", async () => {
+describe("Polish UI: delete conversation", () => {
+  it("deletes terminal conversation with confirmation", async () => {
     const user = userEvent.setup();
     const client = new ConfigurableClient("succeeded");
     render(<TaskOrchestrationPage taskCreationClient={client} />);
@@ -314,19 +329,6 @@ describe("Polish UI: delete conversation and task", () => {
     await user.click(screen.getByRole("button", { name: "Delete conversation" }));
 
     expect(screen.getByText("What should your virtual team work on?")).toBeVisible();
-
-    await submitPrompt("Task to delete");
-    await user.click(
-      within(screen.getByLabelText("User message")).getByRole("button", {
-        name: "More actions for this work"
-      })
-    );
-    await user.click(screen.getByRole("menuitem", { name: "Delete message" }));
-    await user.click(screen.getByRole("button", { name: "Delete message" }));
-
-    expect(
-      within(screen.getByRole("region", { name: /conversation/i })).queryByText("Task to delete")
-    ).not.toBeInTheDocument();
   });
 
   it("disables delete for running conversation tasks", async () => {

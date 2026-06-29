@@ -204,7 +204,7 @@ describe("Conversation Navigation & Switching", () => {
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
     await user.click(
       within(screen.getByLabelText("Assistant response")).getByRole("button", {
-        name: "More actions for this work"
+        name: "More response actions"
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
@@ -218,7 +218,7 @@ describe("Conversation Navigation & Switching", () => {
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
     await user.click(
       within(screen.getByLabelText("Assistant response")).getByRole("button", {
-        name: "More actions for this work"
+        name: "More response actions"
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "View processing details" }));

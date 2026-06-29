@@ -6,14 +6,43 @@ import {
   RoutingSelector,
   type RoutingSelectorProps
 } from "@vcp/frontend/features/task-orchestration/components/routing-selector.tsx";
-import { createTaskRoutingOptions } from
-  "@vcp/frontend/features/task-orchestration/data/task-routing-options.ts";
 import { ROUTING_MODES } from
   "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 
 afterEach(cleanup);
 
-const seedData = createTaskRoutingOptions();
+const seedData = {
+  agents: [
+    {
+      id: "AGT-CODE",
+      name: "Code Agent",
+      description: "Implements focused software changes.",
+      capabilities: ["code generation"],
+      available: true
+    },
+    {
+      id: "AGT-REVIEW",
+      name: "Review Agent",
+      description: "Reviews code changes.",
+      capabilities: ["code review"],
+      available: true
+    }
+  ],
+  workflows: [
+    {
+      id: "WFL-CODE-REVIEW",
+      name: "Code + Review",
+      description: "Creates and reviews a software change.",
+      agentIds: ["AGT-CODE", "AGT-REVIEW"]
+    },
+    {
+      id: "WFL-RESEARCH-SYNTHESIS",
+      name: "Research + Synthesis",
+      description: "Researches and synthesizes a report.",
+      agentIds: ["AGT-REVIEW"]
+    }
+  ]
+};
 
 function renderSelector(overrides: Partial<RoutingSelectorProps> = {}) {
   const props: RoutingSelectorProps = {
@@ -105,6 +134,22 @@ describe("RoutingSelector", () => {
     expect(props.onWorkflowChange).toHaveBeenCalledWith("WFL-RESEARCH-SYNTHESIS");
     expect(screen.queryByRole("combobox", { name: "Agent" }))
       .not.toBeInTheDocument();
+  });
+
+  it("shows a create link when the selected catalog is empty", async () => {
+    const user = userEvent.setup();
+    const { props } = renderSelector({
+      mode: ROUTING_MODES[1],
+      agents: [],
+      createAgentHref: "/agents"
+    });
+
+    expect(screen.getByRole("combobox", { name: "Agent" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Danh sách trống, tạo ngay" }))
+      .toHaveAttribute("href", "/agents");
+
+    await user.click(screen.getByRole("radio", { name: /Predefined workflow/ }));
+    expect(props.onWorkflowChange).not.toHaveBeenCalled();
   });
 
   it("hides irrelevant target controls after a controlled mode switch", () => {

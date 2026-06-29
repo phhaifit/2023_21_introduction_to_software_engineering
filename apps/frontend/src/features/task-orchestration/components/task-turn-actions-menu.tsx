@@ -9,11 +9,8 @@ export interface TaskTurnActionsMenuProps {
   task: CreatedTaskRecord;
   prompt: string;
   clipboardWriter: TaskClipboardWriter;
-  canDelete: boolean;
-  showDelete?: boolean;
-  deleteDisabledReason?: string;
+  variant: "query" | "response";
   onViewDetails: () => void;
-  onDelete: () => void;
 }
 
 function getCopyableResponse(task: CreatedTaskRecord): string | null {
@@ -24,6 +21,12 @@ function getCopyableResponse(task: CreatedTaskRecord): string | null {
     const partial = selectAccumulatedPartialText(task.streamingSnapshot);
     return partial.trim().length > 0 ? partial : null;
   }
+  if (task.status === "failed" && task.error?.message) {
+    return task.error.message;
+  }
+  if (task.status === "cancelled") {
+    return "Task was canceled before completion.";
+  }
   return null;
 }
 
@@ -31,18 +34,17 @@ export function TaskTurnActionsMenu({
   task,
   prompt,
   clipboardWriter,
-  canDelete,
-  showDelete = true,
-  deleteDisabledReason,
-  onViewDetails,
-  onDelete
+  variant,
+  onViewDetails
 }: TaskTurnActionsMenuProps) {
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const { copyText, feedback } = useCopyToClipboard(clipboardWriter);
   const responseText = getCopyableResponse(task);
-  const menuLabel = `More actions for this work`;
+  const copyableText = variant === "query" ? prompt : responseText;
+  const copyLabel = variant === "query" ? "Copy query" : "Copy response";
+  const menuLabel = "More response actions";
 
   useEffect(() => {
     if (!isOpen) {
@@ -73,27 +75,45 @@ export function TaskTurnActionsMenu({
 
   return (
     <div
-      className={`task-turn-actions${isOpen ? " task-turn-actions--open" : ""}`}
+      className={`task-turn-actions task-turn-actions--${variant}${
+        isOpen ? " task-turn-actions--open" : ""
+      }`}
       ref={containerRef}
     >
       <button
         type="button"
-        className="task-turn-actions__trigger"
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-controls={menuId}
-        aria-label={menuLabel}
-        title={menuLabel}
-        onClick={() => setIsOpen((open) => !open)}
+        className="task-turn-actions__icon-button"
+        aria-label={copyLabel}
+        title={copyLabel}
+        disabled={!copyableText}
+        onClick={() => {
+          if (copyableText) {
+            copyText(copyableText);
+          }
+        }}
       >
-        ⋯
+        <span aria-hidden="true">⧉</span>
       </button>
+      {variant === "response" ? (
+        <button
+          type="button"
+          className="task-turn-actions__icon-button task-turn-actions__trigger"
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+          aria-controls={menuId}
+          aria-label={menuLabel}
+          title={menuLabel}
+          onClick={() => setIsOpen((open) => !open)}
+        >
+          <span aria-hidden="true">...</span>
+        </button>
+      ) : null}
       {feedback !== "idle" ? (
         <span className="task-turn-actions__feedback sr-only" role="status" aria-live="polite">
           {feedback === "copied" ? "Copied" : "Copy unavailable"}
         </span>
       ) : null}
-      {isOpen ? (
+      {variant === "response" && isOpen ? (
         <ul id={menuId} className="task-turn-actions__menu" role="menu" aria-label={menuLabel}>
           <li role="none">
             <button
@@ -104,66 +124,6 @@ export function TaskTurnActionsMenu({
               View processing details
             </button>
           </li>
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => handleMenuAction(() => copyText(prompt))}
-            >
-              Copy query
-            </button>
-          </li>
-          {responseText ? (
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleMenuAction(() => copyText(responseText))}
-              >
-                Copy response
-              </button>
-            </li>
-          ) : null}
-          {task.status === "failed" && task.error ? (
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleMenuAction(onViewDetails)}
-              >
-                View error details
-              </button>
-            </li>
-          ) : null}
-          {task.status === "cancelled" ? (
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => handleMenuAction(onViewDetails)}
-              >
-                View cancellation details
-              </button>
-            </li>
-          ) : null}
-          {showDelete ? (
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                className="task-turn-actions__menu-item--danger"
-                disabled={!canDelete}
-                title={!canDelete ? deleteDisabledReason : undefined}
-                onClick={() => {
-                  if (canDelete) {
-                    handleMenuAction(onDelete);
-                  }
-                }}
-              >
-                Delete message
-              </button>
-            </li>
-          ) : null}
         </ul>
       ) : null}
     </div>

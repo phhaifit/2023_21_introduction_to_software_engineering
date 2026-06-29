@@ -169,7 +169,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer cred-123",
-          "x-openclaw-model": "gemini-3.1-pro-preview",
+          "x-openclaw-model": "google/gemini-3.1-flash-lite",
           "x-openclaw-session-key": "session-123"
         },
         body: JSON.stringify({
