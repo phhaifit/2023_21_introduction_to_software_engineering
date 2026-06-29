@@ -173,7 +173,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           "x-openclaw-session-key": "session-123"
         },
         body: JSON.stringify({
-          model: "coordinator",
+          model: "openclaw/default",
           messages: [{ role: "user", content: "Hello" }],
           stream: true,
           user: "session-123"
@@ -209,7 +209,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           "x-openclaw-session-key": "session-123"
         },
         body: JSON.stringify({
-          model: "openclaw/agent/agent-research",
+          model: "openclaw/default",
           messages: [
             {
               role: "system",

@@ -27,6 +27,7 @@ export interface ExternalAgentContract {
 
 export interface ExternalAgentCatalog {
   validateAndGetAgent(workspaceId: EntityId<"workspaceId">, agentId: string): Promise<ExternalAgentContract>;
+  listAvailableAgents?(workspaceId: EntityId<"workspaceId">): Promise<ExternalAgentContract[]>;
 }
 
 export interface ExternalWorkflowContract {
@@ -40,6 +41,7 @@ export interface ExternalWorkflowContract {
 
 export interface ExternalWorkflowCatalog {
   validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string): Promise<ExternalWorkflowContract>;
+  listAvailableWorkflows?(workspaceId: EntityId<"workspaceId">): Promise<ExternalWorkflowContract[]>;
 }
 
 export interface ExternalToolContract {
@@ -68,6 +70,8 @@ export interface ExternalAuthenticationService {
 export interface ExternalWorkspaceManagement {
   getWorkspaceExecutionRuntimeResolver(): WorkspaceExecutionRuntimeResolver;
 }
+
+const DEFAULT_OPENCLAW_ROUTING_TARGET = "openclaw/default";
 
 /**
  * OpenClawTaskExecutionAdapter satisfies TaskExecutionAdapter contracts,
@@ -123,18 +127,18 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     }
 
     // Verify routing selection & map targets
-    let providerExecutionTarget = "openclaw/default";
-    let routingInstruction = buildAutoRoutingInstruction();
+    let providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
+    let routingInstruction = await this.buildAutoRoutingInstruction(command.workspaceId);
     let targetLabel = "Auto routing";
     if (command.routing.mode === "auto") {
       // Auto-routing delegation
-      providerExecutionTarget = "openclaw/default";
+      providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
     } else if (command.routing.mode === "specific-agent") {
       const agentContract = await this.agentCatalog.validateAndGetAgent(command.workspaceId, command.routing.agentId);
       if (agentContract.status !== "active") {
         throw new Error("Routing target unavailable: specified agent is inactive or invalid");
       }
-      providerExecutionTarget = agentContract.providerAgentMapping;
+      providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
       targetLabel = agentContract.name || command.routing.agentId;
       routingInstruction = buildSpecificAgentRoutingInstruction(agentContract);
     } else if (command.routing.mode === "predefined-workflow") {
@@ -142,7 +146,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
       if (workflowContract.status !== "active") {
         throw new Error("Routing target unavailable: specified workflow is inactive or invalid");
       }
-      providerExecutionTarget = workflowContract.providerWorkflowMapping;
+      providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
       targetLabel = workflowContract.name || command.routing.workflowId;
       routingInstruction = buildWorkflowRoutingInstruction(workflowContract);
     }
@@ -407,12 +411,27 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     if (event.providerSessionReference && expectedScope.providerSessionReference && event.providerSessionReference !== expectedScope.providerSessionReference) return false;
     return true;
   }
+
+  private async buildAutoRoutingInstruction(workspaceId: EntityId<"workspaceId">): Promise<string> {
+    const [agents, workflows] = await Promise.all([
+      this.agentCatalog.listAvailableAgents ? this.agentCatalog.listAvailableAgents(workspaceId) : Promise.resolve([]),
+      this.workflowCatalog.listAvailableWorkflows ? this.workflowCatalog.listAvailableWorkflows(workspaceId) : Promise.resolve([])
+    ]);
+
+    return buildAutoRoutingInstruction(agents, workflows);
+  }
 }
 
-function buildAutoRoutingInstruction(): string {
+function buildAutoRoutingInstruction(
+  agents: ExternalAgentContract[] = [],
+  workflows: ExternalWorkflowContract[] = []
+): string {
   return [
     "Task & Orchestration routing mode: auto.",
     "Use the OpenClaw coordinator to choose the best available agent or workflow for the user request.",
+    "The OpenAI-compatible request model must remain openclaw/default; use the following workspace routing context instead of changing the model field.",
+    formatAgentList(agents),
+    formatWorkflowList(workflows),
     "Do not ignore workspace routing constraints."
   ].join(" ");
 }
@@ -422,6 +441,8 @@ function buildSpecificAgentRoutingInstruction(agent: ExternalAgentContract): str
     "Task & Orchestration routing mode: specific-agent.",
     `Use exactly this selected workspace agent: ${agent.name || agent.agentId}.`,
     `Platform agent ID: ${agent.agentId}.`,
+    agent.providerAgentMapping ? `OpenClaw agent reference: ${agent.providerAgentMapping}.` : "",
+    "Keep the OpenAI-compatible request model as openclaw/default; this selected agent is routing context, not the model value.",
     agent.role ? `Agent role: ${agent.role}.` : "",
     agent.model ? `Preferred model: ${agent.model}.` : "",
     agent.instructions ? `Agent instructions: ${agent.instructions}` : "",
@@ -434,9 +455,38 @@ function buildWorkflowRoutingInstruction(workflow: ExternalWorkflowContract): st
     "Task & Orchestration routing mode: predefined-workflow.",
     `Execute exactly this selected workspace workflow: ${workflow.name || workflow.workflowId}.`,
     `Platform workflow ID: ${workflow.workflowId}.`,
+    workflow.providerWorkflowMapping ? `OpenClaw workflow reference: ${workflow.providerWorkflowMapping}.` : "",
+    "Keep the OpenAI-compatible request model as openclaw/default; this selected workflow is routing context, not the model value.",
     workflow.description ? `Workflow description: ${workflow.description}.` : "",
     "Do not replace it with auto-routing unless the selected workflow is unavailable."
   ].filter(Boolean).join(" ");
+}
+
+function formatAgentList(agents: ExternalAgentContract[]): string {
+  if (agents.length === 0) {
+    return "Available workspace agents: none.";
+  }
+
+  return `Available workspace agents: ${agents.map((agent) => [
+    `${agent.name || agent.agentId}`,
+    `id=${agent.agentId}`,
+    agent.providerAgentMapping ? `reference=${agent.providerAgentMapping}` : "",
+    agent.role ? `role=${agent.role}` : "",
+    agent.model ? `preferredModel=${agent.model}` : ""
+  ].filter(Boolean).join(", ")).join("; ")}.`;
+}
+
+function formatWorkflowList(workflows: ExternalWorkflowContract[]): string {
+  if (workflows.length === 0) {
+    return "Available workspace workflows: none.";
+  }
+
+  return `Available workspace workflows: ${workflows.map((workflow) => [
+    `${workflow.name || workflow.workflowId}`,
+    `id=${workflow.workflowId}`,
+    workflow.providerWorkflowMapping ? `reference=${workflow.providerWorkflowMapping}` : "",
+    workflow.description ? `description=${workflow.description}` : ""
+  ].filter(Boolean).join(", ")).join("; ")}.`;
 }
 
 /**

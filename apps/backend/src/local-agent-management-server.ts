@@ -113,6 +113,23 @@ class ServerAgentCatalog implements ExternalAgentCatalog {
       instructions: agent.instructions
     };
   }
+
+  async listAvailableAgents(workspaceId: EntityId<"workspaceId">) {
+    const result = await this.repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+
+    return result.agents
+      .filter((agent) => agent.status === "enabled")
+      .map((agent) => ({
+        agentId: agent.agentId as string,
+        workspaceId: workspaceId as string,
+        providerAgentMapping: `openclaw/agent/${agent.agentId}`,
+        status: "active" as const,
+        name: agent.name,
+        role: agent.role,
+        model: agent.model,
+        instructions: agent.instructions
+      }));
+  }
 }
 
 class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
@@ -142,6 +159,21 @@ class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
       name: workflow.name,
       description: workflow.description
     };
+  }
+
+  async listAvailableWorkflows(workspaceId: EntityId<"workspaceId">) {
+    const result = await this.repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+
+    return result.items
+      .filter((workflow) => workflow.status === "published")
+      .map((workflow) => ({
+        workflowId: workflow.workflowId as string,
+        workspaceId: workspaceId as string,
+        providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
+        status: "active" as const,
+        name: workflow.name,
+        description: workflow.description
+      }));
   }
 }
 

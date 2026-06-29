@@ -73,6 +73,7 @@ export interface OpenClawNetworkTransport {
 }
 
 const DEFAULT_OPENCLAW_MODEL = "google/gemini-3.1-flash-lite";
+const DEFAULT_OPENCLAW_ROUTING_TARGET = "openclaw/default";
 
 // 2.1 Implement OpenClawRawEventMapper.
 export class OpenClawRawEventMapper {
@@ -212,7 +213,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
           "x-openclaw-session-key": request.conversationId || "default-session"
         },
         body: JSON.stringify({
-          model: request.target || "openclaw/default",
+          model: DEFAULT_OPENCLAW_ROUTING_TARGET,
           messages: buildOpenClawMessages(request),
           stream: true,
           user: request.conversationId || "default-user"
@@ -237,7 +238,8 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         if (false) {
           console.error(`[OpenClaw Transport] ❌ Execution Start Rejected with status ${response.status}: ${errText}`);
         }
-        throw new Error(JSON.stringify({ code: "execution-start-rejected", message: `Execution start rejected with status ${response.status}` }));
+        const detail = errText ? `: ${sanitizeObservabilityPayload(errText)}` : "";
+        throw new Error(JSON.stringify({ code: "execution-start-rejected", message: `Execution start rejected with status ${response.status}${detail}` }));
       }
 
       let providerExecutionReference = `openclaw-exec-${Date.now()}`;

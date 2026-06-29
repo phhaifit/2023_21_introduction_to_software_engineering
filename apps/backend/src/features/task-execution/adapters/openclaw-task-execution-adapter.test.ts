@@ -45,7 +45,18 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
           return { agentId, workspaceId: wsId, providerAgentMapping: "", status: "inactive" };
         }
         return { agentId, workspaceId: wsId, providerAgentMapping: `openclaw-agent-${agentId}`, status: "active" };
-      })
+      }),
+      listAvailableAgents: vi.fn().mockResolvedValue([
+        {
+          agentId: "agent-finance",
+          workspaceId: "ws-1",
+          providerAgentMapping: "openclaw-agent-agent-finance",
+          status: "active",
+          name: "Finance Agent",
+          role: "Financial analysis",
+          model: "default"
+        }
+      ])
     };
 
     workflowCatalog = {
@@ -54,7 +65,17 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
           return { workflowId, workspaceId: wsId, providerWorkflowMapping: "", status: "inactive" };
         }
         return { workflowId, workspaceId: wsId, providerWorkflowMapping: `openclaw-workflow-${workflowId}`, status: "active" };
-      })
+      }),
+      listAvailableWorkflows: vi.fn().mockResolvedValue([
+        {
+          workflowId: "wf-reports",
+          workspaceId: "ws-1",
+          providerWorkflowMapping: "openclaw-workflow-wf-reports",
+          status: "active",
+          name: "Reports Workflow",
+          description: "Draft and review reports."
+        }
+      ])
     };
 
     toolCatalog = {
@@ -169,7 +190,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
 
       const binding = await adapter.startExecution(cmd);
       expect(agentCatalog.validateAndGetAgent).toHaveBeenCalledWith("ws-1", "agent-finance");
-      expect(binding.verifiedProviderFields.target).toBe("openclaw-agent-agent-finance");
+      expect(binding.verifiedProviderFields.target).toBe("openclaw/default");
       expect(binding.verifiedProviderFields.mode).toBe("specific-agent");
     });
 
@@ -185,7 +206,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
 
       const binding = await adapter.startExecution(cmd);
       expect(workflowCatalog.validateAndGetWorkflow).toHaveBeenCalledWith("ws-1", "wf-reports");
-      expect(binding.verifiedProviderFields.target).toBe("openclaw-workflow-wf-reports");
+      expect(binding.verifiedProviderFields.target).toBe("openclaw/default");
       expect(binding.verifiedProviderFields.mode).toBe("predefined-workflow");
     });
 
@@ -659,6 +680,72 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       await netAdapter.releaseResources();
     });
 
+    it("4.1: should pass all available agents and workflows when auto routing is selected", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-auto-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-auto-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn(),
+        listAvailableAgents: vi.fn().mockResolvedValue([
+          {
+            status: "active",
+            providerAgentMapping: "openclaw/agent/agent-research",
+            agentId: "agent-research",
+            name: "Research Agent",
+            role: "Market researcher",
+            model: "default"
+          }
+        ])
+      };
+      const workflowCat: any = {
+        validateAndGetWorkflow: vi.fn(),
+        listAvailableWorkflows: vi.fn().mockResolvedValue([
+          {
+            status: "active",
+            providerWorkflowMapping: "openclaw/workflow/workflow-research",
+            workflowId: "workflow-research",
+            name: "Research Workflow",
+            description: "Research then synthesize."
+          }
+        ])
+      };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-auto-101" as any,
+        workId: "work-auto-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-auto-1" as any,
+        prompt: "Auto route this research task",
+        routing: { mode: "auto" }
+      });
+
+      expect(agentCat.listAvailableAgents).toHaveBeenCalledWith("ws-1");
+      expect(workflowCat.listAvailableWorkflows).toHaveBeenCalledWith("ws-1");
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/default",
+          mode: "auto",
+          routingInstruction: expect.stringContaining("Available workspace agents: Research Agent")
+        })
+      );
+      expect(mockTransport.startExecution.mock.calls[0][2].routingInstruction).toContain("openclaw/workflow/workflow-research");
+    });
+
     it("4.1: should pass selected specific-agent mapping and routing instruction to OpenClaw transport", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "started", startedAt: "2023-01-01" }),
@@ -702,10 +789,10 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
         "https://openclaw.workspace.internal/api/v1",
         "cred-ref-789",
         expect.objectContaining({
-          target: "openclaw/agent/agent-research",
+          target: "openclaw/default",
           mode: "specific-agent",
           targetLabel: "Research Agent",
-          routingInstruction: expect.stringContaining("Use exactly this selected workspace agent: Research Agent")
+          routingInstruction: expect.stringContaining("OpenClaw agent reference: openclaw/agent/agent-research")
         })
       );
     });
@@ -751,10 +838,10 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
         "https://openclaw.workspace.internal/api/v1",
         "cred-ref-789",
         expect.objectContaining({
-          target: "openclaw/workflow/workflow-research",
+          target: "openclaw/default",
           mode: "predefined-workflow",
           targetLabel: "Research Workflow",
-          routingInstruction: expect.stringContaining("Execute exactly this selected workspace workflow: Research Workflow")
+          routingInstruction: expect.stringContaining("OpenClaw workflow reference: openclaw/workflow/workflow-research")
         })
       );
     });

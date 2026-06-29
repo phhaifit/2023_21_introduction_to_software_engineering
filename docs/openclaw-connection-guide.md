@@ -32,6 +32,10 @@ bash scripts/docker/setup.sh
 
 ## 3. Quy trình Kết nối & Ranh giới Kiến trúc (Architectural Boundaries)
 
+### Routing model note
+
+Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. Selected OpenClaw agents and workflows are still integrated and sent to OpenClaw, but they are sent as system routing context, not as the `model` value. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including their OpenClaw references, so the OpenClaw coordinator can choose the best route.
+
 Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider**:
 
 ```text
