@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -143,6 +143,59 @@ describe("Task 6B task creation UI flow", () => {
     );
 
     resolveStart?.();
+  });
+
+  it("ignores stale HTTP stream output from a previous task", async () => {
+    const fetchImplementation = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/executions/start")) {
+        return Promise.resolve(jsonResponse({ ok: true, data: { status: "queued" } }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: [] }));
+    });
+    const eventSources: FakeEventSource[] = [];
+    class FakeEventSource {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor(readonly url: string) {
+        eventSources.push(this);
+      }
+      close() {}
+      emit(payload: unknown) {
+        this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+      }
+    }
+    vi.stubGlobal("fetch", fetchImplementation);
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    render(<TaskOrchestrationPage />);
+
+    await submitPrompt("First request.");
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "New chat" }));
+    await submitPrompt("Second request.");
+    await waitFor(() => expect(eventSources).toHaveLength(2));
+
+    eventSources[1].emit({
+      type: "execution-completed",
+      workId: "WORK-000001",
+      timestamp: "2020-01-01T00:00:00.000Z",
+      finalOutput: "Old answer replay"
+    });
+
+    expect(screen.queryByText("Old answer replay")).not.toBeInTheDocument();
+
+    eventSources[1].emit({
+      type: "execution-completed",
+      taskId: "TASK-000002",
+      workId: "WORK-000002",
+      timestamp: "2999-01-01T00:00:00.000Z",
+      finalOutput: "New answer"
+    });
+
+    expect(await screen.findByText("New answer")).toBeVisible();
+    expect(screen.queryByText("Old answer replay")).not.toBeInTheDocument();
   });
 
   it("creates one pending auto-routed task through the public client boundary", async () => {

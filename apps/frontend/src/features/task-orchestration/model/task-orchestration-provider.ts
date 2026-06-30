@@ -546,13 +546,32 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          const subscribedTask = this.tasks.get(taskId);
+          if (!subscribedTask) return;
+
+          if (typeof data.taskId === "string" && data.taskId !== taskId) {
+            return;
+          }
+
+          if (typeof data.workId === "string" && data.workId !== (subscribedTask.workId as string)) {
+            return;
+          }
+
+          if (typeof data.timestamp === "string") {
+            const eventTime = Date.parse(data.timestamp);
+            const taskCreatedTime = Date.parse(subscribedTask.createdAt);
+            if (!Number.isNaN(eventTime) && !Number.isNaN(taskCreatedTime) && eventTime < taskCreatedTime) {
+              return;
+            }
+          }
+
           const base = {
-            taskId: data.taskId || taskId,
-            workId: data.workId || "wrk_1",
+            taskId: subscribedTask.taskId,
+            workId: subscribedTask.workId,
             timestamp: data.timestamp || new Date().toISOString()
           };
 
-          const existingTask = this.tasks.get(base.taskId as string);
+          const existingTask = this.tasks.get(taskId);
           if (!existingTask) return;
 
           const applyAction = (action: import("./task-creation-state").TaskCreationAction) => {
