@@ -141,6 +141,18 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByText("Execution Provider Unavailable")).toBeVisible();
   });
 
+  it("dismisses the provider unavailable message without hiding the provider badge", async () => {
+    const user = userEvent.setup();
+    render(<TaskOrchestrationPage isProviderUnavailable />);
+
+    await user.click(screen.getByRole("button", {
+      name: "Dismiss provider unavailable message"
+    }));
+
+    expect(screen.queryByText("Execution Provider Unavailable")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Execution provider: Provider unavailable")).toBeVisible();
+  });
+
   it("renders OpenClaw Gateway provider badge by default", () => {
     render(<TaskOrchestrationPage />);
     expect(screen.getByText("HTTP / OpenClaw Gateway")).toBeVisible();

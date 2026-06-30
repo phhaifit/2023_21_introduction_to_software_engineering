@@ -150,6 +150,7 @@ export function TaskOrchestrationPage({
   const [detailModalTaskId, setDetailModalTaskId] = useState<string | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [cancelTargetTaskId, setCancelTargetTaskId] = useState<string | null>(null);
+  const [providerUnavailableDismissed, setProviderUnavailableDismissed] = useState(false);
   const [deleteConversationTargetId, setDeleteConversationTargetId] = useState<string | null>(
     null
   );
@@ -437,6 +438,12 @@ export function TaskOrchestrationPage({
     setCancelTargetTaskId(null);
   }, [activeTask?.taskId]);
 
+  useEffect(() => {
+    if (!isProviderUnavailable) {
+      setProviderUnavailableDismissed(false);
+    }
+  }, [isProviderUnavailable]);
+
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
   function handleCancelActiveTask(): void {
@@ -608,7 +615,7 @@ export function TaskOrchestrationPage({
             </div>
           ) : null}
 
-          {isProviderUnavailable ? (
+          {isProviderUnavailable && !providerUnavailableDismissed ? (
             <div className="task-workspace__provider-unavailable" role="alert">
               <div>
                 <h3>Execution Provider Unavailable</h3>
@@ -617,6 +624,14 @@ export function TaskOrchestrationPage({
                   remain queued until the Gateway connection is restored.
                 </p>
               </div>
+              <button
+                type="button"
+                className="task-workspace__feedback-dismiss"
+                aria-label="Dismiss provider unavailable message"
+                onClick={() => setProviderUnavailableDismissed(true)}
+              >
+                x
+              </button>
             </div>
           ) : null}
 
@@ -727,14 +742,30 @@ export function TaskOrchestrationPage({
 
         <section className="task-composer" aria-label="Task composer area">
           {taskState.validationError ? (
-            <p className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
-              {taskState.validationError}
-            </p>
+            <div className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
+              <span>{taskState.validationError}</span>
+              <button
+                type="button"
+                className="task-workspace__feedback-dismiss"
+                aria-label="Dismiss task feedback"
+                onClick={() => dispatchTaskAction({ type: "feedback-dismissed" })}
+              >
+                x
+              </button>
+            </div>
           ) : null}
           {taskState.submissionError ? (
-            <p className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
-              {taskState.submissionError}
-            </p>
+            <div className="task-workspace__feedback task-workspace__feedback--inline" role="alert">
+              <span>{taskState.submissionError}</span>
+              <button
+                type="button"
+                className="task-workspace__feedback-dismiss"
+                aria-label="Dismiss task feedback"
+                onClick={() => dispatchTaskAction({ type: "feedback-dismissed" })}
+              >
+                x
+              </button>
+            </div>
           ) : null}
           <TaskComposer
             prompt={prompt}

@@ -57,7 +57,10 @@ class FakeProcessingRuntime implements TaskProcessingRuntime {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   resetTaskIdentitySequence();
@@ -107,6 +110,41 @@ async function submitPrompt(prompt = "Prepare a launch summary.") {
 }
 
 describe("Task 6B task creation UI flow", () => {
+  it("renders the pending conversation before the HTTP execution start request resolves", async () => {
+    let resolveStart: (() => void) | undefined;
+    const fetchImplementation = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/executions/start")) {
+        return new Promise<Response>((resolve) => {
+          resolveStart = () =>
+            resolve(jsonResponse({ ok: true, data: { status: "queued" } }));
+        });
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: [] }));
+    });
+    class FakeEventSource {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor(readonly url: string) {}
+      close() {}
+    }
+    vi.stubGlobal("fetch", fetchImplementation);
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    render(<TaskOrchestrationPage />);
+
+    await submitPrompt("Show this immediately.");
+
+    expect(screen.getByLabelText("Pending task")).toBeVisible();
+    const feed = screen.getByRole("region", { name: /conversation/i });
+    expect(within(feed).getByText("Show this immediately.")).toBeVisible();
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      expect.stringContaining("/executions/start"),
+      expect.objectContaining({ method: "POST" })
+    );
+
+    resolveStart?.();
+  });
+
   it("creates one pending auto-routed task through the public client boundary", async () => {
     const client = new SpyTaskCreationClient();
     const pRuntime = new FakeProcessingRuntime();
@@ -233,6 +271,9 @@ describe("Task 6B task creation UI flow", () => {
     expect(client.calls).toHaveLength(0);
     expect(screen.queryByLabelText("Pending task")).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(message);
+
+    await user.click(screen.getByRole("button", { name: "Dismiss task feedback" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("keeps unique task records across multiple successful submissions", async () => {
@@ -324,6 +365,13 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.getByRole("button", { name: "Send request" })).toBeEnabled();
   });
 });
+
+function jsonResponse(body: unknown): Response {
+  return {
+    ok: true,
+    json: async () => body
+  } as Response;
+}
 
 describe("Task 6B model boundaries", () => {
   it("maps production status to PA5 presentation status without inventing requires_action", () => {

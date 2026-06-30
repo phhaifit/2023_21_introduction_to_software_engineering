@@ -69,6 +69,7 @@ export type TaskCreationAction =
   | { type: "submit-started" }
   | { type: "submit-rejected"; message: string }
   | { type: "submission-failed"; message: string }
+  | { type: "feedback-dismissed" }
   | {
       type: "task-created";
       request: CreateTaskRequest;
@@ -245,6 +246,12 @@ export function taskCreationReducer(
         isSubmitting: false,
         validationError: undefined,
         submissionError: action.message
+      };
+    case "feedback-dismissed":
+      return {
+        ...state,
+        validationError: undefined,
+        submissionError: undefined
       };
     case "conversation-created": {
       const sequence = state.conversationSequence ?? 1;

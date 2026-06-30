@@ -356,6 +356,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private timeoutMs: number;
   private tasks = new Map<string, CreatedTaskRecord>();
   private eventSources = new Map<string, EventSource>();
+  private subscriptionHandlers = new Map<string, { taskId: string; handler: (event: TaskRuntimeEvent) => void }>();
   private subIdCounter = 1;
 
   constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
@@ -371,6 +372,21 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     options?: { conversationId?: string }
   ): Promise<CreatedTaskRecord> {
     const identity = createTaskIdentity();
+    const task = createTaskRecord(input, {
+      ...identity,
+      status: "queued",
+      createdAt: new Date().toISOString()
+    });
+    this.tasks.set(task.taskId as string, task);
+    void this.startRemoteExecution(input, identity, options?.conversationId);
+    return task;
+  }
+
+  private async startRemoteExecution(
+    input: import("@vcp/shared").CreateTaskRequest,
+    identity: ReturnType<typeof createTaskIdentity>,
+    conversationId?: string
+  ): Promise<void> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
     let payload: any;
@@ -382,7 +398,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
           taskId: identity.taskId,
           workId: identity.workId,
           workspaceId: DEMO_WORKSPACE_ID as any,
-          conversationId: options?.conversationId || (identity.workId as string),
+          conversationId: conversationId || (identity.workId as string),
           prompt: input.prompt,
           routing: input.routing
         }),
@@ -398,18 +414,48 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "OpenClaw execution start failed.";
-      throw new Error(message);
+      this.failTaskStart(identity.taskId as string, message);
     } finally {
       clearTimeout(timeoutId);
     }
+  }
 
-    const task = createTaskRecord(input, {
-      ...identity,
-      status: "queued",
-      createdAt: payload?.meta?.timestamp || new Date().toISOString()
+  private failTaskStart(taskId: string, message: string): void {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      return;
+    }
+    const timestamp = new Date().toISOString();
+    const state = {
+      tasks: [task],
+      conversations: [],
+      isSubmitting: false,
+      conversationSequence: 1
+    };
+    const nextState = taskCreationReducer(state, {
+      type: "task-failed",
+      taskId: task.taskId,
+      error: {
+        code: "execution-start-rejected",
+        stepId: "execution-start",
+        title: "Execution start failed",
+        message,
+        occurredAt: timestamp
+      }
     });
-    this.tasks.set(task.taskId as string, task);
-    return task;
+    const updatedTask = nextState.tasks[0];
+    if (!updatedTask) {
+      return;
+    }
+    this.tasks.set(taskId, updatedTask);
+    this.emitLocalEvent({
+      taskId: updatedTask.taskId,
+      workId: updatedTask.workId,
+      timestamp,
+      kind: "task-failed",
+      error: updatedTask.error!,
+      taskSnapshot: updatedTask
+    });
   }
 
   async getTask(taskId: string): Promise<CreatedTaskRecord | null> {
@@ -494,6 +540,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
    */
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
     const subscriptionId = `sub-http-${this.subIdCounter++}`;
+    this.subscriptionHandlers.set(subscriptionId, { taskId, handler });
     try {
       const es = new EventSource(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/stream`);
       es.onmessage = (event) => {
@@ -651,10 +698,19 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   }
 
   unsubscribeFromTaskEvents(subscription: TaskEventSubscription): void {
+    this.subscriptionHandlers.delete(subscription.subscriptionId);
     const es = this.eventSources.get(subscription.subscriptionId);
     if (es) {
       es.close();
       this.eventSources.delete(subscription.subscriptionId);
+    }
+  }
+
+  private emitLocalEvent(event: TaskRuntimeEvent): void {
+    for (const { taskId, handler } of this.subscriptionHandlers.values()) {
+      if (taskId === (event.taskId as string)) {
+        handler(event);
+      }
     }
   }
 }

@@ -291,6 +291,10 @@
 }
 
 .task-workspace__feedback--inline {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
   margin: 0;
   padding: 8px 10px;
 }
@@ -378,6 +382,30 @@
   background: #fff1f2;
   border-color: #fecdd3;
   color: #be123c;
+}
+
+.task-workspace__feedback-dismiss {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: #9f1239;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  font-weight: 800;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  width: 24px;
+}
+
+.task-workspace__feedback-dismiss:hover,
+.task-workspace__feedback-dismiss:focus-visible {
+  background: #ffe4e6;
+  outline: none;
 }
 
 .task-workspace__pending-actions {
