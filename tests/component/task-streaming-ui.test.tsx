@@ -231,15 +231,12 @@ describe("Task 9B streaming UI integration", () => {
     await reachExecuteStep(scheduler);
 
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
-    expect(screen.getByRole("region", { name: /partial result/i })).toBeVisible();
-    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
-      "Generating partial result"
-    );
-    expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent(
-      "Partial output is starting."
-    );
+    expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Runtime progress")).toBeVisible();
+    expect(screen.getByText("Working on it")).toBeVisible();
 
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
+    expect(screen.getByRole("region", { name: /partial result/i })).toBeVisible();
     expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Alpha");
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
     expect(screen.getAllByText("Partial Result")).toHaveLength(1);

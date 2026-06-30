@@ -356,6 +356,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private timeoutMs: number;
   private tasks = new Map<string, CreatedTaskRecord>();
   private eventSources = new Map<string, EventSource>();
+  private subscriptionHandlers = new Map<string, { taskId: string; handler: (event: TaskRuntimeEvent) => void }>();
   private subIdCounter = 1;
 
   constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
@@ -371,6 +372,21 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     options?: { conversationId?: string }
   ): Promise<CreatedTaskRecord> {
     const identity = createTaskIdentity();
+    const task = createTaskRecord(input, {
+      ...identity,
+      status: "queued",
+      createdAt: new Date().toISOString()
+    });
+    this.tasks.set(task.taskId as string, task);
+    void this.startRemoteExecution(input, identity, options?.conversationId);
+    return task;
+  }
+
+  private async startRemoteExecution(
+    input: import("@vcp/shared").CreateTaskRequest,
+    identity: ReturnType<typeof createTaskIdentity>,
+    conversationId?: string
+  ): Promise<void> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
     let payload: any;
@@ -382,7 +398,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
           taskId: identity.taskId,
           workId: identity.workId,
           workspaceId: DEMO_WORKSPACE_ID as any,
-          conversationId: options?.conversationId || (identity.workId as string),
+          conversationId: conversationId || (identity.workId as string),
           prompt: input.prompt,
           routing: input.routing
         }),
@@ -398,18 +414,48 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "OpenClaw execution start failed.";
-      throw new Error(message);
+      this.failTaskStart(identity.taskId as string, message);
     } finally {
       clearTimeout(timeoutId);
     }
+  }
 
-    const task = createTaskRecord(input, {
-      ...identity,
-      status: "queued",
-      createdAt: payload?.meta?.timestamp || new Date().toISOString()
+  private failTaskStart(taskId: string, message: string): void {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      return;
+    }
+    const timestamp = new Date().toISOString();
+    const state = {
+      tasks: [task],
+      conversations: [],
+      isSubmitting: false,
+      conversationSequence: 1
+    };
+    const nextState = taskCreationReducer(state, {
+      type: "task-failed",
+      taskId: task.taskId,
+      error: {
+        code: "execution-start-rejected",
+        stepId: "execution-start",
+        title: "Execution start failed",
+        message,
+        occurredAt: timestamp
+      }
     });
-    this.tasks.set(task.taskId as string, task);
-    return task;
+    const updatedTask = nextState.tasks[0];
+    if (!updatedTask) {
+      return;
+    }
+    this.tasks.set(taskId, updatedTask);
+    this.emitLocalEvent({
+      taskId: updatedTask.taskId,
+      workId: updatedTask.workId,
+      timestamp,
+      kind: "task-failed",
+      error: updatedTask.error!,
+      taskSnapshot: updatedTask
+    });
   }
 
   async getTask(taskId: string): Promise<CreatedTaskRecord | null> {
@@ -494,18 +540,38 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
    */
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
     const subscriptionId = `sub-http-${this.subIdCounter++}`;
+    this.subscriptionHandlers.set(subscriptionId, { taskId, handler });
     try {
       const es = new EventSource(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/stream`);
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          const subscribedTask = this.tasks.get(taskId);
+          if (!subscribedTask) return;
+
+          if (typeof data.taskId === "string" && data.taskId !== taskId) {
+            return;
+          }
+
+          if (typeof data.workId === "string" && data.workId !== (subscribedTask.workId as string)) {
+            return;
+          }
+
+          if (typeof data.timestamp === "string") {
+            const eventTime = Date.parse(data.timestamp);
+            const taskCreatedTime = Date.parse(subscribedTask.createdAt);
+            if (!Number.isNaN(eventTime) && !Number.isNaN(taskCreatedTime) && eventTime < taskCreatedTime) {
+              return;
+            }
+          }
+
           const base = {
-            taskId: data.taskId || taskId,
-            workId: data.workId || "wrk_1",
+            taskId: subscribedTask.taskId,
+            workId: subscribedTask.workId,
             timestamp: data.timestamp || new Date().toISOString()
           };
 
-          const existingTask = this.tasks.get(base.taskId as string);
+          const existingTask = this.tasks.get(taskId);
           if (!existingTask) return;
 
           const applyAction = (action: import("./task-creation-state").TaskCreationAction) => {
@@ -569,11 +635,35 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
             });
             const stepIndex = Math.max(0, (snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0));
             handler({ ...base, kind: "step-completed", stepName, stepIndex, taskSnapshot: snapshot });
-          } else if (data.type === "sub-activity") {
+          } else if (
+            data.type === "sub-activity" ||
+            data.type === "tool-call" ||
+            data.type === "tool-call-started" ||
+            data.type === "tool-started" ||
+            data.type === "web-search" ||
+            data.type === "web-search-started"
+          ) {
             const activityType = data.activityType || "provider";
-            const details = data.details || activityType;
-            const stepId = `openclaw-${activityType}`;
-            const stepName = `OpenClaw ${activityType}`;
+            const details =
+              data.details ||
+              data.toolName ||
+              data.query ||
+              data.stepName ||
+              activityType;
+            const stepId =
+              data.stepId ||
+              (data.type.includes("search")
+                ? "openclaw-web-search"
+                : data.type.includes("tool")
+                ? `openclaw-tool-${String(data.toolName || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+                : `openclaw-${activityType}`);
+            const stepName =
+              data.stepName ||
+              (data.type.includes("search")
+                ? "Searching web"
+                : data.type.includes("tool")
+                ? `Calling tool ${data.toolName || ""}`.trim()
+                : `OpenClaw ${activityType}`);
             ensureProviderProcessingStarted();
             snapshot = applyAction({
               type: "provider-step-started",
@@ -651,10 +741,19 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   }
 
   unsubscribeFromTaskEvents(subscription: TaskEventSubscription): void {
+    this.subscriptionHandlers.delete(subscription.subscriptionId);
     const es = this.eventSources.get(subscription.subscriptionId);
     if (es) {
       es.close();
       this.eventSources.delete(subscription.subscriptionId);
+    }
+  }
+
+  private emitLocalEvent(event: TaskRuntimeEvent): void {
+    for (const { taskId, handler } of this.subscriptionHandlers.values()) {
+      if (taskId === (event.taskId as string)) {
+        handler(event);
+      }
     }
   }
 }

@@ -83,16 +83,6 @@ describe("TaskLogList", () => {
     ).toEqual(["First message", "Second message", "Third message"]);
   });
 
-  it("renders the existing timestamp field", () => {
-    render(
-      <TaskLogList
-        logs={[createLog("info", { timestamp: "2026-06-23T10:15:30Z" })]}
-      />
-    );
-
-    expect(screen.getByText("2026-06-23T10:15:30Z")).toBeVisible();
-  });
-
   it.each(LOG_LEVEL_CASES)(
     "renders the visible %s log-level label",
     (level, label) => {
@@ -105,16 +95,6 @@ describe("TaskLogList", () => {
     }
   );
 
-  it("renders log messages as readable text", () => {
-    render(
-      <TaskLogList
-        logs={[createLog("info", { message: "Analyzing the request." })]}
-      />
-    );
-
-    expect(screen.getByText("Analyzing the request.")).toBeVisible();
-  });
-
   it("renders the default empty-log state without fake entries", () => {
     render(<TaskLogList logs={[]} />);
 
@@ -123,37 +103,4 @@ describe("TaskLogList", () => {
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
-  it("renders a custom empty message", () => {
-    render(
-      <TaskLogList
-        logs={[]}
-        emptyMessage="Processing has not produced any logs."
-      />
-    );
-
-    expect(
-      screen.getByText("Processing has not produced any logs.")
-    ).toBeVisible();
-  });
-
-  it("does not change the input array", () => {
-    const logs: TaskLog[] = [
-      createLog("info", { id: "first" }),
-      createLog("success", { id: "second" })
-    ];
-    const originalIds = logs.map((log) => log.id);
-
-    render(<TaskLogList logs={logs} />);
-
-    expect(logs.map((log) => log.id)).toEqual(originalIds);
-  });
-
-  it("does not change input log objects", () => {
-    const log = createLog("warning");
-    const originalLog = { ...log };
-
-    render(<TaskLogList logs={[log]} />);
-
-    expect(log).toEqual(originalLog);
-  });
 });

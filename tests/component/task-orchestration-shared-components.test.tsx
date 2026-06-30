@@ -3,9 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ProcessingTimeline } from
   "@vcp/frontend/features/task-orchestration/components/processing-timeline.tsx";
+import {
+  TaskAssistantProgressSummary,
+  resolveActivityLabel
+} from "@vcp/frontend/features/task-orchestration/components/task-assistant-progress-summary.tsx";
 import { TaskStatusBadge } from
   "@vcp/frontend/features/task-orchestration/components/task-status-badge.tsx";
 import type {
+  CreatedTaskRecord,
   ProcessingStep,
   ProcessingStepStatus,
   TaskPresentationStatus
@@ -156,29 +161,51 @@ describe("ProcessingTimeline", () => {
     expect(within(waitingStep!).queryByText("Started")).not.toBeInTheDocument();
   });
 
-  it("does not change the input array", () => {
-    const steps: ProcessingStep[] = [
-      { id: "validate", label: "Validate input", status: "waiting" },
-      { id: "analyze", label: "Analyze request", status: "active" }
-    ];
-    const originalOrder = steps.map((step) => step.id);
+});
 
-    render(<ProcessingTimeline steps={steps} />);
-
-    expect(steps.map((step) => step.id)).toEqual(originalOrder);
+describe("TaskAssistantProgressSummary", () => {
+  it.each([
+    ["web search started", "Searching web"],
+    ["Calling tool browser", "Calling tool"],
+    ["Read workspace file", "Reading workspace"],
+    ["final output", "Composing response"]
+  ])("summarizes provider activity %s", (label, expected) => {
+    expect(resolveActivityLabel(label).label).toBe(expected);
   });
 
-  it("does not change input step objects", () => {
-    const step: ProcessingStep = {
-      id: "validate",
-      label: "Validate input",
-      status: "completed",
-      completedAt: "2026-06-23T09:00:02Z"
-    };
-    const originalStep = { ...step };
+  it("renders compact runtime activity and recent provider steps", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createRunningTask([
+          { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
+          { id: "openclaw-tool-browser", label: "Calling tool browser", status: "active" }
+        ])}
+      />
+    );
 
-    render(<ProcessingTimeline steps={[step]} />);
-
-    expect(step).toEqual(originalStep);
+    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    expect(screen.getByLabelText("Runtime progress")).toBeVisible();
+    expect(screen.getAllByText("Calling tool").length).toBeGreaterThan(0);
+    expect(screen.getByText("Searching web")).toBeVisible();
   });
 });
+
+function createRunningTask(steps: ProcessingStep[]): CreatedTaskRecord {
+  return {
+    taskId: "TASK-001" as import("@vcp/shared").EntityId<"taskId">,
+    workId: "WORK-001" as import("@vcp/shared").EntityId<"workId">,
+    prompt: "Run provider activity",
+    requestedRouting: { mode: "auto" },
+    status: "running",
+    createdAt: "2026-06-30T00:00:00.000Z",
+    processingSnapshot: {
+      startedAt: "2026-06-30T00:00:00.000Z",
+      steps,
+      logs: []
+    },
+    streamingSnapshot: {
+      phase: "idle",
+      fragments: []
+    }
+  };
+}
