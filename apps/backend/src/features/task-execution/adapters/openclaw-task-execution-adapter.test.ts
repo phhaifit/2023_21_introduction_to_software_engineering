@@ -701,7 +701,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
         listAvailableAgents: vi.fn().mockResolvedValue([
           {
             status: "active",
-            providerAgentMapping: "openclaw/agent/agent-research",
+            providerAgentMapping: "openclaw/agent-research",
             agentId: "agent-research",
             name: "Research Agent",
             role: "Market researcher",
@@ -765,7 +765,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       const agentCat: any = {
         validateAndGetAgent: vi.fn().mockResolvedValue({
           status: "active",
-          providerAgentMapping: "openclaw/agent/agent-research",
+          providerAgentMapping: "openclaw/agent-research",
           agentId: "agent-research",
           name: "Research Agent",
           role: "Market researcher",
@@ -790,9 +790,10 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
         "cred-ref-789",
         expect.objectContaining({
           target: "openclaw/default",
+          openClawAgentId: "agent-research",
           mode: "specific-agent",
           targetLabel: "Research Agent",
-          routingInstruction: expect.stringContaining("OpenClaw agent reference: openclaw/agent/agent-research")
+          routingInstruction: expect.stringContaining("OpenClaw agent reference: openclaw/agent-research")
         })
       );
     });

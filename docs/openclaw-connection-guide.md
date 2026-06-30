@@ -34,7 +34,7 @@ bash scripts/docker/setup.sh
 
 ### Routing model note
 
-Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. Selected OpenClaw agents and workflows are still integrated and sent to OpenClaw, but they are sent as system routing context, not as the `model` value. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including their OpenClaw references, so the OpenClaw coordinator can choose the best route.
+Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. For `specific-agent`, Backend also sends the selected native OpenClaw agent through `x-openclaw-agent-id` and includes the `openclaw/<agentId>` reference in system routing context. Selected workflows are sent as system routing context until OpenClaw exposes a documented workflow routing header or target. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including their OpenClaw references, so the OpenClaw coordinator can choose the best route.
 
 Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider**:
 

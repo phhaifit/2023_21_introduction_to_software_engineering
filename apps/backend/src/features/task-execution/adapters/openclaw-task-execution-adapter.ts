@@ -130,6 +130,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     let providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
     let routingInstruction = await this.buildAutoRoutingInstruction(command.workspaceId);
     let targetLabel = "Auto routing";
+    let openClawAgentId: string | undefined;
     if (command.routing.mode === "auto") {
       // Auto-routing delegation
       providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
@@ -139,6 +140,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         throw new Error("Routing target unavailable: specified agent is inactive or invalid");
       }
       providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
+      openClawAgentId = agentContract.agentId;
       targetLabel = agentContract.name || command.routing.agentId;
       routingInstruction = buildSpecificAgentRoutingInstruction(agentContract);
     } else if (command.routing.mode === "predefined-workflow") {
@@ -185,7 +187,8 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         mode: command.routing.mode,
         conversationId: command.conversationId as string | undefined,
         routingInstruction,
-        targetLabel
+        targetLabel,
+        openClawAgentId
       });
       providerExecutionReference = startResp.providerExecutionReference;
 

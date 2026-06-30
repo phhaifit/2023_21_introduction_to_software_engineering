@@ -10,6 +10,7 @@ export interface OpenClawExecutionRequest {
   conversationId?: string;
   routingInstruction?: string;
   targetLabel?: string;
+  openClawAgentId?: string;
 }
 
 export interface OpenClawExecutionResponse {
@@ -204,14 +205,19 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
     try {
       const abortController = new AbortController();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${credentialReference}`,
+        "x-openclaw-model": DEFAULT_OPENCLAW_MODEL,
+        "x-openclaw-session-key": request.conversationId || "default-session"
+      };
+      if (request.openClawAgentId) {
+        headers["x-openclaw-agent-id"] = request.openClawAgentId;
+      }
+
       const response = await this.fetcher(`${endpoint}/v1/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${credentialReference}`,
-          "x-openclaw-model": DEFAULT_OPENCLAW_MODEL,
-          "x-openclaw-session-key": request.conversationId || "default-session"
-        },
+        headers,
         body: JSON.stringify({
           model: DEFAULT_OPENCLAW_ROUTING_TARGET,
           messages: buildOpenClawMessages(request),

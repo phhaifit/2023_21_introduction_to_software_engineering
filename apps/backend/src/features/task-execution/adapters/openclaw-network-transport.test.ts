@@ -193,9 +193,10 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       await transport.startExecution("https://openclaw.internal", "cred-123", {
         taskId: "task-123",
         prompt: "Summarize this report",
-        target: "openclaw/agent/agent-research",
+        target: "openclaw/default",
         mode: "specific-agent",
         conversationId: "session-123",
+        openClawAgentId: "agent-research",
         routingInstruction:
           "Task & Orchestration routing mode: specific-agent. Use exactly this selected workspace agent: Research Agent."
       });
@@ -206,7 +207,8 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           "Content-Type": "application/json",
           "Authorization": "Bearer cred-123",
           "x-openclaw-model": "google/gemini-3.1-flash-lite",
-          "x-openclaw-session-key": "session-123"
+          "x-openclaw-session-key": "session-123",
+          "x-openclaw-agent-id": "agent-research"
         },
         body: JSON.stringify({
           model: "openclaw/default",

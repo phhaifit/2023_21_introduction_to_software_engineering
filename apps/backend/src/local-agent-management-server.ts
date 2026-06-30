@@ -105,7 +105,7 @@ class ServerAgentCatalog implements ExternalAgentCatalog {
     return {
       agentId,
       workspaceId: workspaceId as string,
-      providerAgentMapping: `openclaw/agent/${agent.agentId}`,
+      providerAgentMapping: `openclaw/${agent.agentId}`,
       status: "active" as const,
       name: agent.name,
       role: agent.role,
@@ -122,7 +122,7 @@ class ServerAgentCatalog implements ExternalAgentCatalog {
       .map((agent) => ({
         agentId: agent.agentId as string,
         workspaceId: workspaceId as string,
-        providerAgentMapping: `openclaw/agent/${agent.agentId}`,
+        providerAgentMapping: `openclaw/${agent.agentId}`,
         status: "active" as const,
         name: agent.name,
         role: agent.role,
