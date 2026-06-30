@@ -34,7 +34,24 @@ bash scripts/docker/setup.sh
 
 ### Routing model note
 
-Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. For `specific-agent`, Backend also sends the selected native OpenClaw agent through `x-openclaw-agent-id` and includes the `openclaw/<agentId>` reference in system routing context. Selected workflows are sent as system routing context until OpenClaw exposes a documented workflow routing header or target. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including their OpenClaw references, so the OpenClaw coordinator can choose the best route.
+Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. For `specific-agent`, Backend sends the platform agent profile as system routing context. It sends `x-openclaw-agent-id` only when the catalog provides a verified native OpenClaw agent ID that is known to exist in the Gateway; platform agent IDs must not be sent as native OpenClaw IDs because the Gateway will reject unknown agents. Selected workflows are sent as system routing context until OpenClaw exposes a documented workflow routing header or target. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including any verified OpenClaw references, so the OpenClaw coordinator can choose the best route.
+
+## Agent Materialization
+
+Agent Management remains the source of truth for platform agent configuration and generated `skill.md` content. It does not call OpenClaw directly.
+
+To let the backend send a native `x-openclaw-agent-id`, configure a shared OpenClaw agent workspace directory:
+
+- `OPENCLAW_AGENT_WORKSPACE_DIR`: preferred directory where Backend writes OpenClaw-facing agent artifacts.
+- `AGENT_SKILLS_DIR`: fallback directory used by the existing Agent Management skill writer and the OpenClaw materializer.
+
+When one of these variables is set, the local backend materializes enabled agents on catalog lookup by writing:
+
+- `<dir>/<workspaceId>/<agentId>/skill.md`
+- `<dir>/<workspaceId>/<agentId>/agent.json`
+- `<dir>/<workspaceId>/agents.list.json`
+
+Only after this write succeeds does Task Execution treat `<agentId>` as a verified native OpenClaw agent ID and include `x-openclaw-agent-id`. If the directory is not configured or writing fails, the request still includes platform routing context, but omits the native agent header.
 
 ### Progress side-channel note
 

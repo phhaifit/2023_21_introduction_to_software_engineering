@@ -701,7 +701,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
         listAvailableAgents: vi.fn().mockResolvedValue([
           {
             status: "active",
-            providerAgentMapping: "openclaw/agent-research",
+            providerAgentMapping: "",
             agentId: "agent-research",
             name: "Research Agent",
             role: "Market researcher",
@@ -746,7 +746,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       expect(mockTransport.startExecution.mock.calls[0][2].routingInstruction).toContain("openclaw/workflow/workflow-research");
     });
 
-    it("4.1: should pass selected specific-agent mapping and routing instruction to OpenClaw transport", async () => {
+    it("4.1: should pass selected specific-agent routing context without native OpenClaw header when no verified native ID exists", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "started", startedAt: "2023-01-01" }),
         cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "canceled", canceledAt: "2023-01-01" }),
@@ -765,7 +765,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       const agentCat: any = {
         validateAndGetAgent: vi.fn().mockResolvedValue({
           status: "active",
-          providerAgentMapping: "openclaw/agent-research",
+          providerAgentMapping: "",
           agentId: "agent-research",
           name: "Research Agent",
           role: "Market researcher",
@@ -790,10 +790,60 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
         "cred-ref-789",
         expect.objectContaining({
           target: "openclaw/default",
-          openClawAgentId: "agent-research",
           mode: "specific-agent",
           targetLabel: "Research Agent",
-          routingInstruction: expect.stringContaining("OpenClaw agent reference: openclaw/agent-research")
+          routingInstruction: expect.stringContaining("Use exactly this selected workspace agent: Research Agent")
+        })
+      );
+      expect(mockTransport.startExecution.mock.calls[0][2]).not.toHaveProperty("openClawAgentId");
+    });
+
+    it("4.1: should pass native OpenClaw agent header only when catalog provides a verified native agent ID", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-native-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-native-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn().mockResolvedValue({
+          status: "active",
+          providerAgentMapping: "openclaw/native-research",
+          agentId: "agent-research",
+          openClawAgentId: "native-research",
+          name: "Research Agent"
+        })
+      };
+      const workflowCat: any = { validateAndGetWorkflow: vi.fn() };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-agent-native-101" as any,
+        workId: "work-agent-native-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-agent-native-1" as any,
+        prompt: "Research market size",
+        routing: { mode: "specific-agent", agentId: "agent-research" }
+      });
+
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/default",
+          openClawAgentId: "native-research",
+          mode: "specific-agent",
+          targetLabel: "Research Agent",
+          routingInstruction: expect.stringContaining("OpenClaw agent reference: openclaw/native-research")
         })
       );
     });

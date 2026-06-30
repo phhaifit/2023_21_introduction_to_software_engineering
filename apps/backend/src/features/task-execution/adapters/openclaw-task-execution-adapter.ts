@@ -23,6 +23,7 @@ export interface ExternalAgentContract {
   role?: string;
   model?: string;
   instructions?: string;
+  openClawAgentId?: string;
 }
 
 export interface ExternalAgentCatalog {
@@ -140,7 +141,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         throw new Error("Routing target unavailable: specified agent is inactive or invalid");
       }
       providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
-      openClawAgentId = agentContract.agentId;
+      openClawAgentId = agentContract.openClawAgentId;
       targetLabel = agentContract.name || command.routing.agentId;
       routingInstruction = buildSpecificAgentRoutingInstruction(agentContract);
     } else if (command.routing.mode === "predefined-workflow") {
@@ -180,7 +181,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     let providerExecutionReference = `openclaw-exec-${Date.now()}`;
 
     if (this.transport) {
-      const startResp = await this.transport.startExecution(runtime.endpointReference, runtime.credentialReference, {
+      const executionRequest = {
         taskId: taskIdStr,
         prompt: command.prompt,
         target: providerExecutionTarget,
@@ -188,8 +189,9 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
         conversationId: command.conversationId as string | undefined,
         routingInstruction,
         targetLabel,
-        openClawAgentId
-      });
+        ...(openClawAgentId ? { openClawAgentId } : {})
+      };
+      const startResp = await this.transport.startExecution(runtime.endpointReference, runtime.credentialReference, executionRequest);
       providerExecutionReference = startResp.providerExecutionReference;
 
       this.activeExecutions.set(taskIdStr, {
