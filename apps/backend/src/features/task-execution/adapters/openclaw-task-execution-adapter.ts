@@ -85,6 +85,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
   private workflowCatalog: ExternalWorkflowCatalog;
   private transport?: OpenClawNetworkTransport;
   private subscribers = new Map<string, Set<(event: NormalizedRuntimeEvent) => void>>();
+  private eventHistory = new Map<string, NormalizedRuntimeEvent[]>();
   private snapshots = new Map<string, ExecutionSnapshot>();
   private processedEvents = new Map<string, Set<string>>(); // taskId -> Set of event signatures/timestamps for duplicate protection
   private lastEventTimestamps = new Map<string, number>(); // taskId -> timestamp for stale event protection
@@ -157,6 +158,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     // Set up transport state and initial snapshot
     this.transportConnectionState.set(taskIdStr, "connected");
     this.processedEvents.set(taskIdStr, new Set());
+    this.eventHistory.set(taskIdStr, []);
     this.lastEventTimestamps.set(taskIdStr, Date.now());
 
     const initialSnapshot: ExecutionSnapshot = {
@@ -284,6 +286,11 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
       this.subscribers.set(taskIdStr, new Set());
     }
     this.subscribers.get(taskIdStr)!.add(callback);
+
+    const history = this.eventHistory.get(taskIdStr) ?? [];
+    for (const event of history) {
+      queueMicrotask(() => callback(event));
+    }
   }
 
   unsubscribe(taskId: EntityId<"taskId">, callback: (event: NormalizedRuntimeEvent) => void): void {
@@ -301,6 +308,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     this.streamSubscriptions.clear();
     this.activeExecutions.clear();
     this.subscribers.clear();
+    this.eventHistory.clear();
     this.snapshots.clear();
     this.processedEvents.clear();
     this.lastEventTimestamps.clear();
@@ -393,7 +401,15 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
   }
 
   private publishEvent(taskId: EntityId<"taskId">, event: NormalizedRuntimeEvent): void {
-    const set = this.subscribers.get(taskId as string);
+    const taskIdStr = taskId as string;
+    const history = this.eventHistory.get(taskIdStr) ?? [];
+    history.push(event);
+    if (history.length > 200) {
+      history.splice(0, history.length - 200);
+    }
+    this.eventHistory.set(taskIdStr, history);
+
+    const set = this.subscribers.get(taskIdStr);
     if (set) {
       for (const callback of set) {
         callback(event);

@@ -21,6 +21,7 @@ describe("OpenClawAgentMaterializer", () => {
         workspaceId: "workspace-1",
         openClawAgentId: "agent-research",
         providerAgentMapping: "openclaw/agent/agent-research",
+        artifactDirectoryName: "agent-research",
         materializedAt: "2026-06-30T00:00:00.000Z",
         profileUpdatedAt: "2026-06-29T00:00:00.000Z"
       });
@@ -66,6 +67,7 @@ describe("OpenClawAgentMaterializer", () => {
     const materializer = new FileSystemOpenClawAgentMaterializer(baseDir, () => "2026-06-30T00:00:00.000Z", {
       async mirrorWorkspace(workspaceDir, workspaceId) {
         calls.push({ workspaceDir, workspaceId });
+        return null;
       }
     });
 
@@ -77,6 +79,34 @@ describe("OpenClawAgentMaterializer", () => {
           workspaceDir: join(baseDir, "workspace-1"),
           workspaceId: "workspace-1"
         }
+      ]);
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the registered native OpenClaw agent ID returned by the mirror", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-agent-materializer-"));
+    const materializer = new FileSystemOpenClawAgentMaterializer(baseDir, () => "2026-06-30T00:00:00.000Z", {
+      async mirrorWorkspace() {
+        return {
+          openClawAgentId: "research-agent",
+          providerAgentMapping: "openclaw/agent/research-agent"
+        };
+      }
+    });
+
+    try {
+      const materialized = await materializer.materializeAgent(createRuntimeProfile());
+
+      expect(materialized.openClawAgentId).toBe("research-agent");
+      expect(materialized.providerAgentMapping).toBe("openclaw/agent/research-agent");
+      const agentsList = JSON.parse(await readFile(join(baseDir, "workspace-1", "agents.list.json"), "utf-8"));
+      expect(agentsList).toEqual([
+        expect.objectContaining({
+          id: "research-agent",
+          providerAgentMapping: "openclaw/agent/research-agent"
+        })
       ]);
     } finally {
       await rm(baseDir, { recursive: true, force: true });

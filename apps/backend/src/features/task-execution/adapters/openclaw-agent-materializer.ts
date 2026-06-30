@@ -12,6 +12,7 @@ export type OpenClawMaterializedAgent = {
   workspaceId: string;
   openClawAgentId: string;
   providerAgentMapping: string;
+  artifactDirectoryName: string;
   materializedAt: string;
   profileUpdatedAt: string;
 };
@@ -25,11 +26,17 @@ export interface OpenClawAgentMaterializer {
 }
 
 export interface OpenClawAgentArtifactMirror {
-  mirrorWorkspace(workspaceDir: string, workspaceId: string): Promise<void>;
+  mirrorWorkspace(
+    workspaceDir: string,
+    workspaceId: string,
+    profile: AgentRuntimeProfile
+  ): Promise<Pick<OpenClawMaterializedAgent, "openClawAgentId" | "providerAgentMapping"> | null>;
 }
 
 export class NoOpOpenClawAgentArtifactMirror implements OpenClawAgentArtifactMirror {
-  async mirrorWorkspace(): Promise<void> {}
+  async mirrorWorkspace(): Promise<Pick<OpenClawMaterializedAgent, "openClawAgentId" | "providerAgentMapping"> | null> {
+    return null;
+  }
 }
 
 export class DockerOpenClawAgentArtifactMirror implements OpenClawAgentArtifactMirror {
@@ -41,10 +48,74 @@ export class DockerOpenClawAgentArtifactMirror implements OpenClawAgentArtifactM
     this.destinationDir = destinationDir.replace(/\/+$/, "");
   }
 
-  async mirrorWorkspace(workspaceDir: string, workspaceId: string): Promise<void> {
-    const destination = `${this.destinationDir}/${workspaceId}`;
-    await execFileAsync("docker", ["exec", this.containerName, "mkdir", "-p", destination]);
-    await execFileAsync("docker", ["cp", `${workspaceDir}/.`, `${this.containerName}:${destination}`]);
+  async mirrorWorkspace(
+    workspaceDir: string,
+    workspaceId: string,
+    profile: AgentRuntimeProfile
+  ): Promise<Pick<OpenClawMaterializedAgent, "openClawAgentId" | "providerAgentMapping"> | null> {
+    const workspaceDestination = `${this.destinationDir}/${workspaceId}`;
+    const agentWorkspaceDestination = `${workspaceDestination}/${profile.materializationHints.agentDirectoryName}`;
+    await execFileAsync("docker", ["exec", this.containerName, "mkdir", "-p", workspaceDestination]);
+    await execFileAsync("docker", ["cp", `${workspaceDir}/.`, `${this.containerName}:${workspaceDestination}`]);
+
+    const registered = await this.findRegisteredAgent(agentWorkspaceDestination);
+    if (registered) {
+      await this.updateIdentity(registered.id, profile);
+      return {
+        openClawAgentId: registered.id,
+        providerAgentMapping: `openclaw/agent/${registered.id}`
+      };
+    }
+
+    const add = await execFileAsync("docker", [
+      "exec",
+      this.containerName,
+      "openclaw",
+      "agents",
+      "add",
+      profile.materializationHints.agentDirectoryName,
+      "--workspace",
+      agentWorkspaceDestination,
+      "--agent-dir",
+      `/home/node/.openclaw/agents/${profile.materializationHints.agentDirectoryName}/agent`,
+      "--model",
+      profile.model,
+      "--non-interactive",
+      "--json"
+    ]);
+    const parsed = JSON.parse(add.stdout);
+    const openClawAgentId = String(parsed.agentId || profile.materializationHints.agentDirectoryName);
+    await this.updateIdentity(openClawAgentId, profile);
+    return {
+      openClawAgentId,
+      providerAgentMapping: `openclaw/agent/${openClawAgentId}`
+    };
+  }
+
+  private async findRegisteredAgent(workspacePath: string): Promise<{ id: string } | null> {
+    const list = await execFileAsync("docker", ["exec", this.containerName, "openclaw", "agents", "list", "--json"]);
+    const parsed = JSON.parse(list.stdout);
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+    const normalizedWorkspace = normalizeContainerPath(workspacePath);
+    const match = parsed.find((agent) => normalizeContainerPath(agent?.workspace) === normalizedWorkspace);
+    return match?.id ? { id: String(match.id) } : null;
+  }
+
+  private async updateIdentity(agentId: string, profile: AgentRuntimeProfile): Promise<void> {
+    await execFileAsync("docker", [
+      "exec",
+      this.containerName,
+      "openclaw",
+      "agents",
+      "set-identity",
+      "--agent",
+      agentId,
+      "--name",
+      profile.name,
+      "--json"
+    ]);
   }
 }
 
@@ -78,11 +149,12 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
     const openClawAgentId = profile.materializationHints.agentDirectoryName;
     const workspaceDir = join(this.baseDir, profile.workspaceId);
     const agentDir = join(workspaceDir, openClawAgentId);
-    const materialized: OpenClawMaterializedAgent = {
+    let materialized: OpenClawMaterializedAgent = {
       agentId: profile.agentId,
       workspaceId: profile.workspaceId,
       openClawAgentId,
       providerAgentMapping: `openclaw/agent/${openClawAgentId}`,
+      artifactDirectoryName: openClawAgentId,
       materializedAt: this.now(),
       profileUpdatedAt: profile.updatedAt
     };
@@ -113,7 +185,18 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
 
     this.materialized.set(this.key(profile.workspaceId, profile.agentId), materialized);
     await this.writeAgentsList(workspaceDir, profile.workspaceId);
-    await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId);
+    const registered = await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId, profile);
+    if (registered) {
+      materialized = {
+        ...materialized,
+        openClawAgentId: registered.openClawAgentId,
+        providerAgentMapping: registered.providerAgentMapping,
+        artifactDirectoryName: profile.materializationHints.agentDirectoryName
+      };
+      this.materialized.set(this.key(profile.workspaceId, profile.agentId), materialized);
+      await this.writeAgentsList(workspaceDir, profile.workspaceId);
+      await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId, profile);
+    }
     return materialized;
   }
 
@@ -127,10 +210,14 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
   private async writeAgentsList(workspaceDir: string, workspaceId: string): Promise<void> {
     const existing = await this.readAgentsList(workspaceDir);
     const current = Array.from(this.materialized.values()).filter((agent) => agent.workspaceId === workspaceId);
+    const currentPlatformAgentIds = new Set(current.map((agent) => agent.agentId));
     const merged = new Map<string, Record<string, unknown>>();
 
     for (const item of existing) {
-      if (typeof item.id === "string") {
+      if (
+        typeof item.id === "string" &&
+        !currentPlatformAgentIds.has(String(item.platformAgentId || ""))
+      ) {
         merged.set(item.id, item);
       }
     }
@@ -141,7 +228,7 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
         platformAgentId: agent.agentId,
         providerAgentMapping: agent.providerAgentMapping,
         status: "enabled",
-        skillFile: `${agent.openClawAgentId}/skill.md`,
+        skillFile: `${agent.artifactDirectoryName}/skill.md`,
         profileUpdatedAt: agent.profileUpdatedAt,
         materializedAt: agent.materializedAt
       });
@@ -167,4 +254,8 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
   private key(workspaceId: EntityId<"workspaceId"> | string, agentId: EntityId<"agentId"> | string): string {
     return `${workspaceId}:${agentId}`;
   }
+}
+
+function normalizeContainerPath(value: unknown): string {
+  return String(value || "").replace(/\/+$/, "");
 }

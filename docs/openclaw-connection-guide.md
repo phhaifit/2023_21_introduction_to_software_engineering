@@ -64,7 +64,15 @@ OPENCLAW_AGENT_MIRROR_CONTAINER=openclaw-openclaw-gateway-1
 OPENCLAW_AGENT_MIRROR_DIR=/home/node/.openclaw/workspace/openclaw-agents
 ```
 
-With the mirror variables set, the backend automatically copies the generated workspace artifacts into the running Gateway container after each successful materialization. This keeps the container copy fresh without manual `docker cp`.
+With the mirror variables set, the backend automatically copies the generated workspace artifacts into the running Gateway container after each successful materialization. It then uses the official OpenClaw CLI in the container to register or update the native agent:
+
+```sh
+openclaw agents list --json
+openclaw agents add <materialized-agent-dir> --workspace <container-workspace-dir> --agent-dir <container-agent-dir> --model <model> --non-interactive --json
+openclaw agents set-identity --agent <native-agent-id> --name <agent-name> --json
+```
+
+Task Execution sends `x-openclaw-agent-id` only after this registration succeeds. For example, platform `agent-research` may map to native OpenClaw agent `research-agent`.
 
 ### Progress side-channel note
 

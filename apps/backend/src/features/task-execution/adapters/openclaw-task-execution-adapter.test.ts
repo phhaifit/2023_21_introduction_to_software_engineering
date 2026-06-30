@@ -680,6 +680,73 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       await netAdapter.releaseResources();
     });
 
+    it("4.1: should replay accepted, started, partial, and completed events to late SSE subscribers", async () => {
+      const startedAt = Date.now();
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-replay-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-replay-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockImplementation((_endpoint, _cred, execRef, onEvent) => {
+          onEvent({
+            object: "chat.completion.chunk",
+            executionId: execRef,
+            choices: [{ delta: { content: "Hello" } }],
+            timestamp: startedAt + 1
+          });
+          onEvent({
+            object: "chat.completion.chunk",
+            executionId: execRef,
+            choices: [{ finish_reason: "stop" }],
+            finalOutput: "Hello",
+            timestamp: startedAt + 2
+          });
+          return { unsubscribe: vi.fn() };
+        }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "completed" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn(),
+        listAvailableAgents: vi.fn().mockResolvedValue([])
+      };
+      const workflowCat: any = {
+        validateAndGetWorkflow: vi.fn(),
+        listAvailableWorkflows: vi.fn().mockResolvedValue([])
+      };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-replay-1" as any,
+        workId: "work-replay-1" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-1" as any,
+        prompt: "Replay integration test",
+        routing: { mode: "auto" }
+      });
+
+      const replayedEvents: string[] = [];
+      netAdapter.subscribe("task-replay-1" as any, (event) => {
+        replayedEvents.push(event.type);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(replayedEvents).toEqual([
+        "execution-accepted",
+        "execution-started",
+        "partial-output-received",
+        "execution-completed"
+      ]);
+
+      await netAdapter.releaseResources();
+    });
+
     it("4.1: should pass all available agents and workflows when auto routing is selected", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-auto-1", status: "started", startedAt: "2023-01-01" }),
