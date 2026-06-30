@@ -60,6 +60,10 @@ export type KnowledgeBaseRagApiClient = {
     workspaceId: EntityId<"workspaceId">,
     request: PrepareUploadRequest
   ): Promise<PrepareUploadResponse>;
+  uploadDocuments(
+    workspaceId: EntityId<"workspaceId">,
+    files: readonly File[]
+  ): Promise<PrepareUploadResponse>;
   listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
     filters?: KnowledgeIngestionJobListFilters
@@ -135,13 +139,14 @@ export function createKnowledgeBaseRagApiClient(input: {
 
   async function request<T>(path: string, init?: RequestInit): Promise<ApiEnvelope<T>> {
     let response: Response;
+    const hasJsonBody = typeof init?.body === "string";
 
     try {
       response = await fetchImplementation(`${baseUrl}${path}`, {
         ...init,
         headers: {
           accept: "application/json",
-          ...(init?.body ? { "content-type": "application/json" } : {}),
+          ...(hasJsonBody ? { "content-type": "application/json" } : {}),
           ...init?.headers
         }
       });
@@ -217,6 +222,17 @@ export function createKnowledgeBaseRagApiClient(input: {
         routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.prepareUploads, { workspaceId }),
         payload
       ),
+    uploadDocuments: async (workspaceId, files) => {
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append("files", file, file.name);
+      }
+
+      return requestMultipart<PrepareUploadResponse>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.uploadDocuments, { workspaceId }),
+        formData
+      );
+    },
     listIngestionJobs: async (workspaceId, filters) => {
       const response = await request<IngestionJobDto[]>(
         withQuery(routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.ingestionJobs, { workspaceId }), {
@@ -295,6 +311,13 @@ export function createKnowledgeBaseRagApiClient(input: {
     return (await request<T>(path, {
       method,
       body: JSON.stringify(payload)
+    })).data;
+  }
+
+  async function requestMultipart<T>(path: string, body: FormData): Promise<T> {
+    return (await request<T>(path, {
+      method: "POST",
+      body
     })).data;
   }
 }

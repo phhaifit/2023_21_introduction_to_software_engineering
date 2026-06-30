@@ -28,7 +28,7 @@ import type {
 
 import "./knowledge-base-rag-upload.css";
 
-const supportedFileTypes: KnowledgeDocumentType[] = ["pdf", "docx", "txt", "csv", "page"];
+const supportedFileTypes: KnowledgeDocumentType[] = ["pdf", "docx", "txt"];
 const defaultApiClient = createKnowledgeBaseRagApiClient();
 
 type UploadValidationDisplayStatus = UploadValidationStatus | "pending";
@@ -56,6 +56,7 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
   } = props;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [candidateFiles, setCandidateFiles] = useState<UploadCandidateFileDto[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [validationResponse, setValidationResponse] =
     useState<UploadValidationResponse | null>(null);
   const [operationState, setOperationState] = useState<"idle" | "validating" | "preparing">("idle");
@@ -79,8 +80,10 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
 
   async function handleFileSelection(files: FileList | null) {
     const nextCandidates = files ? Array.from(files).map(toUploadCandidateFileDto) : [];
+    const nextSelectedFiles = files ? Array.from(files) : [];
 
     setCandidateFiles(nextCandidates);
+    setSelectedFiles(nextSelectedFiles);
     setValidationResponse(null);
     setSuccessMessage(null);
 
@@ -119,12 +122,13 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
     setSuccessMessage(null);
 
     try {
-      const response = await apiClient.prepareUpload(workspaceId, {
-        files: validCandidateFiles
-      });
+      const response = await apiClient.uploadDocuments(
+        workspaceId,
+        getAcceptedSelectedFiles(selectedFiles, validCandidateFiles)
+      );
       const preparedCount = response.documents.length;
       setSuccessMessage(
-        `Prepared ${preparedCount} ${preparedCount === 1 ? "document" : "documents"} for ingestion.`
+        `Uploaded ${preparedCount} ${preparedCount === 1 ? "document" : "documents"} for ingestion.`
       );
       onUploadPrepared?.(response);
     } catch (error: unknown) {
@@ -228,7 +232,7 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
           disabled={validCandidateFiles.length === 0 || isBusy}
           onClick={() => void handlePrepareUpload()}
         >
-          {operationState === "preparing" ? "Preparing..." : "Prepare valid files"}
+          {operationState === "preparing" ? "Uploading..." : "Upload valid files"}
         </button>
       </section>
     </div>
@@ -359,6 +363,14 @@ function getAcceptedCandidates(
   return files.filter((file) => acceptedIds.has(file.clientFileId));
 }
 
+function getAcceptedSelectedFiles(
+  selectedFiles: File[],
+  acceptedCandidates: UploadCandidateFileDto[]
+): File[] {
+  const acceptedNames = new Set(acceptedCandidates.map((file) => file.fileName));
+  return selectedFiles.filter((file) => acceptedNames.has(file.name));
+}
+
 function mapValidationStatus(status?: UploadValidationDtoStatus): UploadValidationDisplayStatus {
   if (!status) return "pending";
   return status === "accepted" ? "valid" : "invalid";
@@ -385,7 +397,6 @@ function inferMediaType(fileName: string): string {
   if (normalizedName.endsWith(".docx")) {
     return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   }
-  if (normalizedName.endsWith(".csv")) return "text/csv";
   if (normalizedName.endsWith(".txt")) return "text/plain";
 
   return "application/octet-stream";
@@ -403,7 +414,6 @@ function inferDocumentType(mediaType: string, fileName: string): KnowledgeDocume
   ) {
     return "docx";
   }
-  if (normalizedMediaType.includes("csv") || normalizedName.endsWith(".csv")) return "csv";
   if (normalizedMediaType.includes("text") || normalizedName.endsWith(".txt")) return "txt";
 
   return "unsupported";

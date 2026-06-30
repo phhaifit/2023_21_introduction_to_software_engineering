@@ -47,6 +47,7 @@ assert.match(
 
 const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/knowledge/documents"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/ingestion-jobs"],

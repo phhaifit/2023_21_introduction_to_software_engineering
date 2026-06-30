@@ -13,6 +13,7 @@ import {
   KnowledgeBaseRagValidationError,
   KnowledgeDataSourceNotFoundError,
   KnowledgeDocumentNotFoundError,
+  KnowledgeFileStorageError,
   KnowledgeIngestionJobNotFoundError,
   KnowledgeSyncJobNotFoundError
 } from "../application/knowledge-base-rag-errors.ts";
@@ -30,6 +31,7 @@ import {
   parseUpdateSyncScopeRequest,
   parseUploadValidationRequest
 } from "./knowledge-base-rag-request-parsers.ts";
+import { parseKnowledgeUploadMultipartRequest } from "./knowledge-base-rag-multipart-parser.ts";
 import type { CheckoutUseCases } from "../../subscription-payment/application/checkout-use-cases.ts";
 
 export type KnowledgeBaseRagRouterDependencies = {
@@ -75,6 +77,22 @@ export function createKnowledgeBaseRagRouter(
             result.total
           )
         };
+      });
+    }
+  );
+
+  router.post(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.uploadDocuments,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId, actorId } = enforceKnowledgeManagePermission(request);
+        const files = await parseKnowledgeUploadMultipartRequest(request);
+
+        return dependencies.uploadUseCases.uploadDocuments(
+          workspaceId,
+          actorId,
+          files
+        );
       });
     }
   );
@@ -293,6 +311,16 @@ async function handleKnowledgeBaseRagRequest<T>(
         "validation.invalid_input",
         error.message,
         { issues: error.issues }
+      );
+      return;
+    }
+
+    if (error instanceof KnowledgeFileStorageError) {
+      sendKnowledgeBaseRagApiFailure(
+        request,
+        response,
+        "system.unexpected_error",
+        error.message
       );
       return;
     }

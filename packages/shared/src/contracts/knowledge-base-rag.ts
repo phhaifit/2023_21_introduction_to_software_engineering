@@ -4,6 +4,7 @@ import type { KnowledgeIndexStatus } from "./statuses.ts";
 
 export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   documents: "/api/workspaces/:workspaceId/knowledge/documents",
+  uploadDocuments: "/api/workspaces/:workspaceId/knowledge/uploads",
   validateUploads: "/api/workspaces/:workspaceId/knowledge/uploads/validate",
   prepareUploads: "/api/workspaces/:workspaceId/knowledge/uploads/prepare",
   ingestionJobs: "/api/workspaces/:workspaceId/knowledge/ingestion-jobs",
@@ -15,6 +16,7 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.documents },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.uploadDocuments },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.validateUploads },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.prepareUploads },
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.ingestionJobs },

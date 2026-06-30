@@ -7,6 +7,11 @@ Define workspace-scoped document upload, validation, safe file storage, metadata
 ### Requirement: Knowledge Document Upload
 The system SHALL allow authorized users to upload supported knowledge documents to a workspace.
 
+#### Scenario: Workspace-scoped upload route accepted
+- **WHEN** an authorized user submits a supported file to `/api/workspaces/:workspaceId/knowledge/uploads`
+- **THEN** the system stores the file through the Knowledge Base / RAG storage boundary
+- **AND** returns safe document and ingestion job DTOs
+
 #### Scenario: Authorized upload accepted
 - **WHEN** an authorized user uploads a supported document file to a workspace
 - **THEN** the system accepts the upload for storage and processing preparation

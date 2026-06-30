@@ -13,16 +13,17 @@ Foundation reference: see `docs/module-ownership.md`,
 This backend module now contains the internal backend foundation for domain
 models, application repository ports, application use cases, safe DTO mappers,
 Prisma repository adapters, deterministic in-memory repositories, a thin
-workspace-scoped HTTP API router, and a worker handoff skeleton for document
-ingestion lifecycle updates. The worker boundary also includes a deterministic
-text processing pipeline for supported text/markdown documents and an injected
-embedding/vector indexing adapter boundary for persisted chunks. It also has a
-local end-to-end flow runner that composes handoff, text processing, and
-indexing for deterministic tests.
+workspace-scoped HTTP API router, a module-local file storage boundary for real
+uploads, and a worker handoff skeleton for document ingestion lifecycle
+updates. The worker boundary also includes a deterministic text processing
+pipeline for supported text/markdown documents and an injected embedding/vector
+indexing adapter boundary for persisted chunks. It also has a local end-to-end
+flow runner that composes handoff, text processing, and indexing for
+deterministic tests.
 
-It still does not contain real file parsing, file storage adapters, real
-embedding provider calls, real vector database calls, full worker runtime
-handlers, or retrieval implementation.
+It still does not contain real file parsing, real embedding provider calls,
+real vector database calls, full worker runtime handlers, or retrieval
+implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -115,6 +116,7 @@ The public contract uses workspace-scoped routes under
 ```text
 GET    /api/workspaces/:workspaceId/knowledge/documents
 POST   /api/workspaces/:workspaceId/knowledge/uploads/validate
+POST   /api/workspaces/:workspaceId/knowledge/uploads
 POST   /api/workspaces/:workspaceId/knowledge/uploads/prepare
 GET    /api/workspaces/:workspaceId/knowledge/ingestion-jobs
 GET    /api/workspaces/:workspaceId/knowledge/data-sources
@@ -128,8 +130,11 @@ GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
 The API router in `api/knowledge-base-rag-router.ts` maps these routes to
 application use cases. It parses request bodies, reads `workspaceId` from the
 route path, takes actor identity from `request.context`, returns shared DTOs
-through `ApiResponse` envelopes, and does not call Prisma, storage, embedding,
-vector, worker, or provider adapters directly.
+through `ApiResponse` envelopes, and does not call Prisma, embedding, vector,
+worker, or provider adapters directly. Real file uploads use multipart form
+data on `/uploads`; the router only parses the incoming file payload and hands
+it to the application use case, which stores content through the module-local
+storage port.
 
 Request bodies must not accept trusted fields such as
 `workspaceId`, actor/user ID, generated IDs, lifecycle status, timestamps, raw
@@ -239,10 +244,21 @@ In-memory adapters are deterministic and workspace-scoped for future
 application/use-case tests.
 
 Current application use cases cover metadata-only upload validation, safe
-upload preparation into pending document/ingestion-job records, document and
-chunk reads, ingestion-job reads, data-source placeholder connection, sync-scope
-updates, and queued manual sync-job creation. They do not parse files, upload
-to storage, enqueue real workers, call embedding providers, or write vectors.
+upload preparation into pending document/ingestion-job records, real file upload
+storage through `KnowledgeFileStorage`, document and chunk reads, ingestion-job
+reads, data-source placeholder connection, sync-scope updates, and queued manual
+sync-job creation. They do not parse files, enqueue real workers, call embedding
+providers, or write vectors.
+
+## Local Upload Storage
+
+`LocalKnowledgeFileStorage` stores accepted upload bytes below
+`KNOWLEDGE_FILE_STORAGE_DIR` when set, otherwise
+`.data/knowledge-base-rag/uploads`. The value is optional for local development.
+The storage key and local path remain backend-private; public DTOs expose only
+safe document metadata. If repository persistence fails after a file write, the
+upload use case attempts best-effort cleanup through the storage boundary before
+returning a safe API failure.
 
 The worker handoff skeleton processes an already-created pending ingestion job
 at the lifecycle level only:

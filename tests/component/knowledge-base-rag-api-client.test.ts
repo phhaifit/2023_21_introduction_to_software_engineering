@@ -201,6 +201,28 @@ describe("Knowledge Base / RAG API client", () => {
     );
   });
 
+  it("uploads selected files with multipart form data", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      success({ documents: [document], ingestionJobs: [ingestionJob] })
+    );
+    const client = createKnowledgeBaseRagApiClient({ fetchImplementation });
+    const file = new File(["content"], "Guide.txt", { type: "text/plain" });
+
+    const uploaded = await client.uploadDocuments(workspaceId, [file]);
+
+    expect(uploaded.documents[0].documentId).toBe("document-a");
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `${encodedWorkspacePath}/uploads`,
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData),
+        headers: expect.not.objectContaining({
+          "content-type": "application/json"
+        })
+      })
+    );
+  });
+
   it("handles data source, sync scope, and sync job routes", async () => {
     const fetchImplementation = vi
       .fn()
