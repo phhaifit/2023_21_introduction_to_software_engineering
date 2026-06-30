@@ -287,6 +287,7 @@
   "knowledgeBaseRag": {
     "routes": [
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/validate" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/prepare" },
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/ingestion-jobs" },

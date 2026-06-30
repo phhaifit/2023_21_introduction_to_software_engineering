@@ -62,6 +62,10 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
       documents: [preparedDocument],
       ingestionJobs: [ingestionJob]
     } satisfies PrepareUploadResponse)),
+    uploadDocuments: vi.fn(async () => ({
+      documents: [preparedDocument],
+      ingestionJobs: [ingestionJob]
+    } satisfies PrepareUploadResponse)),
     listIngestionJobs: vi.fn(),
     listDataSources: vi.fn(),
     connectDataSource: vi.fn(),
@@ -127,22 +131,20 @@ describe("Knowledge Base / RAG Upload API integration", () => {
 
     expect(await screen.findByText("Accepted by API")).toBeTruthy();
     expect(await screen.findByText("Unsupported file type")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Prepare valid files" }));
+    await user.click(screen.getByRole("button", { name: "Upload valid files" }));
 
-    await waitFor(() => expect(client.prepareUpload).toHaveBeenCalledTimes(1));
-    const [calledWorkspaceId, request] = vi.mocked(client.prepareUpload).mock.calls[0];
+    await waitFor(() => expect(client.uploadDocuments).toHaveBeenCalledTimes(1));
+    const [calledWorkspaceId, files] = vi.mocked(client.uploadDocuments).mock.calls[0];
 
     expect(calledWorkspaceId).toBe(workspaceId);
-    expect(request.files).toHaveLength(1);
-    expect(request.files[0]).toMatchObject({
-      fileName: "Runbook.pdf",
-      mediaType: "application/pdf",
-      sizeBytes: 3
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      name: "Runbook.pdf",
+      type: "application/pdf",
+      size: 3
     });
-    expect(JSON.stringify(request)).not.toContain("Installer.exe");
-    expect(JSON.stringify(request)).not.toContain("workspaceId");
-    expect(JSON.stringify(request)).not.toMatch(/credential|secret|token|rawEmbedding|vectorConfig/);
-    expect(await screen.findByText("Prepared 1 document for ingestion.")).toBeTruthy();
+    expect(files.map((file) => file.name)).not.toContain("Installer.exe");
+    expect(await screen.findByText("Uploaded 1 document for ingestion.")).toBeTruthy();
     expect(onUploadPrepared).toHaveBeenCalledWith({
       documents: [preparedDocument],
       ingestionJobs: [ingestionJob]
@@ -165,7 +167,7 @@ describe("Knowledge Base / RAG Upload API integration", () => {
     );
 
     expect(await screen.findByText("Validation API unavailable")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Prepare valid files" })).toBeDisabled();
-    expect(client.prepareUpload).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Upload valid files" })).toBeDisabled();
+    expect(client.uploadDocuments).not.toHaveBeenCalled();
   });
 });

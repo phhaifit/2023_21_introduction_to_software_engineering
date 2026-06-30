@@ -10,6 +10,13 @@ export class KnowledgeBaseRagValidationError extends Error {
   }
 }
 
+export class KnowledgeFileStorageError extends Error {
+  constructor(message = "Document storage is temporarily unavailable.") {
+    super(message);
+    this.name = "KnowledgeFileStorageError";
+  }
+}
+
 export class KnowledgeDocumentNotFoundError extends Error {
   constructor(documentId: EntityId<"documentId">) {
     super(`Knowledge document not found: ${documentId}`);
@@ -37,4 +44,3 @@ export class KnowledgeSyncJobNotFoundError extends Error {
     this.name = "KnowledgeSyncJobNotFoundError";
   }
 }
-

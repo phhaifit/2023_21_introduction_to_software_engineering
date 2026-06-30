@@ -26,8 +26,7 @@ Synchronization Scope views, plus remaining local mock support:
 - `knowledge-base-rag-documents.tsx`: Documents screen wired to
   `listDocuments` through the typed KB/RAG API client.
 - `knowledge-base-rag-upload.tsx`: Upload Documents screen wired to
-  metadata-only upload validation and prepare flows through the typed KB/RAG
-  API client.
+  metadata validation and real file upload through the typed KB/RAG API client.
 - `knowledge-base-rag-processing-status.tsx`: Processing Status screen backed
   by deterministic local mock jobs for queued, processing, completed, and
   failed ingestion/indexing states.
@@ -214,6 +213,8 @@ Known limitations:
 - Processing Status uses local mock processing jobs.
 - Data-source connection and manual sync screens display safe API-backed intent/status; production provider/runtime execution is outside this frontend UI scope.
 - API-backed screens may display loading or error states when the backend API is unavailable.
+- Upload Documents sends selected supported files to the KB/RAG upload runtime,
+  which stores bytes server-side and returns only safe document/job DTOs.
 
 Recommendation:
 

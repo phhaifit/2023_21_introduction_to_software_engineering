@@ -53,6 +53,7 @@ import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/applicat
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import { LocalKnowledgeFileStorage } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
   InMemoryKnowledgeDocumentRepository,
@@ -322,6 +323,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     uploadUseCases: new KnowledgeUploadUseCases({
       documentRepository: knowledgeDocumentRepository,
       ingestionJobRepository: knowledgeIngestionJobRepository,
+      fileStorage: new LocalKnowledgeFileStorage(),
       now: () => new Date().toISOString(),
       generateDocumentId: () => randomUUID() as any,
       generateJobId: () => randomUUID() as any
