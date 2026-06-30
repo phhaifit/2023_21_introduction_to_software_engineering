@@ -59,6 +59,29 @@ describe("OpenClawAgentMaterializer", () => {
     await expect(materializer.materializeAgent(createRuntimeProfile())).resolves.toBeNull();
     await expect(materializer.getMaterializedAgent("workspace-1" as any, "agent-research")).resolves.toBeNull();
   });
+
+  it("mirrors workspace artifacts after filesystem materialization succeeds", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-agent-materializer-"));
+    const calls: Array<{ workspaceDir: string; workspaceId: string }> = [];
+    const materializer = new FileSystemOpenClawAgentMaterializer(baseDir, () => "2026-06-30T00:00:00.000Z", {
+      async mirrorWorkspace(workspaceDir, workspaceId) {
+        calls.push({ workspaceDir, workspaceId });
+      }
+    });
+
+    try {
+      await materializer.materializeAgent(createRuntimeProfile());
+
+      expect(calls).toEqual([
+        {
+          workspaceDir: join(baseDir, "workspace-1"),
+          workspaceId: "workspace-1"
+        }
+      ]);
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function createRuntimeProfile(): AgentRuntimeProfile {

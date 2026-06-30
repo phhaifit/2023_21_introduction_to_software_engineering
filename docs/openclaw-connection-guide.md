@@ -44,6 +44,8 @@ To let the backend send a native `x-openclaw-agent-id`, configure a shared OpenC
 
 - `OPENCLAW_AGENT_WORKSPACE_DIR`: preferred directory where Backend writes OpenClaw-facing agent artifacts.
 - `AGENT_SKILLS_DIR`: fallback directory used by the existing Agent Management skill writer and the OpenClaw materializer.
+- `OPENCLAW_AGENT_MIRROR_CONTAINER`: optional OpenClaw Gateway container name for automatic local Docker mirroring.
+- `OPENCLAW_AGENT_MIRROR_DIR`: optional destination directory inside the OpenClaw Gateway container.
 
 When one of these variables is set, the local backend materializes enabled agents on catalog lookup by writing:
 
@@ -52,6 +54,17 @@ When one of these variables is set, the local backend materializes enabled agent
 - `<dir>/<workspaceId>/agents.list.json`
 
 Only after this write succeeds does Task Execution treat `<agentId>` as a verified native OpenClaw agent ID and include `x-openclaw-agent-id`. If the directory is not configured or writing fails, the request still includes platform routing context, but omits the native agent header.
+
+For the local Docker Gateway setup, use:
+
+```env
+OPENCLAW_AGENT_WORKSPACE_DIR=../../openclaw-agents
+AGENT_SKILLS_DIR=../../openclaw-agents
+OPENCLAW_AGENT_MIRROR_CONTAINER=openclaw-openclaw-gateway-1
+OPENCLAW_AGENT_MIRROR_DIR=/home/node/.openclaw/workspace/openclaw-agents
+```
+
+With the mirror variables set, the backend automatically copies the generated workspace artifacts into the running Gateway container after each successful materialization. This keeps the container copy fresh without manual `docker cp`.
 
 ### Progress side-channel note
 

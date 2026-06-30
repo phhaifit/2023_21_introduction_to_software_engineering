@@ -79,8 +79,11 @@ import {
   type ExternalWorkspaceManagement
 } from "./features/task-execution/adapters/openclaw-task-execution-adapter.ts";
 import {
+  DockerOpenClawAgentArtifactMirror,
   FileSystemOpenClawAgentMaterializer,
   NoOpOpenClawAgentMaterializer,
+  NoOpOpenClawAgentArtifactMirror,
+  type OpenClawAgentArtifactMirror,
   type OpenClawAgentMaterializer,
   type OpenClawMaterializedAgent
 } from "./features/task-execution/adapters/openclaw-agent-materializer.ts";
@@ -373,9 +376,20 @@ function createSkillWriter(): AgentSkillWriter {
 function createOpenClawAgentMaterializer(): OpenClawAgentMaterializer {
   const baseDir = process.env.OPENCLAW_AGENT_WORKSPACE_DIR || process.env.AGENT_SKILLS_DIR;
   if (baseDir) {
-    return new FileSystemOpenClawAgentMaterializer(baseDir);
+    return new FileSystemOpenClawAgentMaterializer(baseDir, undefined, createOpenClawAgentArtifactMirror());
   }
   return new NoOpOpenClawAgentMaterializer();
+}
+
+function createOpenClawAgentArtifactMirror(): OpenClawAgentArtifactMirror {
+  const containerName = process.env.OPENCLAW_AGENT_MIRROR_CONTAINER;
+  const destinationDir = process.env.OPENCLAW_AGENT_MIRROR_DIR;
+
+  if (containerName && destinationDir) {
+    return new DockerOpenClawAgentArtifactMirror(containerName, destinationDir);
+  }
+
+  return new NoOpOpenClawAgentArtifactMirror();
 }
 
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {

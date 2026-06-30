@@ -26,6 +26,12 @@ OpenClaw-facing workspace when an OpenClaw agent materializer is configured.
 - **THEN** Task Execution still receives platform routing context
 - **AND** it does not receive a native OpenClaw agent ID
 
+#### Scenario: Materialized artifacts mirrored to local Gateway container
+
+- **WHEN** local Docker mirroring is configured for the OpenClaw Gateway container
+- **THEN** the materializer copies the completed workspace artifact directory into the configured Gateway container path after writing filesystem artifacts
+- **AND** it performs no container provisioning, secret inspection, or Gateway credential creation
+
 ### Requirement: Native Agent Header Safety
 
 Task Execution SHALL send `x-openclaw-agent-id` only for verified native OpenClaw

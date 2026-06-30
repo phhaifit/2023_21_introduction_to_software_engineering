@@ -24,6 +24,17 @@ returns a verified native ID.
 If the filesystem materializer is not configured or fails, Task Execution still
 sends platform routing context but does not send the native agent header.
 
+## Local Docker Mirror
+
+When `OPENCLAW_AGENT_MIRROR_CONTAINER` and `OPENCLAW_AGENT_MIRROR_DIR` are
+configured, the filesystem materializer mirrors the completed workspace artifact
+directory into the running OpenClaw Gateway container after each successful
+materialization.
+
+The local mirror uses Docker CLI operations only from the local composition
+root. It does not provision containers, create credentials, or inspect container
+environment variables.
+
 ## Safety
 
 - Agent Management does not import OpenClaw transport code.

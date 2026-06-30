@@ -1,7 +1,11 @@
+import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { AgentRuntimeProfile } from "@vcp/shared/contracts/agent-management.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+
+const execFileAsync = promisify(execFile);
 
 export type OpenClawMaterializedAgent = {
   agentId: string;
@@ -20,6 +24,30 @@ export interface OpenClawAgentMaterializer {
   ): Promise<OpenClawMaterializedAgent | null>;
 }
 
+export interface OpenClawAgentArtifactMirror {
+  mirrorWorkspace(workspaceDir: string, workspaceId: string): Promise<void>;
+}
+
+export class NoOpOpenClawAgentArtifactMirror implements OpenClawAgentArtifactMirror {
+  async mirrorWorkspace(): Promise<void> {}
+}
+
+export class DockerOpenClawAgentArtifactMirror implements OpenClawAgentArtifactMirror {
+  private readonly containerName: string;
+  private readonly destinationDir: string;
+
+  constructor(containerName: string, destinationDir: string) {
+    this.containerName = containerName;
+    this.destinationDir = destinationDir.replace(/\/+$/, "");
+  }
+
+  async mirrorWorkspace(workspaceDir: string, workspaceId: string): Promise<void> {
+    const destination = `${this.destinationDir}/${workspaceId}`;
+    await execFileAsync("docker", ["exec", this.containerName, "mkdir", "-p", destination]);
+    await execFileAsync("docker", ["cp", `${workspaceDir}/.`, `${this.containerName}:${destination}`]);
+  }
+}
+
 export class NoOpOpenClawAgentMaterializer implements OpenClawAgentMaterializer {
   async materializeAgent(): Promise<OpenClawMaterializedAgent | null> {
     return null;
@@ -33,11 +61,17 @@ export class NoOpOpenClawAgentMaterializer implements OpenClawAgentMaterializer 
 export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMaterializer {
   private readonly baseDir: string;
   private readonly now: () => string;
+  private readonly mirror: OpenClawAgentArtifactMirror;
   private readonly materialized = new Map<string, OpenClawMaterializedAgent>();
 
-  constructor(baseDir: string, now: () => string = () => new Date().toISOString()) {
+  constructor(
+    baseDir: string,
+    now: () => string = () => new Date().toISOString(),
+    mirror: OpenClawAgentArtifactMirror = new NoOpOpenClawAgentArtifactMirror()
+  ) {
     this.baseDir = baseDir;
     this.now = now;
+    this.mirror = mirror;
   }
 
   async materializeAgent(profile: AgentRuntimeProfile): Promise<OpenClawMaterializedAgent> {
@@ -79,6 +113,7 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
 
     this.materialized.set(this.key(profile.workspaceId, profile.agentId), materialized);
     await this.writeAgentsList(workspaceDir, profile.workspaceId);
+    await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId);
     return materialized;
   }
 
