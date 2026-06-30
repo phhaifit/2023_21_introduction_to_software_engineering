@@ -31,6 +31,7 @@ pnpm-debug.log*
 # Local data
 .data/
 agent-skills/
+openclaw-agents/
 
 # Postman Local Sync
 /postman/

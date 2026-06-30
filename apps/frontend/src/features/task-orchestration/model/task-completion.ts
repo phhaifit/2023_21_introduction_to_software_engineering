@@ -17,7 +17,13 @@ export function isTaskReadyForCompletion(task: CreatedTaskRecord): boolean {
   }
 
   const finalStep = task.processingSnapshot.steps.at(-1);
-  if (finalStep?.id !== "finalize" || finalStep.status !== "active") {
+  const fixedStepReady = finalStep?.id === "finalize" && finalStep.status === "active";
+  const providerStepReady =
+    task.processingSnapshot.startedAt !== undefined &&
+    task.processingSnapshot.steps.length > 0 &&
+    task.processingSnapshot.steps.every((step) => step.status === "completed");
+
+  if (!fixedStepReady && !providerStepReady) {
     return false;
   }
 

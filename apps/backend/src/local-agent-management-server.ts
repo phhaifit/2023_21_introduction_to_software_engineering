@@ -6,7 +6,7 @@ import express, { type Express } from "express";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { AgentRepository } from "./modules/agent-management/application/agent-repository.ts";
 import type { AgentSkillWriter } from "./modules/agent-management/application/agent-skill-writer.ts";
-import { AgentLifecycleUseCases } from "./modules/agent-management/application/agent-lifecycle-use-cases.ts";
+import { AgentLifecycleUseCases, type AgentRuntimeProfileReader } from "./modules/agent-management/application/agent-lifecycle-use-cases.ts";
 import { createAgentManagementRouter } from "./modules/agent-management/api/agent-management-router.ts";
 import { createAgent } from "./modules/agent-management/domain/agent.ts";
 import { InMemoryAgentRepository } from "./modules/agent-management/infrastructure/in-memory-agent-repository.ts";
@@ -79,29 +79,149 @@ import {
   type ExternalAuthenticationService,
   type ExternalWorkspaceManagement
 } from "./features/task-execution/adapters/openclaw-task-execution-adapter.ts";
+import {
+  DockerOpenClawAgentArtifactMirror,
+  FileSystemOpenClawAgentMaterializer,
+  NoOpOpenClawAgentMaterializer,
+  NoOpOpenClawAgentArtifactMirror,
+  type OpenClawAgentArtifactMirror,
+  type OpenClawAgentMaterializer,
+  type OpenClawMaterializedAgent
+} from "./features/task-execution/adapters/openclaw-agent-materializer.ts";
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
 import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
 import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
+import type { WorkflowRepository } from "./modules/workflow-management/infrastructure/workflow-repository.ts";
 
 class ServerAgentCatalog implements ExternalAgentCatalog {
+  private readonly repository: AgentRepository;
+  private readonly runtimeProfileReader?: AgentRuntimeProfileReader;
+  private readonly materializer: OpenClawAgentMaterializer;
+
+  constructor(
+    repository: AgentRepository,
+    runtimeProfileReader?: AgentRuntimeProfileReader,
+    materializer: OpenClawAgentMaterializer = new NoOpOpenClawAgentMaterializer()
+  ) {
+    this.repository = repository;
+    this.runtimeProfileReader = runtimeProfileReader;
+    this.materializer = materializer;
+  }
+
   async validateAndGetAgent(workspaceId: EntityId<"workspaceId">, agentId: string) {
+    const agent = await this.repository.findById(workspaceId, agentId as EntityId<"agentId">);
+
+    if (!agent || agent.status !== "enabled") {
+      return {
+        agentId,
+        workspaceId: workspaceId as string,
+        providerAgentMapping: "",
+        status: "inactive" as const
+      };
+    }
+
+    const materialized = await this.materializeAgent(workspaceId, agent.agentId);
+
     return {
       agentId,
       workspaceId: workspaceId as string,
-      providerAgentMapping: "openclaw-agent-super-coder",
-      status: "active" as const
+      providerAgentMapping: materialized?.providerAgentMapping ?? "",
+      status: "active" as const,
+      name: agent.name,
+      role: agent.role,
+      model: agent.model,
+      instructions: agent.instructions,
+      ...(materialized?.openClawAgentId ? { openClawAgentId: materialized.openClawAgentId } : {})
     };
+  }
+
+  async listAvailableAgents(workspaceId: EntityId<"workspaceId">) {
+    const result = await this.repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+
+    return Promise.all(
+      result.agents
+        .filter((agent) => agent.status === "enabled")
+        .map(async (agent) => {
+          const materialized = await this.materializeAgent(workspaceId, agent.agentId);
+
+          return {
+            agentId: agent.agentId as string,
+            workspaceId: workspaceId as string,
+            providerAgentMapping: materialized?.providerAgentMapping ?? "",
+            status: "active" as const,
+            name: agent.name,
+            role: agent.role,
+            model: agent.model,
+            instructions: agent.instructions,
+            ...(materialized?.openClawAgentId ? { openClawAgentId: materialized.openClawAgentId } : {})
+          };
+        })
+    );
+  }
+
+  private async materializeAgent(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<OpenClawMaterializedAgent | null> {
+    if (!this.runtimeProfileReader) {
+      return this.materializer.getMaterializedAgent(workspaceId, agentId);
+    }
+
+    try {
+      const profile = await this.runtimeProfileReader.getAgentRuntimeProfile(workspaceId, agentId);
+      return await this.materializer.materializeAgent(profile);
+    } catch (err) {
+      console.warn(
+        `[OpenClaw Agent Sync] Agent ${agentId} was not materialized; native OpenClaw header will be omitted.`,
+        err instanceof Error ? err.message : err
+      );
+      return null;
+    }
   }
 }
 
 class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
+  private readonly repository: WorkflowRepository;
+
+  constructor(repository: WorkflowRepository) {
+    this.repository = repository;
+  }
+
   async validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string) {
+    const workflow = await this.repository.findById(workspaceId, workflowId as EntityId<"workflowId">);
+
+    if (!workflow || workflow.status !== "published") {
+      return {
+        workflowId,
+        workspaceId: workspaceId as string,
+        providerWorkflowMapping: "",
+        status: "inactive" as const
+      };
+    }
+
     return {
       workflowId,
       workspaceId: workspaceId as string,
-      providerWorkflowMapping: "openclaw-workflow-ci-cd",
-      status: "active" as const
+      providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
+      status: "active" as const,
+      name: workflow.name,
+      description: workflow.description
     };
+  }
+
+  async listAvailableWorkflows(workspaceId: EntityId<"workspaceId">) {
+    const result = await this.repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
+
+    return result.items
+      .filter((workflow) => workflow.status === "published")
+      .map((workflow) => ({
+        workflowId: workflow.workflowId as string,
+        workspaceId: workspaceId as string,
+        providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
+        status: "active" as const,
+        name: workflow.name,
+        description: workflow.description
+      }));
   }
 }
 
@@ -254,10 +374,30 @@ function createSkillWriter(): AgentSkillWriter {
   return new NoOpAgentSkillWriter();
 }
 
+function createOpenClawAgentMaterializer(): OpenClawAgentMaterializer {
+  const baseDir = process.env.OPENCLAW_AGENT_WORKSPACE_DIR || process.env.AGENT_SKILLS_DIR;
+  if (baseDir) {
+    return new FileSystemOpenClawAgentMaterializer(baseDir, undefined, createOpenClawAgentArtifactMirror());
+  }
+  return new NoOpOpenClawAgentMaterializer();
+}
+
+function createOpenClawAgentArtifactMirror(): OpenClawAgentArtifactMirror {
+  const containerName = process.env.OPENCLAW_AGENT_MIRROR_CONTAINER;
+  const destinationDir = process.env.OPENCLAW_AGENT_MIRROR_DIR;
+
+  if (containerName && destinationDir) {
+    return new DockerOpenClawAgentArtifactMirror(containerName, destinationDir);
+  }
+
+  return new NoOpOpenClawAgentArtifactMirror();
+}
+
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
   const repository = await createRepository();
   const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
+  const openclawAgentMaterializer = createOpenClawAgentMaterializer();
   
   const eventBus = new InMemoryEventBus();
 
@@ -479,8 +619,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   );
 
   const serverWorkspaceMgmt = new ServerWorkspaceManagement();
-  const serverAgentCatalog = new ServerAgentCatalog();
-  const serverWorkflowCatalog = new ServerWorkflowCatalog();
+  const serverAgentCatalog = new ServerAgentCatalog(repository, useCases, openclawAgentMaterializer);
+  const serverWorkflowCatalog = new ServerWorkflowCatalog(workflowRepository);
   const serverAuthService = new ServerAuthenticationService();
 
   const conversationRepository = await createConversationRepository();

@@ -163,13 +163,14 @@ The system SHALL implement `OpenClawRawEventMapper` as a dedicated component to 
 ---
 
 ### Requirement: Concrete Network Transport Implementation
-The system SHALL implement a concrete `OpenClawNetworkTransport` using HTTP POST for start and cancel requests, and Server-Sent Events (SSE) for event stream subscriptions. It SHALL handle runtime unavailability, transport disconnections, and authentication failures securely, returning normalized error contracts (`provider-authentication-rejected`, `execution-runtime-unavailable`) without silent fallback to mock transport.
+The system SHALL implement a concrete `OpenClawNetworkTransport` using HTTP POST for start requests, Server-Sent Events (SSE) for result stream subscriptions, and an optional best-effort Gateway WebSocket side-channel for provider progress subscriptions. It SHALL handle runtime unavailability, transport disconnections, and authentication failures securely, returning normalized error contracts (`provider-authentication-rejected`, `execution-runtime-unavailable`) without silent fallback to mock transport. WebSocket progress side-channel failures SHALL NOT fail an otherwise active HTTP/SSE execution.
 
 #### Scenario: Execute physical transport communication over HTTP and SSE
 * **GIVEN** a valid task execution is initiated for a real OpenClaw runtime
 * **WHEN** the concrete network transport is invoked
 * **THEN** it SHALL send start and cancel requests via HTTP POST and establish an SSE connection for streaming updates
 * **AND** it SHALL handle network disconnections and authentication rejections by returning normalized error contracts
+* **AND** it MAY subscribe to Gateway WebSocket session progress events and map them to normalized runtime events without replacing the HTTP/SSE execution path
 
 ---
 
@@ -210,14 +211,22 @@ The `OpenClawNetworkTransport` implementation SHALL structure its HTTP request p
 ---
 
 ### Requirement: Pure OpenAI-Compatible HTTP Network Transport
-The `OpenClawNetworkTransport` implementation (`OpenClawHttpSSETransport`) SHALL connect to the OpenClaw Gateway runtime exclusively using the OpenAI-compatible HTTP API (`POST /v1/chat/completions`). It SHALL dynamically assign `model: request.target || "openclaw/default"` in the request body to support Specific Agent and Predefined Workflow routing. It SHALL rely exclusively on `AbortController.abort()` to cancel active execution streams without issuing outgoing cancellation HTTP requests. It SHALL NOT log unredacted prompts or delta stream chunks to the terminal.
+The `OpenClawNetworkTransport` implementation (`OpenClawHttpSSETransport`) SHALL connect to the OpenClaw Gateway runtime using the OpenAI-compatible HTTP API (`POST /v1/chat/completions`) for execution start and result streaming. It SHALL set `model: "openclaw/default"` in the request body, MAY send documented OpenClaw routing headers such as `x-openclaw-agent-id`, and MAY use a best-effort Gateway WebSocket side-channel for session progress. It SHALL rely exclusively on `AbortController.abort()` to cancel active execution streams without issuing outgoing cancellation HTTP requests. It SHALL NOT log unredacted prompts or delta stream chunks to the terminal.
 
 #### Scenario: Dispatch network requests using pure OpenAI-compatible HTTP API
 * **GIVEN** `OpenClawHttpSSETransport` is configured as the physical transport layer
 * **WHEN** runtime operations (start or stream subscription) are initiated
-* **THEN** the transport SHALL dispatch physical network requests exclusively to `POST /v1/chat/completions` with `stream: true`, `x-openclaw-model`, `x-openclaw-session-key`, and `model: request.target || "openclaw/default"`
+* **THEN** the transport SHALL dispatch execution start requests to `POST /v1/chat/completions` with `stream: true`, `x-openclaw-model`, `x-openclaw-session-key`, and `model: "openclaw/default"`
 * **AND** it SHALL NOT issue requests to fictitious `/executions/*` endpoints
 * **AND** it SHALL NOT log unredacted user prompts or delta chunks to the terminal
+
+#### Scenario: Subscribe to Gateway progress side-channel
+* **GIVEN** an active HTTP/SSE execution has a conversation session key
+* **AND** the runtime environment provides a WebSocket implementation
+* **WHEN** the transport subscribes to the event stream
+* **THEN** it MAY connect to the OpenClaw Gateway WebSocket endpoint, send `connect`, and subscribe to the current session
+* **AND** it SHALL map session operation, tool, message, or agent activity events into normalized runtime progress events
+* **AND** WebSocket errors SHALL NOT terminate the HTTP/SSE execution stream
 
 #### Scenario: Terminate execution streams via AbortController
 * **GIVEN** an active SSE execution stream is running in `OpenClawHttpSSETransport`

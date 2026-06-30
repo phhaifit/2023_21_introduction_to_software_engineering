@@ -173,8 +173,53 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           "x-openclaw-session-key": "session-123"
         },
         body: JSON.stringify({
-          model: "coordinator",
+          model: "openclaw/default",
           messages: [{ role: "user", content: "Hello" }],
+          stream: true,
+          user: "session-123"
+        }),
+        signal: expect.any(AbortSignal)
+      });
+    });
+
+    it("should include selected routing instruction in OpenClaw messages", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ providerExecutionReference: "exec-http-2", status: "started", startedAt: "2023-01-01" })
+      });
+
+      const transport = new OpenClawHttpSSETransport(mockFetch as any);
+      await transport.startExecution("https://openclaw.internal", "cred-123", {
+        taskId: "task-123",
+        prompt: "Summarize this report",
+        target: "openclaw/default",
+        mode: "specific-agent",
+        conversationId: "session-123",
+        openClawAgentId: "agent-research",
+        routingInstruction:
+          "Task & Orchestration routing mode: specific-agent. Use exactly this selected workspace agent: Research Agent."
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith("https://openclaw.internal/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer cred-123",
+          "x-openclaw-model": "google/gemini-3.1-flash-lite",
+          "x-openclaw-session-key": "session-123",
+          "x-openclaw-agent-id": "agent-research"
+        },
+        body: JSON.stringify({
+          model: "openclaw/default",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Task & Orchestration routing mode: specific-agent. Use exactly this selected workspace agent: Research Agent."
+            },
+            { role: "user", content: "Summarize this report" }
+          ],
           stream: true,
           user: "session-123"
         }),
@@ -219,6 +264,105 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       expect(onError).toHaveBeenCalled();
       expect(onError.mock.calls[0][0].message).toMatch(/Streaming transport unavailable/);
       sub.unsubscribe();
+    });
+
+    it("should subscribe to OpenClaw Gateway WebSocket progress as a best-effort side-channel", async () => {
+      const originalWebSocket = (globalThis as any).WebSocket;
+      const instances: FakeGatewayWebSocket[] = [];
+      class FakeGatewayWebSocket {
+        onopen: ((event: unknown) => void) | null = null;
+        onmessage: ((event: { data: unknown }) => void) | null = null;
+        onerror: ((event: unknown) => void) | null = null;
+        onclose: ((event: unknown) => void) | null = null;
+        sent: any[] = [];
+        closed = false;
+        constructor(readonly url: string) {
+          instances.push(this);
+        }
+        send(data: string) {
+          this.sent.push(JSON.parse(data));
+        }
+        close() {
+          this.closed = true;
+        }
+      }
+      (globalThis as any).WebSocket = FakeGatewayWebSocket;
+
+      try {
+        const mockFetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          body: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            }
+          })
+        });
+
+        const transport = new OpenClawHttpSSETransport(mockFetch as any);
+        const start = await transport.startExecution("https://openclaw.internal", "cred-123", {
+          taskId: "task-123",
+          prompt: "Route with progress",
+          target: "openclaw/default",
+          mode: "auto",
+          conversationId: "conv-123"
+        });
+        const onEvent = vi.fn();
+        const sub = transport.subscribeEventStream(
+          "https://openclaw.internal",
+          "cred-123",
+          start.providerExecutionReference,
+          onEvent,
+          vi.fn()
+        );
+
+        expect(instances[0].url).toBe("wss://openclaw.internal/");
+        instances[0].onopen?.({});
+        expect(instances[0].sent[0]).toMatchObject({
+          method: "connect",
+          params: {
+            token: "cred-123",
+            sessionKey: "conv-123"
+          }
+        });
+
+        instances[0].onmessage?.({ data: JSON.stringify({ type: "connected", status: "ok" }) });
+        expect(instances[0].sent.map((frame) => frame.method)).toEqual([
+          "connect",
+          "sessions.subscribe",
+          "sessions.messages.subscribe"
+        ]);
+
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            event: "session.operation",
+            payload: {
+              sessionKey: "conv-123",
+              operationId: "route-1",
+              name: "Routing",
+              status: "running",
+              details: "Selecting workspace agent"
+            }
+          })
+        });
+
+        expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+          object: "chat.completion.chunk",
+          executionId: start.providerExecutionReference,
+          openclaw_extension: expect.objectContaining({
+            stepId: "route-1",
+            stepName: "Routing",
+            status: "started",
+            activityType: "workflow",
+            details: "Selecting workspace agent"
+          })
+        }));
+
+        sub.unsubscribe();
+        expect(instances[0].closed).toBe(true);
+      } finally {
+        (globalThis as any).WebSocket = originalWebSocket;
+      }
     });
 
     it("should successfully get snapshot via v1/models", async () => {

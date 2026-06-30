@@ -21,6 +21,9 @@ export function TaskOrchestrationDock({
   const activeStep = task.processingSnapshot.steps.find((s) => s.status === "active");
   const completedSteps = task.processingSnapshot.steps.filter((s) => s.status === "completed");
   const totalSteps = task.processingSnapshot.steps.length;
+  const runningLabel = totalSteps > 0
+    ? `${activeStep ? activeStep.label : "Processing"} - ${completedSteps.length}/${totalSteps} steps`
+    : "Waiting for OpenClaw progress";
 
   return (
     <div className="task-orchestration-dock" aria-label="Compact orchestration dock">
@@ -29,7 +32,7 @@ export function TaskOrchestrationDock({
         <div className="task-orchestration-dock__summary">
           {isRunning ? (
             <span className="task-orchestration-dock__step-info">
-              {activeStep ? activeStep.label : "Processing"} · {completedSteps.length}/{totalSteps} steps
+              {runningLabel}
             </span>
           ) : isQueued ? (
             <span className="task-orchestration-dock__step-info">Queued for processing</span>
