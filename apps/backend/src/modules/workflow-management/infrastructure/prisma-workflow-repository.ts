@@ -236,4 +236,63 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       }
     });
   }
+
+  async listExecutions(
+    workspaceId: EntityId<"workspaceId">,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ items: (import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto & { workflowName: string })[]; total: number }> {
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+
+    const [total, records] = await Promise.all([
+      this.prisma.workflowExecution.count({ where: { workspaceId } }),
+      this.prisma.workflowExecution.findMany({
+        where: { workspaceId },
+        take: limit,
+        skip: offset,
+        orderBy: { startedAt: "desc" },
+        include: {
+          workflow: {
+            select: { name: true }
+          }
+        }
+      })
+    ]);
+
+    const items = records.map((record) => ({
+      executionId: record.executionId as EntityId<"executionId">,
+      workspaceId: record.workspaceId as EntityId<"workspaceId">,
+      workflowId: record.workflowId as EntityId<"workflowId">,
+      status: record.status as any,
+      triggeredBy: record.triggeredBy as EntityId<"userId">,
+      startedAt: record.startedAt,
+      completedAt: record.completedAt,
+      workflowName: record.workflow.name,
+    }));
+
+    return { total, items };
+  }
+
+  async getExecutionLogs(
+    workspaceId: EntityId<"workspaceId">,
+    executionId: EntityId<"executionId">
+  ): Promise<import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto[]> {
+    const records = await this.prisma.workflowStepLog.findMany({
+      where: { workspaceId, executionId },
+      orderBy: { startedAt: "asc" }
+    });
+
+    return records.map(record => ({
+      logId: record.logId as EntityId<"logId">,
+      workspaceId: record.workspaceId as EntityId<"workspaceId">,
+      executionId: record.executionId as EntityId<"executionId">,
+      workflowStepId: record.workflowStepId as EntityId<"workflowStepId">,
+      status: record.status,
+      inputData: record.inputData ? (typeof record.inputData === "string" ? JSON.parse(record.inputData) : record.inputData) : null,
+      outputData: record.outputData ? (typeof record.outputData === "string" ? JSON.parse(record.outputData) : record.outputData) : null,
+      errorMsg: record.errorMsg,
+      startedAt: record.startedAt,
+      completedAt: record.completedAt,
+    }));
+  }
 }

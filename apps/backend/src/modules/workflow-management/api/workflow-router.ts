@@ -88,6 +88,38 @@ export function createWorkflowManagementRouter(
     });
   });
 
+  router.get("/executions", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      const limit = Number(request.query.limit) || 50;
+      const offset = Number(request.query.offset) || 0;
+
+      const result = await dependencies.useCases.listExecutions(
+        context.workspace!.workspaceId,
+        limit,
+        offset
+      );
+
+      sendWorkflowApiPaginatedSuccess(request, response, result.items, result.total, offset, limit);
+    });
+  });
+
+  router.get("/executions/:executionId/logs", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      const result = await dependencies.useCases.getExecutionLogs(
+        context.workspace!.workspaceId,
+        request.params.executionId as EntityId<"executionId">
+      );
+
+      sendWorkflowApiSuccess(request, response, result);
+    });
+  });
+
   router.get("/:workflowId", async (request, response) => {
     await handleWorkflowApiRequest(request, response, async () => {
       const context = getRequestContext(request);
