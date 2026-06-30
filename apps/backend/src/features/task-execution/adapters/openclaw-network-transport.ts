@@ -59,6 +59,22 @@ export interface OpenClawChatCompletionChunk {
   };
 }
 
+interface OpenClawGatewayProgressContext {
+  taskId: string;
+  conversationId: string;
+}
+
+interface MinimalWebSocket {
+  onopen: ((event: unknown) => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
+  onerror: ((event: unknown) => void) | null;
+  onclose: ((event: unknown) => void) | null;
+  send(data: string): void;
+  close(): void;
+}
+
+type MinimalWebSocketConstructor = new (url: string) => MinimalWebSocket;
+
 // 1.3 Define OpenClawNetworkTransport boundary.
 export interface OpenClawNetworkTransport {
   startExecution(endpoint: string, credentialReference: string, request: OpenClawExecutionRequest): Promise<OpenClawExecutionResponse>;
@@ -186,6 +202,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
   private isCustomFetcher: boolean;
   private activeStreams = new Map<string, ReadableStream<Uint8Array>>();
   private activeControllers = new Map<string, AbortController>();
+  private activeProgressContexts = new Map<string, OpenClawGatewayProgressContext>();
 
   constructor(customFetcher?: typeof fetch) {
     this.isCustomFetcher = !!customFetcher;
@@ -266,6 +283,11 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         }
       }
 
+      this.activeProgressContexts.set(providerExecutionReference, {
+        taskId: request.taskId,
+        conversationId: request.conversationId || "default-session"
+      });
+
       return {
         providerExecutionReference,
         status: "started",
@@ -299,6 +321,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       controller.abort();
       this.activeControllers.delete(request.providerExecutionReference);
       this.activeStreams.delete(request.providerExecutionReference);
+      this.activeProgressContexts.delete(request.providerExecutionReference);
       if (false) {
         console.log(`[OpenClaw Transport] ✓ Successfully aborted gateway connection stream.`);
       }
@@ -324,6 +347,12 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     }
 
     let isSubscribed = true;
+    const sideChannelSubscription = this.subscribeGatewayProgressSideChannel(
+      endpoint,
+      credentialReference,
+      providerExecutionReference,
+      onEvent
+    );
 
     if (this.activeStreams.has(providerExecutionReference)) {
       if (false) {
@@ -421,6 +450,8 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
             onError(new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: `Streaming transport disconnected: ${err.message}` })));
           }
         } finally {
+          sideChannelSubscription.unsubscribe();
+          this.activeProgressContexts.delete(providerExecutionReference);
           reader.releaseLock();
         }
       };
@@ -436,6 +467,8 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
             this.activeControllers.delete(providerExecutionReference);
             this.activeStreams.delete(providerExecutionReference);
           }
+          sideChannelSubscription.unsubscribe();
+          this.activeProgressContexts.delete(providerExecutionReference);
         }
       };
     }
@@ -445,6 +478,88 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     return {
       unsubscribe: () => {
         isSubscribed = false;
+        sideChannelSubscription.unsubscribe();
+        this.activeProgressContexts.delete(providerExecutionReference);
+      }
+    };
+  }
+
+  private subscribeGatewayProgressSideChannel(
+    endpoint: string,
+    credentialReference: string,
+    providerExecutionReference: string,
+    onEvent: (rawEvent: unknown) => void
+  ): { unsubscribe: () => void } {
+    const context = this.activeProgressContexts.get(providerExecutionReference);
+    const WebSocketCtor = (globalThis as any).WebSocket as MinimalWebSocketConstructor | undefined;
+    if (!context || !WebSocketCtor) {
+      return { unsubscribe: () => {} };
+    }
+
+    let socket: MinimalWebSocket | undefined;
+    let closed = false;
+    let connectAccepted = false;
+    let frameSequence = 1;
+    const sendFrame = (method: string, params?: Record<string, unknown>) => {
+      if (!socket || closed) return;
+      try {
+        socket.send(JSON.stringify({
+          id: `vcp-${Date.now()}-${frameSequence++}`,
+          method,
+          params
+        }));
+      } catch (err) {
+        // Side-channel progress is best-effort and must not fail execution.
+      }
+    };
+
+    try {
+      socket = new WebSocketCtor(toGatewayWebSocketUrl(endpoint));
+    } catch (err) {
+      return { unsubscribe: () => {} };
+    }
+
+    socket.onopen = () => {
+      sendFrame("connect", {
+        token: credentialReference,
+        client: "vcp-backend-task-orchestration",
+        sessionKey: context.conversationId
+      });
+    };
+
+    socket.onmessage = (event) => {
+      if (closed) return;
+
+      const frame = parseGatewayFrame(event.data);
+      if (!frame) return;
+
+      if (!connectAccepted && isGatewayConnectAccepted(frame)) {
+        connectAccepted = true;
+        sendFrame("sessions.subscribe", { key: context.conversationId });
+        sendFrame("sessions.messages.subscribe", { key: context.conversationId });
+      }
+
+      const rawEvent = mapGatewayFrameToChatChunk(frame, providerExecutionReference, context);
+      if (rawEvent) {
+        onEvent(rawEvent);
+      }
+    };
+
+    socket.onerror = () => {
+      // Do not surface side-channel failures as execution failures.
+    };
+    socket.onclose = () => {
+      closed = true;
+    };
+
+    return {
+      unsubscribe: () => {
+        closed = true;
+        try {
+          socket?.close();
+        } catch (err) {
+          // best-effort close
+        }
       }
     };
   }
@@ -491,4 +606,162 @@ function buildOpenClawMessages(request: OpenClawExecutionRequest): Array<{
   });
 
   return messages;
+}
+
+function toGatewayWebSocketUrl(endpoint: string): string {
+  const url = new URL(endpoint);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+function parseGatewayFrame(data: unknown): Record<string, any> | null {
+  try {
+    const text = typeof data === "string"
+      ? data
+      : data instanceof Uint8Array
+      ? new TextDecoder().decode(data)
+      : String(data);
+    const frame = JSON.parse(text);
+    return frame && typeof frame === "object" ? frame as Record<string, any> : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function isGatewayConnectAccepted(frame: Record<string, any>): boolean {
+  const type = String(frame.type || frame.event || "");
+  const method = String(frame.method || "");
+  const status = String(frame.status || frame.result?.status || frame.payload?.status || "");
+  return type === "connected" ||
+    type === "hello-ok" ||
+    method === "connect" ||
+    status === "connected" ||
+    status === "ok";
+}
+
+function mapGatewayFrameToChatChunk(
+  frame: Record<string, any>,
+  providerExecutionReference: string,
+  context: OpenClawGatewayProgressContext
+): OpenClawChatCompletionChunk | null {
+  const eventName = getGatewayEventName(frame);
+  if (!eventName) return null;
+
+  const payload = getGatewayPayload(frame);
+  if (!isFrameForSession(payload, context.conversationId)) {
+    return null;
+  }
+
+  const timestamp = normalizeGatewayTimestamp(payload.timestamp || payload.createdAt || frame.timestamp);
+  if (eventName.includes("tool")) {
+    return {
+      object: "chat.completion.chunk",
+      executionId: providerExecutionReference,
+      timestamp,
+      openclaw_extension: {
+        stepId: `tool-${safeStepId(payload.toolCallId || payload.toolId || payload.id || payload.name || "activity")}`,
+        stepName: String(payload.toolName || payload.name || "Tool activity"),
+        activityType: "tool",
+        details: summarizeGatewayPayload(payload)
+      }
+    };
+  }
+
+  if (eventName.includes("operation")) {
+    const status = normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event);
+    return {
+      object: "chat.completion.chunk",
+      executionId: providerExecutionReference,
+      timestamp,
+      openclaw_extension: {
+        stepId: safeStepId(payload.operationId || payload.runId || payload.id || payload.name || "operation"),
+        stepName: String(payload.title || payload.name || payload.kind || "OpenClaw operation"),
+        status,
+        activityType: "workflow",
+        details: summarizeGatewayPayload(payload)
+      }
+    };
+  }
+
+  if (eventName.includes("message")) {
+    const role = payload.role || payload.author?.role;
+    const text = payload.content || payload.text || payload.message;
+    if (role === "assistant" && typeof text === "string" && text.length > 0) {
+      return {
+        object: "chat.completion.chunk",
+        executionId: providerExecutionReference,
+        timestamp,
+        choices: [{ delta: { content: text } }]
+      };
+    }
+  }
+
+  if (eventName.includes("agent")) {
+    return {
+      object: "chat.completion.chunk",
+      executionId: providerExecutionReference,
+      timestamp,
+      openclaw_extension: {
+        stepId: `agent-${safeStepId(payload.agentId || payload.id || payload.name || "activity")}`,
+        stepName: String(payload.agentName || payload.name || "Agent activity"),
+        activityType: "sub-agent",
+        details: summarizeGatewayPayload(payload)
+      }
+    };
+  }
+
+  return null;
+}
+
+function getGatewayEventName(frame: Record<string, any>): string {
+  const event = frame.event || frame.type || frame.method || frame.notification?.event || frame.params?.event;
+  return typeof event === "string" ? event : "";
+}
+
+function getGatewayPayload(frame: Record<string, any>): Record<string, any> {
+  const payload = frame.payload || frame.params?.payload || frame.params || frame.result || frame.data || frame;
+  return payload && typeof payload === "object" ? payload as Record<string, any> : {};
+}
+
+function isFrameForSession(payload: Record<string, any>, conversationId: string): boolean {
+  const sessionKey = payload.sessionKey || payload.key || payload.session?.key || payload.sessionId || payload.conversationId;
+  return !sessionKey || sessionKey === conversationId;
+}
+
+function normalizeGatewayTimestamp(value: unknown): number {
+  if (typeof value === "number") {
+    return value > 10_000_000_000 ? value : value * 1000;
+  }
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return Date.now();
+}
+
+function normalizeGatewayProgressStatus(value: unknown): string {
+  const status = String(value || "").toLowerCase();
+  if (["completed", "complete", "success", "succeeded", "done"].includes(status)) return "completed";
+  if (["failed", "error"].includes(status)) return "completed";
+  if (["canceled", "cancelled"].includes(status)) return "canceled";
+  return "started";
+}
+
+function safeStepId(value: unknown): string {
+  return String(value || "openclaw-progress")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "openclaw-progress";
+}
+
+function summarizeGatewayPayload(payload: Record<string, any>): string {
+  const summary = payload.summary || payload.message || payload.details || payload.text || payload.status || payload.state || "";
+  if (typeof summary === "string" && summary.length > 0) {
+    return sanitizeObservabilityPayload(summary);
+  }
+  return sanitizeObservabilityPayload(JSON.stringify(payload));
 }

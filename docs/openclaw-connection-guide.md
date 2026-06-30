@@ -36,6 +36,10 @@ bash scripts/docker/setup.sh
 
 Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. For `specific-agent`, Backend also sends the selected native OpenClaw agent through `x-openclaw-agent-id` and includes the `openclaw/<agentId>` reference in system routing context. Selected workflows are sent as system routing context until OpenClaw exposes a documented workflow routing header or target. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including their OpenClaw references, so the OpenClaw coordinator can choose the best route.
 
+### Progress side-channel note
+
+Backend keeps `/v1/chat/completions` as the execution start and result stream path. In addition, `OpenClawHttpSSETransport` may open a best-effort Gateway WebSocket side-channel for the same `x-openclaw-session-key` and subscribe to `sessions.subscribe` plus `sessions.messages.subscribe`. Session operation/tool/message events received from the Gateway are mapped into normalized progress events so the UI can show actual OpenClaw progress when the Gateway emits it. If the Gateway or Node runtime does not expose WebSocket support, execution continues through HTTP/SSE and the UI falls back to partial output.
+
 Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider**:
 
 ```text
