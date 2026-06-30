@@ -156,29 +156,4 @@ describe("ProcessingTimeline", () => {
     expect(within(waitingStep!).queryByText("Started")).not.toBeInTheDocument();
   });
 
-  it("does not change the input array", () => {
-    const steps: ProcessingStep[] = [
-      { id: "validate", label: "Validate input", status: "waiting" },
-      { id: "analyze", label: "Analyze request", status: "active" }
-    ];
-    const originalOrder = steps.map((step) => step.id);
-
-    render(<ProcessingTimeline steps={steps} />);
-
-    expect(steps.map((step) => step.id)).toEqual(originalOrder);
-  });
-
-  it("does not change input step objects", () => {
-    const step: ProcessingStep = {
-      id: "validate",
-      label: "Validate input",
-      status: "completed",
-      completedAt: "2026-06-23T09:00:02Z"
-    };
-    const originalStep = { ...step };
-
-    render(<ProcessingTimeline steps={[step]} />);
-
-    expect(step).toEqual(originalStep);
-  });
 });

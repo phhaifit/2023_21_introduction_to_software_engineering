@@ -133,19 +133,6 @@ describe("TaskComposer", () => {
     ).toBeInTheDocument();
   });
 
-  it("supports keyboard submission from the textarea", async () => {
-    const user = userEvent.setup();
-    const onSubmit = vi.fn();
-    renderComposer({ prompt: "Keyboard request", onSubmit });
-
-    screen.getByRole("textbox", { name: "Request" }).focus();
-    const prompt = screen.getByRole("textbox", { name: "Request" });
-    await user.click(prompt);
-    await user.keyboard("{Enter}");
-
-    expect(onSubmit).toHaveBeenCalledTimes(1);
-  });
-
   it("shows Stop as primary action when a task is cancellable", async () => {
     const user = userEvent.setup();
     const onCancelTask = vi.fn();

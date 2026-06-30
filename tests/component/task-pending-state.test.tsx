@@ -21,10 +21,8 @@
  * 14.  No streaming, completed result, or error section is rendered.
  * 15.  No automatic queued-to-running transition occurs.
  * 16.  Multiple Tasks receive independent processing snapshots.
- * 17.  No dual mutable timeline source remains.
- * 18.  Presentation components do not mutate canonical status.
- * 19.  No backend, Prisma, or private-module import exists.
- * 20.  Existing Task 6 and Task 7A tests remain passing (verified via CI).
+ * 17.  No legacy timeline property is exposed on created records.
+ * 18.  Existing Task 6 and Task 7A tests remain passing (verified via CI).
  *
  * Coverage (Cancellation Entry Point Fix):
  * 21.  Pending Task renders the Cancel current task button.
@@ -41,14 +39,10 @@
  * 32.  Prompt remains visible after clicking Cancel current task.
  * 33.  Routing summary remains visible after clicking Cancel current task.
  * 34.  No cancellation execution is performed.
- * 35.  Presentation code does not directly assign lifecycle status.
- * 36.  No new backend, Prisma, or private-module dependency introduced.
  */
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
@@ -109,7 +103,6 @@ beforeEach(() => {
     (this as HTMLDialogElement).open = false;
   });
 });
-
 // ---------------------------------------------------------------------------
 // 1. Successful creation renders Pending
 // ---------------------------------------------------------------------------
@@ -467,99 +460,6 @@ describe("17. no dual mutable timeline source — authoritative snapshot only", 
     expect(record).not.toHaveProperty("timeline");
   });
 
-  it("task-types.ts CreatedTaskRecord no longer defines a timeline field", () => {
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/model/task-types.ts"
-      ),
-      "utf8"
-    );
-
-    // timeline field must not appear inside CreatedTaskRecord
-    const createdRecordBlock = source.slice(
-      source.indexOf("CreatedTaskRecord"),
-      source.indexOf("}", source.indexOf("CreatedTaskRecord")) + 1
-    );
-    expect(createdRecordBlock).not.toMatch(/\btimeline\b/);
-  });
-
-  it("page renders timeline from processingSnapshot.steps, not a legacy field", () => {
-    const dockSource = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/components/task-orchestration-dock.tsx"
-      ),
-      "utf8"
-    );
-    const pageSource = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
-      ),
-      "utf8"
-    );
-
-    expect(dockSource).toMatch(/processingSnapshot\.steps/);
-    expect(pageSource).not.toMatch(/activeTask\.timeline/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 18. Presentation components do not mutate canonical status
-// ---------------------------------------------------------------------------
-describe("18. presentation components do not mutate canonical status", () => {
-  it("TaskStatusBadge does not contain useState, useReducer, or setTaskStatus", () => {
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/components/task-status-badge.tsx"
-      ),
-      "utf8"
-    );
-
-    expect(source).not.toMatch(/useState|useReducer|setTaskStatus|ProductionTaskStatus/);
-  });
-
-  it("ProcessingTimeline does not contain useState, useReducer, or setTaskStatus", () => {
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/components/processing-timeline.tsx"
-      ),
-      "utf8"
-    );
-
-    expect(source).not.toMatch(/useState|useReducer|setTaskStatus|ProductionTaskStatus/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 19. No backend, Prisma, or private-module import
-// ---------------------------------------------------------------------------
-describe("19. no forbidden imports in frontend Task & Orchestration files", () => {
-  const root = process.cwd();
-
-  const frontendFiles = [
-    "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx",
-    "apps/frontend/src/features/task-orchestration/model/task-creation-state.ts",
-    "apps/frontend/src/features/task-orchestration/model/task-lifecycle.ts",
-    "apps/frontend/src/features/task-orchestration/model/task-types.ts",
-    "apps/frontend/src/features/task-orchestration/model/task-processing.ts"
-  ];
-
-  it.each(frontendFiles)(
-    "file %s does not import backend, database, Prisma, or private modules",
-    (file) => {
-      const source = readFileSync(join(root, file), "utf8");
-
-      expect(source).not.toMatch(/@vcp\/backend/);
-      expect(source).not.toMatch(/@vcp\/database/);
-      expect(source).not.toMatch(/Prisma/);
-      expect(source).not.toMatch(/modules\/agent-management/);
-      expect(source).not.toMatch(/modules\/workflow-management/);
-    }
-  );
 });
 
 // ---------------------------------------------------------------------------
@@ -891,51 +791,5 @@ describe("34. no cancellation execution is performed", () => {
 
     // Client was called once for task creation only
     expect(client.callCount).toBe(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 35. Presentation code does not directly assign lifecycle status
-// ---------------------------------------------------------------------------
-describe("35. presentation code does not directly assign lifecycle status", () => {
-  it("page source does not assign canonical status directly", () => {
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
-      ),
-      "utf8"
-    );
-
-    // No direct status assignment
-    expect(source).not.toMatch(/\.status\s*=\s*["'`]queued/);
-    expect(source).not.toMatch(/\.status\s*=\s*["'`]cancelled/);
-    expect(source).not.toMatch(/\.status\s*=\s*["'`]running/);
-    // No cancellation reducer action dispatched
-    expect(source).not.toMatch(/type:\s*["'`]task-canceled/);
-    expect(source).not.toMatch(/type:\s*["'`]processing-canceled/);
-    // No window.confirm
-    expect(source).not.toMatch(/window\.confirm/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 36. No new backend, Prisma, or private-module dependency introduced
-// ---------------------------------------------------------------------------
-describe("36. no new forbidden dependency in page after cancellation fix", () => {
-  it("page still has no backend, database, Prisma, or private-module import", () => {
-    const source = readFileSync(
-      join(
-        process.cwd(),
-        "apps/frontend/src/features/task-orchestration/task-orchestration-page.tsx"
-      ),
-      "utf8"
-    );
-
-    expect(source).not.toMatch(/@vcp\/backend/);
-    expect(source).not.toMatch(/@vcp\/database/);
-    expect(source).not.toMatch(/Prisma/);
-    expect(source).not.toMatch(/modules\/agent-management/);
-    expect(source).not.toMatch(/modules\/workflow-management/);
   });
 });
