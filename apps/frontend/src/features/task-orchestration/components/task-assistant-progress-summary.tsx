@@ -6,6 +6,14 @@ export interface TaskAssistantProgressSummaryProps {
   task: CreatedTaskRecord;
 }
 
+type ActivityKind = "agent" | "search" | "tool" | "file" | "message";
+
+interface ActivityLabel {
+  readonly kind: ActivityKind;
+  readonly label: string;
+  readonly hint: string;
+}
+
 export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSummaryProps) {
   const presentationStatus = toTaskPresentationStatus(task.status);
   if (!presentationStatus || (task.status !== "queued" && task.status !== "running")) {
@@ -15,16 +23,100 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
   const activeStep = task.processingSnapshot.steps.find((step) => step.status === "active");
   const completedSteps = task.processingSnapshot.steps.filter((step) => step.status === "completed");
   const totalSteps = task.processingSnapshot.steps.length;
+  const visibleSteps = task.processingSnapshot.steps.filter(
+    (step) => step.status === "active" || step.status === "completed" || step.status === "failed"
+  );
+  const recentSteps = visibleSteps.slice(-4);
+  const currentActivity = resolveActivityLabel(
+    activeStep?.label ||
+      task.processingSnapshot.logs.at(-1)?.message ||
+      (task.status === "queued" ? "Queued" : "Processing")
+  );
 
   const stepSummary =
     task.status === "queued"
       ? "Queued for processing"
-      : `${activeStep ? activeStep.label : "Processing"} · ${completedSteps.length}/${totalSteps} steps`;
+      : `${currentActivity.label} · ${completedSteps.length}/${totalSteps} steps`;
 
   return (
     <div className="task-assistant-progress" aria-live="polite">
-      {presentationStatus ? <TaskStatusBadge status={presentationStatus} /> : null}
-      <span className="task-assistant-progress__steps">{stepSummary}</span>
+      <div className="task-assistant-progress__header">
+        <TaskStatusBadge status={presentationStatus} />
+        <span className="task-assistant-progress__steps">{stepSummary}</span>
+      </div>
+
+      {task.status === "running" ? (
+        <div className="task-assistant-progress__track" aria-label="Runtime progress">
+          <span
+            className={`task-assistant-progress__pulse task-assistant-progress__pulse--${currentActivity.kind}`}
+            aria-hidden="true"
+          />
+          <div className="task-assistant-progress__copy">
+            <span className="task-assistant-progress__activity">{currentActivity.label}</span>
+            <span className="task-assistant-progress__hint">{currentActivity.hint}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {recentSteps.length > 0 ? (
+        <ol className="task-assistant-progress__mini-steps" aria-label="Recent runtime steps">
+          {recentSteps.map((step) => {
+            const activity = resolveActivityLabel(step.label);
+            return (
+              <li
+                key={step.id}
+                className={`task-assistant-progress__mini-step task-assistant-progress__mini-step--${step.status}`}
+              >
+                <span className="task-assistant-progress__mini-dot" aria-hidden="true" />
+                <span>{activity.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
     </div>
   );
+}
+
+export function resolveActivityLabel(rawLabel: string): ActivityLabel {
+  const label = rawLabel.trim() || "Processing";
+  const lower = label.toLowerCase();
+
+  if (/\b(tool|function|call|calling|execute|command|api)\b/.test(lower)) {
+    return {
+      kind: "tool",
+      label: "Calling tool",
+      hint: label
+    };
+  }
+
+  if (/\b(search|web|browser|browse|retriev|lookup|google)\b/.test(lower)) {
+    return {
+      kind: "search",
+      label: "Searching web",
+      hint: label
+    };
+  }
+
+  if (/\b(file|read|write|document|workspace|artifact)\b/.test(lower)) {
+    return {
+      kind: "file",
+      label: "Reading workspace",
+      hint: label
+    };
+  }
+
+  if (/\b(message|respond|stream|output|final)\b/.test(lower)) {
+    return {
+      kind: "message",
+      label: "Composing response",
+      hint: label
+    };
+  }
+
+  return {
+    kind: "agent",
+    label,
+    hint: "OpenClaw runtime activity"
+  };
 }

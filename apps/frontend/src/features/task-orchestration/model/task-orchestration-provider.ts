@@ -616,11 +616,35 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
             });
             const stepIndex = Math.max(0, (snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0));
             handler({ ...base, kind: "step-completed", stepName, stepIndex, taskSnapshot: snapshot });
-          } else if (data.type === "sub-activity") {
+          } else if (
+            data.type === "sub-activity" ||
+            data.type === "tool-call" ||
+            data.type === "tool-call-started" ||
+            data.type === "tool-started" ||
+            data.type === "web-search" ||
+            data.type === "web-search-started"
+          ) {
             const activityType = data.activityType || "provider";
-            const details = data.details || activityType;
-            const stepId = `openclaw-${activityType}`;
-            const stepName = `OpenClaw ${activityType}`;
+            const details =
+              data.details ||
+              data.toolName ||
+              data.query ||
+              data.stepName ||
+              activityType;
+            const stepId =
+              data.stepId ||
+              (data.type.includes("search")
+                ? "openclaw-web-search"
+                : data.type.includes("tool")
+                ? `openclaw-tool-${String(data.toolName || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+                : `openclaw-${activityType}`);
+            const stepName =
+              data.stepName ||
+              (data.type.includes("search")
+                ? "Searching web"
+                : data.type.includes("tool")
+                ? `Calling tool ${data.toolName || ""}`.trim()
+                : `OpenClaw ${activityType}`);
             ensureProviderProcessingStarted();
             snapshot = applyAction({
               type: "provider-step-started",

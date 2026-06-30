@@ -3,9 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ProcessingTimeline } from
   "@vcp/frontend/features/task-orchestration/components/processing-timeline.tsx";
+import {
+  TaskAssistantProgressSummary,
+  resolveActivityLabel
+} from "@vcp/frontend/features/task-orchestration/components/task-assistant-progress-summary.tsx";
 import { TaskStatusBadge } from
   "@vcp/frontend/features/task-orchestration/components/task-status-badge.tsx";
 import type {
+  CreatedTaskRecord,
   ProcessingStep,
   ProcessingStepStatus,
   TaskPresentationStatus
@@ -157,3 +162,50 @@ describe("ProcessingTimeline", () => {
   });
 
 });
+
+describe("TaskAssistantProgressSummary", () => {
+  it.each([
+    ["web search started", "Searching web"],
+    ["Calling tool browser", "Calling tool"],
+    ["Read workspace file", "Reading workspace"],
+    ["final output", "Composing response"]
+  ])("summarizes provider activity %s", (label, expected) => {
+    expect(resolveActivityLabel(label).label).toBe(expected);
+  });
+
+  it("renders compact runtime activity and recent provider steps", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createRunningTask([
+          { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
+          { id: "openclaw-tool-browser", label: "Calling tool browser", status: "active" }
+        ])}
+      />
+    );
+
+    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    expect(screen.getByLabelText("Runtime progress")).toBeVisible();
+    expect(screen.getAllByText("Calling tool").length).toBeGreaterThan(0);
+    expect(screen.getByText("Searching web")).toBeVisible();
+  });
+});
+
+function createRunningTask(steps: ProcessingStep[]): CreatedTaskRecord {
+  return {
+    taskId: "TASK-001" as import("@vcp/shared").EntityId<"taskId">,
+    workId: "WORK-001" as import("@vcp/shared").EntityId<"workId">,
+    prompt: "Run provider activity",
+    requestedRouting: { mode: "auto" },
+    status: "running",
+    createdAt: "2026-06-30T00:00:00.000Z",
+    processingSnapshot: {
+      startedAt: "2026-06-30T00:00:00.000Z",
+      steps,
+      logs: []
+    },
+    streamingSnapshot: {
+      phase: "idle",
+      fragments: []
+    }
+  };
+}

@@ -34,6 +34,7 @@ export function TaskConversation({
   const isStreaming = task.streamingSnapshot.phase === "streaming";
   const shouldShowPartialResult =
     task.status === "running" &&
+    partialText.trim().length > 0 &&
     task.processingSnapshot.steps.some(
       (s) =>
         (s.id === "execute-task" ||
@@ -160,7 +161,7 @@ export function TaskAssistantMessage({
         ) : shouldShowPartialResult ? (
           <TaskPartialResult partialText={partialText} phase={task.streamingSnapshot.phase} />
         ) : (
-          <div className="task-conversation__streaming-area">
+          <div className="task-conversation__streaming-area task-conversation__streaming-area--compact">
             {isStreaming ? (
               <div className="task-conversation__indicator task-loading-pulse" role="status">
                 Generating response...
@@ -168,7 +169,7 @@ export function TaskAssistantMessage({
             ) : null}
             <p className="task-conversation__partial-text" aria-live="polite">
               {partialText ||
-                (task.status === "queued" ? "Preparing your request..." : "Processing started...")}
+                (task.status === "queued" ? "Waiting for runtime..." : "Working on it")}
             </p>
           </div>
         )}
