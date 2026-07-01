@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import type { AgentRuntimeProfile } from "@vcp/shared/contracts/agent-management.ts";
 import {
   FileSystemOpenClawAgentMaterializer,
-  NoOpOpenClawAgentMaterializer
+  NoOpOpenClawAgentMaterializer,
+  type OpenClawAgentArtifactMirror
 } from "./openclaw-agent-materializer.ts";
 
 describe("OpenClawAgentMaterializer", () => {
@@ -87,8 +88,10 @@ describe("OpenClawAgentMaterializer", () => {
 
   it("uses the registered native OpenClaw agent ID returned by the mirror", async () => {
     const baseDir = await mkdtemp(join(tmpdir(), "openclaw-agent-materializer-"));
+    const calls: string[] = [];
     const materializer = new FileSystemOpenClawAgentMaterializer(baseDir, () => "2026-06-30T00:00:00.000Z", {
-      async mirrorWorkspace() {
+      async mirrorWorkspace(_workspaceDir, workspaceId) {
+        calls.push(workspaceId);
         return {
           openClawAgentId: "research-agent",
           providerAgentMapping: "openclaw/agent/research-agent"
@@ -101,6 +104,7 @@ describe("OpenClawAgentMaterializer", () => {
 
       expect(materialized.openClawAgentId).toBe("research-agent");
       expect(materialized.providerAgentMapping).toBe("openclaw/agent/research-agent");
+      expect(calls).toEqual(["workspace-1"]);
       const agentsList = JSON.parse(await readFile(join(baseDir, "workspace-1", "agents.list.json"), "utf-8"));
       expect(agentsList).toEqual([
         expect.objectContaining({
@@ -108,6 +112,96 @@ describe("OpenClawAgentMaterializer", () => {
           providerAgentMapping: "openclaw/agent/research-agent"
         })
       ]);
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses materialized mappings when the runtime profile is unchanged", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-agent-materializer-"));
+    let calls = 0;
+    const materializer = new FileSystemOpenClawAgentMaterializer(baseDir, () => "2026-06-30T00:00:00.000Z", {
+      async mirrorWorkspace() {
+        calls += 1;
+        return {
+          openClawAgentId: "research-agent",
+          providerAgentMapping: "openclaw/agent/research-agent"
+        };
+      }
+    });
+
+    try {
+      const first = await materializer.materializeAgent(createRuntimeProfile());
+      const second = await materializer.materializeAgent(createRuntimeProfile());
+
+      expect(second).toBe(first);
+      expect(calls).toBe(1);
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  it("coalesces concurrent materialization requests for the same profile", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-agent-materializer-"));
+    let calls = 0;
+    let releaseMirror!: () => void;
+    const mirrorGate = new Promise<void>((resolve) => {
+      releaseMirror = resolve;
+    });
+    const materializer = new FileSystemOpenClawAgentMaterializer(baseDir, () => "2026-06-30T00:00:00.000Z", {
+      async mirrorWorkspace() {
+        calls += 1;
+        await mirrorGate;
+        return {
+          openClawAgentId: "research-agent",
+          providerAgentMapping: "openclaw/agent/research-agent"
+        };
+      }
+    });
+
+    try {
+      const profile = createRuntimeProfile();
+      const first = materializer.materializeAgent(profile);
+      const second = materializer.materializeAgent(profile);
+      releaseMirror();
+      const results = await Promise.all([first, second]);
+
+      expect(results[1]).toBe(results[0]);
+      expect(calls).toBe(1);
+    } finally {
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  it("retries materialization after a mirror failure", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-agent-materializer-"));
+    let calls = 0;
+    const mirror: OpenClawAgentArtifactMirror = {
+      async mirrorWorkspace() {
+        calls += 1;
+        if (calls === 1) {
+          throw new Error("mirror failed");
+        }
+        return {
+          openClawAgentId: "research-agent",
+          providerAgentMapping: "openclaw/agent/research-agent"
+        };
+      }
+    };
+    const materializer = new FileSystemOpenClawAgentMaterializer(
+      baseDir,
+      () => "2026-06-30T00:00:00.000Z",
+      mirror
+    );
+
+    try {
+      await expect(materializer.materializeAgent(createRuntimeProfile())).rejects.toThrow("mirror failed");
+      await expect(materializer.getMaterializedAgent("workspace-1" as any, "agent-research")).resolves.toBeNull();
+
+      const materialized = await materializer.materializeAgent(createRuntimeProfile());
+
+      expect(materialized.openClawAgentId).toBe("research-agent");
+      expect(calls).toBe(2);
     } finally {
       await rm(baseDir, { recursive: true, force: true });
     }
