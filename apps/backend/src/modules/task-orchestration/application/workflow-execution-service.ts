@@ -230,10 +230,26 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
     };
 
     const activeStepLogs = new Map<string, EntityId<"logId">>();
+    const activeStepOutputs = new Map<string, string>();
+    let currentActiveStepId: string | null = null;
 
     const handleEvent = async (event: NormalizedRuntimeEvent) => {
       try {
+        const matchingStep = materializedWorkflow.steps.find(
+          (s) =>
+            s.workflowStepId === event.stepId ||
+            `step-${s.stepOrder}` === event.stepId ||
+            `step_${s.stepOrder}` === event.stepId ||
+            String(s.stepOrder) === event.stepId
+        ) || materializedWorkflow.steps[0];
+
+        const realStepId = matchingStep?.workflowStepId as EntityId<"workflowStepId">;
+        if (!realStepId) return;
+
         if (event.type === "step-started") {
+          currentActiveStepId = event.stepId;
+          activeStepOutputs.set(event.stepId, "");
+
           const logId = `wfsl_${randomUUID()}` as EntityId<"logId">;
           activeStepLogs.set(event.stepId, logId);
 
@@ -242,7 +258,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
               logId,
               workspaceId: workflow.workspaceId,
               executionId,
-              workflowStepId: event.stepId as EntityId<"workflowStepId">,
+              workflowStepId: realStepId,
               status: "Running",
               inputData: { stepName: event.stepName },
               startedAt: new Date().toISOString()
@@ -258,20 +274,29 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
                 workspaceId: workflow.workspaceId,
                 workflowId: workflow.workflowId,
                 executionId,
-                workflowStepId: event.stepId as EntityId<"workflowStepId">,
-                stepOrder: 1,
-                agentId: undefined
+                workflowStepId: realStepId,
+                stepOrder: matchingStep.stepOrder,
+                agentId: matchingStep.agentId as EntityId<"agentId"> | undefined
               }
             });
+          }
+        } else if (event.type === "partial-output-received") {
+          const stepIdToAppend = event.stepId || currentActiveStepId;
+          if (stepIdToAppend) {
+            const currentText = activeStepOutputs.get(stepIdToAppend) || "";
+            activeStepOutputs.set(stepIdToAppend, currentText + (event.outputChunk || ""));
           }
         } else if (event.type === "step-completed") {
           const logId = activeStepLogs.get(event.stepId);
           if (logId) {
+            const rawOutput = activeStepOutputs.get(event.stepId) || "";
+            const stepOutput = rawOutput.trim() || event.result || "Completed";
+
             if (createStepLogs) {
               await this.workflowRepo.updateStepLog(
                 logId,
                 "Success",
-                event.result || "Completed",
+                { text: stepOutput },
                 undefined,
                 new Date().toISOString()
               );
@@ -286,13 +311,16 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
                   workspaceId: workflow.workspaceId,
                   workflowId: workflow.workflowId,
                   executionId,
-                  workflowStepId: event.stepId as EntityId<"workflowStepId">,
-                  stepOrder: 1,
-                  agentId: undefined,
-                  outputData: event.result
+                  workflowStepId: realStepId,
+                  stepOrder: matchingStep.stepOrder,
+                  agentId: matchingStep.agentId as EntityId<"agentId"> | undefined,
+                  outputData: { text: stepOutput }
                 }
               });
             }
+          }
+          if (currentActiveStepId === event.stepId) {
+            currentActiveStepId = null;
           }
         }
       } catch (err) {
