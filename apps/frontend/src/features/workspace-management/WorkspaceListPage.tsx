@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Plus, RefreshCw, AlertCircle, ArrowRight } from "lucide-react";
+import { Building2, Plus, RefreshCw, AlertCircle, ArrowRight, Lock } from "lucide-react";
 import { StatCard } from "../../components/shared/StatCard.tsx";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { PageHeader } from "../../components/layout/PageHeader.tsx";
@@ -187,8 +187,12 @@ export function WorkspaceListPage() {
                   workspaces.map((ws) => (
                     <tr
                       key={ws.workspaceId}
-                      style={{ cursor: "pointer" }}
-                      onClick={() => navigate(`/workspaces/${ws.workspaceId}`)}
+                      style={{ cursor: ws.accessRestricted ? "not-allowed" : "pointer", opacity: ws.accessRestricted ? 0.72 : 1 }}
+                      onClick={() => {
+                        if (!ws.accessRestricted) {
+                          navigate(`/workspaces/${ws.workspaceId}`);
+                        }
+                      }}
                     >
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -208,6 +212,12 @@ export function WorkspaceListPage() {
                             <div style={{ fontSize: 12, color: "var(--muted)" }}>
                               {ws.workspaceId}
                             </div>
+                            {ws.accessRestricted ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--muted)", fontSize: 12, marginTop: 3 }}>
+                                <Lock size={12} />
+                                Restricted access
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -223,9 +233,16 @@ export function WorkspaceListPage() {
                         {formatDate(ws.createdAt)}
                       </td>
                       <td>
-                        <span style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600 }}>
-                          Xem <ArrowRight size={14} />
-                        </span>
+                        {ws.accessRestricted ? (
+                          <span style={{ color: "var(--muted)", display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600 }}>
+                            <Lock size={14} />
+                            Restricted
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600 }}>
+                            Xem <ArrowRight size={14} />
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

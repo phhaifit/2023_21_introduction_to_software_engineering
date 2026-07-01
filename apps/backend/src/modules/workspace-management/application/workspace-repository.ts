@@ -14,6 +14,7 @@ export interface WorkspaceRepository {
   save(workspace: Workspace): Promise<Workspace>;
   findById(workspaceId: EntityId<"workspaceId">): Promise<Workspace | null>;
   listAccessibleByUser(userId: EntityId<"userId">): Promise<Workspace[]>;
+  listAllActive(): Promise<Workspace[]>;
   updateStatus(
     workspaceId: EntityId<"workspaceId">,
     update: WorkspaceStatusUpdate,

@@ -81,8 +81,21 @@ export class WorkspaceUseCases {
   // ── List ──────────────────────────────────────────────────────────────────
 
   async listWorkspaces(userId: EntityId<"userId">): Promise<WorkspaceSummaryDto[]> {
-    const workspaces = await this.deps.repository.listAccessibleByUser(userId);
-    return workspaces.map(toWorkspaceSummaryDto);
+    const workspaces = await this.deps.repository.listAllActive();
+    return Promise.all(workspaces.map(async (workspace) => {
+      const isOwner = workspace.userId === userId;
+      const member = isOwner
+        ? null
+        : await this.deps.prisma.workspaceMember.findFirst({
+            where: { workspaceId: workspace.workspaceId, userId, status: "active" }
+          });
+
+      return {
+        ...toWorkspaceSummaryDto(workspace),
+        accessRestricted: !isOwner && !member,
+        membershipRole: isOwner ? "host" : member?.role
+      };
+    }));
   }
 
   // ── Detail ────────────────────────────────────────────────────────────────

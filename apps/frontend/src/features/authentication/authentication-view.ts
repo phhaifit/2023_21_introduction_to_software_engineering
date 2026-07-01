@@ -62,11 +62,11 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const MIN_PASSWORD_LENGTH = 8;
 
 /**
- * Password must contain at least one letter and at least one digit.
+ * Password must be at least 8 characters and contain at least one letter and one digit.
  * Backend enforces the same constraint; we validate client-side to give
  * immediate feedback before the network round-trip.
  */
-export const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[A-Za-z])(?=.*\d).+$/;
+export const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 // -----------------------------------------------------------------------------
 // Field-level validation messages
@@ -122,10 +122,7 @@ export function validateLoginForm(values: LoginFormValues): ValidationResult {
     errors.push({ field: "email", message: AUTH_FIELD_MESSAGES.emailInvalid });
   }
 
-  if (
-    values.password.length < MIN_PASSWORD_LENGTH ||
-    !PASSWORD_COMPLEXITY_REGEX.test(values.password)
-  ) {
+  if (!PASSWORD_COMPLEXITY_REGEX.test(values.password)) {
     errors.push({
       field: "password",
       message: AUTH_FIELD_MESSAGES.passwordTooShort
@@ -149,10 +146,7 @@ export function validateRegisterForm(
     errors.push({ field: "email", message: AUTH_FIELD_MESSAGES.emailInvalid });
   }
 
-  if (
-    values.password.length < MIN_PASSWORD_LENGTH ||
-    !PASSWORD_COMPLEXITY_REGEX.test(values.password)
-  ) {
+  if (!PASSWORD_COMPLEXITY_REGEX.test(values.password)) {
     errors.push({
       field: "password",
       message: AUTH_FIELD_MESSAGES.passwordTooShort

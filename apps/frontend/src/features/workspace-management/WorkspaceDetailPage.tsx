@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Bot, GitBranch, Wrench,
-  AlertCircle, Loader2, ExternalLink, Trash2, X
+  AlertCircle, Loader2, ExternalLink, Trash2, X, Users
 } from "lucide-react";
 import type { WorkspaceDetailDto } from "@vcp/shared/contracts/workspace-management.ts";
 import { StatCard } from "../../components/shared/StatCard.tsx";
@@ -132,6 +132,15 @@ export function WorkspaceDetailPage() {
         description={`ID: ${workspace.workspaceId}`}
       >
         <StatusBadge status={workspace.status} />
+        <button
+          type="button"
+          className="secondary-action"
+          onClick={() => navigate(`/workspaces/${workspace.workspaceId}/members`)}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <Users size={15} />
+          View Member List
+        </button>
         <button
           type="button"
           className="secondary-action"

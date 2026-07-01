@@ -32,10 +32,39 @@ export interface InvitationResponse {
   status: "pending" | "accepted" | "revoked";
   invitedByUserId: string;
   createdAt: string;
+  expiresAt?: string;
+}
+
+export interface WorkspaceActivityResponse {
+  eventId: string;
+  workspaceId: string;
+  type: string;
+  actor?: string;
+  target?: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface AdminRequestResponse {
+  requestId: string;
+  workspaceId: string;
+  memberId: string;
+  requester: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
 }
 
 export interface AcceptInvitationRequest {
   code: string;
+}
+
+export interface AcceptInvitationResponse {
+  invitationId: string;
+  workspaceId: string;
+  email: string;
+  role: WorkspaceRole;
 }
 
 
@@ -57,4 +86,13 @@ export interface UpdateMemberRoleRequest {
 export interface WorkspaceMemberListResponse {
   members: WorkspaceMemberResponse[];
   invitations: InvitationResponse[];
+  adminRequests: AdminRequestResponse[];
+  currentUserRole?: WorkspaceRole;
+  permissions: {
+    canInvite: boolean;
+    canManagePendingInvitations: boolean;
+    canChangeMemberRoles: boolean;
+    canRemoveMembers: boolean;
+    canTransferHost: boolean;
+  };
 }

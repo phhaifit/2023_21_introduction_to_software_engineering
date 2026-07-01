@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 import {
@@ -34,10 +34,14 @@ export function AuthenticationPage() {
   const redirectMessage = searchParams.get("message");
 
   // Separate the authenticated and unauthenticated views.
-  if (isAuthenticated) {
-    // If we just logged in and there's a redirect target, go there immediately
-    if (redirectTarget) {
+  useEffect(() => {
+    if (isAuthenticated && redirectTarget) {
       navigate(decodeURIComponent(redirectTarget), { replace: true });
+    }
+  }, [isAuthenticated, redirectTarget, navigate]);
+
+  if (isAuthenticated) {
+    if (redirectTarget) {
       return null;
     }
     return (

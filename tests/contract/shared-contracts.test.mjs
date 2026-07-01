@@ -34,7 +34,7 @@ const expectedCapabilities = [
 ];
 
 assert.deepEqual(schema.capabilities, expectedCapabilities);
-assert.deepEqual(schema.roles, ["admin", "editor", "viewer"]);
+assert.deepEqual(schema.roles, ["host", "admin", "editor", "viewer"]);
 assert.deepEqual(Object.keys(schema.plans).sort(), ["premium", "standard"]);
 
 assert.deepEqual(schema.idKinds, [

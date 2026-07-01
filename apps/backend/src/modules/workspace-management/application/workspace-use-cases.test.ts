@@ -49,6 +49,7 @@ function makeRepo(overrides: Partial<WorkspaceRepository> = {}): WorkspaceReposi
     save: vi.fn().mockImplementation(async (ws: Workspace) => ws),
     findById: vi.fn().mockResolvedValue(null),
     listAccessibleByUser: vi.fn().mockResolvedValue([]),
+    listAllActive: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue(undefined),
     ...overrides
   };
@@ -82,13 +83,22 @@ function makeUseCases(
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("WorkspaceUseCases.listWorkspaces", () => {
-  it("returns summary DTOs for accessible workspaces", async () => {
+  it("returns all active workspace summaries and marks inaccessible workspaces as restricted", async () => {
     const ws = makeWorkspace();
-    const { useCases } = makeUseCases({ listAccessibleByUser: vi.fn().mockResolvedValue([ws]) });
+    const restricted = makeWorkspace({
+      workspaceId: "ws_restricted" as EntityId<"workspaceId">,
+      userId: "other_user" as EntityId<"userId">,
+      name: "Restricted WS"
+    });
+    const { useCases } = makeUseCases({
+      listAllActive: vi.fn().mockResolvedValue([ws, restricted])
+    });
     const result = await useCases.listWorkspaces(USER_ID);
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     expect(result[0].workspaceId).toBe(WS_ID);
-    expect(result[0].status).toBe("running");
+    expect(result[0].accessRestricted).toBe(false);
+    expect(result[1].workspaceId).toBe("ws_restricted");
+    expect(result[1].accessRestricted).toBe(true);
   });
 
   it("returns empty array when user has no workspaces", async () => {

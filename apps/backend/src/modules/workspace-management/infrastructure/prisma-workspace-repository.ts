@@ -56,6 +56,14 @@ export class PrismaWorkspaceRepository implements WorkspaceRepository {
     return [...owned, ...memberWorkspaces].map(toDomain);
   }
 
+  async listAllActive(): Promise<Workspace[]> {
+    const rows = await this.prisma.workspace.findMany({
+      where: { status: { not: "deleted" } },
+      orderBy: { createdAt: "desc" }
+    });
+    return rows.map(toDomain);
+  }
+
   async updateStatus(
     workspaceId: EntityId<"workspaceId">,
     update: WorkspaceStatusUpdate,

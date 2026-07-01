@@ -1,4 +1,4 @@
-export const WORKSPACE_ROLES = ["admin", "editor", "viewer"] as const;
+export const WORKSPACE_ROLES = ["host", "admin", "editor", "viewer"] as const;
 
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
@@ -17,6 +17,7 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 export const ROLE_PERMISSIONS: Record<WorkspaceRole, readonly Permission[]> = {
+  host: PERMISSIONS,
   admin: PERMISSIONS,
   editor: [
     "workspace:read",

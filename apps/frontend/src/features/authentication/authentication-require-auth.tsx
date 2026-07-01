@@ -50,11 +50,9 @@ export function RequireAuth({ children, fallback }: RequireAuthProps) {
     return <p role="status">Checking your session</p>;
   }
 
-  // After initialization, render fallback for unauthenticated users
   if (!isAuthenticated) {
-    return fallback;
+    return <>{fallback}</>;
   }
 
-  // Authenticated user – render protected children
-  return children;
+  return <>{children}</>;
 }

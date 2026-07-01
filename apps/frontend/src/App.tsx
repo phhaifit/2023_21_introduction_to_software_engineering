@@ -11,12 +11,10 @@ import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkspaceListPage } from "./features/workspace-management/WorkspaceListPage.tsx";
 import { WorkspaceCreatePage } from "./features/workspace-management/WorkspaceCreatePage.tsx";
 import { WorkspaceDetailPage } from "./features/workspace-management/WorkspaceDetailPage.tsx";
+import { WorkspaceMembersPage } from "./features/workspace-user-management/pages/WorkspaceMembersPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
-import { WorkspacesPage } from "./features/workspace-user-management/pages/WorkspacesPage.tsx";
-import { WorkspaceDashboardPage } from "./features/workspace-user-management/pages/WorkspaceDashboardPage.tsx";
-import { WorkspaceListPage } from "./features/workspace-user-management/pages/WorkspaceListPage.tsx";
 import { AcceptInvitePage } from "./features/workspace-user-management/pages/AcceptInvitePage.tsx";
 
 export function App() {
@@ -41,11 +39,10 @@ export function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/workspaces" element={<WorkspaceListPage />} />
           <Route path="/workspaces/new" element={<WorkspaceCreatePage />} />
+          <Route path="/workspaces/:workspaceId/members" element={<WorkspaceMembersPage />} />
           <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="/authentication" element={<AuthenticationPage />} />
-          <Route path="/workspaces" element={<WorkspacesPage />} />
-          <Route path="/workspace/:workspaceId" element={<WorkspaceDashboardPage />} />
-          <Route path="/workspace/:workspaceId/members" element={<WorkspaceListPage />} />
+          <Route path="/workspace/invitation/accept" element={<AcceptInvitePage />} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

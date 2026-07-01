@@ -47,6 +47,7 @@ import { PrismaUserRepository } from "./modules/authentication/infrastructure/pr
 import { PrismaSessionRepository } from "./modules/authentication/infrastructure/prisma-session-repository.ts";
 import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
 import { Sha256TokenHasher } from "./modules/authentication/infrastructure/sha256-token-hasher.ts";
+import { createUser } from "./modules/authentication/domain/user.ts";
 import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/knowledge-base-rag-router.ts";
 import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/application/knowledge-data-source-use-cases.ts";
 import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
@@ -68,7 +69,6 @@ import {
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
 import {
-  createWorkspaceListRouter,
   createWorkspaceUserManagementRouter,
   createAcceptInvitationRouter,
   WorkspaceUserManagementService,
@@ -76,6 +76,7 @@ import {
   createWorkspaceContextMiddleware
 } from "./modules/workspace-user-management/index.ts";
 import { NodemailerEmailService } from "./shared/email/email-service.ts";
+import { loadBackendEnvironment } from "./shared/config/backend-environment.ts";
 
 
 // New imports for Task Orchestration & OpenClaw network transport
@@ -264,6 +265,8 @@ function createSkillWriter(): AgentSkillWriter {
 }
 
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
+  loadBackendEnvironment();
+
   const repository = await createRepository();
   const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
@@ -379,6 +382,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const workspaceUserManagementRepo = new InMemoryWorkspaceUserManagementRepository();
   const emailService = new NodemailerEmailService();
+  const localEmailUserEmail = process.env.GMAIL_USER?.trim().toLowerCase();
   const workspaceUserManagementService = new WorkspaceUserManagementService({
     repository: workspaceUserManagementRepo,
     emailService: emailService,
@@ -396,14 +400,53 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     memberId: "local-member",
     workspaceId: DEMO_WORKSPACE_ID,
     userId: "local-dev-user",
-    role: "admin",
+    role: "host",
     isAccepted: true,
     joinedAt: new Date().toISOString()
   });
+  if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
+    await workspaceUserManagementRepo.addWorkspaceMember({
+      memberId: "local-email-member",
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-email-user",
+      role: "admin",
+      isAccepted: true,
+      joinedAt: new Date().toISOString()
+    });
+  }
 
   // Real Authentication Setup (Moved up to enable session token verification globally)
   const authPasswordHasher = new BcryptPasswordHasher();
   const authTokenHasher = new Sha256TokenHasher();
+  if (authUserRepository instanceof InMemoryUserRepository) {
+    const timestamp = new Date().toISOString();
+    const existingDevUser = await authUserRepository.findByEmail("dev@local.test");
+    if (!existingDevUser) {
+      await authUserRepository.create(createUser({
+        userId: "local-dev-user" as any,
+        email: "dev@local.test",
+        displayName: "Local Developer",
+        passwordHash: await authPasswordHasher.hash("Password123!"),
+        status: "active",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }));
+    }
+    if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
+      const existingEmailUser = await authUserRepository.findByEmail(localEmailUserEmail);
+      if (!existingEmailUser) {
+        await authUserRepository.create(createUser({
+          userId: "local-email-user" as any,
+          email: localEmailUserEmail,
+          displayName: "Local Email User",
+          passwordHash: await authPasswordHasher.hash("Password123!"),
+          status: "active",
+          createdAt: timestamp,
+          updatedAt: timestamp
+        }));
+      }
+    }
+  }
   const authenticateSessionUseCase = new AuthenticateSessionUseCase(
     authSessionRepository,
     authUserRepository,
@@ -413,7 +456,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const app = express();
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-mock-role, x-mock-user, x-request-id");
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
@@ -454,7 +497,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     }
 
     const mockUser = req.headers["x-mock-user"] as string | undefined;
-    const role = (req.headers["x-mock-role"] as any) || "admin";
+    const role = (req.headers["x-mock-role"] as any) || "host";
     const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
     const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
 
@@ -494,10 +537,36 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     agent:           { count: async () => 0 },
     workflow:        { count: async () => 0 },
     toolConnection:  { count: async () => 0 },
-    workspaceMember: { findFirst: async () => null }
+    workspaceMember: {
+      findFirst: async (query: any) => {
+        const where = query?.where ?? {};
+        const member = await workspaceUserManagementRepo.getWorkspaceMember(where.workspaceId, where.userId);
+        if (!member || !member.isAccepted) return null;
+        if (where.status && where.status !== "active") return null;
+        return {
+          memberId: member.memberId,
+          workspaceId: member.workspaceId,
+          userId: member.userId,
+          role: member.role,
+          status: "active"
+        };
+      }
+    }
   };
 
   const workspaceRepository = await createWorkspaceRepository();
+  if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
+    const now = new Date().toISOString();
+    await workspaceRepository.save({
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-dev-user" as any,
+      name: "Demo Workspace",
+      status: "running",
+      plan: "premium",
+      createdAt: now,
+      updatedAt: now
+    });
+  }
   const workspaceUseCases = new WorkspaceUseCases({
     repository: workspaceRepository,
     prisma: nullSafePrisma as any,
@@ -514,6 +583,25 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     const now = new Date().toISOString();
     try {
       const ws = await workspaceRepository.findById(workspaceId);
+      if (ws) {
+        await workspaceUserManagementRepo.createWorkspace({
+          workspaceId: ws.workspaceId,
+          name: ws.name,
+          createdAt: ws.createdAt,
+          ownerId: ws.userId
+        });
+        const ownerMembership = await workspaceUserManagementRepo.getWorkspaceMember(ws.workspaceId, ws.userId);
+        if (!ownerMembership) {
+          await workspaceUserManagementRepo.addWorkspaceMember({
+            memberId: randomUUID(),
+            workspaceId: ws.workspaceId,
+            userId: ws.userId,
+            role: "host",
+            isAccepted: true,
+            joinedAt: now
+          });
+        }
+      }
       const result = await runtimeAdapter.provision({
         workspaceId,
         displayName: ws?.name ?? workspaceId,
@@ -583,10 +671,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     conversationRepository
   );
 
-  app.use("/api/workspaces", createWorkspaceListRouter({ service: workspaceUserManagementService }));
-
   app.use(
-    "/api/workspaces/:workspaceId/members",
+    "/api/workspaces/:workspaceId",
     createWorkspaceUserManagementRouter({ service: workspaceUserManagementService })
   );
 

@@ -13,6 +13,8 @@ export type WorkspaceSummaryDto = {
   plan: SubscriptionPlan;
   createdAt: string;
   updatedAt: string;
+  accessRestricted?: boolean;
+  membershipRole?: string;
 };
 
 export type WorkspaceDetailDto = WorkspaceSummaryDto & {

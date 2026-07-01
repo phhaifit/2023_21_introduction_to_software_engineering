@@ -27,7 +27,7 @@
     "eventId",
     "jobId"
   ],
-  "roles": ["admin", "editor", "viewer"],
+  "roles": ["host", "admin", "editor", "viewer"],
   "plans": {
     "standard": {
       "cpuCores": 2,
@@ -75,6 +75,17 @@
     "billing:manage"
   ],
   "rolePermissions": {
+    "host": [
+      "workspace:read",
+      "workspace:delete",
+      "members:manage",
+      "agents:manage",
+      "tools:manage",
+      "workflows:manage",
+      "tasks:run",
+      "knowledge:manage",
+      "billing:manage"
+    ],
     "admin": [
       "workspace:read",
       "workspace:delete",

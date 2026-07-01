@@ -20,6 +20,12 @@ export class InMemoryWorkspaceRepository implements WorkspaceRepository {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  async listAllActive(): Promise<Workspace[]> {
+    return [...this.store.values()]
+      .filter((ws) => ws.status !== "deleted")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   async updateStatus(
     workspaceId: EntityId<"workspaceId">,
     update: WorkspaceStatusUpdate,

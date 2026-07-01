@@ -26,9 +26,15 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="confirmation-modal-card">
-        <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="confirmation-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close modal">
           <X size={18} />
         </button>
 
@@ -36,7 +42,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           <div className={`warning-icon-wrapper ${isDanger ? 'danger' : 'warning'}`}>
             <AlertTriangle size={24} />
           </div>
-          <h3>{title}</h3>
+          <h3 id="confirmation-modal-title">{title}</h3>
         </div>
 
         <div className="confirmation-modal-body">
@@ -44,10 +50,11 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         </div>
 
         <div className="confirmation-modal-footer">
-          <button className="btn-cancel" onClick={onClose}>
+          <button type="button" className="btn-cancel" onClick={onClose}>
             {cancelText}
           </button>
-          <button 
+          <button
+            type="button"
             className={`btn-confirm ${isDanger ? 'btn-danger-confirm' : 'btn-primary-confirm'}`} 
             onClick={() => {
               onConfirm();

@@ -57,6 +57,14 @@ function mapStatus(s: OriginalStatus): WorkspaceStatus {
   }
 }
 
+function isWorkspaceStatus(value: unknown): value is WorkspaceStatus {
+  return value === "pending" ||
+    value === "running" ||
+    value === "failed" ||
+    value === "stopping" ||
+    value === "deleted";
+}
+
 function mapProfile(p?: OriginalProfile | null): SubscriptionPlan {
   if (p === "premium") return "premium";
   if (p === "standard") return "standard";
@@ -74,6 +82,14 @@ function mapSummary(ws: OriginalWorkspaceSummary): WorkspaceSummaryDto {
   };
 }
 
+function normalizeSummary(ws: OriginalWorkspaceSummary | WorkspaceSummaryDto): WorkspaceSummaryDto {
+  if (isWorkspaceStatus((ws as WorkspaceSummaryDto).status)) {
+    return ws as WorkspaceSummaryDto;
+  }
+
+  return mapSummary(ws as OriginalWorkspaceSummary);
+}
+
 function mapDetail(ws: OriginalWorkspaceSummary): WorkspaceDetailDto {
   return {
     ...mapSummary(ws),
@@ -87,6 +103,15 @@ function mapDetail(ws: OriginalWorkspaceSummary): WorkspaceDetailDto {
 function generateIdempotencyKey(): string {
   // UUID matches /^[A-Za-z0-9_.:-]{8,128}$/ since hex + hyphens are all covered
   return crypto.randomUUID();
+}
+
+function workspaceAuthHeaders(extra?: HeadersInit): HeadersInit {
+  const headers: Record<string, string> = { ...(extra as Record<string, string> | undefined) };
+  const token = globalThis.localStorage?.getItem("vcp.auth.token");
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +145,10 @@ async function parseOkResponse<T>(res: Response): Promise<T> {
 // ---------------------------------------------------------------------------
 
 export async function listWorkspaces(): Promise<WorkspaceSummaryDto[]> {
-  const res = await fetch(BASE, { credentials: "include" });
+  const res = await fetch(BASE, {
+    credentials: "include",
+    headers: workspaceAuthHeaders()
+  });
   // Original returns cursor-paginated: { ok, data: [], meta: { cursor } }
   let json: unknown;
   try {
@@ -133,8 +161,8 @@ export async function listWorkspaces(): Promise<WorkspaceSummaryDto[]> {
     throw new Error((json as any)?.error?.message ?? `HTTP ${res.status}`);
   }
 
-  const list = ((json as any).data ?? []) as OriginalWorkspaceSummary[];
-  return list.map(mapSummary);
+  const list = ((json as any).data ?? []) as Array<OriginalWorkspaceSummary | WorkspaceSummaryDto>;
+  return list.map(normalizeSummary);
 }
 
 export async function createWorkspace(
@@ -147,23 +175,29 @@ export async function createWorkspace(
   const res = await fetch(BASE, {
     method: "POST",
     credentials: "include",
-    headers: {
+    headers: workspaceAuthHeaders({
       "Content-Type": "application/json",
       "Idempotency-Key": generateIdempotencyKey(),
-    },
-    body: JSON.stringify({ name: body.name, requestedProfile }),
+    }),
+    body: JSON.stringify({ name: body.name, plan: body.plan, requestedProfile }),
   });
 
-  const data = await parseOkResponse<OriginalCreateAccepted>(res);
-  return mapSummary(data.workspace);
+  const data = await parseOkResponse<OriginalCreateAccepted | WorkspaceSummaryDto>(res);
+  return "workspace" in data ? mapSummary(data.workspace) : normalizeSummary(data);
 }
 
 export async function getWorkspaceDetail(
   workspaceId: string
 ): Promise<WorkspaceDetailDto> {
-  const res = await fetch(`${BASE}/${workspaceId}`, { credentials: "include" });
-  const ws = await parseOkResponse<OriginalWorkspaceSummary>(res);
-  return mapDetail(ws);
+  const res = await fetch(`${BASE}/${workspaceId}`, {
+    credentials: "include",
+    headers: workspaceAuthHeaders()
+  });
+  const ws = await parseOkResponse<OriginalWorkspaceSummary | WorkspaceDetailDto>(res);
+  if ("agentCount" in ws && isWorkspaceStatus(ws.status)) {
+    return ws;
+  }
+  return mapDetail(ws as OriginalWorkspaceSummary);
 }
 
 export async function deleteWorkspace(
@@ -172,9 +206,9 @@ export async function deleteWorkspace(
   const res = await fetch(`${BASE}/${workspaceId}`, {
     method: "DELETE",
     credentials: "include",
-    headers: {
+    headers: workspaceAuthHeaders({
       "Idempotency-Key": generateIdempotencyKey(),
-    },
+    }),
   });
 
   const data = await parseOkResponse<OriginalDeleteAccepted>(res);

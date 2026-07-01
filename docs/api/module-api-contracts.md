@@ -51,7 +51,10 @@ Owner module: `apps/backend/src/modules/workspace-user-management`
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `GET` | `/api/workspaces/:workspaceId/members` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiPaginatedSuccess` member summaries | `planned` | Viewer can read according to module RBAC rules. |
 | `POST` | `/api/workspaces/:workspaceId/invitations` | Workspace admin | Route `workspaceId` | `implement-workspace-user-management` invitation DTO | `ApiResponse` invitation summary | `planned` | Request body must not accept inviter user identity. |
+| `PATCH` | `/api/workspaces/:workspaceId/invitations/:invitationId` | Workspace admin/host | Route `workspaceId` | role update DTO | `ApiResponse` invitation summary | `planned` | Updates a pending invitation role without recreating the invitation. |
+| `DELETE` | `/api/workspaces/:workspaceId/invitations/:invitationId` | Workspace admin/host | Route `workspaceId` | Request context | `ApiResponse` cancellation acknowledgement | `planned` | Cancels a pending invitation and notifies the invitee. |
 | `PATCH` | `/api/workspaces/:workspaceId/members/:memberId` | Workspace admin | Route `workspaceId` | role update DTO | `ApiResponse` member summary | `planned` | Validates admin/editor/viewer role transitions. |
+| `POST` | `/api/workspaces/:workspaceId/members/:memberId/transfer-host` | Workspace host | Route `workspaceId` | Request context | `ApiResponse` member summary | `planned` | Transfers Host ownership and downgrades the previous Host to Admin. |
 | `DELETE` | `/api/workspaces/:workspaceId/members/:memberId` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` removal acknowledgement | `planned` | Revokes workspace access. |
 
 ## Agent Management

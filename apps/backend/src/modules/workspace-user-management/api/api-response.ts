@@ -1,4 +1,4 @@
-﻿import type { Request, Response } from "express";
+import type { Request, Response } from "express";
 
 import type {
   ApiFailure,
@@ -14,18 +14,27 @@ const HTTP_STATUS_MAP: Record<ErrorCode, number> = {
   "auth.forbidden": 403,
   "validation.invalid_input": 422,
   "workspace.not_found": 404,
+  "member.not_found": 404,
+  "workspace.conflict": 409,
   "workspace.not_ready": 503,
   "subscription.required": 402,
   "subscription.payment_failed": 402,
   "agent.not_available": 503,
-  "tool.secret_unavailable": 503,
+  "tool.secret_unavailable": 404,
   "workflow.invalid_definition": 422,
-  "task.execution_failed": 500,
+  "task.execution_failed": 502,
   "knowledge.access_denied": 403,
   "system.unexpected_error": 500
 };
 
-export function sendAuthApiSuccess<T>(
+function buildMeta(request: Request): ApiMeta {
+  return {
+    requestId: request.header("x-request-id") ?? "workspace-user-management-request",
+    timestamp: new Date().toISOString()
+  };
+}
+
+export function sendWorkspaceUserManagementApiSuccess<T>(
   request: Request,
   response: Response,
   data: T
@@ -33,13 +42,12 @@ export function sendAuthApiSuccess<T>(
   const body: ApiSuccess<T> = {
     ok: true,
     data,
-    meta: createApiMeta(request)
+    meta: buildMeta(request)
   };
-
   response.status(200).json(body);
 }
 
-export function sendAuthApiFailure(
+export function sendWorkspaceUserManagementApiFailure(
   request: Request,
   response: Response,
   code: ErrorCode,
@@ -47,20 +55,8 @@ export function sendAuthApiFailure(
 ): void {
   const body: ApiFailure = {
     ok: false,
-    error: {
-      code,
-      message
-    },
-    meta: createApiMeta(request)
+    error: { code, message },
+    meta: buildMeta(request)
   };
-
-  const statusCode = HTTP_STATUS_MAP[code];
-  response.status(statusCode).json(body);
-}
-
-function createApiMeta(request: Request): ApiMeta {
-  return {
-    requestId: request.header("x-request-id") ?? "authentication-request",
-    timestamp: new Date().toISOString()
-  };
+  response.status(HTTP_STATUS_MAP[code]).json(body);
 }

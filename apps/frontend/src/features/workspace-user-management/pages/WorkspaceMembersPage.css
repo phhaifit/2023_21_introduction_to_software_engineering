@@ -1,0 +1,382 @@
+.wum-filter-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  color: var(--muted);
+}
+
+.wum-filter-topline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wum-searchbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.wum-searchbox input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.wum-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wum-filter-group > span {
+  min-width: 118px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.wum-filter-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filter-chip-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wum-clear-filters {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wum-error {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.wum-count {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wum-pending-note {
+  align-self: center;
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wum-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wum-person strong,
+.wum-person small {
+  display: block;
+}
+
+.wum-person small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wum-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wum-select {
+  min-width: 116px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.wum-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(3px);
+}
+
+.wum-invite-dialog {
+  width: min(560px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26);
+  padding: 22px;
+}
+
+.wum-invite-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.wum-invite-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wum-invite-form input,
+.wum-invite-form select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.wum-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wum-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wum-role-host {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.wum-role-admin {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.wum-role-editor {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.wum-role-viewer {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.wum-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.wum-icon-danger {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.wum-icon-danger:hover {
+  opacity: 0.86;
+}
+
+.wum-admin-requests {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.wum-admin-request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--warning-soft);
+}
+
+.wum-admin-request small {
+  color: var(--muted);
+}
+
+.wum-timeline {
+  display: grid;
+  gap: 0;
+}
+
+.wum-timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  padding: 0 0 18px;
+}
+
+.wum-timeline-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 34px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+
+.wum-timeline-icon {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.wum-activity-success {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.wum-activity-warning {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.wum-activity-info {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wum-activity-danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.wum-activity-main {
+  display: grid;
+  gap: 4px;
+  color: var(--text);
+}
+
+.wum-activity-main strong {
+  font-size: 13px;
+}
+
+.wum-activity-main span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.wum-activity-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wum-activity-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wum-empty-activity {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .wum-filter-topline,
+  .wum-filter-group,
+  .wum-admin-request {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wum-filter-group > span {
+    min-width: 0;
+  }
+}
