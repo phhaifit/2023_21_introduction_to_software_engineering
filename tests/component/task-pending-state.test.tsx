@@ -194,8 +194,9 @@ describe("5. auto routing summary", () => {
 
     await submitPrompt("Auto route this.");
 
-    const userMessage = screen.getByLabelText("User message");
-    expect(within(userMessage).getByText("Auto-routing")).toBeVisible();
+    const assistantMessage = screen.getByLabelText("Assistant response");
+    expect(within(assistantMessage).getByText("Auto-routing")).toBeVisible();
+    expect(within(screen.getByLabelText("User message")).queryByText("Auto-routing")).not.toBeInTheDocument();
     expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
     expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
   });
@@ -217,8 +218,8 @@ describe("6. specific-agent routing summary", () => {
     );
     await submitPrompt("Review this code.");
 
-    const userMessage = screen.getByLabelText("User message");
-    expect(within(userMessage).getByText("Agent · AGT-CODE")).toBeVisible();
+    const assistantMessage = screen.getByLabelText("Assistant response");
+    expect(within(assistantMessage).getByText("Agent - AGT-CODE")).toBeVisible();
   });
 });
 
@@ -238,9 +239,9 @@ describe("7. predefined-workflow routing summary", () => {
     );
     await submitPrompt("Research and summarize.");
 
-    const userMessage = screen.getByLabelText("User message");
+    const assistantMessage = screen.getByLabelText("Assistant response");
     expect(
-      within(userMessage).getByText("Workflow · WFL-RESEARCH-SYNTHESIS")
+      within(assistantMessage).getByText("Workflow - WFL-RESEARCH-SYNTHESIS")
     ).toBeVisible();
   });
 });
@@ -767,8 +768,8 @@ describe("33. routing summary remains visible after Cancel current task click", 
     await submitPrompt("Routing stable.");
     await user.click(screen.getByRole("button", { name: "Cancel current task" }));
 
-    const userMessage = screen.getByLabelText("User message");
-    expect(within(userMessage).getByText("Auto-routing")).toBeVisible();
+    const assistantMessage = screen.getByLabelText("Assistant response");
+    expect(within(assistantMessage).getByText("Auto-routing")).toBeVisible();
   });
 });
 

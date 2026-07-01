@@ -375,7 +375,7 @@ describe("Task 9B streaming UI integration", () => {
     );
 
     expect(modalSource).toMatch(/ProcessingTimeline/);
-    expect(modalSource).toMatch(/TaskLogList/);
+    expect(modalSource).toMatch(/SanitizedRuntimeLogList/);
     expect(dockSource).toMatch(/TaskStatusBadge/);
     expect(pageSource).not.toMatch(/\.status\s*=\s*["'`](running|succeeded|failed|cancelled)/);
     expect(pageSource).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);

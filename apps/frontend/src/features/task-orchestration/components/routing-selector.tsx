@@ -128,7 +128,7 @@ export function RoutingSelector({
               {isCatalogLoading
                 ? "Loading agents..."
                 : availableAgents.length === 0
-                  ? "Danh sách trống"
+                  ? "No agents available"
                   : "Select agent"}
             </option>
             {availableAgents.map((agent) => (
@@ -144,7 +144,7 @@ export function RoutingSelector({
           ) : null}
           {!isCatalogLoading && availableAgents.length === 0 ? (
             <a className="routing-selector__empty-link" href={createAgentHref}>
-              Danh sách trống, tạo ngay
+              Create an agent
             </a>
           ) : null}
         </div>
@@ -168,7 +168,7 @@ export function RoutingSelector({
               {isCatalogLoading
                 ? "Loading workflows..."
                 : workflows.length === 0
-                  ? "Danh sách trống"
+                  ? "No workflows available"
                   : "Select workflow"}
             </option>
             {workflows.map((workflow) => (
@@ -187,7 +187,7 @@ export function RoutingSelector({
           ) : null}
           {!isCatalogLoading && workflows.length === 0 ? (
             <a className="routing-selector__empty-link" href={createWorkflowHref}>
-              Danh sách trống, tạo ngay
+              Create a workflow
             </a>
           ) : null}
         </div>

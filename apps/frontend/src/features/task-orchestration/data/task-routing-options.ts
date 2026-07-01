@@ -14,11 +14,11 @@ export function createTaskRoutingOptions(): TaskRoutingOptions {
 
 export const SUGGESTED_TASK_PROMPTS = {
   weeklyProgressReport:
-    "Lap bao cao tien do tuan dua tren so lieu dau vao.",
+    "Create a weekly progress report from the provided metrics.",
   specificAgentProductDescription:
-    "Viet mot doan mo ta ngan cho san pham moi cua cong ty.",
+    "Write a concise product description for the company's new release.",
   researchAndSynthesis:
-    "Nghien cuu thong tin va tong hop thanh bao cao ngan."
+    "Research a topic and synthesize the findings into a short brief."
 } as const;
 
 export const DEFAULT_TASK_RUNTIME_TIMINGS = {

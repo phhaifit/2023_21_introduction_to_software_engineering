@@ -168,8 +168,8 @@ describe("2. TaskError Details UI", () => {
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
 
     // Verify 5 fields
-    expect(screen.getByText("Không thể tổng hợp kết quả")).toBeVisible(); // title
-    expect(screen.getByText("Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.")).toBeVisible(); // message
+    expect(screen.getByText("Unable to aggregate result")).toBeVisible(); // title
+    expect(screen.getByText("The simulated aggregation step failed.")).toBeVisible(); // message
     expect(screen.getByText("MOCK_AGGREGATION_FAILED")).toBeVisible(); // code
     expect(screen.getAllByText("aggregate-result")[0]).toBeVisible(); // stepId
     expect(screen.getByText(`Occurred at: ${FIXED_TS}`)).toBeVisible(); // occurredAt
@@ -256,7 +256,7 @@ describe("5. Failed Processing Details Modal", () => {
 
     // Verify Error Details inside modal
     expect(within(dialog).getByRole("heading", { name: "Error Details" })).toBeVisible();
-    expect(within(dialog).getByText("Không thể tổng hợp kết quả")).toBeVisible();
+    expect(within(dialog).getByText("Unable to aggregate result")).toBeVisible();
 
     // Open Advanced details to see internal error code
     const advancedToggle = within(dialog).getByRole("button", { name: /Show Advanced details/i });
@@ -406,6 +406,8 @@ describe("9. Accessibility", () => {
 
     const modal = screen.getByRole("dialog", { name: "Processing details" });
     expect(modal).toHaveAttribute("aria-labelledby", "processing-detail-title");
+    expect(within(modal).getByLabelText("Processing identifiers")).not.toBeVisible();
+    await user.click(within(modal).getByRole("button", { name: "Show Advanced details" }));
     expect(within(modal).getByLabelText("Processing identifiers")).toBeVisible();
   });
 });

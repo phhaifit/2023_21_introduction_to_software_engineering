@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { TaskRoutingSelection } from "@vcp/shared";
 
@@ -24,7 +25,7 @@ import {
   initialTaskCreationState,
   taskCreationReducer
 } from "./model/task-creation-state";
-import { toTaskPresentationStatus } from "./model/task-lifecycle";
+import { isTerminalTaskStatus, toTaskPresentationStatus } from "./model/task-lifecycle";
 import {
   createBrowserTaskProcessingRuntime,
   type TaskProcessingRuntime
@@ -159,6 +160,7 @@ export function TaskOrchestrationPage({
   const taskStateRef = useRef(taskState);
   taskStateRef.current = taskState;
   const mountedRef = useRef(false);
+  const conversationScrollRef = useRef<HTMLDivElement>(null);
 
   const runtimeRef = useRef(processingRuntime ?? createBrowserTaskProcessingRuntime());
   const delaysRef = useRef(processingDelays ?? DEFAULT_TASK_RUNTIME_TIMINGS);
@@ -273,6 +275,18 @@ export function TaskOrchestrationPage({
         subscriptionsRef.current.delete(taskId);
       }
     }
+  }
+
+  function subscribeToTaskEvents(taskId: string): void {
+    if (subscriptionsRef.current.has(taskId)) {
+      return;
+    }
+    const sub = clientRef.current.subscribeToTaskEvents(taskId, (event) => {
+      if (mountedRef.current) {
+        dispatchTaskAction({ type: "runtime-event", event });
+      }
+    });
+    subscriptionsRef.current.set(taskId, sub);
   }
 
   function handleSelectConversation(conversationId: string): void {
@@ -434,6 +448,15 @@ export function TaskOrchestrationPage({
   }, [detailModalTaskId, taskState.tasks]);
 
   useEffect(() => {
+    for (const task of taskState.tasks) {
+      const taskId = task.taskId as string;
+      if (!isTerminalTaskStatus(task.status)) {
+        subscribeToTaskEvents(taskId);
+      }
+    }
+  }, [taskState.tasks]);
+
+  useEffect(() => {
     setIsCancelDialogOpen(false);
     setCancelTargetTaskId(null);
   }, [activeTask?.taskId]);
@@ -443,6 +466,26 @@ export function TaskOrchestrationPage({
       setProviderUnavailableDismissed(false);
     }
   }, [isProviderUnavailable]);
+
+  useEffect(() => {
+    const container = conversationScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    taskState.activeConversationId,
+    activeConversationTasks.length,
+    latestActiveConversationTask?.taskId,
+    latestActiveConversationTask?.status,
+    latestActiveConversationTask?.streamingSnapshot.fragments.length,
+    latestActiveConversationTask?.finalizedResult?.text,
+    latestActiveConversationTask?.error?.message
+  ]);
 
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
@@ -493,12 +536,7 @@ export function TaskOrchestrationPage({
       });
       setPrompt("");
 
-      const sub = clientRef.current.subscribeToTaskEvents(response.taskId as string, (event) => {
-        if (mountedRef.current) {
-          dispatchTaskAction({ type: "runtime-event", event });
-        }
-      });
-      subscriptionsRef.current.set(response.taskId as string, sub);
+      subscribeToTaskEvents(response.taskId as string);
     } catch {
       dispatchTaskAction({
         type: "submission-failed",
@@ -538,7 +576,7 @@ export function TaskOrchestrationPage({
               title="Expand conversations"
               onClick={() => setConversationSidebarCollapsed(false)}
             >
-              ›
+              <ChevronsRight aria-hidden="true" size={18} strokeWidth={1.8} />
             </button>
           </div>
         ) : (
@@ -556,7 +594,7 @@ export function TaskOrchestrationPage({
                 title="Collapse conversations"
                 onClick={() => setConversationSidebarCollapsed(true)}
               >
-                ‹
+                <ChevronsLeft aria-hidden="true" size={18} strokeWidth={1.8} />
               </button>
             </div>
             <TaskConversationNavigation
@@ -598,7 +636,11 @@ export function TaskOrchestrationPage({
           </div>
         </header>
 
-        <section className="task-workspace__conversation" aria-label="Main conversation region">
+        <section
+          ref={conversationScrollRef}
+          className="task-workspace__conversation"
+          aria-label="Main conversation region"
+        >
           {isReconnecting ? (
             <div className="task-workspace__reconnecting" role="status" aria-live="polite">
               <span
@@ -813,11 +855,11 @@ export function formatRoutingSummary(routing: TaskRoutingSelection): string {
 
 export function formatCompactRoutingSummary(routing: TaskRoutingSelection): string {
   if (routing.mode === "specific-agent") {
-    return `Agent · ${routing.agentId}`;
+    return `Agent - ${routing.agentId}`;
   }
 
   if (routing.mode === "predefined-workflow") {
-    return `Workflow · ${routing.workflowId}`;
+    return `Workflow - ${routing.workflowId}`;
   }
 
   return "Auto-routing";
