@@ -4,6 +4,8 @@ import { TaskStatusBadge } from "./task-status-badge";
 
 export interface TaskAssistantProgressSummaryProps {
   task: CreatedTaskRecord;
+  /** @deprecated — use the composer Stop button instead; kept for prop-compat */
+  onCancelTask?: () => void;
 }
 
 type ActivityKind = "agent" | "search" | "tool" | "file" | "message";

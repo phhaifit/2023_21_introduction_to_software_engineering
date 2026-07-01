@@ -145,7 +145,27 @@ export function TaskOrchestrationPage({
   const [routingCatalogError, setRoutingCatalogError] = useState<string | null>(null);
   const [taskState, dispatchTaskAction] = useReducer(
     taskCreationReducer,
-    initialTaskCreationState
+    undefined,
+    () => {
+      try {
+        const saved = sessionStorage.getItem("task-orchestration-state");
+        if (saved) {
+          const parsed = JSON.parse(saved) as Partial<import("./model/task-creation-state").TaskCreationState>;
+          if (Array.isArray(parsed.conversations) && parsed.conversations.length > 0) {
+            return {
+              ...initialTaskCreationState,
+              conversations: parsed.conversations,
+              tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+              activeConversationId: parsed.activeConversationId,
+              conversationSequence: parsed.conversationSequence ?? 1
+            };
+          }
+        }
+      } catch {
+        // ignore malformed sessionStorage data
+      }
+      return initialTaskCreationState;
+    }
   );
   const [conversationSidebarCollapsed, setConversationSidebarCollapsed] = useState(false);
   const [detailModalTaskId, setDetailModalTaskId] = useState<string | null>(null);
@@ -159,6 +179,22 @@ export function TaskOrchestrationPage({
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
   taskStateRef.current = taskState;
+  // Persist conversations + tasks to sessionStorage so state survives SPA navigation
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        "task-orchestration-state",
+        JSON.stringify({
+          conversations: taskState.conversations,
+          tasks: taskState.tasks,
+          activeConversationId: taskState.activeConversationId,
+          conversationSequence: taskState.conversationSequence
+        })
+      );
+    } catch {
+      // quota exceeded or private browsing — ignore
+    }
+  }, [taskState.conversations, taskState.tasks, taskState.activeConversationId, taskState.conversationSequence]);
   const mountedRef = useRef(false);
   const conversationScrollRef = useRef<HTMLDivElement>(null);
 
@@ -243,21 +279,27 @@ export function TaskOrchestrationPage({
     providerMode
   });
 
-  const navigationItems: TaskConversationNavigationItem[] = taskState.conversations.map((conv) => {
-    const latestTask = getLatestConversationTask(taskState, conv.conversationId);
-    const convTasks = getConversationTasks(taskState, conv.conversationId);
-    const hasRunningTasks = conversationHasNonTerminalTasks(taskState, conv.conversationId);
-    return {
-      conversationId: conv.conversationId,
-      title: conv.title,
-      latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined,
-      updatedAt: conv.updatedAt,
-      taskCount: convTasks.length,
-      canDelete: !hasRunningTasks,
-      deleteDisabledReason: hasRunningTasks ? RUNNING_DELETE_REASON : undefined,
-      tasks: convTasks
-    };
-  });
+  const navigationItems: TaskConversationNavigationItem[] = [...taskState.conversations]
+    .sort((a, b) => {
+      // Newest conversation (by updatedAt) appears first
+      const aTime = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+      const bTime = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+      return bTime - aTime;
+    })
+    .map((conv) => {
+      const latestTask = getLatestConversationTask(taskState, conv.conversationId);
+      const convTasks = getConversationTasks(taskState, conv.conversationId);
+      return {
+        conversationId: conv.conversationId,
+        title: conv.title,
+        latestStatus: latestTask ? toTaskPresentationStatus(latestTask.status) : undefined,
+        updatedAt: conv.updatedAt,
+        taskCount: convTasks.length,
+        canDelete: true,
+        deleteDisabledReason: undefined,
+        tasks: convTasks
+      };
+    });
 
   function clearModalTargets(): void {
     setDetailModalTaskId(null);
@@ -307,9 +349,7 @@ export function TaskOrchestrationPage({
   }
 
   function handleDeleteConversationRequest(conversationId: string): void {
-    if (conversationHasNonTerminalTasks(taskState, conversationId)) {
-      return;
-    }
+    // Always allow deletion — user can force-delete even stuck/running conversations
     setDeleteConversationTargetId(conversationId);
   }
 
@@ -327,7 +367,7 @@ export function TaskOrchestrationPage({
     const conversation = taskState.conversations.find(
       (conv) => conv.conversationId === deleteConversationTargetId
     );
-    if (!conversation || conversationHasNonTerminalTasks(taskState, conversation.conversationId)) {
+    if (!conversation) {
       setDeleteConversationTargetId(null);
       return;
     }
@@ -373,6 +413,7 @@ export function TaskOrchestrationPage({
     const client = clientRef.current;
     const subs = subscriptionsRef.current;
 
+    // Restore remote conversations from server (may merge with persisted)
     if (client.fetchConversations) {
       client.fetchConversations(DEMO_WORKSPACE_ID).then((conversations) => {
         if (mountedRef.current && conversations && conversations.length > 0) {
@@ -499,6 +540,65 @@ export function TaskOrchestrationPage({
     }
     setIsCancelDialogOpen(true);
     setCancelTargetTaskId(cancellableActiveTask.taskId);
+  }
+
+  function handleCancelTask(taskId: string): void {
+    const targetTask = taskState.tasks.find((t) => t.taskId === taskId);
+    if (!targetTask || (targetTask.status !== "queued" && targetTask.status !== "running")) {
+      return;
+    }
+    if (onCancelTaskRequested) {
+      onCancelTaskRequested(targetTask.taskId);
+      return;
+    }
+    setIsCancelDialogOpen(true);
+    setCancelTargetTaskId(targetTask.taskId);
+  }
+
+  async function handleRetryTask(failedTask: import("./model/task-types").CreatedTaskRecord): Promise<void> {
+    if (taskState.isSubmitting) {
+      return;
+    }
+    const requestResult = buildCreateTaskRequest({
+      prompt: failedTask.prompt,
+      routingMode: failedTask.requestedRouting.mode,
+      selectedAgentId:
+        failedTask.requestedRouting.mode === "specific-agent"
+          ? (failedTask.requestedRouting.agentId as string)
+          : undefined,
+      selectedWorkflowId:
+        failedTask.requestedRouting.mode === "predefined-workflow"
+          ? (failedTask.requestedRouting.workflowId as string)
+          : undefined
+    });
+    if (!requestResult.ok) {
+      dispatchTaskAction({ type: "submit-rejected", message: requestResult.message });
+      return;
+    }
+    dispatchTaskAction({ type: "submit-started" });
+    try {
+      const conversationId = taskState.conversations
+        .find((c) => c.taskIds.some((id) => id === failedTask.taskId))
+        ?.conversationId ?? getPendingSubmissionConversationId();
+      // Cleanup old (failed/stuck) task subscription to prevent stale events from polluting state
+      cleanupTaskSubscriptions([failedTask.taskId as string]);
+      const response = await clientRef.current.createTask(requestResult.request, { conversationId });
+      const newTaskId = response.taskId as string;
+      // Remove the old task record from state, then add the new one in its position
+      dispatchTaskAction({ type: "task-deleted", taskId: failedTask.taskId });
+      dispatchTaskAction({
+        type: "task-created",
+        request: requestResult.request,
+        response,
+        conversationId
+      });
+      subscribeToTaskEvents(newTaskId);
+    } catch {
+      dispatchTaskAction({
+        type: "submission-failed",
+        message: "Retry failed. Keep your draft and try again."
+      });
+    }
   }
 
   async function handleAcceptedSubmission() {
@@ -713,6 +813,16 @@ export function TaskOrchestrationPage({
                       routingSummary={formatCompactRoutingSummary(task.requestedRouting)}
                       clipboardWriter={completionRuntimeRef.current.clipboard}
                       onOpenDetails={() => setDetailModalTaskId(task.taskId as string)}
+                      onCancelTask={
+                        task.status === "queued" || task.status === "running"
+                          ? () => handleCancelTask(task.taskId as string)
+                          : undefined
+                      }
+                      onRetryTask={
+                        task.status === "failed"
+                          ? () => { void handleRetryTask(task); }
+                          : undefined
+                      }
                     />
                   </article>
                 );
@@ -773,13 +883,23 @@ export function TaskOrchestrationPage({
         })()}
 
         {deleteConversationTargetId ? (
-          <TaskConfirmDialog
-            title="Delete conversation?"
-            description="This removes the conversation and its tasks from this session. Running work cannot be deleted."
-            confirmLabel="Delete conversation"
-            onConfirm={handleConfirmDeleteConversation}
-            onDismiss={() => setDeleteConversationTargetId(null)}
-          />
+          (() => {
+            const convTasks = getConversationTasks(taskState, deleteConversationTargetId);
+            const hasRunningTask = convTasks.some((t) => t.status === "running" || t.status === "queued");
+            return (
+              <TaskConfirmDialog
+                title="Delete conversation?"
+                description={
+                  hasRunningTask
+                    ? "This conversation has active tasks. Deleting will stop them and remove all history from this session."
+                    : "This removes the conversation and its tasks from this session."
+                }
+                confirmLabel="Delete conversation"
+                onConfirm={handleConfirmDeleteConversation}
+                onDismiss={() => setDeleteConversationTargetId(null)}
+              />
+            );
+          })()
         ) : null}
 
         <section className="task-composer" aria-label="Task composer area">

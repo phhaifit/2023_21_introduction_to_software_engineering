@@ -75,6 +75,7 @@ export type TaskCreationAction =
       request: CreateTaskRequest;
       response: CreateTaskResponse;
       conversationId?: string;
+      replaceTaskId?: string;
     }
   | {
       type: "conversation-created";
@@ -313,10 +314,23 @@ export function taskCreationReducer(
       }
 
       const isFirstTask = existingConv.taskIds.length === 0;
+      
+      let newTaskIds = [...existingConv.taskIds];
+      if (action.replaceTaskId) {
+        const index = newTaskIds.indexOf(action.replaceTaskId as any);
+        if (index !== -1) {
+          newTaskIds[index] = task.taskId;
+        } else {
+          newTaskIds.push(task.taskId);
+        }
+      } else {
+        newTaskIds = [...newTaskIds.filter((id) => id !== task.taskId), task.taskId];
+      }
+
       const updatedConv: TaskConversationSession = {
         ...existingConv,
         title: isFirstTask ? deriveConversationTitle(task.prompt) : existingConv.title,
-        taskIds: [...existingConv.taskIds.filter((id) => id !== task.taskId), task.taskId],
+        taskIds: newTaskIds,
         updatedAt: task.createdAt
       };
 

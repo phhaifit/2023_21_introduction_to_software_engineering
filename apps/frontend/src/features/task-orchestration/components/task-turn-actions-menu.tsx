@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Copy, MoreHorizontal } from "lucide-react";
+import { Check, Copy, MoreHorizontal } from "lucide-react";
 
 import type { CreatedTaskRecord } from "../model/task-types";
 import { selectAccumulatedPartialText } from "../model/task-streaming";
@@ -46,6 +46,7 @@ export function TaskTurnActionsMenu({
   const copyableText = variant === "query" ? prompt : responseText;
   const copyLabel = variant === "query" ? "Copy query" : "Copy response";
   const menuLabel = "More response actions";
+  const isCopied = feedback === "copied";
 
   useEffect(() => {
     if (!isOpen) {
@@ -81,20 +82,33 @@ export function TaskTurnActionsMenu({
       }`}
       ref={containerRef}
     >
-      <button
-        type="button"
-        className="task-turn-actions__icon-button"
-        aria-label={copyLabel}
-        title={copyLabel}
-        disabled={!copyableText}
-        onClick={() => {
-          if (copyableText) {
-            copyText(copyableText);
-          }
-        }}
-      >
-        <Copy aria-hidden="true" size={15} strokeWidth={1.9} />
-      </button>
+      <div className="task-turn-actions__copy-wrapper">
+        <button
+          type="button"
+          className={`task-turn-actions__icon-button task-turn-actions__copy-btn${
+            isCopied ? " task-turn-actions__copy-btn--copied" : ""
+          }`}
+          aria-label={isCopied ? "Copied!" : copyLabel}
+          title={isCopied ? "Copied!" : copyLabel}
+          disabled={!copyableText}
+          onClick={() => {
+            if (copyableText) {
+              copyText(copyableText);
+            }
+          }}
+        >
+          {isCopied ? (
+            <Check aria-hidden="true" size={15} strokeWidth={2.5} />
+          ) : (
+            <Copy aria-hidden="true" size={15} strokeWidth={1.9} />
+          )}
+        </button>
+        {isCopied ? (
+          <span className="task-turn-actions__copy-toast" aria-hidden="true">
+            Copied!
+          </span>
+        ) : null}
+      </div>
       {variant === "response" ? (
         <button
           type="button"
