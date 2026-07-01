@@ -643,7 +643,18 @@ export class OpenClawExecutionOrchestrator {
             }).catch(() => undefined);
           }
         }
-        else if (event.type === "execution-failed") task.status = "failed";
+        else if (event.type === "execution-failed") {
+          task.status = "failed";
+          if (this.conversationRepository) {
+            void this.conversationRepository.appendMessage(convId, {
+              messageId: `${taskIdStr}-assistant` as any,
+              conversationId: convId,
+              role: "assistant",
+              content: formatConversationFailureMessage(getExecutionFailedMessage(event)),
+              timestamp: event.timestamp
+            }).catch(() => undefined);
+          }
+        }
         else if (event.type === "execution-canceled") task.status = "canceled";
       }
     });
@@ -818,4 +829,16 @@ export class OpenClawExecutionOrchestrator {
       requiresProvisioning: false // Task & Orchestration owner SHALL NOT provision OpenClaw
     };
   }
+}
+
+function formatConversationFailureMessage(message: string | undefined): string {
+  const safeMessage = String(message || "Execution failed").replace(/\s+/g, " ").trim();
+  return `[Task failed] ${safeMessage}`;
+}
+
+function getExecutionFailedMessage(event: NormalizedRuntimeEvent): string | undefined {
+  if (event.type !== "execution-failed") {
+    return undefined;
+  }
+  return event.error?.message || (event as { errorMessage?: string }).errorMessage;
 }
