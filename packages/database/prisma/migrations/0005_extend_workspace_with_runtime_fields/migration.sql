@@ -10,4 +10,4 @@ ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS failure_reason TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS subscription_id TEXT;
 
 -- Composite index for user + status queries used by listAccessibleByUser
-CREATE INDEX IF NOT EXISTS workspaces_user_id_status_idx ON workspaces (user_id, status);
+CREATE INDEX IF NOT EXISTS "workspaces_userId_status_idx" ON "workspaces" ("userId", "status");
