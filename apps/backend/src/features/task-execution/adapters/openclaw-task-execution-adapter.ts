@@ -695,6 +695,7 @@ export class OpenClawExecutionOrchestrator {
             finalOutput: finalOutput || "Workflow execution completed successfully."
           });
         } catch (err: any) {
+          console.error("[Orchestrator Async Runner Error]:", err);
           // 4. Propagate failure event if workflow execution fails
           self.adapter.publishEvent(command.taskId, {
             type: "execution-failed",
