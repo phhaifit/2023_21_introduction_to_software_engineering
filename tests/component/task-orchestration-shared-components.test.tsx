@@ -166,7 +166,9 @@ describe("ProcessingTimeline", () => {
 describe("TaskAssistantProgressSummary", () => {
   it.each([
     ["web search started", "Searching web"],
-    ["Calling tool browser", "Calling tool"],
+    ["Calling browser", "Calling browser"],
+    ["Calling API", "Calling API"],
+    ["Reading Roadmap.pdf", "Reading Roadmap.pdf"],
     ["Read workspace file", "Reading workspace"],
     ["final output", "Composing response"]
   ])("summarizes provider activity %s", (label, expected) => {
@@ -178,7 +180,7 @@ describe("TaskAssistantProgressSummary", () => {
       <TaskAssistantProgressSummary
         task={createRunningTask([
           { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
-          { id: "openclaw-tool-browser", label: "Calling tool browser", status: "active" }
+          { id: "openclaw-tool-browser", label: "Calling browser", status: "active" }
         ])}
       />
     );
@@ -186,7 +188,7 @@ describe("TaskAssistantProgressSummary", () => {
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
     expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
     expect(screen.getByText(/1\/2 steps/)).toBeVisible();
-    expect(screen.getAllByText("Calling tool").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Calling browser").length).toBeGreaterThan(0);
     expect(screen.getByText("Searching web")).toBeVisible();
   });
 });
