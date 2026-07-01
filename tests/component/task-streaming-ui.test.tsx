@@ -232,7 +232,8 @@ describe("Task 9B streaming UI integration", () => {
 
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Runtime progress")).toBeVisible();
+    expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
+    expect(screen.getByText(/3\/6 steps/)).toBeVisible();
     expect(screen.getByText("Working on it")).toBeVisible();
 
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
@@ -374,7 +375,7 @@ describe("Task 9B streaming UI integration", () => {
     );
 
     expect(modalSource).toMatch(/ProcessingTimeline/);
-    expect(modalSource).toMatch(/TaskLogList/);
+    expect(modalSource).toMatch(/SanitizedRuntimeLogList/);
     expect(dockSource).toMatch(/TaskStatusBadge/);
     expect(pageSource).not.toMatch(/\.status\s*=\s*["'`](running|succeeded|failed|cancelled)/);
     expect(pageSource).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);

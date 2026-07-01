@@ -26,6 +26,17 @@ import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import { createLocalTaskCreationClient } from
   "@vcp/frontend/features/task-orchestration/model/task-creation-client.ts";
+import {
+  createInitialStreamingSnapshot
+} from "@vcp/frontend/features/task-orchestration/model/task-streaming.ts";
+import type {
+  TaskEventSubscription,
+  TaskOrchestrationClient,
+  TaskRuntimeEvent
+} from "@vcp/frontend/features/task-orchestration/model/task-orchestration-provider.ts";
+import type { CreatedTaskRecord } from
+  "@vcp/frontend/features/task-orchestration/model/task-types.ts";
+import type { Conversation, EntityId } from "@vcp/shared";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -156,5 +167,127 @@ describe("TaskOrchestrationPage base workspace", () => {
   it("renders OpenClaw Gateway provider badge by default", () => {
     render(<TaskOrchestrationPage />);
     expect(screen.getByText("HTTP / OpenClaw Gateway")).toBeVisible();
+  });
+
+  it("restores a non-terminal conversation and shows replayed runtime activity", async () => {
+    const taskId = "TASK-RESTORED-SEARCH" as EntityId<"taskId">;
+    const workId = `work-${taskId}` as EntityId<"workId">;
+    const restoredConversation: Conversation = {
+      conversationId: "CONV-000001" as any,
+      workspaceId: "workspace-demo" as any,
+      title: "Restored search task",
+      createdAt: "2026-06-26T10:00:00.000Z",
+      updatedAt: "2026-06-26T10:00:10.000Z",
+      messages: [
+        {
+          messageId: taskId as any,
+          conversationId: "CONV-000001" as any,
+          role: "user",
+          content: "Research competitors",
+          timestamp: "2026-06-26T10:00:00.000Z"
+        }
+      ]
+    };
+    const runningSnapshot: CreatedTaskRecord = {
+      taskId,
+      workId,
+      prompt: "Research competitors",
+      requestedRouting: { mode: "auto" },
+      status: "running",
+      createdAt: "2026-06-26T10:00:00.000Z",
+      processingSnapshot: {
+        startedAt: "2026-06-26T10:00:05.000Z",
+        steps: [
+          {
+            id: "openclaw-web-search",
+            label: "Searching web",
+            status: "active",
+            startedAt: "2026-06-26T10:00:05.000Z"
+          }
+        ],
+        logs: []
+      },
+      streamingSnapshot: createInitialStreamingSnapshot()
+    };
+    const client: TaskOrchestrationClient = {
+      createTask: vi.fn(),
+      getTask: vi.fn(),
+      cancelTask: vi.fn(),
+      deleteConversation: vi.fn(),
+      deleteTask: vi.fn(),
+      fetchConversations: vi.fn().mockResolvedValue([restoredConversation]),
+      subscribeToTaskEvents: vi.fn((subscribedTaskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription => {
+        queueMicrotask(() => {
+          handler({
+            kind: "step-started",
+            taskId: subscribedTaskId as EntityId<"taskId">,
+            workId,
+            timestamp: "2026-06-26T10:00:05.000Z",
+            stepName: "Searching web",
+            stepIndex: 0,
+            taskSnapshot: runningSnapshot
+          });
+        });
+        return { subscriptionId: "sub-restored", taskId: subscribedTaskId };
+      }),
+      unsubscribeFromTaskEvents: vi.fn()
+    };
+
+    render(<TaskOrchestrationPage taskOrchestrationClient={client} />);
+
+    expect(await screen.findByText("Research competitors")).toBeVisible();
+    expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
+    expect(screen.getByText("Searching web")).toBeVisible();
+  });
+
+  it("does not synthesize fixed processing steps for restored completed history", async () => {
+    const user = userEvent.setup();
+    const taskId = "TASK-RESTORED-DONE" as EntityId<"taskId">;
+    const restoredConversation: Conversation = {
+      conversationId: "CONV-000001" as any,
+      workspaceId: "workspace-demo" as any,
+      title: "Restored completed task",
+      createdAt: "2026-06-26T10:00:00.000Z",
+      updatedAt: "2026-06-26T10:00:30.000Z",
+      messages: [
+        {
+          messageId: taskId as any,
+          conversationId: "CONV-000001" as any,
+          role: "user",
+          content: "Summarize project status",
+          timestamp: "2026-06-26T10:00:00.000Z"
+        },
+        {
+          messageId: `${taskId}-assistant` as any,
+          conversationId: "CONV-000001" as any,
+          role: "assistant",
+          content: "Project status is green.",
+          timestamp: "2026-06-26T10:00:30.000Z"
+        }
+      ]
+    };
+    const client: TaskOrchestrationClient = {
+      createTask: vi.fn(),
+      getTask: vi.fn(),
+      cancelTask: vi.fn(),
+      deleteConversation: vi.fn(),
+      deleteTask: vi.fn(),
+      fetchConversations: vi.fn().mockResolvedValue([restoredConversation]),
+      subscribeToTaskEvents: vi.fn(() => ({ subscriptionId: "sub-restored-done", taskId })),
+      unsubscribeFromTaskEvents: vi.fn()
+    };
+
+    render(<TaskOrchestrationPage taskOrchestrationClient={client} />);
+
+    expect(await screen.findByText("Project status is green.")).toBeVisible();
+    await openProcessingDetailsFromAssistantMenu(user);
+    const dialog = screen.getByRole("dialog", { name: "Processing details" });
+
+    expect(within(dialog).getByLabelText("Task status: Completed")).toBeVisible();
+    expect(within(dialog).queryByText("Waiting")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("No runtime activity was captured for this turn.")).toBeVisible();
+    expect(within(dialog).queryByText("Validate input")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Analyze request")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Execute task")).not.toBeInTheDocument();
   });
 });

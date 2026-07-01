@@ -145,7 +145,7 @@ describe("RoutingSelector", () => {
     });
 
     expect(screen.getByRole("combobox", { name: "Agent" })).toBeDisabled();
-    expect(screen.getByRole("link", { name: "Danh sách trống, tạo ngay" }))
+    expect(screen.getByRole("link", { name: "Create an agent" }))
       .toHaveAttribute("href", "/agents");
 
     await user.click(screen.getByRole("radio", { name: /Predefined workflow/ }));

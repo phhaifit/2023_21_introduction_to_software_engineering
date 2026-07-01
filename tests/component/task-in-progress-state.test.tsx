@@ -206,10 +206,11 @@ describe("Task 8B — In-Progress integration", () => {
     expect(countStepStatuses(timeline, "Waiting")).toBe(5);
     expect(within(timeline).getByText("Validate input").closest("li")).toHaveTextContent("Active");
 
-    expect(screen.getByLabelText("Processing identifiers")).toHaveTextContent(
+    expect(screen.getByLabelText("Processing identifiers")).toHaveTextContent("Started");
+    expect(screen.getByLabelText("Processing identifiers")).not.toHaveTextContent(
       "2026-06-24T14:00:00.000Z"
     );
-    expect(screen.getByText("LOG-0001")).toBeVisible();
+    expect(screen.queryByText("LOG-0001")).not.toBeInTheDocument();
     expect(screen.getByText("Processing started — validating input.")).toBeVisible();
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
@@ -415,7 +416,7 @@ describe("Task 8B — In-Progress integration", () => {
     expect(pageSrc).not.toMatch(/\.status\s*=\s*["'`]running/);
     expect(pageSrc).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);
     expect(modalSrc).toMatch(/ProcessingTimeline/);
-    expect(modalSrc).toMatch(/TaskLogList/);
+    expect(modalSrc).toMatch(/SanitizedRuntimeLogList/);
     expect(detailSrc).toMatch(/processingSnapshot\.logs/);
     expect(controllerSrc).toBe(readFileSync(
       join(

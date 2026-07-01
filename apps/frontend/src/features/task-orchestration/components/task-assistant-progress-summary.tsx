@@ -35,28 +35,21 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
 
   const stepSummary =
     task.status === "queued"
-      ? "Queued for processing"
-      : `${currentActivity.label} · ${completedSteps.length}/${totalSteps} steps`;
+      ? "Waiting for runtime"
+      : `${currentActivity.label} - ${completedSteps.length}/${totalSteps} steps`;
 
   return (
     <div className="task-assistant-progress" aria-live="polite">
       <div className="task-assistant-progress__header">
         <TaskStatusBadge status={presentationStatus} />
-        <span className="task-assistant-progress__steps">{stepSummary}</span>
-      </div>
-
-      {task.status === "running" ? (
-        <div className="task-assistant-progress__track" aria-label="Runtime progress">
+        {task.status === "running" ? (
           <span
             className={`task-assistant-progress__pulse task-assistant-progress__pulse--${currentActivity.kind}`}
             aria-hidden="true"
           />
-          <div className="task-assistant-progress__copy">
-            <span className="task-assistant-progress__activity">{currentActivity.label}</span>
-            <span className="task-assistant-progress__hint">{currentActivity.hint}</span>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+        <span className="task-assistant-progress__steps">{stepSummary}</span>
+      </div>
 
       {recentSteps.length > 0 ? (
         <ol className="task-assistant-progress__mini-steps" aria-label="Recent runtime steps">

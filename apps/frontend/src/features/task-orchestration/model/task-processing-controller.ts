@@ -429,8 +429,8 @@ export function createTaskProcessingController(
             error: {
               code: "MOCK_AGGREGATION_FAILED",
               stepId: "aggregate-result",
-              title: "Không thể tổng hợp kết quả",
-              message: "Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.",
+              title: "Unable to aggregate result",
+              message: "The simulated aggregation step failed.",
               occurredAt: timestamp
             }
           });

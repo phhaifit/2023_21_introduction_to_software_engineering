@@ -715,10 +715,12 @@ export function taskCreationReducer(
       }
       const newTasks: CreatedTaskRecord[] = [...state.tasks];
       const newConversations: TaskConversationSession[] = [...state.conversations];
+      let sequence = state.conversationSequence ?? 1;
 
       for (const conv of action.conversations) {
         let existing = newConversations.find((c) => c.conversationId === conv.conversationId);
         const taskIds: EntityId<"taskId">[] = [];
+        sequence = Math.max(sequence, getNextConversationSequence(conv.conversationId as string));
 
         for (const msg of conv.messages || []) {
           if (msg.role === "user") {
@@ -731,22 +733,13 @@ export function taskCreationReducer(
             );
             taskIds.push(taskId as any);
             if (!newTasks.some((t) => t.taskId === taskId)) {
-              newTasks.push({
-                taskId: taskId as any,
-                workId: `work-${msg.messageId}` as any,
+              newTasks.push(createRestoredTaskRecord({
+                taskId,
                 prompt: msg.content,
-                requestedRouting: { mode: "auto" },
-                status: "succeeded",
                 createdAt: msg.timestamp || conv.createdAt,
-                processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
-                streamingSnapshot: createInitialStreamingSnapshot(),
-                finalizedResult: {
-                  text: assistantMessage?.content || "",
-                  finalizedAt: assistantMessage?.timestamp || msg.timestamp || conv.updatedAt,
-                  artifacts: [],
-                  followUpPromptSuggestions: []
-                }
-              });
+                updatedAt: conv.updatedAt,
+                assistantMessage
+              }));
             }
           }
         }
@@ -774,7 +767,8 @@ export function taskCreationReducer(
         tasks: newTasks,
         conversations: newConversations,
         activeConversationId: activeConvId,
-        activeTaskId
+        activeTaskId,
+        conversationSequence: sequence
       };
     }
   }
@@ -936,4 +930,63 @@ function copyRoutingSelection(
   }
 
   return { mode: "auto" };
+}
+
+function createRestoredTaskRecord({
+  taskId,
+  prompt,
+  createdAt,
+  updatedAt,
+  assistantMessage
+}: {
+  taskId: string;
+  prompt: string;
+  createdAt: string;
+  updatedAt: string;
+  assistantMessage?: import("@vcp/shared").ChatMessage;
+}): CreatedTaskRecord {
+  const base = {
+    taskId: taskId as EntityId<"taskId">,
+    workId: `work-${taskId}` as EntityId<"workId">,
+    prompt,
+    requestedRouting: { mode: "auto" as const },
+    createdAt,
+    processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
+    streamingSnapshot: createInitialStreamingSnapshot()
+  };
+
+  if (!assistantMessage || assistantMessage.content.trim().length === 0) {
+    return {
+      ...base,
+      status: "queued"
+    };
+  }
+
+  return {
+    ...base,
+    status: "succeeded",
+    processingSnapshot: createRestoredRuntimeSnapshot(),
+    finalizedResult: {
+      text: assistantMessage.content,
+      finalizedAt: assistantMessage.timestamp || updatedAt,
+      artifacts: [],
+      followUpPromptSuggestions: []
+    }
+  };
+}
+
+function createRestoredRuntimeSnapshot(): import("./task-processing").ProcessingSnapshot {
+  return {
+    startedAt: undefined,
+    steps: [],
+    logs: []
+  };
+}
+
+function getNextConversationSequence(conversationId: string): number {
+  const match = /^CONV-(\d+)$/.exec(conversationId);
+  if (!match) {
+    return 1;
+  }
+  return Number.parseInt(match[1], 10) + 1;
 }
