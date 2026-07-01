@@ -4,6 +4,8 @@ import { TaskStatusBadge } from "./task-status-badge";
 
 export interface TaskAssistantProgressSummaryProps {
   task: CreatedTaskRecord;
+  /** @deprecated — use the composer Stop button instead; kept for prop-compat */
+  onCancelTask?: () => void;
 }
 
 type ActivityKind = "agent" | "search" | "tool" | "file" | "message";
@@ -74,6 +76,46 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
 export function resolveActivityLabel(rawLabel: string): ActivityLabel {
   const label = rawLabel.trim() || "Processing";
   const lower = label.toLowerCase();
+
+  if (lower === "searching web") {
+    return {
+      kind: "search",
+      label,
+      hint: "OpenClaw web search activity"
+    };
+  }
+
+  if (lower.startsWith("calling ") || lower === "running command" || lower === "calling api") {
+    return {
+      kind: "tool",
+      label,
+      hint: "OpenClaw tool activity"
+    };
+  }
+
+  if (lower.startsWith("reading ")) {
+    return {
+      kind: "file",
+      label,
+      hint: "OpenClaw reading activity"
+    };
+  }
+
+  if (lower === "browsing web") {
+    return {
+      kind: "search",
+      label,
+      hint: "OpenClaw browser activity"
+    };
+  }
+
+  if (lower === "composing response") {
+    return {
+      kind: "message",
+      label,
+      hint: "OpenClaw response activity"
+    };
+  }
 
   if (/\b(tool|function|call|calling|execute|command|api)\b/.test(lower)) {
     return {

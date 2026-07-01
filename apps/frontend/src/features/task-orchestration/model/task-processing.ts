@@ -404,13 +404,14 @@ export function cancelActiveStep(
 // Appends a log entry to the snapshot.
 // Invariants:
 //   - log.id must not already exist in snapshot.logs.
-//   - log.stepId must be a known step ID.
+//   - log.stepId must be a known fixed step ID or an existing provider step ID.
 // ---------------------------------------------------------------------------
 export function appendProcessingLog(
   snapshot: ProcessingSnapshot,
   log: TaskLog
 ): ProcessingResult<ProcessingSnapshot> {
-  if (!_isKnownStepId(log.stepId)) {
+  const isExistingProviderStep = snapshot.steps.some((step) => step.id === log.stepId);
+  if (!_isKnownStepId(log.stepId) && !isExistingProviderStep) {
     return {
       ok: false,
       reason: `Unknown step ID "${log.stepId}" in log "${log.id}".`,
