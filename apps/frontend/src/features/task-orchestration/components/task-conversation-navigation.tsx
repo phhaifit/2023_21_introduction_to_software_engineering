@@ -402,6 +402,7 @@ export function TaskConversationNavigation({
       )}
 
       <footer className="task-conversation-navigation__notice">
+        Session-scoped history (in-memory).
       </footer>
     </nav>
   );
