@@ -235,6 +235,8 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
 
     const handleEvent = async (event: NormalizedRuntimeEvent) => {
       try {
+        // Safe cast event.stepId because NormalizedRuntimeEvent union types do not all expose stepId.
+        // This ensures the TypeScript compiler passes typecheck when streaming events from OpenClaw.
         const eventStepId = (event as any).stepId as string | undefined;
         console.log(`[WorkflowExecutionService] 🔔 Received OpenClaw event: type=${event.type}, stepId=${eventStepId || 'none'}, stepName=${(event as any).stepName || 'none'}`);
         const matchingStep = materializedWorkflow.steps.find(
