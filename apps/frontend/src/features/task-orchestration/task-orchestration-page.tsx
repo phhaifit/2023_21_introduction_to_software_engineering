@@ -320,7 +320,7 @@ export function TaskOrchestrationPage({
 
     try {
       await clientRef.current.deleteConversation(
-        "demo_workspace_1",
+        DEMO_WORKSPACE_ID,
         deleteConversationTargetId
       );
     } catch {
@@ -360,7 +360,7 @@ export function TaskOrchestrationPage({
     const subs = subscriptionsRef.current;
 
     if (client.fetchConversations) {
-      client.fetchConversations("demo_workspace_1").then((conversations) => {
+      client.fetchConversations(DEMO_WORKSPACE_ID).then((conversations) => {
         if (mountedRef.current && conversations && conversations.length > 0) {
           dispatchRef.current({ type: "conversations-restored", conversations });
         }
