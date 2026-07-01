@@ -23,7 +23,8 @@ flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
 It still does not contain OCR, real embedding provider calls, real vector
-database calls, full worker runtime handlers, or retrieval implementation.
+database calls, external queue/worker daemon infrastructure, or retrieval
+implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -287,6 +288,33 @@ ports, creates safe ingestion started/completed/failed events through existing
 event contracts, and returns/publishes only public lifecycle payloads. It does
 not call storage or parser implementations directly, generate embeddings, write
 vectors, or run external sync.
+
+## Production Ingestion Worker Runtime
+
+`KnowledgeIngestionWorkerRunner` provides a module-local callable runtime
+without starting a background loop. `processNextQueuedJob(workspaceId)` selects
+the oldest pending job for that workspace and returns `null` when no work is
+available. `processJob(workspaceId, jobId)` processes an explicitly received
+job identifier through the same guarded handoff.
+
+`createKnowledgeIngestionWorkerRuntime` composes the storage reader, document
+text extractor, deterministic processing/chunking pipeline, lifecycle handoff,
+repositories, and optional event publisher. It intentionally does not compose
+the embedding or vector indexing pipeline.
+
+The persisted domain lifecycle maps product terms as follows:
+
+```text
+queued      -> pending
+processing  -> ingesting
+completed   -> ready
+failed      -> failed
+```
+
+Retry remains deferred because there is no reviewed public reset/retry contract.
+Queued-job selection is deterministic but is not an atomic cross-process lease;
+deployments with multiple worker processes require a future repository claim or
+approved queue boundary before concurrent polling is enabled.
 
 The document processing pipeline is the first real ingestion processor boundary.
 It reads extracted text through an injected content reader, supports TXT, DOCX,

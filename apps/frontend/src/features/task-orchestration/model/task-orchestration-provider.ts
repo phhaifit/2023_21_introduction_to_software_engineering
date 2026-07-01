@@ -696,40 +696,16 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       data.type === "web-search-started" ||
       data.type === "reading" ||
       data.type === "document-reading" ||
-      data.type === "file-reading"
+      data.type === "file-reading" ||
+      data.activityType
     ) {
-      const activityType = data.activityType || "provider";
-      const details =
-        data.details ||
-        data.toolName ||
-        data.query ||
-        data.resource ||
-        data.stepName ||
-        activityType;
-      const stepId =
-        data.stepId ||
-        (data.type.includes("search")
-          ? "openclaw-web-search"
-          : data.type.includes("tool")
-          ? `openclaw-tool-${String(data.toolName || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
-          : data.type.includes("reading")
-          ? `openclaw-reading-${String(data.resource || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
-          : `openclaw-${activityType}`);
-      const stepName =
-        data.stepName ||
-        (data.type.includes("search")
-          ? "Searching web"
-          : data.type.includes("tool")
-          ? `Calling tool ${data.toolName || ""}`.trim()
-          : data.type.includes("reading")
-          ? "Reading context"
-          : `OpenClaw ${activityType}`);
+      const activity = resolveRuntimeActivityProjection(data);
       ensureProviderProcessingStarted();
       snapshot = this.applyTaskAction(taskId, {
         type: "provider-step-started",
         taskId: subscribedTask.taskId,
-        stepId,
-        stepName,
+        stepId: activity.stepId,
+        stepName: activity.stepName,
         startedAt: timestamp
       });
       snapshot = this.applyTaskAction(taskId, {
@@ -737,14 +713,24 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
         taskId: subscribedTask.taskId,
         log: {
           id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          stepId,
-          level: "info",
-          message: details,
+          stepId: activity.stepId,
+          level: data.status === "failed" ? "error" : "info",
+          message: activity.details,
           timestamp
         }
       });
-      const stepIndex = Math.max(0, snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0);
-      return { ...base, kind: "step-started", stepName, stepIndex, taskSnapshot: snapshot };
+      if (data.status === "completed") {
+        snapshot = this.applyTaskAction(taskId, {
+          type: "provider-step-completed",
+          taskId: subscribedTask.taskId,
+          stepId: activity.stepId,
+          stepName: activity.stepName,
+          completedAt: timestamp
+        });
+      }
+      const latestSnapshot = this.tasks.get(taskId) ?? snapshot;
+      const stepIndex = Math.max(0, latestSnapshot?.processingSnapshot.steps.findIndex((s) => s.id === activity.stepId) ?? 0);
+      return { ...base, kind: "step-started", stepName: activity.stepName, stepIndex, taskSnapshot: latestSnapshot };
     }
 
     if (data.type === "partial-output-received") {
@@ -780,6 +766,21 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
           taskId: subscribedTask.taskId,
           stepId: activeStep.id,
           stepName: activeStep.label,
+          completedAt: timestamp
+        });
+      } else if (latestTask?.processingSnapshot.steps.length === 0) {
+        this.applyTaskAction(taskId, {
+          type: "provider-step-started",
+          taskId: subscribedTask.taskId,
+          stepId: "openclaw-execution",
+          stepName: "OpenClaw execution",
+          startedAt: timestamp
+        });
+        this.applyTaskAction(taskId, {
+          type: "provider-step-completed",
+          taskId: subscribedTask.taskId,
+          stepId: "openclaw-execution",
+          stepName: "OpenClaw execution",
           completedAt: timestamp
         });
       }
@@ -905,192 +906,9 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          const subscribedTask = this.tasks.get(taskId);
-          if (!subscribedTask) return;
-
-          if (typeof data.taskId === "string" && data.taskId !== taskId) {
-            return;
-          }
-
-          if (
-            typeof data.workId === "string" &&
-            data.workId !== (subscribedTask.workId as string) &&
-            !isSyntheticRestoredWorkId(subscribedTask)
-          ) {
-            return;
-          }
-
-          if (typeof data.timestamp === "string") {
-            const eventTime = Date.parse(data.timestamp);
-            const taskCreatedTime = Date.parse(subscribedTask.createdAt);
-            if (!Number.isNaN(eventTime) && !Number.isNaN(taskCreatedTime) && eventTime < taskCreatedTime) {
-              return;
-            }
-          }
-
-          const base = {
-            taskId: subscribedTask.taskId,
-            workId: subscribedTask.workId,
-            timestamp: data.timestamp || new Date().toISOString()
-          };
-
-          const existingTask = this.tasks.get(taskId);
-          if (!existingTask) return;
-
-          const applyAction = (action: import("./task-creation-state").TaskCreationAction) => {
-             const state: import("./task-creation-state").TaskCreationState = {
-               tasks: [this.tasks.get(base.taskId as string)!],
-               conversations: [],
-               isSubmitting: false,
-               conversationSequence: 1
-             };
-             const nextState = taskCreationReducer(state, action);
-             const updatedTask = nextState.tasks[0];
-             if (updatedTask) {
-               this.tasks.set(base.taskId as string, updatedTask);
-             }
-             return updatedTask;
-          };
-
-          const ensureProviderProcessingStarted = () => {
-            const currentTask = this.tasks.get(base.taskId as string);
-            if (currentTask?.status === "queued" && currentTask.processingSnapshot.startedAt === undefined) {
-              applyAction({ type: "provider-processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
-            }
-          };
-
-          let snapshot: CreatedTaskRecord | undefined = undefined;
-
-          const cur = this.tasks.get(base.taskId as string)!;
-          if (cur.status === "queued" && data.type !== "execution-accepted") {
-            applyAction({ type: "provider-processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
-          }
-
-          if (data.type === "execution-accepted") {
-            snapshot = applyAction({ type: "provider-processing-started", taskId: base.taskId as any, startedAt: base.timestamp });
-            handler({ ...base, kind: "task-accepted", taskSnapshot: snapshot });
-          } else if (data.type === "execution-started") {
-            ensureProviderProcessingStarted();
-            handler({ ...base, kind: "task-started", taskSnapshot: this.tasks.get(base.taskId as string) });
-          } else if (data.type === "step-started") {
-            const stepId = data.stepId || "step-1";
-            const stepName = data.stepName || stepId;
-            ensureProviderProcessingStarted();
-            snapshot = applyAction({
-              type: "provider-step-started",
-              taskId: base.taskId as any,
-              stepId,
-              stepName,
-              startedAt: base.timestamp
-            });
-            const stepIndex = Math.max(0, (snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0));
-            handler({ ...base, kind: "step-started", stepName, stepIndex, taskSnapshot: snapshot });
-          } else if (data.type === "step-completed") {
-            const stepId = data.stepId || "step-1";
-            const stepName = data.stepName || stepId;
-            ensureProviderProcessingStarted();
-            snapshot = applyAction({
-              type: "provider-step-completed",
-              taskId: base.taskId as any,
-              stepId,
-              stepName,
-              completedAt: base.timestamp
-            });
-            const stepIndex = Math.max(0, (snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0));
-            handler({ ...base, kind: "step-completed", stepName, stepIndex, taskSnapshot: snapshot });
-          } else if (
-            data.type === "sub-activity" ||
-            data.type === "tool-call" ||
-            data.type === "tool-call-started" ||
-            data.type === "tool-started" ||
-            data.type === "web-search" ||
-            data.type === "web-search-started"
-          ) {
-            const activityType = data.activityType || "provider";
-            const details =
-              data.details ||
-              data.toolName ||
-              data.query ||
-              data.stepName ||
-              activityType;
-            const stepId =
-              data.stepId ||
-              (data.type.includes("search")
-                ? "openclaw-web-search"
-                : data.type.includes("tool")
-                ? `openclaw-tool-${String(data.toolName || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
-                : `openclaw-${activityType}`);
-            const stepName =
-              data.stepName ||
-              (data.type.includes("search")
-                ? "Searching web"
-                : data.type.includes("tool")
-                ? `Calling tool ${data.toolName || ""}`.trim()
-                : `OpenClaw ${activityType}`);
-            ensureProviderProcessingStarted();
-            snapshot = applyAction({
-              type: "provider-step-started",
-              taskId: base.taskId as any,
-              stepId,
-              stepName,
-              startedAt: base.timestamp
-            });
-            snapshot = applyAction({
-              type: "processing-log-appended",
-              taskId: base.taskId as any,
-              log: {
-                id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                stepId,
-                level: "info",
-                message: details,
-                timestamp: base.timestamp
-              }
-            });
-            const stepIndex = Math.max(0, (snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0));
-            handler({ ...base, kind: "step-started", stepName, stepIndex, taskSnapshot: snapshot });
-          } else if (data.type === "partial-output-received") {
-            const chunkText = data.outputChunk || "";
-            const currentTask = this.tasks.get(base.taskId as string)!;
-            ensureProviderProcessingStarted();
-            if (currentTask.streamingSnapshot?.phase === "idle") {
-              applyAction({ type: "streaming-started", taskId: base.taskId as any, startedAt: base.timestamp });
-            }
-            snapshot = applyAction({
-              type: "streaming-fragment-appended",
-              taskId: base.taskId as any,
-              fragmentId: `frag-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-              sequence: (this.tasks.get(base.taskId as string)!.streamingSnapshot?.fragments.length || 0) + 1,
-              text: chunkText,
-              appendedAt: base.timestamp
-            });
-            handler({ ...base, kind: "partial-output", chunkText, taskSnapshot: snapshot });
-          } else if (data.type === "execution-completed") {
-            const finalOutput = data.finalOutput || "Completed successfully.";
-            const currentTask = this.tasks.get(base.taskId as string)!;
-            ensureProviderProcessingStarted();
-            const latestTask = this.tasks.get(base.taskId as string)!;
-            const activeStep = latestTask.processingSnapshot.steps.find((s) => s.status === "active");
-            if (activeStep) {
-              applyAction({ type: "provider-step-completed", taskId: base.taskId as any, stepId: activeStep.id, stepName: activeStep.label, completedAt: base.timestamp });
-            } else if (latestTask.processingSnapshot.steps.length === 0) {
-              applyAction({ type: "provider-step-completed", taskId: base.taskId as any, stepId: "openclaw-execution", stepName: "OpenClaw execution", completedAt: base.timestamp });
-            }
-            if (currentTask.streamingSnapshot?.phase === "idle") {
-              applyAction({ type: "streaming-started", taskId: base.taskId as any, startedAt: base.timestamp });
-              applyAction({ type: "streaming-exhausted", taskId: base.taskId as any, exhaustedAt: base.timestamp });
-            } else if (currentTask.streamingSnapshot?.phase === "streaming") {
-              applyAction({ type: "streaming-exhausted", taskId: base.taskId as any, exhaustedAt: base.timestamp });
-            }
-            snapshot = applyAction({ type: "task-completed", taskId: base.taskId as any, result: { text: finalOutput, finalizedAt: base.timestamp, artifacts: [], followUpPromptSuggestions: [] } as any });
-            handler({ ...base, kind: "task-completed", finalResult: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] }, taskSnapshot: snapshot });
-          } else if (data.type === "execution-failed") {
-            ensureProviderProcessingStarted();
-            const activeStep = this.tasks.get(base.taskId as string)?.processingSnapshot.steps.find((s) => s.status === "active");
-            snapshot = applyAction({ type: "task-failed", taskId: base.taskId as any, error: { code: "runtime-error", stepId: activeStep?.id || "unknown", title: "Execution failed", message: data.errorMessage || "Execution failed", occurredAt: base.timestamp } });
-            handler({ ...base, kind: "task-failed", error: { code: "runtime-error", message: data.errorMessage || "Execution failed" }, taskSnapshot: snapshot });
-          } else if (data.type === "execution-canceled") {
-            snapshot = applyAction({ type: "task-cancelled", taskId: base.taskId as any, cancelledAt: base.timestamp });
-            handler({ ...base, kind: "task-canceled", taskSnapshot: snapshot });
+          const projected = this.applyRuntimeEventData(taskId, data);
+          if (projected) {
+            handler(projected);
           }
         } catch (err) {
           console.error("Failed to parse SSE event", err);
@@ -1138,6 +956,91 @@ export function resolveTaskOrchestrationProvider(
   }
 ): TaskOrchestrationClient {
   return new HttpTaskOrchestrationProvider(config);
+}
+
+function resolveRuntimeActivityProjection(data: any): {
+  stepId: string;
+  stepName: string;
+  details: string;
+} {
+  const activityType = String(data.activityType || inferLegacyActivityType(data));
+  const stepName =
+    toDisplayText(data.displayLabel) ||
+    toDisplayText(data.stepName) ||
+    labelForActivityType(activityType, data);
+  const details =
+    toDisplayText(data.summary) ||
+    toDisplayText(data.details) ||
+    toDisplayText(data.toolName) ||
+    toDisplayText(data.queryPreview) ||
+    toDisplayText(data.query) ||
+    toDisplayText(data.resourceLabel) ||
+    toDisplayText(data.resource) ||
+    stepName;
+  const stepId =
+    toStepId(data.stepId) ||
+    `openclaw-${activityType}-${toStepId(data.toolName || data.queryPreview || data.resourceLabel || data.providerEventName || "activity")}`;
+
+  return { stepId, stepName, details };
+}
+
+function inferLegacyActivityType(data: any): string {
+  const type = String(data.type || "").toLowerCase();
+  if (type.includes("search")) return "web-search";
+  if (type.includes("tool")) return "tool-call";
+  if (type.includes("reading") || type.includes("read")) return "document-read";
+  return "provider";
+}
+
+function labelForActivityType(activityType: string, data: any): string {
+  switch (activityType) {
+    case "web-search":
+      return "Searching web";
+    case "tool":
+    case "tool-call":
+      return toDisplayText(data.toolName) ? `Calling ${toDisplayText(data.toolName)}` : "Calling tool";
+    case "document-read":
+      return toDisplayText(data.resourceLabel) ? `Reading ${toDisplayText(data.resourceLabel)}` : "Reading document";
+    case "file-read":
+      return toDisplayText(data.resourceLabel) ? `Reading ${toDisplayText(data.resourceLabel)}` : "Reading file";
+    case "browser":
+      return "Browsing web";
+    case "shell":
+      return "Running command";
+    case "api-call":
+      return "Calling API";
+    case "routing":
+      return "Routing request";
+    case "workflow":
+      return "Running workflow";
+    case "message":
+      return "Composing response";
+    case "sub-agent":
+      return "Agent activity";
+    case "provider-diagnostic":
+      return "Provider diagnostic";
+    default:
+      return "OpenClaw activity";
+  }
+}
+
+function toDisplayText(value: unknown): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return undefined;
+  }
+  const text = String(value).trim().replace(/\s+/g, " ");
+  if (!text) {
+    return undefined;
+  }
+  return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+function toStepId(value: unknown): string | undefined {
+  const text = toDisplayText(value);
+  if (!text) {
+    return undefined;
+  }
+  return text.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || undefined;
 }
 
 function isSyntheticRestoredWorkId(task: CreatedTaskRecord): boolean {

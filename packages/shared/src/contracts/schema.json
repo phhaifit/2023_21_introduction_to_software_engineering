@@ -221,6 +221,25 @@
       "specific-agent",
       "predefined-workflow"
     ],
+    "runtimeActivityKinds": [
+      "routing",
+      "workflow",
+      "tool",
+      "tool-call",
+      "web-search",
+      "document-read",
+      "file-read",
+      "browser",
+      "shell",
+      "api-call",
+      "sub-agent",
+      "handoff",
+      "review",
+      "aggregation",
+      "completion",
+      "message",
+      "provider-diagnostic"
+    ],
     "createTaskRequestFields": ["prompt", "routing"],
     "createTaskResponseFields": [
       "taskId",
