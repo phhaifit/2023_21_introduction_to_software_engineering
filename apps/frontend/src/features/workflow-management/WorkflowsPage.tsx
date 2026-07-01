@@ -382,7 +382,20 @@ function WorkflowsList({
       setStreamingWorkflowName(workflowName);
     } catch (err: any) {
       console.error(err);
-      alert("Failed to execute workflow: " + (err.message || "Unknown error"));
+      let errorMsg = "Không thể thực thi Workflow.";
+      if (err.details?.missingAgents?.length > 0 || err.details?.disabledAgents?.length > 0) {
+        const missing = err.details.missingAgents || [];
+        const disabled = err.details.disabledAgents || [];
+        errorMsg = "Không thể chạy Workflow do một số Agent trong cấu hình các bước của Workflow đã bị xóa hoặc bị vô hiệu hóa:\n" +
+          [
+            missing.length > 0 ? `- Thiếu Agent ID: ${missing.join(", ")}` : null,
+            disabled.length > 0 ? `- Agent bị tắt ID: ${disabled.join(", ")}` : null
+          ].filter(Boolean).join("\n") +
+          "\n\nVui lòng chỉnh sửa Workflow (nút Edit) để cập nhật lại các Agent hợp lệ.";
+      } else {
+        errorMsg += ` Chi tiết: ${err.message || "Lỗi không xác định"}`;
+      }
+      alert(errorMsg);
       setExecutingId(null);
     }
   };
