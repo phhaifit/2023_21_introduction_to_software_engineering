@@ -221,13 +221,18 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
             // For now, OpenClaw execution adapter may just complete it or we wait for state.
             // But since this is a pseudo-sync DAG engine running locally, let's poll or assume it completes.
             // We can just fetch exposed state.
+            const timeoutMs = process.env.WORKFLOW_STEP_TIMEOUT_MS
+              ? parseInt(process.env.WORKFLOW_STEP_TIMEOUT_MS, 10)
+              : 30000; // Default to 30 seconds if not configured
+            const maxAttempts = Math.ceil(timeoutMs / 500);
+
             let state = await this.orchestrator.getExposedState(command.taskId);
             let attempts = 0;
             while(state.status === "pending" || state.status === "in-progress") {
               await new Promise(r => setTimeout(r, 500));
               state = await this.orchestrator.getExposedState(command.taskId);
               attempts++;
-              if (attempts > 60) break; // 30s timeout
+              if (attempts > maxAttempts) break;
             }
             
             if (state.status === "completed") {
