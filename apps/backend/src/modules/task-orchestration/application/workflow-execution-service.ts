@@ -226,7 +226,12 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
               : 30000; // Default to 30 seconds if not configured
             const maxAttempts = Math.ceil(timeoutMs / 500);
 
+            console.log(`[Timeout Debug] raw env:`, process.env.WORKFLOW_STEP_TIMEOUT_MS);
+            console.log(`[Timeout Debug] parsed timeoutMs:`, timeoutMs);
+            console.log(`[Timeout Debug] maxAttempts:`, maxAttempts);
+
             let state = await this.orchestrator.getExposedState(command.taskId);
+            console.log(`[Timeout Debug] initial task state:`, state?.status);
             let attempts = 0;
             while(state.status === "pending" || state.status === "in-progress") {
               await new Promise(r => setTimeout(r, 500));
