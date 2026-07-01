@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import type {
@@ -50,6 +50,11 @@ export class LocalKnowledgeFileStorage implements KnowledgeFileStorage {
   async remove(storageKey: string): Promise<void> {
     const targetPath = this.resolveStoragePath(storageKey);
     await rm(targetPath, { force: true });
+  }
+
+  async read(storageKey: string): Promise<Uint8Array> {
+    const targetPath = this.resolveStoragePath(storageKey);
+    return readFile(targetPath);
   }
 
   private resolveStoragePath(storageKey: string): string {

@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import type { TaskPresentationStatus } from "../model/task-types";
 
 export interface TaskConversationNavigationItem {
@@ -105,7 +106,7 @@ function ConversationItemMenu({
           setIsOpen((open) => !open);
         }}
       >
-        ⋯
+        <MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.9} />
       </button>
       {isOpen ? (
         <ul
@@ -268,7 +269,7 @@ export function TaskConversationNavigation({
           aria-label="New chat"
           title="New chat"
         >
-          +
+          <Plus aria-hidden="true" size={18} strokeWidth={1.9} />
         </button>
         {activeItem ? (
           <div
@@ -400,7 +401,6 @@ export function TaskConversationNavigation({
           </button>
         </div>
       )}
-
       <footer className="task-conversation-navigation__notice">
         <p>Session-scoped history (in-memory).</p>
       </footer>

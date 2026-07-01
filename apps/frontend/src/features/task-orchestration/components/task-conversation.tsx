@@ -7,6 +7,7 @@ import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
 import { TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
+import { TaskMarkdown } from "./task-markdown";
 import type { TaskClipboardWriter } from "../model/task-completion-runtime";
 
 const TASK_STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
@@ -47,13 +48,13 @@ export function TaskConversation({
     <div className="task-conversation" aria-label="Task chat conversation">
       <TaskUserMessage
         prompt={task.prompt}
-        routingSummary={routingSummary}
         task={task}
         clipboardWriter={clipboardWriter}
         onOpenDetails={onOpenDetails}
       />
       <TaskAssistantMessage
         task={task}
+        routingSummary={routingSummary}
         partialText={partialText}
         isStreaming={isStreaming}
         shouldShowPartialResult={shouldShowPartialResult}
@@ -66,13 +67,11 @@ export function TaskConversation({
 
 export function TaskUserMessage({
   prompt,
-  routingSummary,
   task,
   clipboardWriter,
   onOpenDetails
 }: {
   prompt: string;
-  routingSummary: string;
   task: CreatedTaskRecord;
   clipboardWriter: TaskClipboardWriter;
   onOpenDetails: () => void;
@@ -86,9 +85,6 @@ export function TaskUserMessage({
         U
       </div>
       <div className="task-conversation__bubble task-conversation__bubble--user">
-        <div className="task-conversation__turn-toolbar">
-          <span className="task-conversation__routing-summary">{routingSummary}</span>
-        </div>
         <p className="task-conversation__prompt">{prompt}</p>
         <TaskTurnActionsMenu
           task={task}
@@ -104,6 +100,7 @@ export function TaskUserMessage({
 
 export function TaskAssistantMessage({
   task,
+  routingSummary,
   partialText,
   isStreaming,
   shouldShowPartialResult,
@@ -111,6 +108,7 @@ export function TaskAssistantMessage({
   onOpenDetails
 }: {
   task: CreatedTaskRecord;
+  routingSummary: string;
   partialText: string;
   isStreaming: boolean;
   shouldShowPartialResult: boolean;
@@ -142,6 +140,7 @@ export function TaskAssistantMessage({
         <div className="task-conversation__turn-toolbar">
           <div className="task-conversation__turn-toolbar-labels">
             <span className="task-conversation__assistant-label">Assistant</span>
+            <span className="task-conversation__routing-summary">{routingSummary}</span>
             {toolbarStatusLabel ? (
               <span className="sr-only" aria-label={`Task status: ${toolbarStatusLabel}`}>
                 {toolbarStatusLabel}
@@ -167,10 +166,14 @@ export function TaskAssistantMessage({
                 Generating response...
               </div>
             ) : null}
-            <p className="task-conversation__partial-text" aria-live="polite">
-              {partialText ||
-                (task.status === "queued" ? "Waiting for runtime..." : "Working on it")}
-            </p>
+            <TaskMarkdown
+              className="task-conversation__partial-text task-markdown"
+              aria-live="polite"
+              text={
+                partialText ||
+                (task.status === "queued" ? "Waiting for runtime..." : "Working on it")
+              }
+            />
           </div>
         )}
         <TaskTurnActionsMenu

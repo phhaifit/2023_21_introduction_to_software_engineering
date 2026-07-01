@@ -282,6 +282,35 @@ describe("Task 10B Completed Result UI Integration", () => {
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
   });
 
+  it("renders finalized markdown as formatted assistant content", async () => {
+    const markdownResultSource: TaskFinalizedResultSource = {
+      finalize: () => ({
+        text: "# Summary\n\n- **Decision:** Ship it\n- Use `npm test`\n\n[Open docs](/docs)",
+        finalizedAt: "2026-06-25T08:00:05.000Z"
+      })
+    };
+    const runtimes = makeRuntimes();
+    const { scheduler } = renderPage({
+      ...runtimes,
+      completionRuntime: {
+        ...runtimes.completionRuntime,
+        resultSource: markdownResultSource
+      }
+    });
+
+    await submitPrompt("Render markdown.");
+    await completeTask(scheduler);
+    await act(() => { scheduler.flushNext(COMPLETION_MS); });
+
+    const finalResponse = screen.getByLabelText("Assistant final response");
+    expect(within(finalResponse).getByRole("heading", { name: "Summary" })).toBeVisible();
+    expect(within(finalResponse).getByText("Decision:")).toBeVisible();
+    expect(within(finalResponse).getByText("npm test")).toBeVisible();
+    expect(within(finalResponse).getByRole("link", { name: "Open docs" })).toHaveAttribute("href", "/docs");
+    expect(finalResponse).not.toHaveTextContent("# Summary");
+    expect(finalResponse).not.toHaveTextContent("- **Decision:**");
+  });
+
   it("supports exactly once completion and terminal protection", async () => {
     const { scheduler } = renderPage();
     await submitPrompt("Complete me once.");

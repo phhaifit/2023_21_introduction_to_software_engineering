@@ -254,8 +254,8 @@ describe("Conversation Navigation & Switching", () => {
     await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
     expect(within(navigation).getByText("New conversation")).toBeVisible();
 
-    // Verify explicit visual notice confirming history data is session-scoped
-    expect(within(navigation).getByText("Session-scoped history (in-memory).")).toBeVisible();
+    // Session storage details are intentionally not shown in the production UI.
+    expect(within(navigation).queryByText("Session-scoped history (in-memory).")).not.toBeInTheDocument();
 
     // 1. Search input filtering by prompt text
     const searchInput = within(navigation).getByRole("searchbox", { name: /search conversations/i });

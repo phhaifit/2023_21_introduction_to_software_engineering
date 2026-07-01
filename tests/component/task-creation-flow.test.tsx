@@ -20,6 +20,7 @@ import {
   taskCreationReducer
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
 import type { TaskStatus as ProductionTaskStatus } from "@vcp/shared";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import {
   canTransitionTaskStatus,
   isTerminalTaskStatus,
@@ -142,6 +143,15 @@ describe("Task 6B task creation UI flow", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
 
     render(<TaskOrchestrationPage />);
+
+    await waitFor(() => {
+      expect(fetchImplementation).toHaveBeenCalledWith(
+        expect.stringContaining(`/api/workspaces/${DEMO_WORKSPACE_ID}/conversations`)
+      );
+    });
+    expect(
+      fetchImplementation.mock.calls.some(([input]) => String(input).includes("demo_workspace_1"))
+    ).toBe(false);
 
     await submitPrompt("Show this immediately.");
 

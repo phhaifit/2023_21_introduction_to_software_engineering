@@ -236,7 +236,7 @@ describe("Assistant progress summary & expandable details", () => {
     act(() => { pRuntime.scheduler.advance(); }); // aggregate-result
     act(() => { pRuntime.scheduler.advance(); }); // fail
 
-    expect(within(assistant).getByText("Không thể tổng hợp kết quả")).toBeVisible();
+    expect(within(assistant).getByText("Unable to aggregate result")).toBeVisible();
 
     // 11. Details trigger is available from the turn menu
     await user.click(
@@ -257,8 +257,8 @@ describe("Assistant progress summary & expandable details", () => {
     expect(within(conversation).queryByRole("region", { name: /timeline/i })).not.toBeInTheDocument();
 
     // 17. Failed details show user-friendly error information
-    expect(within(dialog).getByText("Không thể tổng hợp kết quả")).toBeVisible();
-    expect(within(dialog).getByText("Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.")).toBeVisible();
+    expect(within(dialog).getByText("Unable to aggregate result")).toBeVisible();
+    expect(within(dialog).getByText("The simulated aggregation step failed.")).toBeVisible();
 
     // 14. Advanced details are collapsed by default
     // 18. Internal error code is hidden until Advanced details is opened

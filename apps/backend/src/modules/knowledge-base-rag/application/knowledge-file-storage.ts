@@ -16,5 +16,6 @@ export type StoredKnowledgeFile = {
 
 export type KnowledgeFileStorage = {
   store(input: KnowledgeFileStorageInput): Promise<StoredKnowledgeFile>;
+  read(storageKey: string): Promise<Uint8Array>;
   remove(storageKey: string): Promise<void>;
 };
