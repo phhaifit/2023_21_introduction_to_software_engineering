@@ -12,6 +12,7 @@ import type {
 } from "@vcp/shared";
 import { validateStartExecutionCommand, validateExecutionBinding, mapRuntimeObservationToTaskStatus } from "@vcp/shared";
 import { OpenClawRawEventMapper, type OpenClawNetworkTransport } from "./openclaw-network-transport.ts";
+import { TaskLogRepository, NoOpTaskLogRepository } from "./task-log-repository.ts";
 
 // Conceptual Consumer Ports for External Dependencies (Agent Management, Workflow Management, Authentication, Workspace Management)
 export interface ExternalAgentContract {
@@ -144,7 +145,9 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
       providerExecutionTarget = DEFAULT_OPENCLAW_ROUTING_TARGET;
       openClawAgentId = agentContract.openClawAgentId;
       targetLabel = agentContract.name || command.routing.agentId;
-      routingInstruction = buildSpecificAgentRoutingInstruction(agentContract);
+      routingInstruction = command.routingPresentation === "container-backed"
+        ? buildContainerBackedAgentRoutingInstruction(agentContract, command.workflowStepContext)
+        : buildSpecificAgentRoutingInstruction(agentContract);
     } else if (command.routing.mode === "predefined-workflow") {
       const workflowContract = await this.workflowCatalog.validateAndGetWorkflow(command.workspaceId, command.routing.workflowId);
       if (workflowContract.status !== "active") {
@@ -470,6 +473,24 @@ function buildSpecificAgentRoutingInstruction(agent: ExternalAgentContract): str
   ].filter(Boolean).join(" ");
 }
 
+function buildContainerBackedAgentRoutingInstruction(
+  agent: ExternalAgentContract,
+  workflowStepContext?: StartExecutionCommand["workflowStepContext"]
+): string {
+  return [
+    "Task & Orchestration routing mode: specific-agent (container-backed).",
+    "Use the native OpenClaw agent already materialized on the execution runtime.",
+    agent.openClawAgentId ? `Native OpenClaw agent ID: ${agent.openClawAgentId}.` : `Platform agent ID: ${agent.agentId}.`,
+    agent.providerAgentMapping ? `OpenClaw agent reference: ${agent.providerAgentMapping}.` : "",
+    workflowStepContext
+      ? `Workflow execution context: ${workflowStepContext.providerWorkflowMapping || workflowStepContext.workflowId}, step ${workflowStepContext.stepOrder}.`
+      : "",
+    "Agent profile, skill, and instructions are already stored on the container; do not expect them in the user prompt.",
+    "Keep the OpenAI-compatible request model as openclaw/default.",
+    `[Session Request Seed: ${new Date().getTime()}]`
+  ].filter(Boolean).join(" ");
+}
+
 function buildWorkflowRoutingInstruction(workflow: ExternalWorkflowContract): string {
   return [
     "Task & Orchestration routing mode: predefined-workflow.",
@@ -520,9 +541,10 @@ export class OpenClawExecutionOrchestrator {
   public agentCatalog: ExternalAgentCatalog;
   private workflowCatalog: ExternalWorkflowCatalog;
   private toolCatalog?: ExternalToolCatalog;
-  private adapter: OpenClawTaskExecutionAdapter;
+  public adapter: OpenClawTaskExecutionAdapter;
   public conversationRepository?: any;
   public workflowExecutionService?: any;
+  public taskLogRepository: TaskLogRepository;
   
   // In-memory storage for orchestration state
   private taskStore = new Map<string, { taskId: EntityId<"taskId">; workId: EntityId<"workId">; status: CanonicalTaskStatus; prompt: string }>();
@@ -536,7 +558,8 @@ export class OpenClawExecutionOrchestrator {
     workflowCatalog: ExternalWorkflowCatalog,
     adapter: OpenClawTaskExecutionAdapter,
     toolCatalog?: ExternalToolCatalog,
-    conversationRepository?: any
+    conversationRepository?: any,
+    taskLogRepository: TaskLogRepository = new NoOpTaskLogRepository()
   ) {
     this.authService = authService;
     this.workspaceMgmt = workspaceMgmt;
@@ -545,6 +568,7 @@ export class OpenClawExecutionOrchestrator {
     this.adapter = adapter;
     this.toolCatalog = toolCatalog;
     this.conversationRepository = conversationRepository;
+    this.taskLogRepository = taskLogRepository;
   }
 
   setWorkflowExecutionService(service: any) {
@@ -647,20 +671,31 @@ export class OpenClawExecutionOrchestrator {
               timestamp: event.timestamp
             }).catch(() => undefined);
           }
+          void this.taskLogRepository.saveTaskLog(taskIdStr, logs || []);
         }
-        else if (event.type === "execution-failed") task.status = "failed";
-        else if (event.type === "execution-canceled") task.status = "canceled";
+        else if (event.type === "execution-failed") {
+          task.status = "failed";
+          void this.taskLogRepository.saveTaskLog(taskIdStr, logs || []);
+        }
+        else if (event.type === "execution-canceled") {
+          task.status = "canceled";
+          void this.taskLogRepository.saveTaskLog(taskIdStr, logs || []);
+        }
       }
     });
 
     let binding: ExecutionBinding;
-    if (command.routing.mode === "predefined-workflow" && this.workflowExecutionService) {
+    if (command.routing.mode === "predefined-workflow" && !command.workflowStepContext && this.workflowExecutionService) {
       const executionId = `wfe_${command.taskId}`;
-      binding = {
-        providerExecutionReference: `openclaw-workflow-exec-${Date.now()}` as any,
-        endpoint: "local",
-        credentialReference: "local"
-      };
+      binding = validateExecutionBinding({
+        taskId: command.taskId,
+        runtimeInstanceId: runtime.instanceId,
+        providerExecutionReference: `openclaw-workflow-exec-${Date.now()}`,
+        verifiedProviderFields: {
+          mode: "predefined-workflow",
+          workflowId: command.routing.workflowId
+        }
+      }, false);
 
       // Store binding and initial pending state
       this.bindingStore.set(taskIdStr, binding);
@@ -676,14 +711,13 @@ export class OpenClawExecutionOrchestrator {
             timestamp: new Date().toISOString()
           });
 
-          // 2. Drive workflow steps sequentially from platform backend
-          const finalOutput = await self.workflowExecutionService.executeDAGFromChat(
+          // 2. Execute container-materialized workflow with one OpenClaw request per agent step
+          const finalOutput = await self.workflowExecutionService.executeWorkflowFromChat(
             command.workspaceId,
             command.routing.workflowId,
             { prompt: command.prompt },
-            executionId,
-            principal.principalId,
-            command.taskId,
+            executionId as EntityId<"executionId">,
+            principal.principalId as EntityId<"userId">,
             convId
           );
 
@@ -701,7 +735,10 @@ export class OpenClawExecutionOrchestrator {
             type: "execution-failed",
             taskId: command.taskId,
             timestamp: new Date().toISOString(),
-            errorMsg: err.message
+            error: {
+              code: "execution-failed",
+              message: err.message
+            }
           });
         }
       })();
@@ -761,7 +798,34 @@ export class OpenClawExecutionOrchestrator {
 
   async getExposedState(taskId: EntityId<"taskId">): Promise<{ taskId: EntityId<"taskId">; status: CanonicalTaskStatus; events: NormalizedRuntimeEvent[] }> {
     const taskIdStr = taskId as string;
-    const task = this.taskStore.get(taskIdStr);
+    let task = this.taskStore.get(taskIdStr);
+    
+    if (!task) {
+      const persistedEvents = await this.taskLogRepository.readTaskLog(taskIdStr);
+      if (persistedEvents && persistedEvents.length > 0) {
+        let status: CanonicalTaskStatus = "in-progress";
+        const lastEvent = persistedEvents[persistedEvents.length - 1];
+        if (lastEvent.type === "execution-completed") status = "completed";
+        else if (lastEvent.type === "execution-failed") status = "failed";
+        else if (lastEvent.type === "execution-canceled") status = "canceled";
+
+        task = {
+          taskId,
+          workId: `work_${taskIdStr}` as EntityId<"workId">,
+          status,
+          prompt: "Restored from file log"
+        };
+        this.taskStore.set(taskIdStr, task);
+        this.eventLogs.set(taskIdStr, persistedEvents);
+
+        const snapshot = await this.adapter.getExecutionSnapshot(taskId);
+        if (snapshot.status === "pending") {
+          snapshot.status = status;
+          snapshot.lastObservedEvent = lastEvent;
+        }
+      }
+    }
+
     if (!task) {
       throw new Error("Task not found");
     }
