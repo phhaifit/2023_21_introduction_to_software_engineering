@@ -23,13 +23,17 @@ export interface TaskConversationProps {
   routingSummary: string;
   clipboardWriter: TaskClipboardWriter;
   onOpenDetails: () => void;
+  onCancelTask?: () => void;
+  onRetryTask?: () => void;
 }
 
 export function TaskConversation({
   task,
   routingSummary,
   clipboardWriter,
-  onOpenDetails
+  onOpenDetails,
+  onCancelTask,
+  onRetryTask
 }: TaskConversationProps) {
   const partialText = selectAccumulatedPartialText(task.streamingSnapshot);
   const isStreaming = task.streamingSnapshot.phase === "streaming";
@@ -60,6 +64,8 @@ export function TaskConversation({
         shouldShowPartialResult={shouldShowPartialResult}
         clipboardWriter={clipboardWriter}
         onOpenDetails={onOpenDetails}
+        onCancelTask={onCancelTask}
+        onRetryTask={onRetryTask}
       />
     </div>
   );
@@ -105,7 +111,9 @@ export function TaskAssistantMessage({
   isStreaming,
   shouldShowPartialResult,
   clipboardWriter,
-  onOpenDetails
+  onOpenDetails,
+  onCancelTask,
+  onRetryTask
 }: {
   task: CreatedTaskRecord;
   routingSummary: string;
@@ -114,6 +122,8 @@ export function TaskAssistantMessage({
   shouldShowPartialResult: boolean;
   clipboardWriter: TaskClipboardWriter;
   onOpenDetails: () => void;
+  onCancelTask?: () => void;
+  onRetryTask?: () => void;
 }) {
   const isFailed = task.status === "failed";
   const isCanceled = task.status === "cancelled";
@@ -149,12 +159,14 @@ export function TaskAssistantMessage({
           </div>
         </div>
 
-        {isNonTerminal ? <TaskAssistantProgressSummary task={task} /> : null}
+        {isNonTerminal ? (
+          <TaskAssistantProgressSummary task={task} onCancelTask={onCancelTask} />
+        ) : null}
 
         {isSucceeded && task.finalizedResult ? (
           <TaskCompletedResult result={task.finalizedResult} clipboardWriter={clipboardWriter} />
         ) : isFailed ? (
-          <TaskFailedState task={task} />
+          <TaskFailedState task={task} onRetry={onRetryTask} />
         ) : isCanceled ? (
           <TaskCanceledState task={task} />
         ) : shouldShowPartialResult ? (

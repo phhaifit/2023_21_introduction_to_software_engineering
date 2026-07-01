@@ -176,12 +176,37 @@ class ServerAgentCatalog implements ExternalAgentCatalog {
       return await this.materializer.materializeAgent(profile);
     } catch (err) {
       console.warn(
-        `[OpenClaw Agent Sync] Agent ${agentId} was not materialized; native OpenClaw header will be omitted.`,
-        err instanceof Error ? err.message : err
+        `[OpenClaw Agent Sync] Agent ${agentId} was not materialized; native OpenClaw header will be omitted. ${formatOpenClawAgentSyncError(err)}`
       );
       return null;
     }
   }
+}
+
+function formatOpenClawAgentSyncError(err: unknown): string {
+  if (!err || typeof err !== "object") {
+    return `Reason: ${String(err)}`;
+  }
+
+  const record = err as Record<string, unknown>;
+  const parts = [
+    err instanceof Error && err.message ? `Reason: ${compactLogValue(err.message)}` : null,
+    typeof record.code === "number" || typeof record.code === "string" ? `code=${record.code}` : null,
+    typeof record.signal === "string" ? `signal=${record.signal}` : null,
+    typeof record.stderr === "string" && record.stderr.trim()
+      ? `stderr=${compactLogValue(record.stderr)}`
+      : null,
+    typeof record.stdout === "string" && record.stdout.trim()
+      ? `stdout=${compactLogValue(record.stdout)}`
+      : null
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : "Reason: unknown";
+}
+
+function compactLogValue(value: string): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > 240 ? `${compact.slice(0, 237)}...` : compact;
 }
 
 class ServerWorkflowCatalog implements ExternalWorkflowCatalog {

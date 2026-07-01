@@ -128,11 +128,51 @@ export type PartialOutputReceivedEvent = { type: "partial-output-received"; task
 export type ExecutionCompletedEvent = { type: "execution-completed"; taskId: EntityId<"taskId">; finalOutput: string; timestamp: string } & BaseEventScoping;
 export type ExecutionFailedEvent = { type: "execution-failed"; taskId: EntityId<"taskId">; error: NormalizedRuntimeError; timestamp: string } & BaseEventScoping;
 export type ExecutionCanceledEvent = { type: "execution-canceled"; taskId: EntityId<"taskId">; timestamp: string } & BaseEventScoping;
+
+export const RUNTIME_ACTIVITY_TYPES = [
+  "routing",
+  "workflow",
+  "tool",
+  "tool-call",
+  "web-search",
+  "document-read",
+  "file-read",
+  "browser",
+  "shell",
+  "api-call",
+  "sub-agent",
+  "handoff",
+  "review",
+  "aggregation",
+  "completion",
+  "message",
+  "provider-diagnostic"
+] as const;
+
+export type RuntimeActivityType = (typeof RUNTIME_ACTIVITY_TYPES)[number];
+
+export type RuntimeActivityStatus =
+  | "started"
+  | "in-progress"
+  | "completed"
+  | "failed"
+  | "canceled";
+
 export type SubActivityEvent = {
   type: "sub-activity";
   taskId: EntityId<"taskId">;
-  activityType: "routing" | "workflow" | "tool" | "sub-agent" | "handoff" | "review" | "aggregation" | "completion" | "provider-diagnostic";
+  activityType: RuntimeActivityType;
   details: string;
+  displayLabel?: string;
+  summary?: string;
+  status?: RuntimeActivityStatus;
+  stepId?: string;
+  toolName?: string;
+  queryPreview?: string;
+  resourceLabel?: string;
+  inputPreview?: string;
+  outputPreview?: string;
+  providerEventName?: string;
   rawProviderPayload?: unknown;
   timestamp: string;
 } & BaseEventScoping;

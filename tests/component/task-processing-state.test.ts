@@ -34,6 +34,7 @@ import {
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
 import {
   activateNextStep,
+  activateProviderStep,
   appendProcessingLog,
   completeActiveStep,
   createInitialProcessingSnapshot,
@@ -449,6 +450,34 @@ describe("12. logs append immutably", () => {
     if (!r2.ok) throw new Error("Expected ok");
 
     expect(r2.snapshot.logs.map((l) => l.id)).toEqual(["log-001", "log-002"]);
+  });
+
+  it("appends a log for an existing provider-supplied step", () => {
+    const providerStarted = activateProviderStep(
+      { startedAt: FIXED_TS, steps: [], logs: [] },
+      {
+        id: "api-call-status",
+        label: "Calling API",
+        startedAt: FIXED_TS
+      }
+    );
+    if (!providerStarted.ok) throw new Error("Expected provider step");
+
+    const result = appendProcessingLog(providerStarted.snapshot, {
+      id: "log-provider",
+      timestamp: FIXED_TS2,
+      level: "info",
+      stepId: "api-call-status",
+      message: "Fetching provider status"
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.snapshot.logs[0]).toMatchObject({
+        stepId: "api-call-status",
+        message: "Fetching provider status"
+      });
+    }
   });
 });
 
