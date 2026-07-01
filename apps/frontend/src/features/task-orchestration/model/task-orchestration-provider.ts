@@ -4,7 +4,6 @@ import type { CreatedTaskRecord, TaskError } from "./task-types";
 import { createTaskRuntimeRegistry, type TaskRuntimeRegistry } from "./task-runtime-registry";
 import { createLocalTaskCreationClient, type TaskCreationClient } from "./task-creation-client";
 import { taskCreationReducer, createTaskRecord } from "./task-creation-state";
-import { createTaskIdentity } from "./task-id";
 import { createBrowserTaskProcessingRuntime, type TaskProcessingRuntime } from "./task-processing-runtime";
 import { createDefaultTaskStreamingRuntime, DEFAULT_TASK_STREAMING_DELAYS, type TaskStreamingDelays, type TaskStreamingRuntime } from "./task-streaming-runtime";
 import { createBrowserTaskCompletionRuntime, DEFAULT_TASK_COMPLETION_DELAYS, type TaskCompletionDelays, type TaskCompletionRuntime } from "./task-completion-runtime";
@@ -77,6 +76,8 @@ export type TaskRuntimeEvent =
 
 export type ProviderConfig =
   | { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number };
+
+type RemoteTaskIdentity = Pick<import("@vcp/shared").CreateTaskResponse, "taskId" | "workId">;
 
 export const TASK_RUNTIME_EVENT_STATUS_MAPPING: Record<TaskRuntimeEvent["kind"], import("@vcp/shared").TaskStatus | null> = {
   "task-accepted": "queued",
@@ -371,20 +372,41 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     input: import("@vcp/shared").CreateTaskRequest,
     options?: { conversationId?: string }
   ): Promise<CreatedTaskRecord> {
-    const identity = createTaskIdentity();
-    const task = createTaskRecord(input, {
-      ...identity,
-      status: "queued",
-      createdAt: new Date().toISOString()
-    });
+    const response = await this.createRemoteTask(input);
+    const task = createTaskRecord(input, response);
     this.tasks.set(task.taskId as string, task);
-    void this.startRemoteExecution(input, identity, options?.conversationId);
+    void this.startRemoteExecution(input, response, options?.conversationId);
     return task;
+  }
+
+  private async createRemoteTask(
+    input: import("@vcp/shared").CreateTaskRequest
+  ): Promise<import("@vcp/shared").CreateTaskResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await fetch(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+        signal: controller.signal
+      });
+      const payload = await response.json().catch(() => undefined);
+      if (!response.ok || payload?.ok === false || !payload?.data?.taskId || !payload?.data?.workId) {
+        throw new Error(
+          payload?.error?.message ||
+            `Task creation failed with status ${response.status}`
+        );
+      }
+      return payload.data;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   private async startRemoteExecution(
     input: import("@vcp/shared").CreateTaskRequest,
-    identity: ReturnType<typeof createTaskIdentity>,
+    identity: RemoteTaskIdentity,
     conversationId?: string
   ): Promise<void> {
     const controller = new AbortController();

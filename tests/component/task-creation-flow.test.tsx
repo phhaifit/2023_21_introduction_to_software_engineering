@@ -114,6 +114,17 @@ describe("Task 6B task creation UI flow", () => {
     let resolveStart: (() => void) | undefined;
     const fetchImplementation = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes("/tasks")) {
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          data: {
+            taskId: "TASK-000001",
+            workId: "WORK-000001",
+            status: "queued",
+            createdAt: "2026-06-24T12:00:01.000Z"
+          }
+        }));
+      }
       if (url.includes("/executions/start")) {
         return new Promise<Response>((resolve) => {
           resolveStart = () =>
@@ -138,6 +149,10 @@ describe("Task 6B task creation UI flow", () => {
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Show this immediately.")).toBeVisible();
     expect(fetchImplementation).toHaveBeenCalledWith(
+      expect.stringContaining("/tasks"),
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchImplementation).toHaveBeenCalledWith(
       expect.stringContaining("/executions/start"),
       expect.objectContaining({ method: "POST" })
     );
@@ -146,8 +161,22 @@ describe("Task 6B task creation UI flow", () => {
   });
 
   it("ignores stale HTTP stream output from a previous task", async () => {
+    let createCounter = 0;
     const fetchImplementation = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.includes("/tasks")) {
+        createCounter += 1;
+        const sequence = String(createCounter).padStart(6, "0");
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          data: {
+            taskId: `TASK-${sequence}`,
+            workId: `WORK-${sequence}`,
+            status: "queued",
+            createdAt: `2026-06-24T12:00:0${createCounter}.000Z`
+          }
+        }));
+      }
       if (url.includes("/executions/start")) {
         return Promise.resolve(jsonResponse({ ok: true, data: { status: "queued" } }));
       }
