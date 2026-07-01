@@ -400,7 +400,7 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
     this.publishEvent(taskId, event);
   }
 
-  private publishEvent(taskId: EntityId<"taskId">, event: NormalizedRuntimeEvent): void {
+  public publishEvent(taskId: EntityId<"taskId">, event: NormalizedRuntimeEvent): void {
     const taskIdStr = taskId as string;
     const history = this.eventHistory.get(taskIdStr) ?? [];
     history.push(event);
@@ -670,7 +670,7 @@ export class OpenClawExecutionOrchestrator {
       void (async () => {
         try {
           // 1. Send execution-started event to push UI status from pending to in-progress
-          self.publishEvent(command.taskId, {
+          self.adapter.publishEvent(command.taskId, {
             type: "execution-started",
             taskId: command.taskId,
             timestamp: new Date().toISOString()
@@ -688,7 +688,7 @@ export class OpenClawExecutionOrchestrator {
           );
 
           // 3. Send completion event to finish task
-          self.publishEvent(command.taskId, {
+          self.adapter.publishEvent(command.taskId, {
             type: "execution-completed",
             taskId: command.taskId,
             timestamp: new Date().toISOString(),
@@ -696,7 +696,7 @@ export class OpenClawExecutionOrchestrator {
           });
         } catch (err: any) {
           // 4. Propagate failure event if workflow execution fails
-          self.publishEvent(command.taskId, {
+          self.adapter.publishEvent(command.taskId, {
             type: "execution-failed",
             taskId: command.taskId,
             timestamp: new Date().toISOString(),
