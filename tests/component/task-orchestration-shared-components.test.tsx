@@ -184,7 +184,8 @@ describe("TaskAssistantProgressSummary", () => {
     );
 
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
-    expect(screen.getByLabelText("Runtime progress")).toBeVisible();
+    expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
+    expect(screen.getByText(/1\/2 steps/)).toBeVisible();
     expect(screen.getAllByText("Calling tool").length).toBeGreaterThan(0);
     expect(screen.getByText("Searching web")).toBeVisible();
   });

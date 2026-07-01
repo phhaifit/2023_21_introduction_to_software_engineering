@@ -462,7 +462,6 @@
   color: #0f172a;
   line-height: 1.55;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
 .task-completed-result {
@@ -470,7 +469,6 @@
   line-height: 1.55;
   min-width: 0;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 
 .task-workspace__cancel-btn {
@@ -1001,8 +999,8 @@
 
 .task-assistant-progress {
   display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .task-assistant-progress__header {
@@ -1035,6 +1033,7 @@
   background: #6366f1;
   border-radius: 999px;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+  flex: none;
   height: 8px;
   width: 8px;
 }
@@ -1078,7 +1077,7 @@
 
 .task-assistant-progress__mini-step {
   align-items: center;
-  background: #ffffff;
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
   color: #475569;
@@ -1202,8 +1201,82 @@
   font-size: 1rem;
   line-height: 1.6;
   margin: 0;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.task-markdown {
+  color: #1e293b;
+  line-height: 1.62;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-markdown > * {
+  margin: 0;
+}
+
+.task-markdown > * + * {
+  margin-top: 0.65rem;
+}
+
+.task-markdown h3,
+.task-markdown h4,
+.task-markdown h5 {
+  color: #0f172a;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.task-markdown h3 {
+  font-size: 1.02rem;
+}
+
+.task-markdown h4,
+.task-markdown h5 {
+  font-size: 0.94rem;
+}
+
+.task-markdown ul,
+.task-markdown ol {
+  padding-left: 1.25rem;
+}
+
+.task-markdown li + li {
+  margin-top: 0.25rem;
+}
+
+.task-markdown code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.05rem 0.28rem;
+}
+
+.task-markdown pre {
+  background: #0f172a;
+  border-radius: 8px;
+  color: #e2e8f0;
+  overflow-x: auto;
+  padding: 0.75rem 0.9rem;
+}
+
+.task-markdown pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: block;
+  padding: 0;
+  white-space: pre;
+}
+
+.task-markdown a {
+  color: #4338ca;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .task-conversation__system-msg {

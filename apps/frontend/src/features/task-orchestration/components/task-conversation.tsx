@@ -7,6 +7,7 @@ import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
 import { TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
+import { TaskMarkdown } from "./task-markdown";
 import type { TaskClipboardWriter } from "../model/task-completion-runtime";
 
 const TASK_STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
@@ -167,10 +168,14 @@ export function TaskAssistantMessage({
                 Generating response...
               </div>
             ) : null}
-            <p className="task-conversation__partial-text" aria-live="polite">
-              {partialText ||
-                (task.status === "queued" ? "Waiting for runtime..." : "Working on it")}
-            </p>
+            <TaskMarkdown
+              className="task-conversation__partial-text task-markdown"
+              aria-live="polite"
+              text={
+                partialText ||
+                (task.status === "queued" ? "Waiting for runtime..." : "Working on it")
+              }
+            />
           </div>
         )}
         <TaskTurnActionsMenu

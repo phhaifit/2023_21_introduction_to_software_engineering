@@ -19,10 +19,10 @@ Current submit flow:
 ```text
 TaskOrchestrationPage
   -> HttpTaskOrchestrationProvider.createTask
-  -> POST /api/workspaces/demo_workspace_1/tasks
+  -> POST /api/workspaces/workspace-product-demo/tasks
   -> receive backend Task ID and Work ID
-  -> POST /api/workspaces/demo_workspace_1/executions/start
-  -> subscribe EventSource /api/workspaces/demo_workspace_1/executions/:taskId/stream
+  -> POST /api/workspaces/workspace-product-demo/executions/start
+  -> subscribe EventSource /api/workspaces/workspace-product-demo/executions/:taskId/stream
   -> reduce runtime events into CreatedTaskRecord snapshots
 ```
 
