@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { TaskRoutingSelection } from "@vcp/shared";
 
@@ -159,6 +160,7 @@ export function TaskOrchestrationPage({
   const taskStateRef = useRef(taskState);
   taskStateRef.current = taskState;
   const mountedRef = useRef(false);
+  const conversationScrollRef = useRef<HTMLDivElement>(null);
 
   const runtimeRef = useRef(processingRuntime ?? createBrowserTaskProcessingRuntime());
   const delaysRef = useRef(processingDelays ?? DEFAULT_TASK_RUNTIME_TIMINGS);
@@ -465,6 +467,26 @@ export function TaskOrchestrationPage({
     }
   }, [isProviderUnavailable]);
 
+  useEffect(() => {
+    const container = conversationScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    taskState.activeConversationId,
+    activeConversationTasks.length,
+    latestActiveConversationTask?.taskId,
+    latestActiveConversationTask?.status,
+    latestActiveConversationTask?.streamingSnapshot.fragments.length,
+    latestActiveConversationTask?.finalizedResult?.text,
+    latestActiveConversationTask?.error?.message
+  ]);
+
   const interactionIsDisabled = isLoading || taskState.isSubmitting;
 
   function handleCancelActiveTask(): void {
@@ -554,7 +576,7 @@ export function TaskOrchestrationPage({
               title="Expand conversations"
               onClick={() => setConversationSidebarCollapsed(false)}
             >
-              ›
+              <ChevronsRight aria-hidden="true" size={18} strokeWidth={1.8} />
             </button>
           </div>
         ) : (
@@ -572,7 +594,7 @@ export function TaskOrchestrationPage({
                 title="Collapse conversations"
                 onClick={() => setConversationSidebarCollapsed(true)}
               >
-                ‹
+                <ChevronsLeft aria-hidden="true" size={18} strokeWidth={1.8} />
               </button>
             </div>
             <TaskConversationNavigation
@@ -614,7 +636,11 @@ export function TaskOrchestrationPage({
           </div>
         </header>
 
-        <section className="task-workspace__conversation" aria-label="Main conversation region">
+        <section
+          ref={conversationScrollRef}
+          className="task-workspace__conversation"
+          aria-label="Main conversation region"
+        >
           {isReconnecting ? (
             <div className="task-workspace__reconnecting" role="status" aria-live="polite">
               <span
@@ -829,11 +855,11 @@ export function formatRoutingSummary(routing: TaskRoutingSelection): string {
 
 export function formatCompactRoutingSummary(routing: TaskRoutingSelection): string {
   if (routing.mode === "specific-agent") {
-    return `Agent · ${routing.agentId}`;
+    return `Agent - ${routing.agentId}`;
   }
 
   if (routing.mode === "predefined-workflow") {
-    return `Workflow · ${routing.workflowId}`;
+    return `Workflow - ${routing.workflowId}`;
   }
 
   return "Auto-routing";

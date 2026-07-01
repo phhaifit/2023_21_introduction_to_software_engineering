@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Copy, MoreHorizontal } from "lucide-react";
 
 import type { CreatedTaskRecord } from "../model/task-types";
 import { selectAccumulatedPartialText } from "../model/task-streaming";
@@ -92,7 +93,7 @@ export function TaskTurnActionsMenu({
           }
         }}
       >
-        <span aria-hidden="true">⧉</span>
+        <Copy aria-hidden="true" size={15} strokeWidth={1.9} />
       </button>
       {variant === "response" ? (
         <button
@@ -105,7 +106,7 @@ export function TaskTurnActionsMenu({
           title={menuLabel}
           onClick={() => setIsOpen((open) => !open)}
         >
-          <span aria-hidden="true">...</span>
+          <MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.9} />
         </button>
       ) : null}
       {feedback !== "idle" ? (

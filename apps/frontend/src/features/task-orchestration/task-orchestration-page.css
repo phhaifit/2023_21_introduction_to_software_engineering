@@ -89,6 +89,10 @@
   width: 36px;
 }
 
+.task-workspace__sidebar-toggle svg {
+  display: block;
+}
+
 .task-workspace h2,
 .task-workspace h3,
 .task-workspace p {
@@ -1329,6 +1333,14 @@
   white-space: nowrap;
 }
 
+.task-conversation__routing-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  color: #475569;
+  padding: 2px 7px;
+}
+
 .task-conversation__copy-btn {
   background: transparent;
   border: 1px solid #e2e8f0;
@@ -1362,17 +1374,25 @@
 
 .task-turn-actions__icon-button,
 .task-conversation-navigation__item-menu-btn {
+  align-items: center;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
   color: #64748b;
   cursor: pointer;
+  display: inline-flex;
   font: inherit;
   font-size: 0.9rem;
+  justify-content: center;
   line-height: 1;
   min-height: 28px;
   min-width: 28px;
   padding: 2px 6px;
+}
+
+.task-turn-actions__icon-button svg,
+.task-conversation-navigation__item-menu-btn svg {
+  display: block;
 }
 
 .task-turn-actions__icon-button:hover,

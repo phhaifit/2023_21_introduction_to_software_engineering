@@ -44,8 +44,8 @@ const WORK_ID_2 = "WORK-000002" as EntityId<"workId">;
 const sampleError: TaskError = {
   code: "MOCK_AGGREGATION_FAILED",
   stepId: "aggregate-result",
-  title: "Không thể tổng hợp kết quả",
-  message: "Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.",
+  title: "Unable to aggregate result",
+  message: "The simulated aggregation step failed.",
   occurredAt: FIXED_TS2
 };
 
@@ -255,8 +255,8 @@ describe("7. Deterministic TaskError tests", () => {
     expect(err).toBeDefined();
     expect(err?.code).toBe("MOCK_AGGREGATION_FAILED");
     expect(err?.stepId).toBe("aggregate-result");
-    expect(err?.title).toBe("Không thể tổng hợp kết quả");
-    expect(err?.message).toBe("Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.");
+    expect(err?.title).toBe("Unable to aggregate result");
+    expect(err?.message).toBe("The simulated aggregation step failed.");
     expect(err?.occurredAt).toBe(FIXED_TS2);
   });
 
