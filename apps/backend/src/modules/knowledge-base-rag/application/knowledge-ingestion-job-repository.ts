@@ -15,6 +15,9 @@ export type KnowledgeIngestionJobListResult = {
 };
 
 export type KnowledgeIngestionJobRepository = {
+  findNextQueuedJob(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<KnowledgeIngestionJob | null>;
   listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
     filters?: KnowledgeIngestionJobListFilters
@@ -25,4 +28,3 @@ export type KnowledgeIngestionJobRepository = {
   ): Promise<KnowledgeIngestionJob | null>;
   saveIngestionJob(job: KnowledgeIngestionJob): Promise<KnowledgeIngestionJob>;
 };
-

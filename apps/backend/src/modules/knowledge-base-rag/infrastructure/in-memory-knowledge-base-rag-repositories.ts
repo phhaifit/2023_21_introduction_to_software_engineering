@@ -116,6 +116,20 @@ export class InMemoryKnowledgeIngestionJobRepository
 {
   private readonly jobs = new Map<string, KnowledgeIngestionJob>();
 
+  async findNextQueuedJob(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<KnowledgeIngestionJob | null> {
+    const job = [...this.jobs.values()]
+      .filter((candidate) => candidate.workspaceId === workspaceId)
+      .filter((candidate) => candidate.status === "pending")
+      .sort((left, right) => {
+        const byQueuedAt = left.queuedAt.localeCompare(right.queuedAt);
+        return byQueuedAt === 0 ? left.jobId.localeCompare(right.jobId) : byQueuedAt;
+      })[0];
+
+    return job ? copyIngestionJob(job) : null;
+  }
+
   async listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeIngestionJobListFilters = {}
@@ -323,4 +337,3 @@ function copySyncJob(job: KnowledgeSyncJob): KnowledgeSyncJob {
 function copySyncJobEvent(event: KnowledgeSyncJobEvent): KnowledgeSyncJobEvent {
   return { ...event };
 }
-
