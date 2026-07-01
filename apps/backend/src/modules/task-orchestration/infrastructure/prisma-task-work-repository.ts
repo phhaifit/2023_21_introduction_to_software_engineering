@@ -4,7 +4,11 @@ import type { TaskWorkRepository } from "../application/task-work-repository.ts"
 import type { ResolvedTaskRouting, TaskWork } from "../domain/task-work.ts";
 
 export class PrismaTaskWorkRepository implements TaskWorkRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly prisma: PrismaClient;
+
+  constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
+  }
 
   async save(workspaceId: EntityId<"workspaceId">, work: TaskWork): Promise<TaskWork> {
     const record = await this.prisma.taskRun.upsert({

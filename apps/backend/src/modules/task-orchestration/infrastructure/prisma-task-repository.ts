@@ -4,7 +4,11 @@ import type { TaskRepository } from "../application/task-repository.ts";
 import type { Task } from "../domain/task.ts";
 
 export class PrismaTaskRepository implements TaskRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly prisma: PrismaClient;
+
+  constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
+  }
 
   async save(workspaceId: EntityId<"workspaceId">, task: Task): Promise<Task> {
     const record = await this.prisma.task.upsert({

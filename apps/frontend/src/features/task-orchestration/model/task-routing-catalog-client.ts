@@ -34,7 +34,7 @@ export function createTaskRoutingCatalogClient(input: {
   const fetchImplementation = input.fetchImplementation ?? fetch;
   const baseUrl = input.baseUrl?.replace(/\/$/, "") ?? "";
 
-  async function requestData<T>(path: string): Promise<T> {
+  async function requestList<T>(path: string): Promise<T[]> {
     const response = await fetchImplementation(`${baseUrl}${path}`, {
       headers: { accept: "application/json" }
     });
@@ -44,20 +44,34 @@ export function createTaskRoutingCatalogClient(input: {
       throw new Error("Routing catalog API returned an invalid response.");
     }
 
-    return body.data as T;
+    if (Array.isArray(body.data)) {
+      return body.data as T[];
+    }
+
+    if (isRecord(body.data) && Array.isArray(body.data.items)) {
+      return body.data.items as T[];
+    }
+
+    throw new Error("Routing catalog API returned a non-list response.");
   }
 
   return {
     async listRoutingCatalog(workspaceId) {
       const encodedWorkspaceId = encodeURIComponent(workspaceId);
-      const [agents, workflows] = await Promise.all([
-        requestData<AgentPublicSummary[]>(
+      const [agentsResult, workflowsResult] = await Promise.allSettled([
+        requestList<AgentPublicSummary>(
           `/api/workspaces/${encodedWorkspaceId}/agents`
         ),
-        requestData<WorkflowPublicSummary[]>(
+        requestList<WorkflowPublicSummary>(
           `/api/workspaces/${encodedWorkspaceId}/workflows`
         )
       ]);
+      const agents = agentsResult.status === "fulfilled" ? agentsResult.value : [];
+      const workflows = workflowsResult.status === "fulfilled" ? workflowsResult.value : [];
+
+      if (agentsResult.status === "rejected" && workflowsResult.status === "rejected") {
+        throw new Error("Routing catalog APIs are unavailable.");
+      }
 
       return {
         agents: agents.map(toRoutingAgentOption),
