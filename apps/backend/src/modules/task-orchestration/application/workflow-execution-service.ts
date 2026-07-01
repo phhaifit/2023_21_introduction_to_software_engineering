@@ -346,6 +346,16 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
       throw new Error("Workflow not found during chat execution");
     }
 
+    // Create execution record in database to satisfy foreign key constraint of workflow_step_logs
+    await this.workflowRepo.createExecution({
+      executionId: executionId as any,
+      workspaceId,
+      workflowId,
+      status: "Running",
+      triggeredBy: triggeredBy as any,
+      startedAt: new Date().toISOString()
+    });
+
     // 1. Emit workflow execution started event
     await this.eventBus.publish({
       name: "workflow.execution_started",
