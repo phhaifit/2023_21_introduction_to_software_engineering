@@ -331,7 +331,9 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
     console.log("[WorkflowExecutor] Workflow completed successfully. Outputs:", completedOutputs);
   }
 
-  // Triggered when running a workflow from the Chat interface
+  // Triggered when running a workflow from the Chat interface.
+  // Sends the entire workflow DAG as a single mega-prompt to OpenClaw in one HTTP call.
+  // OpenClaw processes all steps internally and returns the final consolidated output.
   async executeDAGFromChat(
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">,
@@ -346,7 +348,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
       throw new Error("Workflow not found during chat execution");
     }
 
-    // Create execution record in database to satisfy foreign key constraint of workflow_step_logs
+    // Create execution record in database to satisfy foreign key constraint
     await this.workflowRepo.createExecution({
       executionId: executionId as any,
       workspaceId,
@@ -361,56 +363,98 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
       name: "workflow.execution_started",
       eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
       occurredAt: new Date().toISOString(),
-      payload: {
-        workspaceId,
-        workflowId,
-        executionId
-      }
+      payload: { workspaceId, workflowId, executionId }
     });
 
-    const steps = workflow.steps || [];
-
     try {
-      // 2. Execute the DAG with convId so steps append messages
-      await this.executeDAG(workflow, initialInput, executionId as any, triggeredBy as any, convId);
+      // 2. Collect agent profiles for all steps to build the mega-prompt
+      const steps: any[] = workflow.steps || [];
+      const sortedSteps = [...steps].sort((a, b) => (a.stepOrder ?? 0) - (b.stepOrder ?? 0));
 
-      // 3. Update status in repo
+      const agentProfiles: Array<{ step: any; name: string; role: string; instructions: string }> = [];
+      for (const step of sortedSteps) {
+        if (step.stepType === "approval") {
+          agentProfiles.push({ step, name: "Approval Gate", role: "approval", instructions: "This step requires human approval. Output: APPROVED" });
+        } else {
+          try {
+            const profile = await this.orchestrator.agentCatalog.validateAndGetAgent(workspaceId, step.agentId);
+            agentProfiles.push({
+              step,
+              name: profile?.name || `Agent ${step.agentId}`,
+              role: profile?.role || "assistant",
+              instructions: profile?.instructions || ""
+            });
+          } catch {
+            agentProfiles.push({ step, name: `Agent ${step.agentId}`, role: "assistant", instructions: "" });
+          }
+        }
+      }
+
+      // 3. Build mega-prompt: embed entire workflow DAG as system instructions
+      const workflowSystemPrompt = buildWorkflowMegaPrompt(workflow.name || workflowId, agentProfiles, initialInput);
+
+      // 4. Single OpenClaw call with the full workflow prompt
+      const singleTaskId = `task_${randomUUID()}` as EntityId<"taskId">;
+      const command: StartExecutionCommand = {
+        taskId: singleTaskId,
+        workId: executionId as string as EntityId<"workId">,
+        workspaceId,
+        conversationId: convId as EntityId<"conversationId">,
+        prompt: workflowSystemPrompt,
+        routing: { mode: "auto" }
+      };
+
+      const context = {
+        principalId: triggeredBy,
+        roles: ["workspace-admin"],
+        permissions: ["start-task-execution"]
+      };
+
+      const result = await this.orchestrator.execute10StepStartFlow(context, command);
+      if (result.status === "failed") {
+        throw new Error("Workflow execution failed in OpenClaw");
+      }
+
+      // 5. Poll for completion
+      const timeoutMs = process.env.WORKFLOW_STEP_TIMEOUT_MS
+        ? parseInt(process.env.WORKFLOW_STEP_TIMEOUT_MS, 10)
+        : 60000;
+      const maxAttempts = Math.ceil(timeoutMs / 500);
+      let state = await this.orchestrator.getExposedState(singleTaskId);
+      let attempts = 0;
+      while (state.status === "pending" || state.status === "in-progress") {
+        await new Promise(r => setTimeout(r, 500));
+        state = await this.orchestrator.getExposedState(singleTaskId);
+        attempts++;
+        if (attempts > maxAttempts) break;
+      }
+
+      let finalOutput: string | null = null;
+      if (state.status === "completed") {
+        const completedEvent = state.events.find((e: any) => e.type === "execution-completed") as any;
+        if (completedEvent?.finalOutput) {
+          finalOutput = completedEvent.finalOutput;
+        } else {
+          const chunks = state.events
+            .filter((e: any) => e.type === "partial-output-received")
+            .map((e: any) => e.outputChunk);
+          finalOutput = chunks.length > 0 ? chunks.join("") : "Workflow completed successfully.";
+        }
+      } else {
+        try { await this.orchestrator.forwardCancellation({}, singleTaskId, workspaceId); } catch {}
+        throw new Error(`Workflow execution did not complete. Final status: ${state.status}`);
+      }
+
+      // 6. Update DB and emit completed event
       await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Success", new Date().toISOString());
-
-      // 4. Emit completed event
       await this.eventBus.publish({
         name: "workflow.execution_completed",
         eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
         occurredAt: new Date().toISOString(),
-        payload: {
-          workspaceId,
-          workflowId,
-          executionId
-        }
+        payload: { workspaceId, workflowId, executionId }
       });
 
-      // 5. Find the final step's output to return as the final answer
-      if (steps.length > 0) {
-        let maxOrderStep = steps[0];
-        for (const s of steps) {
-          if (s.stepOrder > maxOrderStep.stepOrder) {
-            maxOrderStep = s;
-          }
-        }
-        const finalStepId = maxOrderStep.workflowStepId;
-        const dbLogs = await this.workflowRepo.getExecutionLogs(workspaceId, executionId as any);
-        const finalLog = dbLogs.find(l => l.workflowStepId === finalStepId && l.status === "Success");
-        if (finalLog) {
-          return finalLog.outputData;
-        }
-        
-        const successfulLogs = dbLogs.filter(l => l.status === "Success");
-        if (successfulLogs.length > 0) {
-          return successfulLogs[successfulLogs.length - 1].outputData;
-        }
-      }
-
-      return "Workflow completed successfully.";
+      return finalOutput;
     } catch (error: any) {
       console.error("[executeDAGFromChat Error]:", error);
       await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Failed", new Date().toISOString());
@@ -418,14 +462,54 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
         name: "workflow.execution_failed",
         eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
         occurredAt: new Date().toISOString(),
-        payload: {
-          workspaceId,
-          workflowId,
-          executionId,
-          errorMsg: error.message
-        }
+        payload: { workspaceId, workflowId, executionId, errorMsg: error.message }
       });
       throw error;
     }
   }
+}
+
+/**
+ * Builds a single unified prompt that encodes the entire workflow DAG.
+ * This is sent as one request to OpenClaw, which processes all steps
+ * in a single LLM pass and returns the final consolidated output.
+ */
+function buildWorkflowMegaPrompt(
+  workflowName: string,
+  agentProfiles: Array<{ step: any; name: string; role: string; instructions: string }>,
+  initialInput: Record<string, string>
+): string {
+  const userRequest = initialInput.prompt || Object.values(initialInput).join(" ");
+
+  const stepsBlock = agentProfiles.map((p, idx) => {
+    const stepNum = idx + 1;
+    const inputNote = idx === 0
+      ? "Input: Use the USER REQUEST above."
+      : `Input: Use the output produced by Step ${idx} (${agentProfiles[idx - 1].name}).`;
+    const instructionsBlock = p.instructions
+      ? `Role & Instructions:\n${p.instructions}`
+      : `Role: ${p.role}`;
+    return [
+      `--- STEP ${stepNum}: ${p.name} ---`,
+      instructionsBlock,
+      inputNote,
+      `Output: Produce the complete output for this step. Label it clearly as "## Step ${stepNum} Output (${p.name})".`
+    ].join("\n");
+  }).join("\n\n");
+
+  const finalStepName = agentProfiles[agentProfiles.length - 1]?.name || "Final Agent";
+
+  return [
+    `You are executing a multi-agent workflow called "${workflowName}".`,
+    `Process each step sequentially using the defined agent roles and instructions.`,
+    `After completing all steps, output a final summary section labeled "## Final Output" containing only the result from the last step (${finalStepName}).`,
+    ``,
+    `USER REQUEST: ${userRequest}`,
+    ``,
+    `WORKFLOW STEPS TO EXECUTE:`,
+    ``,
+    stepsBlock,
+    ``,
+    `Now execute all steps in order and end with the "## Final Output" section.`
+  ].join("\n");
 }
