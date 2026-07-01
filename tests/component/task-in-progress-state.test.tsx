@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
+
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import { resetTaskIdentitySequence } from
@@ -165,14 +167,15 @@ describe("Task 8B — In-Progress integration", () => {
     expect(sched.pendingStartCount(PENDING_MS)).toBeGreaterThan(0);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Waiting")).toBe(6);
     expect(countStepStatuses(timeline, "Active")).toBe(0);
     expect(screen.queryByLabelText("Processing log details")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    expect(screen.queryByRole("button", { name: "Send request" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel current task" })).toBeVisible();
     expect(client.callCount).toBe(1);
     expect(sched.pendingStartCount(PENDING_MS)).toBe(1);
   });
@@ -195,7 +198,7 @@ describe("Task 8B — In-Progress integration", () => {
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     const timeline = getTimeline();
@@ -203,16 +206,17 @@ describe("Task 8B — In-Progress integration", () => {
     expect(countStepStatuses(timeline, "Waiting")).toBe(5);
     expect(within(timeline).getByText("Validate input").closest("li")).toHaveTextContent("Active");
 
-    expect(screen.getByLabelText("Processing identifiers")).toHaveTextContent(
+    expect(screen.getByLabelText("Processing identifiers")).toHaveTextContent("Started");
+    expect(screen.getByLabelText("Processing identifiers")).not.toHaveTextContent(
       "2026-06-24T14:00:00.000Z"
     );
-    expect(screen.getByText("LOG-0001")).toBeVisible();
+    expect(screen.queryByText("LOG-0001")).not.toBeInTheDocument();
     expect(screen.getByText("Processing started — validating input.")).toBeVisible();
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Start now.")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
+    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(logIds.nextLogId()).toBe("LOG-0002");
   });
 
@@ -234,7 +238,7 @@ describe("Task 8B — In-Progress integration", () => {
     expect(sched.entries.find((e) => !e.cancelled && !e.executed)?.delayMs).toBe(STEP_MS);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     const timeline = getTimeline();
@@ -268,7 +272,7 @@ describe("Task 8B — In-Progress integration", () => {
     }
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const timeline = getTimeline();
     expect(within(timeline).getByText("Finalize").closest("li")).toHaveTextContent("Active");
@@ -301,7 +305,7 @@ describe("Task 8B — In-Progress integration", () => {
     await act(() => { sched.flushNext(); });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     const firstLogCount = within(
@@ -323,7 +327,7 @@ describe("Task 8B — In-Progress integration", () => {
     await submitPrompt("Second task.");
     await act(() => { second.sched.flushNext(); });
 
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     const logs = within(screen.getAllByLabelText("Processing log details")[0]!);
@@ -366,7 +370,7 @@ describe("Task 8B — In-Progress integration", () => {
     await act(() => { sched.flushNext(); });
     await act(() => { sched.flushNext(); });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
 
     expect(countStepStatuses(getTimeline(), "Active")).toBe(1);
     expect(countStepStatuses(getTimeline(), "Completed")).toBe(1);
@@ -412,7 +416,7 @@ describe("Task 8B — In-Progress integration", () => {
     expect(pageSrc).not.toMatch(/\.status\s*=\s*["'`]running/);
     expect(pageSrc).not.toMatch(/@vcp\/backend|@vcp\/database|Prisma/);
     expect(modalSrc).toMatch(/ProcessingTimeline/);
-    expect(modalSrc).toMatch(/TaskLogList/);
+    expect(modalSrc).toMatch(/SanitizedRuntimeLogList/);
     expect(detailSrc).toMatch(/processingSnapshot\.logs/);
     expect(controllerSrc).toBe(readFileSync(
       join(
@@ -450,7 +454,7 @@ describe("Task 8B — In-Progress integration", () => {
     }
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Completed")).toBe(ORDERED_STEP_IDS.length - 1);

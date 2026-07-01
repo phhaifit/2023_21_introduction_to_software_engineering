@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { TaskProcessingDetail } from "../model/task-processing-detail";
+import type { TaskLog, TaskLogLevel } from "../model/task-types";
 import { ProcessingTimeline } from "./processing-timeline";
-import { TaskLogList } from "./task-log-list";
 import { TaskStatusBadge } from "./task-status-badge";
-import { TaskErrorDetails } from "./task-error-details";
+
+const LOG_LEVEL_LABELS: Readonly<Record<TaskLogLevel, string>> = {
+  info: "Info",
+  success: "Success",
+  warning: "Warning",
+  error: "Error"
+};
 
 export interface TaskProcessingDetailModalProps {
   detail: TaskProcessingDetail;
@@ -13,6 +19,8 @@ export interface TaskProcessingDetailModalProps {
 export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const hasLogs = detail.logs.length > 0;
+  const hasTechnicalDetails = Boolean(detail.taskId || detail.workId || detail.startedAt || detail.error);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -101,55 +109,118 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
           </section>
         ) : null}
 
-        <section aria-labelledby="modal-timeline-title">
-          <h3 id="modal-timeline-title" className="task-processing-detail-modal__section-title">Timeline</h3>
-          <ProcessingTimeline steps={detail.steps} ariaLabel="Processing timeline details" />
+        <section aria-labelledby="modal-timeline-title" className="task-processing-detail-modal__activity">
+          <h3 id="modal-timeline-title" className="task-processing-detail-modal__section-title">Runtime activity</h3>
+          <ProcessingTimeline
+            steps={detail.steps}
+            ariaLabel="Processing timeline details"
+            emptyMessage="No runtime activity was captured for this turn."
+          />
         </section>
 
-        <section aria-labelledby="modal-advanced-title" className="task-advanced-section">
-          <button
-            type="button"
-            id="modal-advanced-title"
-            className="task-advanced-section__toggle"
-            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-            aria-expanded={isAdvancedOpen}
-          >
-            {isAdvancedOpen ? "Hide Advanced details" : "Show Advanced details"}
-          </button>
+        {hasTechnicalDetails || hasLogs ? (
+          <section aria-labelledby="modal-advanced-title" className="task-advanced-section">
+            <button
+              type="button"
+              id="modal-advanced-title"
+              className="task-advanced-section__toggle"
+              onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+              aria-expanded={isAdvancedOpen}
+              aria-label={isAdvancedOpen ? "Hide Advanced details" : "Show Advanced details"}
+            >
+              {isAdvancedOpen ? "Hide Advanced details" : "Show Advanced details"}
+              <span className="task-advanced-section__toggle-hint" aria-hidden="true">Technical</span>
+            </button>
 
-          <div className={`task-advanced-section__content${isAdvancedOpen ? " task-advanced-section__content--open" : ""}`}>
-            <dl className="task-processing-detail-modal__meta" aria-label="Processing identifiers">
-              <div>
-                <dt>Work ID</dt>
-                <dd>{detail.workId}</dd>
-              </div>
-              <div>
-                <dt>Task ID</dt>
-                <dd>{detail.taskId}</dd>
-              </div>
-              <div>
-                <dt>{detail.startedAt ? "Started" : "Created"}</dt>
-                <dd>{detail.startedAt ?? detail.createdAt}</dd>
-              </div>
-              {detail.error ? (
+            <div
+              className={`task-advanced-section__content${isAdvancedOpen ? " task-advanced-section__content--open" : ""}`}
+              hidden={!isAdvancedOpen}
+            >
+              <dl className="task-processing-detail-modal__meta" aria-label="Processing identifiers">
                 <div>
-                  <dt>Internal error code</dt>
-                  <dd>{detail.error.code}</dd>
+                  <dt>Task ID</dt>
+                  <dd title={detail.taskId}>{formatCompactIdentifier(detail.taskId)}</dd>
                 </div>
-              ) : null}
-            </dl>
+                <div>
+                  <dt>Work ID</dt>
+                  <dd title={detail.workId}>{formatCompactIdentifier(detail.workId)}</dd>
+                </div>
+                <div>
+                  <dt>{detail.startedAt ? "Started" : "Created"}</dt>
+                  <dd>{formatCompactTimestamp(detail.startedAt ?? detail.createdAt)}</dd>
+                </div>
+                {detail.error ? (
+                  <div>
+                    <dt>Error code</dt>
+                    <dd>{detail.error.code}</dd>
+                  </div>
+                ) : null}
+              </dl>
 
-            <section aria-labelledby="modal-logs-title">
-              <h3 id="modal-logs-title" className="task-processing-detail-modal__section-title">Logs</h3>
-              {detail.logs.length > 0 ? (
-                <TaskLogList logs={detail.logs} ariaLabel="Processing log details" />
-              ) : (
-                <p>No orchestration logs available.</p>
-              )}
-            </section>
-          </div>
-        </section>
+              {hasLogs ? (
+                <section aria-labelledby="modal-logs-title">
+                  <h3 id="modal-logs-title" className="task-processing-detail-modal__section-title">Runtime log</h3>
+                  <p className="task-processing-detail-modal__helper">
+                    Sanitized provider activity only. Raw payloads and credentials are excluded.
+                  </p>
+                  <SanitizedRuntimeLogList logs={detail.logs} ariaLabel="Processing log details" />
+                </section>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
     </dialog>
   );
+}
+
+function SanitizedRuntimeLogList({
+  logs,
+  ariaLabel
+}: {
+  logs: readonly TaskLog[];
+  ariaLabel: string;
+}) {
+  return (
+    <section className="task-log-list" aria-label={ariaLabel}>
+      <ul className="task-log-list__items" aria-label={ariaLabel}>
+        {logs.map((log) => (
+          <li
+            className={`task-log-list__item task-log-list__item--${log.level}`}
+            key={log.id}
+          >
+            <div className="task-log-list__header">
+              <span className={`task-log-list__level task-log-list__level--${log.level}`}>
+                {LOG_LEVEL_LABELS[log.level]}
+              </span>
+              <span className="task-log-list__timestamp">
+                {formatCompactTimestamp(log.timestamp)}
+              </span>
+            </div>
+            <p className="task-log-list__message">{log.message}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function formatCompactIdentifier(value: string): string {
+  if (value.length <= 18) {
+    return value;
+  }
+  return `${value.slice(0, 8)}...${value.slice(-6)}`;
+}
+
+function formatCompactTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }

@@ -8,10 +8,14 @@ import type {
 import {
   appendProcessingLog,
   activateNextStep,
+  activateProviderStep,
   cancelActiveStep,
+  completeAllProviderSteps,
   completeActiveStep,
+  completeProviderStep,
   createInitialProcessingSnapshot,
   startProcessing,
+  startProviderProcessing,
   failActiveStep
 } from "./task-processing";
 import {
@@ -65,6 +69,7 @@ export type TaskCreationAction =
   | { type: "submit-started" }
   | { type: "submit-rejected"; message: string }
   | { type: "submission-failed"; message: string }
+  | { type: "feedback-dismissed" }
   | {
       type: "task-created";
       request: CreateTaskRequest;
@@ -90,16 +95,35 @@ export type TaskCreationAction =
       startedAt: string;
     }
   | {
+      type: "provider-processing-started";
+      taskId: EntityId<"taskId">;
+      startedAt: string;
+    }
+  | {
       /** Marks a waiting step as active in the processing snapshot. */
       type: "processing-step-activated";
       taskId: EntityId<"taskId">;
       stepId: string;
     }
   | {
+      type: "provider-step-started";
+      taskId: EntityId<"taskId">;
+      stepId: string;
+      stepName: string;
+      startedAt: string;
+    }
+  | {
       /** Marks the currently active step as completed. */
       type: "processing-step-completed";
       taskId: EntityId<"taskId">;
       stepId: string;
+      completedAt: string;
+    }
+  | {
+      type: "provider-step-completed";
+      taskId: EntityId<"taskId">;
+      stepId: string;
+      stepName?: string;
       completedAt: string;
     }
   | {
@@ -155,6 +179,14 @@ export type TaskCreationAction =
   | {
       type: "conversations-restored";
       conversations: import("@vcp/shared").Conversation[];
+    }
+  | {
+      type: "conversation-deleted";
+      conversationId: string;
+    }
+  | {
+      type: "task-deleted";
+      taskId: EntityId<"taskId">;
     };
 
 export const INITIAL_PROCESSING_STEPS: readonly import("./task-types").ProcessingStep[] = [
@@ -214,6 +246,12 @@ export function taskCreationReducer(
         isSubmitting: false,
         validationError: undefined,
         submissionError: action.message
+      };
+    case "feedback-dismissed":
+      return {
+        ...state,
+        validationError: undefined,
+        submissionError: undefined
       };
     case "conversation-created": {
       const sequence = state.conversationSequence ?? 1;
@@ -330,12 +368,52 @@ export function taskCreationReducer(
         )
       };
     }
+    case "provider-processing-started": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const transitionResult = transitionTaskStatus(task, "running");
+      if (!transitionResult.ok) return state;
+      if (task.processingSnapshot.startedAt !== undefined) return state;
+      const processingResult = startProviderProcessing(task.processingSnapshot, action.startedAt);
+      if (!processingResult.ok) return state;
+      const updatedTask: CreatedTaskRecord = {
+        ...transitionResult.task,
+        processingSnapshot: processingResult.snapshot
+      };
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId ? updatedTask : t
+        )
+      };
+    }
     case "processing-step-activated": {
       const task = state.tasks.find((t) => t.taskId === action.taskId);
       if (!task || !task.processingSnapshot) return state;
       if (task.status !== "running") return state;
       if (isTerminalTaskStatus(task.status)) return state;
       const result = activateNextStep(task.processingSnapshot, action.stepId);
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "provider-step-started": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = activateProviderStep(task.processingSnapshot, {
+        id: action.stepId,
+        label: action.stepName,
+        startedAt: action.startedAt
+      });
       if (!result.ok) return state;
       return {
         ...state,
@@ -356,6 +434,26 @@ export function taskCreationReducer(
         action.stepId,
         action.completedAt
       );
+      if (!result.ok) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.taskId === action.taskId
+            ? { ...t, processingSnapshot: result.snapshot }
+            : t
+        )
+      };
+    }
+    case "provider-step-completed": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task || !task.processingSnapshot) return state;
+      if (task.status !== "running") return state;
+      if (isTerminalTaskStatus(task.status)) return state;
+      const result = completeProviderStep(task.processingSnapshot, {
+        id: action.stepId,
+        label: action.stepName,
+        completedAt: action.completedAt
+      });
       if (!result.ok) return state;
       return {
         ...state,
@@ -445,10 +543,14 @@ export function taskCreationReducer(
       if (!isValidFinalizedResult(action.result)) return state;
       const transitionResult = transitionTaskStatus(task, "succeeded");
       if (!transitionResult.ok) return state;
+      const finalStep = task.processingSnapshot.steps.at(-1);
+      const shouldCompleteProviderSteps = !(finalStep?.id === "finalize" && finalStep.status === "active");
 
       const updatedTask: CreatedTaskRecord = {
         ...transitionResult.task,
-        processingSnapshot: task.processingSnapshot,
+        processingSnapshot: shouldCompleteProviderSteps
+          ? completeAllProviderSteps(task.processingSnapshot, action.result.finalizedAt)
+          : task.processingSnapshot,
         streamingSnapshot: task.streamingSnapshot,
         finalizedResult: { ...action.result }
       };
@@ -522,38 +624,122 @@ export function taskCreationReducer(
         tasks: state.tasks.map((t) => (t.taskId === updatedTask.taskId ? updatedTask : t))
       };
     }
+    case "conversation-deleted": {
+      const conversations = state.conversations ?? [];
+      const conversation = conversations.find(
+        (c) => c.conversationId === action.conversationId
+      );
+      if (!conversation) {
+        return state;
+      }
+
+      const removedTaskIds = new Set(conversation.taskIds);
+      const remainingTasks = state.tasks.filter(
+        (task) => !removedTaskIds.has(task.taskId)
+      );
+      const remainingConversations = conversations.filter(
+        (c) => c.conversationId !== action.conversationId
+      );
+
+      let activeConversationId = state.activeConversationId;
+      let activeTaskId = state.activeTaskId;
+
+      if (activeConversationId === action.conversationId) {
+        const fallbackConversation =
+          remainingConversations[remainingConversations.length - 1];
+        activeConversationId = fallbackConversation?.conversationId;
+        activeTaskId =
+          fallbackConversation && fallbackConversation.taskIds.length > 0
+            ? fallbackConversation.taskIds[fallbackConversation.taskIds.length - 1]
+            : null;
+      } else if (
+        activeTaskId &&
+        removedTaskIds.has(activeTaskId as EntityId<"taskId">)
+      ) {
+        const activeConv = remainingConversations.find(
+          (c) => c.conversationId === activeConversationId
+        );
+        activeTaskId =
+          activeConv && activeConv.taskIds.length > 0
+            ? activeConv.taskIds[activeConv.taskIds.length - 1]
+            : null;
+      }
+
+      return {
+        ...state,
+        tasks: remainingTasks,
+        conversations: remainingConversations,
+        activeConversationId,
+        activeTaskId
+      };
+    }
+    case "task-deleted": {
+      const task = state.tasks.find((t) => t.taskId === action.taskId);
+      if (!task) {
+        return state;
+      }
+
+      const remainingTasks = state.tasks.filter(
+        (t) => t.taskId !== action.taskId
+      );
+      const remainingConversations = (state.conversations ?? []).map((conv) =>
+        conv.taskIds.includes(action.taskId)
+          ? {
+              ...conv,
+              taskIds: conv.taskIds.filter((id) => id !== action.taskId)
+            }
+          : conv
+      );
+
+      let activeTaskId = state.activeTaskId;
+      if (activeTaskId === action.taskId) {
+        const activeConv = remainingConversations.find(
+          (c) => c.conversationId === state.activeConversationId
+        );
+        activeTaskId =
+          activeConv && activeConv.taskIds.length > 0
+            ? activeConv.taskIds[activeConv.taskIds.length - 1]
+            : null;
+      }
+
+      return {
+        ...state,
+        tasks: remainingTasks,
+        conversations: remainingConversations,
+        activeTaskId
+      };
+    }
     case "conversations-restored": {
       if (!action.conversations || action.conversations.length === 0) {
         return state;
       }
       const newTasks: CreatedTaskRecord[] = [...state.tasks];
       const newConversations: TaskConversationSession[] = [...state.conversations];
+      let sequence = state.conversationSequence ?? 1;
 
       for (const conv of action.conversations) {
         let existing = newConversations.find((c) => c.conversationId === conv.conversationId);
         const taskIds: EntityId<"taskId">[] = [];
+        sequence = Math.max(sequence, getNextConversationSequence(conv.conversationId as string));
 
         for (const msg of conv.messages || []) {
           if (msg.role === "user") {
-            const taskId = `task-${msg.messageId}`;
+            const taskId = msg.messageId as string;
+            const assistantMessage = conv.messages.find(
+              (m) =>
+                m.role === "assistant" &&
+                (m.messageId === `${taskId}-assistant` ||
+                  m.timestamp >= msg.timestamp)
+            );
             taskIds.push(taskId as any);
             if (!newTasks.some((t) => t.taskId === taskId)) {
-              newTasks.push({
-                taskId: taskId as any,
-                workId: `work-${msg.messageId}` as any,
+              newTasks.push(createRestoredTaskRecord({
+                taskId,
                 prompt: msg.content,
-                requestedRouting: { mode: "auto" },
-                status: "succeeded",
                 createdAt: msg.timestamp || conv.createdAt,
-                processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
-                streamingSnapshot: createInitialStreamingSnapshot(),
-                finalizedResult: {
-                  text: conv.messages.find((m) => m.role === "assistant" && (m.timestamp >= msg.timestamp || m.messageId > msg.messageId))?.content || "",
-                  finalizedAt: msg.timestamp || conv.updatedAt,
-                  artifacts: [],
-                  followUpPromptSuggestions: []
-                }
-              });
+                updatedAt: conv.updatedAt,
+                assistantMessage
+              }));
             }
           }
         }
@@ -581,7 +767,8 @@ export function taskCreationReducer(
         tasks: newTasks,
         conversations: newConversations,
         activeConversationId: activeConvId,
-        activeTaskId
+        activeTaskId,
+        conversationSequence: sequence
       };
     }
   }
@@ -679,6 +866,19 @@ export function getActiveTask(
   return state.tasks.find((task) => task.taskId === state.activeTaskId);
 }
 
+export function conversationHasNonTerminalTasks(
+  state: TaskCreationState,
+  conversationId: string
+): boolean {
+  return getConversationTasks(state, conversationId).some(
+    (task) => !isTerminalTaskStatus(task.status)
+  );
+}
+
+export function isTaskDeletable(task: CreatedTaskRecord): boolean {
+  return isTerminalTaskStatus(task.status);
+}
+
 function buildRoutingSelection(
   draft: TaskCreationDraft
 ):
@@ -730,4 +930,63 @@ function copyRoutingSelection(
   }
 
   return { mode: "auto" };
+}
+
+function createRestoredTaskRecord({
+  taskId,
+  prompt,
+  createdAt,
+  updatedAt,
+  assistantMessage
+}: {
+  taskId: string;
+  prompt: string;
+  createdAt: string;
+  updatedAt: string;
+  assistantMessage?: import("@vcp/shared").ChatMessage;
+}): CreatedTaskRecord {
+  const base = {
+    taskId: taskId as EntityId<"taskId">,
+    workId: `work-${taskId}` as EntityId<"workId">,
+    prompt,
+    requestedRouting: { mode: "auto" as const },
+    createdAt,
+    processingSnapshot: createInitialProcessingSnapshot(INITIAL_PROCESSING_STEPS),
+    streamingSnapshot: createInitialStreamingSnapshot()
+  };
+
+  if (!assistantMessage || assistantMessage.content.trim().length === 0) {
+    return {
+      ...base,
+      status: "queued"
+    };
+  }
+
+  return {
+    ...base,
+    status: "succeeded",
+    processingSnapshot: createRestoredRuntimeSnapshot(),
+    finalizedResult: {
+      text: assistantMessage.content,
+      finalizedAt: assistantMessage.timestamp || updatedAt,
+      artifacts: [],
+      followUpPromptSuggestions: []
+    }
+  };
+}
+
+function createRestoredRuntimeSnapshot(): import("./task-processing").ProcessingSnapshot {
+  return {
+    startedAt: undefined,
+    steps: [],
+    logs: []
+  };
+}
+
+function getNextConversationSequence(conversationId: string): number {
+  const match = /^CONV-(\d+)$/.exec(conversationId);
+  if (!match) {
+    return 1;
+  }
+  return Number.parseInt(match[1], 10) + 1;
 }

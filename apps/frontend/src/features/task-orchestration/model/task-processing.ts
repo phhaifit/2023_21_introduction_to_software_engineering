@@ -110,6 +110,134 @@ export function startProcessing(
   };
 }
 
+export function startProviderProcessing(
+  snapshot: ProcessingSnapshot,
+  startedAt: string
+): ProcessingResult<ProcessingSnapshot> {
+  if (snapshot.startedAt !== undefined) {
+    return {
+      ok: false,
+      reason: "Processing has already started.",
+      snapshot
+    };
+  }
+
+  return {
+    ok: true,
+    snapshot: {
+      startedAt,
+      steps: [],
+      logs: snapshot.logs
+    }
+  };
+}
+
+export function activateProviderStep(
+  snapshot: ProcessingSnapshot,
+  step: { readonly id: string; readonly label: string; readonly startedAt: string }
+): ProcessingResult<ProcessingSnapshot> {
+  const existing = snapshot.steps.find((s) => s.id === step.id);
+  const stepsWithoutOtherActive = snapshot.steps.map((current) =>
+    current.status === "active" && current.id !== step.id
+      ? { ...current, status: "completed" as const, completedAt: step.startedAt }
+      : { ...current }
+  );
+
+  if (!existing) {
+    return {
+      ok: true,
+      snapshot: {
+        ...snapshot,
+        steps: [
+          ...stepsWithoutOtherActive,
+          {
+            id: step.id,
+            label: step.label,
+            status: "active" as const,
+            startedAt: step.startedAt
+          }
+        ]
+      }
+    };
+  }
+
+  if (existing.status === "completed") {
+    return { ok: true, snapshot };
+  }
+
+  return {
+    ok: true,
+    snapshot: {
+      ...snapshot,
+      steps: stepsWithoutOtherActive.map((current) =>
+        current.id === step.id
+          ? {
+              ...current,
+              label: step.label || current.label,
+              status: "active" as const,
+              startedAt: current.startedAt || step.startedAt
+            }
+          : current
+      )
+    }
+  };
+}
+
+export function completeProviderStep(
+  snapshot: ProcessingSnapshot,
+  step: { readonly id: string; readonly label?: string; readonly completedAt: string }
+): ProcessingResult<ProcessingSnapshot> {
+  const existing = snapshot.steps.find((s) => s.id === step.id);
+  if (!existing) {
+    return {
+      ok: true,
+      snapshot: {
+        ...snapshot,
+        steps: [
+          ...snapshot.steps,
+          {
+            id: step.id,
+            label: step.label || step.id,
+            status: "completed" as const,
+            completedAt: step.completedAt
+          }
+        ]
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    snapshot: {
+      ...snapshot,
+      steps: snapshot.steps.map((current) =>
+        current.id === step.id
+          ? {
+              ...current,
+              label: step.label || current.label,
+              status: "completed" as const,
+              completedAt: current.completedAt || step.completedAt
+            }
+          : { ...current }
+      )
+    }
+  };
+}
+
+export function completeAllProviderSteps(
+  snapshot: ProcessingSnapshot,
+  completedAt: string
+): ProcessingSnapshot {
+  return {
+    ...snapshot,
+    steps: snapshot.steps.map((step) =>
+      step.status === "active" || step.status === "waiting"
+        ? { ...step, status: "completed" as const, completedAt: step.completedAt || completedAt }
+        : { ...step }
+    )
+  };
+}
+
 // ---------------------------------------------------------------------------
 // activateNextStep
 //

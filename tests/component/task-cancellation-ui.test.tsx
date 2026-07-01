@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
 import { TaskOrchestrationPage } from "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import { resetTaskIdentitySequence } from "@vcp/frontend/features/task-orchestration/model/task-id.ts";
 import type { TaskCreationClient } from "@vcp/frontend/features/task-orchestration/model/task-creation-client.ts";
@@ -133,7 +134,7 @@ describe("1. Eligibility", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} />);
     await submitPrompt("Queued check");
     expect(await screen.findByLabelText("Task status: Pending")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Cancel task" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cancel current task" })).toBeVisible();
   });
 
   it("running visible", async () => {
@@ -146,7 +147,7 @@ describe("1. Eligibility", () => {
       pRuntime.scheduler.advance(); // queued -> running
     });
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Cancel task" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cancel current task" })).toBeVisible();
   });
 
   it("succeeded hidden", async () => {
@@ -154,7 +155,7 @@ describe("1. Eligibility", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} />);
     await submitPrompt("Succeeded check");
     expect(await screen.findByLabelText("Task status: Completed")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Cancel task" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
   });
 
   it("failed hidden", async () => {
@@ -162,7 +163,7 @@ describe("1. Eligibility", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} />);
     await submitPrompt("Failed check");
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Cancel task" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
   });
 
   it("cancelled hidden", async () => {
@@ -170,7 +171,7 @@ describe("1. Eligibility", () => {
     render(<TaskOrchestrationPage taskCreationClient={client} />);
     await submitPrompt("Cancelled check");
     expect(await screen.findByLabelText("Task status: Canceled")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Cancel task" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
   });
 });
 
@@ -188,7 +189,7 @@ describe("2. Dialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     // open
-    const cancelBtn = screen.getByRole("button", { name: "Cancel task" });
+    const cancelBtn = screen.getByRole("button", { name: "Cancel current task" });
     await user.click(cancelBtn);
 
     const dialogs = screen.getAllByRole("dialog", { name: "Cancel task?" });
@@ -214,11 +215,14 @@ describe("2. Dialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Task status: Pending")[0]).toBeVisible(); // no mutation
 
-    // Task change closes
+    // Task change closes when switching away from the cancellable task
     await user.click(cancelBtn);
     expect(screen.getByRole("dialog", { name: "Cancel task?" })).toBeVisible();
 
-    // submit second task
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
     await submitPrompt("Second task");
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(await within(feed).findByText("Second task")).toBeVisible();
@@ -247,7 +251,7 @@ describe("3. Queued Confirm", () => {
     expect(await screen.findByLabelText("Task status: Pending")).toBeVisible();
 
     // Open dialog and confirm
-    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel task?" });
     await user.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
 
@@ -286,13 +290,13 @@ describe("4. Running Confirm", () => {
     });
 
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Analyzing request.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
     // Cancel
-    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel task?" });
     await user.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
 
@@ -301,11 +305,11 @@ describe("4. Running Confirm", () => {
     expect(screen.getByText("Task Canceled")).toBeVisible();
 
     // Active step canceled (timeline preserved), logs preserved
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
     expect(screen.getByText("Analyzing request.")).toBeVisible();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument(); // no finalized result
-    expect(screen.queryByRole("button", { name: "Cancel task" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
   });
 });
 
@@ -335,7 +339,7 @@ describe("5. Late Updates", () => {
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
 
     // Cancel
-    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel task?" });
     await user.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
 
@@ -376,7 +380,7 @@ describe("6. Error", () => {
     await submitPrompt("Error check");
     expect(await screen.findByLabelText("Task status: Pending")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel task?" });
     await user.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
 
@@ -411,18 +415,23 @@ describe("7. Isolation and Lifecycle", () => {
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(await within(feed).findByText("Task A")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     expect(screen.getByRole("dialog", { name: "Cancel task?" })).toBeVisible();
 
-    // Switch to Task B by submitting new prompt
+    const navigation = screen.getByRole("navigation", { name: /conversations/i });
+    await user.click(within(navigation).getByRole("button", { name: /new chat/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Create Task B in a fresh conversation
     await submitPrompt("Task B");
     expect(await within(feed).findByText("Task B")).toBeVisible();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(); // dialog closed
 
     // Open dialog on Task B
-    await user.click(screen.getByRole("button", { name: "Cancel task" }));
+    await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     const dialogB = screen.getByRole("dialog", { name: "Cancel task?" });
-    expect(within(dialogB).getByText("WORK-000002")).toBeVisible(); // correct Work ID for B
+    expect(within(dialogB).queryByText("WORK-000002")).not.toBeInTheDocument();
+    expect(within(dialogB).getByLabelText("Task status: Pending")).toBeVisible();
 
     await user.click(within(dialogB).getByRole("button", { name: "Confirm cancellation" }));
     expect(screen.getByLabelText("Task status: Canceled")).toBeVisible();
@@ -480,17 +489,21 @@ describe("8. Regression", () => {
 
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
 
-    // Completed Result view works
+    // Final assistant response renders naturally.
     expect(screen.getByText("Completed successfully")).toBeVisible();
+    expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy finalized result" })).not.toBeInTheDocument();
 
-    // Copy works
-    const copyBtn = screen.getByRole("button", { name: /Copy/i });
-    await user.click(copyBtn);
+    // Copy response remains available below the assistant message.
+    await user.click(
+      within(screen.getByLabelText("Assistant response")).getByRole("button", {
+        name: "Copy response"
+      })
+    );
     expect(cRuntime.clipboard.writeText).toHaveBeenCalled();
 
     // Processing Detail modal works for succeeded
-    const detailBtn = screen.getByRole("button", { name: "View processing details" });
-    await user.click(detailBtn);
+    await openProcessingDetailsFromAssistantMenu(user);
     expect(screen.getByRole("dialog", { name: "Processing details" })).toBeVisible();
   });
 });

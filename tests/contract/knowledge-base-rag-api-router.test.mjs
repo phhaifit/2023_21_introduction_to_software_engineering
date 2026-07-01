@@ -179,24 +179,84 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   assert.equal(prepared.body.data.documents[0].workspaceId, "workspace-a");
   assertNoForbiddenPublicKeys(prepared.body);
 
+  for (const uploadCase of [
+    { fileName: "Runtime.pdf", mediaType: "application/pdf", content: "%PDF" },
+    {
+      fileName: "Runtime.docx",
+      mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      content: "PK\u0003\u0004"
+    },
+    { fileName: "Runtime.txt", mediaType: "text/plain", content: "runtime text" }
+  ]) {
+    const uploaded = await requestMultipart(
+      baseUrl,
+      "/api/workspaces/workspace-a/knowledge/uploads",
+      uploadCase
+    );
+    assert.equal(uploaded.status, 200);
+    assert.equal(uploaded.body.data.documents.length, 1);
+    assert.equal(uploaded.body.data.documents[0].workspaceId, "workspace-a");
+    assert.equal(uploaded.body.data.documents[0].name, uploadCase.fileName);
+    assertNoForbiddenPublicKeys(uploaded.body);
+  }
+
+  const unsupportedUpload = await requestMultipart(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/uploads",
+    {
+      fileName: "Runtime.exe",
+      mediaType: "application/x-msdownload",
+      content: "bad"
+    }
+  );
+  assert.equal(unsupportedUpload.status, 422);
+  assert.equal(unsupportedUpload.body.error.code, "validation.invalid_input");
+
+  const oversizedUpload = await requestMultipart(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/uploads",
+    {
+      fileName: "TooLarge.txt",
+      mediaType: "text/plain",
+      content: "x".repeat(25 * 1024 * 1024 + 1)
+    }
+  );
+  assert.equal(oversizedUpload.status, 422);
+  assert.equal(oversizedUpload.body.error.code, "validation.invalid_input");
+
+  const missingFileUpload = await requestMultipart(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/uploads",
+    null
+  );
+  assert.equal(missingFileUpload.status, 422);
+  assert.equal(missingFileUpload.body.error.code, "validation.invalid_input");
+
   const documents = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/documents"
   );
   assert.equal(documents.status, 200);
-  assert.deepEqual(
-    documents.body.data.map((document) => document.name),
-    ["Handbook.txt"]
+  assert.ok(
+    documents.body.data.some((document) => document.name === "Handbook.txt"),
+    "metadata prepare document remains listed"
   );
-  assert.equal(documents.body.meta.pagination.totalItems, 1);
+  assert.ok(
+    documents.body.data.some((document) => document.name === "Runtime.pdf"),
+    "real uploaded document is listed"
+  );
+  assert.equal(documents.body.meta.pagination.totalItems, 4);
 
   const ingestionJobs = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/ingestion-jobs"
   );
   assert.equal(ingestionJobs.status, 200);
-  assert.equal(ingestionJobs.body.data.length, 1);
-  assert.equal(ingestionJobs.body.data[0].status, "pending");
+  assert.equal(ingestionJobs.body.data.length, 4);
+  assert.ok(
+    ingestionJobs.body.data.every((job) => job.status === "pending"),
+    "prepared and uploaded documents queue pending ingestion metadata"
+  );
 
   const dataSources = await requestJson(
     baseUrl,
@@ -326,6 +386,18 @@ function createKnowledgeBaseRagRuntime() {
       uploadUseCases: new KnowledgeUploadUseCases({
         documentRepository,
         ingestionJobRepository,
+        fileStorage: {
+          async store(input) {
+            return {
+              storageKey: `private/${input.workspaceId}/${input.documentId}/${input.fileName}`,
+              contentHash: `sha256-${input.documentId}`,
+              sizeBytes: input.content.byteLength
+            };
+          },
+          async remove() {
+            throw new Error("remove should not run in API happy path")
+          }
+        },
         now,
         generateDocumentId: () => `document-${++documentSequence}`,
         generateJobId: () => `ingestion-job-${++ingestionJobSequence}`
@@ -401,6 +473,34 @@ async function requestJson(baseUrl, path, options = {}) {
       options.body && typeof options.body !== "string"
         ? JSON.stringify(options.body)
         : options.body
+  });
+
+  return {
+    status: response.status,
+    body: await response.json()
+  };
+}
+
+async function requestMultipart(baseUrl, path, file) {
+  const boundary = `----kb-rag-test-${Date.now()}`;
+  const body = file
+    ? [
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="files"; filename="${file.fileName}"`,
+        `Content-Type: ${file.mediaType}`,
+        "",
+        file.content,
+        `--${boundary}--`,
+        ""
+      ].join("\r\n")
+    : [`--${boundary}`, `--${boundary}--`, ""].join("\r\n");
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": `multipart/form-data; boundary=${boundary}`,
+      "x-request-id": "test-request"
+    },
+    body
   });
 
   return {

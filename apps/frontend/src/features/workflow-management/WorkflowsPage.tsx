@@ -817,7 +817,7 @@ export function WorkflowsPage({
           />
         );
       case "executions":
-        return <ExecutionsPage />;
+        return <ExecutionsPage apiClient={apiClient} />;
       default:
         return <WorkflowDashboard apiClient={apiClient} />;
     }

@@ -266,4 +266,12 @@ export class WorkflowUseCases {
       throw new Error("Workflow not found");
     }
   }
+
+  async listExecutions(workspaceId: EntityId<"workspaceId">, limit = 50, offset = 0): Promise<{ items: any[]; total: number }> {
+    return this.repository.listExecutions(workspaceId, { limit, offset });
+  }
+
+  async getExecutionLogs(workspaceId: EntityId<"workspaceId">, executionId: EntityId<"executionId">): Promise<any[]> {
+    return this.repository.getExecutionLogs(workspaceId, executionId);
+  }
 }

@@ -140,6 +140,54 @@ describe("3. startProcessing initialises startedAt", () => {
   });
 });
 
+describe("3b. provider processing uses runtime-supplied steps", () => {
+  it("starts with an empty timeline and renders OpenClaw step events as real steps", () => {
+    const started = taskCreationReducer(makeQueuedState(), {
+      type: "provider-processing-started",
+      taskId: TASK_ID,
+      startedAt: FIXED_TS
+    });
+
+    const afterStepStarted = taskCreationReducer(started, {
+      type: "provider-step-started",
+      taskId: TASK_ID,
+      stepId: "openclaw-routing",
+      stepName: "OpenClaw routing",
+      startedAt: FIXED_TS
+    });
+
+    const afterStepCompleted = taskCreationReducer(afterStepStarted, {
+      type: "provider-step-completed",
+      taskId: TASK_ID,
+      stepId: "openclaw-routing",
+      stepName: "OpenClaw routing",
+      completedAt: FIXED_TS2
+    });
+
+    const startedTask = started.tasks.find((t) => t.taskId === TASK_ID);
+    const runningTask = afterStepStarted.tasks.find((t) => t.taskId === TASK_ID);
+    const completedTask = afterStepCompleted.tasks.find((t) => t.taskId === TASK_ID);
+
+    expect(startedTask?.status).toBe("running");
+    expect(startedTask?.processingSnapshot.steps).toEqual([]);
+    expect(runningTask?.processingSnapshot.steps).toEqual([
+      {
+        id: "openclaw-routing",
+        label: "OpenClaw routing",
+        status: "active",
+        startedAt: FIXED_TS
+      }
+    ]);
+    expect(completedTask?.processingSnapshot.steps[0]).toEqual({
+      id: "openclaw-routing",
+      label: "OpenClaw routing",
+      status: "completed",
+      startedAt: FIXED_TS,
+      completedAt: FIXED_TS2
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 4. Task identity, Work identity, prompt, and routing are preserved
 // ---------------------------------------------------------------------------

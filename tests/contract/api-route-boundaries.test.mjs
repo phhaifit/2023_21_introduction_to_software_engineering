@@ -81,11 +81,18 @@ const expectedRoutes = [
   ["POST", "/api/workspaces/:workspaceId/workflows/:workflowId/publish", "planned"],
   ["POST", "/api/workspaces/:workspaceId/workflows/:workflowId/archive", "planned"],
   ["POST", "/api/workspaces/:workspaceId/workflows/:workflowId/execution-requests", "planned"],
-  ["POST", "/api/workspaces/:workspaceId/tasks", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/tasks", "implemented"],
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId", "planned"],
   ["POST", "/api/workspaces/:workspaceId/tasks/:taskId/cancel", "planned"],
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId/runs", "planned"],
   ["GET", "/api/workspaces/:workspaceId/tasks/:taskId/logs", "planned"],
+  ["POST", "/api/workspaces/:workspaceId/executions/start", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/executions/:taskId/cancel", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/executions/:taskId/state", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/executions/:taskId/stream", "implemented"],
+  ["GET", "/api/workspaces/:workspaceId/conversations", "implemented"],
+  ["DELETE", "/api/workspaces/:workspaceId/conversations/:conversationId", "implemented"],
+  ["DELETE", "/api/workspaces/:workspaceId/conversations/:conversationId/turns/:taskId", "implemented"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/documents", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare", "implemented"],
@@ -106,8 +113,8 @@ for (const [method, path, status] of expectedRoutes) {
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "implemented").length,
-  21,
-  "Implemented Agent Management and Knowledge Base / RAG routes should be marked implemented by this matrix"
+  29,
+  "Implemented routes should be marked implemented by this matrix"
 );
 
 assert.equal(

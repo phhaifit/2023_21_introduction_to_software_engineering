@@ -45,7 +45,18 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
           return { agentId, workspaceId: wsId, providerAgentMapping: "", status: "inactive" };
         }
         return { agentId, workspaceId: wsId, providerAgentMapping: `openclaw-agent-${agentId}`, status: "active" };
-      })
+      }),
+      listAvailableAgents: vi.fn().mockResolvedValue([
+        {
+          agentId: "agent-finance",
+          workspaceId: "ws-1",
+          providerAgentMapping: "openclaw-agent-agent-finance",
+          status: "active",
+          name: "Finance Agent",
+          role: "Financial analysis",
+          model: "default"
+        }
+      ])
     };
 
     workflowCatalog = {
@@ -54,7 +65,17 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
           return { workflowId, workspaceId: wsId, providerWorkflowMapping: "", status: "inactive" };
         }
         return { workflowId, workspaceId: wsId, providerWorkflowMapping: `openclaw-workflow-${workflowId}`, status: "active" };
-      })
+      }),
+      listAvailableWorkflows: vi.fn().mockResolvedValue([
+        {
+          workflowId: "wf-reports",
+          workspaceId: "ws-1",
+          providerWorkflowMapping: "openclaw-workflow-wf-reports",
+          status: "active",
+          name: "Reports Workflow",
+          description: "Draft and review reports."
+        }
+      ])
     };
 
     toolCatalog = {
@@ -153,7 +174,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       };
 
       const binding = await adapter.startExecution(cmd);
-      expect(binding.verifiedProviderFields.target).toBe("openclaw-auto-coordinator");
+      expect(binding.verifiedProviderFields.target).toBe("openclaw/default");
       expect(binding.verifiedProviderFields.mode).toBe("auto");
     });
 
@@ -169,7 +190,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
 
       const binding = await adapter.startExecution(cmd);
       expect(agentCatalog.validateAndGetAgent).toHaveBeenCalledWith("ws-1", "agent-finance");
-      expect(binding.verifiedProviderFields.target).toBe("openclaw-agent-agent-finance");
+      expect(binding.verifiedProviderFields.target).toBe("openclaw/default");
       expect(binding.verifiedProviderFields.mode).toBe("specific-agent");
     });
 
@@ -185,7 +206,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
 
       const binding = await adapter.startExecution(cmd);
       expect(workflowCatalog.validateAndGetWorkflow).toHaveBeenCalledWith("ws-1", "wf-reports");
-      expect(binding.verifiedProviderFields.target).toBe("openclaw-workflow-wf-reports");
+      expect(binding.verifiedProviderFields.target).toBe("openclaw/default");
       expect(binding.verifiedProviderFields.mode).toBe("predefined-workflow");
     });
 
@@ -215,7 +236,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
   });
 
   describe("3. Runtime Unavailable & No Silent Fallback", () => {
-    it("3.1 & 3.2 & 3.3: should implement explicit runtime unavailable behavior ensuring that when valid Task submitted for real execution and no running execution runtime can be resolved, Task & Orchestration returns normalized execution-unavailable failure, SHALL NOT provision runtime, and SHALL NOT silently switch to mock execution", async () => {
+    it("3.1 & 3.2 & 3.3: should implement explicit runtime unavailable behavior ensuring that when valid Task submitted for real execution and no running execution runtime can be resolved, Task & Orchestration returns normalized execution-unavailable failure, SHALL NOT provision runtime, and SHALL NOT silently switch to local substitute execution", async () => {
       const unavailableResolver: WorkspaceExecutionRuntimeResolver = {
         resolve: vi.fn().mockResolvedValue({
           provider: "openclaw",
@@ -238,7 +259,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       };
 
       await expect(unavailAdapter.startExecution(cmd)).rejects.toThrow(/execution-runtime-unavailable/);
-      await expect(unavailAdapter.startExecution(cmd)).rejects.toThrow(/it SHALL NOT provision a runtime AND it SHALL NOT silently switch to mock execution/);
+      await expect(unavailAdapter.startExecution(cmd)).rejects.toThrow(/it SHALL NOT provision a runtime AND it SHALL NOT silently switch to local substitute execution/);
     });
   });
 
@@ -572,7 +593,7 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       expect(invalidLabels.toolLabel).toBe("Inactive Tool: tool-invalid");
     });
 
-    it("5.1 & 5.2 & 5.3: should verify cross-change dependency order documentation, out-of-scope compliance, and mock execution framing", () => {
+    it("5.1 & 5.2 & 5.3: should verify cross-change dependency order documentation, out-of-scope compliance, and production execution boundary", () => {
       const dependencyOrder = orchestrator.verifyCrossChangeDependencyOrder();
       expect(dependencyOrder.orderValid).toBe(true);
       expect(dependencyOrder.dependencies).toContain("extend-openclaw-execution-observability");
@@ -584,26 +605,27 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       expect(outOfScope.noSecretOwnership).toBe(true);
       expect(outOfScope.noDirectApiInvocations).toBe(true);
 
-      const mockFraming = orchestrator.verifyMockExecutionFraming();
-      expect(mockFraming.legitimateTestAdapter).toBe(true);
-      expect(mockFraming.noSilentFallbackFromProduction).toBe(true);
+      const productionBoundary = orchestrator.verifyProductionExecutionBoundary();
+      expect(productionBoundary.openClawGatewayRequired).toBe(true);
+      expect(productionBoundary.noSilentFallbackFromProduction).toBe(true);
     });
   });
 
   describe("7. OpenClaw Network Transport Adapter Integration", () => {
-    it("4.1 & 4.2: should inject OpenClawNetworkTransport into OpenClawTaskExecutionAdapter and replace simulated event path for production transport while preserving test-only simulation", async () => {
+    it("4.1 & 4.2: should inject OpenClawNetworkTransport into OpenClawTaskExecutionAdapter and consume OpenAI-compatible provider events", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-1", status: "started", startedAt: "2023-01-01" }),
         cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-1", status: "canceled", canceledAt: "2023-01-01" }),
         subscribeEventStream: vi.fn().mockImplementation((endpoint, cred, execRef, onEvent, onError) => {
-          // Simulate incoming raw provider event
           setTimeout(() => {
             onEvent({
-              eventType: "progress",
+              object: "chat.completion.chunk",
               executionId: execRef,
-              stepId: "step-net-1",
-              stepName: "Network Step",
-              status: "started",
+              openclaw_extension: {
+                stepId: "step-net-1",
+                stepName: "Network Step",
+                status: "started"
+              },
               timestamp: Date.now()
             });
           }, 10);
@@ -658,7 +680,291 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       await netAdapter.releaseResources();
     });
 
-    it("4.3 & 4.4 & 4.5: should preserve duplicate/stale event protections and snapshot reconciliation behavior with mock transport", async () => {
+    it("4.1: should replay accepted, started, partial, and completed events to late SSE subscribers", async () => {
+      const startedAt = Date.now();
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-replay-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-replay-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockImplementation((_endpoint, _cred, execRef, onEvent) => {
+          onEvent({
+            object: "chat.completion.chunk",
+            executionId: execRef,
+            choices: [{ delta: { content: "Hello" } }],
+            timestamp: startedAt + 1
+          });
+          onEvent({
+            object: "chat.completion.chunk",
+            executionId: execRef,
+            choices: [{ finish_reason: "stop" }],
+            finalOutput: "Hello",
+            timestamp: startedAt + 2
+          });
+          return { unsubscribe: vi.fn() };
+        }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "completed" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn(),
+        listAvailableAgents: vi.fn().mockResolvedValue([])
+      };
+      const workflowCat: any = {
+        validateAndGetWorkflow: vi.fn(),
+        listAvailableWorkflows: vi.fn().mockResolvedValue([])
+      };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-replay-1" as any,
+        workId: "work-replay-1" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-1" as any,
+        prompt: "Replay integration test",
+        routing: { mode: "auto" }
+      });
+
+      const replayedEvents: string[] = [];
+      netAdapter.subscribe("task-replay-1" as any, (event) => {
+        replayedEvents.push(event.type);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(replayedEvents).toEqual([
+        "execution-accepted",
+        "execution-started",
+        "partial-output-received",
+        "execution-completed"
+      ]);
+
+      await netAdapter.releaseResources();
+    });
+
+    it("4.1: should pass all available agents and workflows when auto routing is selected", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-auto-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-auto-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn(),
+        listAvailableAgents: vi.fn().mockResolvedValue([
+          {
+            status: "active",
+            providerAgentMapping: "",
+            agentId: "agent-research",
+            name: "Research Agent",
+            role: "Market researcher",
+            model: "default"
+          }
+        ])
+      };
+      const workflowCat: any = {
+        validateAndGetWorkflow: vi.fn(),
+        listAvailableWorkflows: vi.fn().mockResolvedValue([
+          {
+            status: "active",
+            providerWorkflowMapping: "openclaw/workflow/workflow-research",
+            workflowId: "workflow-research",
+            name: "Research Workflow",
+            description: "Research then synthesize."
+          }
+        ])
+      };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-auto-101" as any,
+        workId: "work-auto-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-auto-1" as any,
+        prompt: "Auto route this research task",
+        routing: { mode: "auto" }
+      });
+
+      expect(agentCat.listAvailableAgents).toHaveBeenCalledWith("ws-1");
+      expect(workflowCat.listAvailableWorkflows).toHaveBeenCalledWith("ws-1");
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/default",
+          mode: "auto",
+          routingInstruction: expect.stringContaining("Available workspace agents: Research Agent")
+        })
+      );
+      expect(mockTransport.startExecution.mock.calls[0][2].routingInstruction).toContain("openclaw/workflow/workflow-research");
+    });
+
+    it("4.1: should pass selected specific-agent routing context without native OpenClaw header when no verified native ID exists", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn().mockResolvedValue({
+          status: "active",
+          providerAgentMapping: "",
+          agentId: "agent-research",
+          name: "Research Agent",
+          role: "Market researcher",
+          model: "gemini-2.5-flash",
+          instructions: "Track market signals."
+        })
+      };
+      const workflowCat: any = { validateAndGetWorkflow: vi.fn() };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-agent-101" as any,
+        workId: "work-agent-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-agent-1" as any,
+        prompt: "Research market size",
+        routing: { mode: "specific-agent", agentId: "agent-research" }
+      });
+
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/default",
+          mode: "specific-agent",
+          targetLabel: "Research Agent",
+          routingInstruction: expect.stringContaining("Use exactly this selected workspace agent: Research Agent")
+        })
+      );
+      expect(mockTransport.startExecution.mock.calls[0][2]).not.toHaveProperty("openClawAgentId");
+    });
+
+    it("4.1: should pass native OpenClaw agent header only when catalog provides a verified native agent ID", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-native-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-agent-native-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = {
+        validateAndGetAgent: vi.fn().mockResolvedValue({
+          status: "active",
+          providerAgentMapping: "openclaw/native-research",
+          agentId: "agent-research",
+          openClawAgentId: "native-research",
+          name: "Research Agent"
+        })
+      };
+      const workflowCat: any = { validateAndGetWorkflow: vi.fn() };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-agent-native-101" as any,
+        workId: "work-agent-native-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-agent-native-1" as any,
+        prompt: "Research market size",
+        routing: { mode: "specific-agent", agentId: "agent-research" }
+      });
+
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/default",
+          openClawAgentId: "native-research",
+          mode: "specific-agent",
+          targetLabel: "Research Agent",
+          routingInstruction: expect.stringContaining("OpenClaw agent reference: openclaw/native-research")
+        })
+      );
+    });
+
+    it("4.1: should pass selected workflow mapping and routing instruction to OpenClaw transport", async () => {
+      const mockTransport = {
+        startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-workflow-1", status: "started", startedAt: "2023-01-01" }),
+        cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-workflow-1", status: "canceled", canceledAt: "2023-01-01" }),
+        subscribeEventStream: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+        getSnapshot: vi.fn().mockResolvedValue({ status: "in-progress" })
+      };
+      const mockResolver: any = {
+        resolve: vi.fn().mockResolvedValue({
+          provider: "openclaw",
+          instanceId: "inst-openclaw-1",
+          endpointReference: "https://openclaw.workspace.internal/api/v1",
+          credentialReference: "cred-ref-789",
+          status: "running"
+        })
+      };
+      const agentCat: any = { validateAndGetAgent: vi.fn() };
+      const workflowCat: any = {
+        validateAndGetWorkflow: vi.fn().mockResolvedValue({
+          status: "active",
+          providerWorkflowMapping: "openclaw/workflow/workflow-research",
+          workflowId: "workflow-research",
+          name: "Research Workflow",
+          description: "Research then synthesize."
+        })
+      };
+      const netAdapter = new OpenClawTaskExecutionAdapter(mockResolver, agentCat, workflowCat, mockTransport as any);
+
+      await netAdapter.startExecution({
+        taskId: "task-workflow-101" as any,
+        workId: "work-workflow-101" as any,
+        workspaceId: "ws-1" as any,
+        conversationId: "conv-workflow-1" as any,
+        prompt: "Prepare a research brief",
+        routing: { mode: "predefined-workflow", workflowId: "workflow-research" }
+      });
+
+      expect(mockTransport.startExecution).toHaveBeenCalledWith(
+        "https://openclaw.workspace.internal/api/v1",
+        "cred-ref-789",
+        expect.objectContaining({
+          target: "openclaw/default",
+          mode: "predefined-workflow",
+          targetLabel: "Research Workflow",
+          routingInstruction: expect.stringContaining("OpenClaw workflow reference: openclaw/workflow/workflow-research")
+        })
+      );
+    });
+
+    it("4.3 & 4.4 & 4.5: should preserve duplicate/stale event protections and snapshot reconciliation behavior with injected OpenClaw transport", async () => {
       const mockTransport = {
         startExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "started", startedAt: "2023-01-01" }),
         cancelExecution: vi.fn().mockResolvedValue({ providerExecutionReference: "exec-net-2", status: "canceled", canceledAt: "2023-01-01" }),

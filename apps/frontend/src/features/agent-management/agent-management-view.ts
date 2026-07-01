@@ -167,8 +167,8 @@ function renderAgentList(rows: readonly AgentRowViewModel[]): string {
 function renderAgentRow(row: AgentRowViewModel): string {
   const selectedAttribute = row.isSelected ? ' aria-current="true"' : "";
   const selectableLabel = row.canBeSelectedForNewWork
-    ? "Selectable for new work"
-    : "Unavailable for new work";
+    ? "Selectable in this workspace"
+    : "Not selectable in this workspace";
 
   return [
     `<tr class="agent-row agent-row--${row.statusTone}" data-agent-id="${escapeHtml(

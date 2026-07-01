@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -25,6 +27,7 @@ import {
   InMemoryKnowledgeSyncJobRepository,
   InMemoryKnowledgeSyncScopeRepository
 } from "@vcp/backend/modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
+import { LocalKnowledgeFileStorage } from "@vcp/backend/modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
 
 const moduleRoot = "apps/backend/src/modules/knowledge-base-rag";
 const applicationFiles = collectFiles(join(moduleRoot, "application")).filter((file) =>
@@ -109,9 +112,22 @@ const syncScopeRepository = new InMemoryKnowledgeSyncScopeRepository();
 const syncJobRepository = new InMemoryKnowledgeSyncJobRepository();
 
 const documentUseCases = new KnowledgeDocumentUseCases({ documentRepository });
+const removedStorageKeys = [];
 const uploadUseCases = new KnowledgeUploadUseCases({
   documentRepository,
   ingestionJobRepository,
+  fileStorage: {
+    async store(input) {
+      return {
+        storageKey: `private/${input.workspaceId}/${input.documentId}/${input.fileName}`,
+        contentHash: `sha256-${input.documentId}`,
+        sizeBytes: input.content.byteLength
+      };
+    },
+    async remove(storageKey) {
+      removedStorageKeys.push(storageKey);
+    }
+  },
   now,
   generateDocumentId: () => `document-${++documentSequence}`,
   generateJobId: () => `ingestion-job-${++uploadJobSequence}`
@@ -206,6 +222,194 @@ const savedDocument = await documentRepository.getDocumentById(
 assert.ok(savedDocument, "prepare upload should create document metadata");
 assert.equal(savedDocument.storageKey, undefined, "prepare upload does not create storage keys");
 assert.equal(savedDocument.contentHash, undefined, "prepare upload does not invent content hashes");
+
+const uploaded = await uploadUseCases.uploadDocuments(workspaceA, actorId, [
+  {
+    clientFileId: "real-file-1",
+    fileName: "Policy.pdf",
+    mediaType: "application/pdf",
+    content: new Uint8Array([37, 80, 68, 70])
+  },
+  {
+    clientFileId: "real-file-2",
+    fileName: "Guide.docx",
+    mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    content: new Uint8Array([80, 75, 3, 4])
+  },
+  {
+    clientFileId: "real-file-3",
+    fileName: "Notes.txt",
+    mediaType: "text/plain",
+    content: new TextEncoder().encode("plain text")
+  }
+]);
+
+assert.equal(uploaded.documents.length, 3);
+assert.deepEqual(
+  uploaded.documents.map((document) => document.name),
+  ["Policy.pdf", "Guide.docx", "Notes.txt"]
+);
+assert.equal(uploaded.documents[0].workspaceId, workspaceA);
+assertSafePublicShape(uploaded);
+const uploadedSavedDocument = await documentRepository.getDocumentById(
+  workspaceA,
+  uploaded.documents[0].documentId
+);
+assert.ok(uploadedSavedDocument.storageKey, "real upload persists internal storage key");
+assert.ok(uploadedSavedDocument.contentHash, "real upload persists internal content hash");
+
+await assert.rejects(
+  () =>
+    uploadUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "bad-file",
+        fileName: "malware.exe",
+        mediaType: "application/x-msdownload",
+        content: new Uint8Array([1])
+      }
+    ]),
+  KnowledgeBaseRagValidationError,
+  "real upload rejects unsupported files"
+);
+await assert.rejects(
+  () =>
+    uploadUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "huge-file",
+        fileName: "huge.txt",
+        mediaType: "text/plain",
+        content: new Uint8Array(MAX_UPLOAD_CANDIDATE_SIZE_BYTES + 1)
+      }
+    ]),
+  KnowledgeBaseRagValidationError,
+  "real upload rejects oversized files"
+);
+await assert.rejects(
+  () => uploadUseCases.uploadDocuments(workspaceA, actorId, []),
+  KnowledgeBaseRagValidationError,
+  "real upload rejects missing files"
+);
+
+const failingStorageUseCases = new KnowledgeUploadUseCases({
+  documentRepository,
+  ingestionJobRepository,
+  fileStorage: {
+    async store() {
+      throw new Error("private filesystem path /tmp/secret");
+    },
+    async remove() {
+      throw new Error("remove should not run when store fails");
+    }
+  },
+  now,
+  generateDocumentId: () => `document-${++documentSequence}`,
+  generateJobId: () => `ingestion-job-${++uploadJobSequence}`
+});
+await assert.rejects(
+  () =>
+    failingStorageUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "storage-failure",
+        fileName: "Failure.txt",
+        mediaType: "text/plain",
+        content: new TextEncoder().encode("content")
+      }
+    ]),
+  {
+    name: "KnowledgeFileStorageError",
+    message: "Document storage is temporarily unavailable."
+  },
+  "storage failures must be converted to safe errors"
+);
+
+await assert.rejects(
+  () =>
+    uploadUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "mismatch-file",
+        fileName: "Mismatch.pdf",
+        mediaType: "application/pdf",
+        content: new TextEncoder().encode("not a pdf")
+      }
+    ]),
+  KnowledgeBaseRagValidationError,
+  "real upload rejects content that does not match supported file signature"
+);
+
+const cleanupCalls = [];
+const cleanupUseCases = new KnowledgeUploadUseCases({
+  documentRepository: {
+    async listDocuments() {
+      return { items: [], total: 0 };
+    },
+    async getDocumentById() {
+      return null;
+    },
+    async saveDocument() {
+      throw new Error("database unavailable with /private/path");
+    },
+    async listDocumentChunks() {
+      return { items: [], total: 0 };
+    },
+    async saveDocumentChunk(chunk) {
+      return chunk;
+    }
+  },
+  ingestionJobRepository,
+  fileStorage: {
+    async store(input) {
+      return {
+        storageKey: `private/${input.documentId}`,
+        contentHash: "sha256-cleanup",
+        sizeBytes: input.content.byteLength
+      };
+    },
+    async remove(storageKey) {
+      cleanupCalls.push(storageKey);
+    }
+  },
+  now,
+  generateDocumentId: () => `document-${++documentSequence}`,
+  generateJobId: () => `ingestion-job-${++uploadJobSequence}`
+});
+await assert.rejects(
+  () =>
+    cleanupUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "cleanup-file",
+        fileName: "Cleanup.txt",
+        mediaType: "text/plain",
+        content: new TextEncoder().encode("cleanup")
+      }
+    ]),
+  /database unavailable/,
+  "persistence failure should still propagate for safe router mapping"
+);
+assert.deepEqual(cleanupCalls, [`private/document-${documentSequence}`]);
+
+const storageRoot = await mkdtemp(join(tmpdir(), "kb-rag-storage-"));
+try {
+  const localStorage = new LocalKnowledgeFileStorage(storageRoot);
+  const stored = await localStorage.store({
+    workspaceId: "workspace/../../escape",
+    documentId: "document/../../escape",
+    fileName: "../../secret.txt",
+    mediaType: "text/plain",
+    content: new TextEncoder().encode("safe text")
+  });
+  assert.doesNotMatch(stored.storageKey, /\.\.|secret/);
+  assert.equal(
+    await readFile(join(storageRoot, ...stored.storageKey.split("/")), "utf8"),
+    "safe text"
+  );
+  await localStorage.remove(stored.storageKey);
+  await assert.rejects(
+    () => readFile(join(storageRoot, ...stored.storageKey.split("/")), "utf8"),
+    { code: "ENOENT" }
+  );
+} finally {
+  await rm(storageRoot, { recursive: true, force: true });
+}
 
 assert.equal(
   (await documentUseCases.listDocuments(workspaceB)).total,

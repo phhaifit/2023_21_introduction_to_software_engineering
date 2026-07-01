@@ -2,7 +2,12 @@
 
 ## Overview
 
-The Task & Orchestration module serves as the central coordination hub for task creation, routing validation, lifecycle state tracking, and execution observation within virtual company workspaces. It operates under a strict consumer-provider architectural model, where it consumes externally provided execution runtimes while maintaining independence from infrastructure provisioning, credential management, and internal orchestration engine administration.
+The Task & Orchestration module serves as the coordination hub for task intent modeling, routing validation, conversation history, execution start/cancel/state APIs, and execution observation within virtual company workspaces.
+
+This README describes the current code, not only the intended architecture. The active UI flow now uses two explicit steps:
+
+- `POST /api/workspaces/:workspaceId/tasks` calls `CreateTaskService` to create `Task` and `TaskWork` records and publish `task.submitted`.
+- `POST /api/workspaces/:workspaceId/executions/start` starts OpenClaw execution using the backend-generated Task/Work IDs through `OpenClawExecutionOrchestrator`, `OpenClawTaskExecutionAdapter`, and `OpenClawHttpSSETransport`. Execution binding/event state for this path is currently held in orchestrator/adapter memory; conversation history may use Prisma when `DATABASE_URL` is configured.
 
 ## Architectural Boundaries
 
@@ -42,7 +47,7 @@ The module strictly enforces architectural boundaries to decouple domain logic f
 ### Responsibility Split
 
 #### Task & Orchestration (This Module)
-- **Owns**: Task and TaskRun domain models, task creation/validation, canonical task lifecycle, routing request representation, conversation/task history, mock execution used for development and tests, provider-neutral execution contracts, consumer-side OpenClaw adapter, mapping platform requests to verified OpenClaw requests, mapping OpenClaw execution updates to normalized task events, cancellation request forwarding, execution reference association, lifecycle projection, streaming/result/error/observability presentation, task-scoped event isolation, and frontend rendering/interaction.
+- **Owns in current code**: Task and TaskWork domain models, create-task application ports/service foundation, routing validation, conversation history repositories, execution API router, provider-neutral execution contracts, consumer-side OpenClaw adapter, mapping platform requests to OpenClaw HTTP/SSE requests, mapping OpenClaw updates to normalized runtime events, cancellation request forwarding, in-memory execution association/state for the live `/executions/*` path, lifecycle projection, streaming/result/error/observability presentation, task-scoped event isolation, and frontend rendering/interaction.
 - **Does Not Own**: OpenClaw installation, container creation, start/stop/restart/delete/upgrade, workspace provisioning, CPU/RAM allocation, Standard/Premium infrastructure configuration, Gateway DNS/networking, Gateway credential creation, platform-wide secret ownership, authentication implementation, workspace membership management, RBAC ownership, subscription validation implementation, payment, Agent Management, Workflow Management, Tool Management, Knowledge Base/RAG Management, custom orchestration engines, custom LLM routers, custom multi-agent collaboration engines, custom workflow runtimes, or OpenClaw internals.
 
 #### OpenClaw / Execution Provider
@@ -65,10 +70,12 @@ All core execution contracts reside in `packages/shared/src/contracts/task-execu
 The primary consumer port interface defining the lifecycle operations for execution adapters:
 ```ts
 interface TaskExecutionAdapter {
-  startExecution(command: StartExecutionCommand, runtime: WorkspaceExecutionRuntime): Promise<ExecutionBinding>;
-  cancelExecution(binding: ExecutionBinding, runtime: WorkspaceExecutionRuntime): Promise<void>;
-  getSnapshot(binding: ExecutionBinding, runtime: WorkspaceExecutionRuntime): Promise<ExecutionSnapshot>;
-  subscribeToEvents(binding: ExecutionBinding, runtime: WorkspaceExecutionRuntime, onEvent: (event: NormalizedRuntimeEvent) => void): Promise<{ unsubscribe: () => void }>;
+  startExecution(command: StartExecutionCommand): Promise<ExecutionBinding>;
+  cancelExecution(taskId: EntityId<"taskId">): Promise<void>;
+  getExecutionSnapshot(taskId: EntityId<"taskId">): Promise<ExecutionSnapshot>;
+  subscribe(taskId: EntityId<"taskId">, callback: (event: NormalizedRuntimeEvent) => void): void;
+  unsubscribe(taskId: EntityId<"taskId">, callback: (event: NormalizedRuntimeEvent) => void): void;
+  releaseResources(): Promise<void>;
 }
 ```
 
@@ -78,10 +85,9 @@ The DTO passed to initiate execution. It contains only platform-level identifier
 ### `ExecutionBinding`
 The binding record linking the platform task to the execution runtime and provider reference:
 - `taskId`: The platform Task ID.
-- `taskRunId`: The platform TaskRun ID.
-- `workspaceId`: The workspace context.
-- `runtimeReference`: The external runtime reference provided by Workspace Management.
+- `runtimeInstanceId`: The external runtime instance reference.
 - `providerExecutionReference`: The unique reference returned by the provider upon successful start.
+- `verifiedProviderFields`: Provider fields that have been verified and are safe to expose internally.
 
 ### `NormalizedRuntimeEvent`
 A closed discriminated union representing the full range of execution lifecycle and observability events:
@@ -99,7 +105,7 @@ The `OpenClawExecutionOrchestrator` coordinates the initiation of execution thro
 1. **Receive authenticated and authorized request context**: Derives principal identity and verifies authorization via external authentication services.
 2. **Validate Task input**: Ensures `StartExecutionCommand` contains only platform fields and explicitly excludes raw credentials or container configurations.
 3. **Validate routing selection through external catalogs**: Verifies the active status and mappings of specific agents or workflows via `ExternalAgentCatalog` or `ExternalWorkflowCatalog`.
-4. **Create platform Task and TaskRun**: Initializes canonical persistence state in `pending`.
+4. **Create platform Task and TaskWork**: The current UI first calls `/tasks`, which persists through `CreateTaskService` repository ports. The later `/executions/*` path initializes execution state in memory for live OpenClaw streaming.
 5. **Resolve externally supplied execution runtime**: Invokes `WorkspaceExecutionRuntimeResolver` to obtain a verified, running runtime instance reference.
 6. **Start execution through the adapter**: Invokes `TaskExecutionAdapter.startExecution` to map the request and dispatch it via non-blocking initialization.
 7. **Store the execution association**: Records the `ExecutionBinding` linking Platform Task ↔ external runtime reference ↔ provider execution reference.
@@ -120,12 +126,13 @@ To maintain resilience against network disconnects and unstable transport layers
 - **Duplicate Event Protection**: The adapter maintains a registry of seen event IDs within the active session, silently dropping duplicate events to prevent duplicate lifecycle transitions or state corruption.
 - **Stale Event Protection**: The adapter verifies event timestamps and monotonic sequence numbers, ignoring delayed or out-of-order events that arrive after a more recent state transition has already occurred.
 
-## Mock vs Production Behavior
-
-### `MockTaskExecutionAdapter`
-- **Location**: `apps/backend/src/modules/task-orchestration/application/mock-task-execution-adapter.ts`
-- **Behavior**: Operates entirely in-memory as a legitimate test and development adapter satisfying `TaskExecutionAdapter`. It resolves runtime references without provisioning them and simulates execution milestones directly.
+## Current Execution Behavior
 
 ### `OpenClawTaskExecutionAdapter`
 - **Location**: `apps/backend/src/features/task-execution/adapters/openclaw-task-execution-adapter.ts`
-- **Behavior**: Operates as the full production integration adapter connecting directly to the OpenClaw Gateway. It contains complete production logic for the 10-step start flow, RBAC authorization, external catalog checks, snapshot reconciliation, security redaction (`sanitizeObservabilityPayload`), and physical network transport via `OpenClawHttpSSETransport` leveraging the official OpenAI-compatible HTTP API (`POST /v1/chat/completions`) and Server-Sent Events (`chat.completion.chunk`).
+- **Behavior**: Connects to the OpenClaw Gateway through `OpenClawHttpSSETransport`, validates routing through injected agent/workflow catalogs, maps gateway chunks to `NormalizedRuntimeEvent`, keeps adapter snapshots/event history in memory, and exposes task-scoped subscriptions to the API router.
+
+### Live API Path
+- The local server mounts `createTaskOrchestrationRouter` under `/api/workspaces/:workspaceId`.
+- The current frontend provider calls `/tasks` first, then `/executions/start`, `/executions/:taskId/stream`, `/executions/:taskId/state`, and `/executions/:taskId/cancel`.
+- `POST /api/workspaces/:workspaceId/tasks` is the backend identity source for Task ID and Work ID.

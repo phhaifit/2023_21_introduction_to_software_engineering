@@ -1,6 +1,7 @@
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { KnowledgeDocumentRepository } from "../application/knowledge-document-repository.ts";
 import type { KnowledgeIngestionJobRepository } from "../application/knowledge-ingestion-job-repository.ts";
+import { KnowledgeDocumentParserError } from "../application/knowledge-document-text-extractor.ts";
 import type {
   KnowledgeDocument,
   KnowledgeDocumentChunk
@@ -73,7 +74,10 @@ export class KnowledgeDocumentProcessingPipeline {
         workspaceId: input.workspaceId,
         document: input.document
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof KnowledgeDocumentParserError) {
+        throw new KnowledgeIngestionWorkerError(error.errorCode, error.message);
+      }
       throw new KnowledgeIngestionWorkerError(
         "knowledge.document_content_read_failed",
         "Knowledge document content could not be read for processing."
@@ -187,12 +191,12 @@ export class KnowledgeDocumentProcessingPipeline {
 
     if (
       mimeType === "text/plain" ||
-      mimeType === "text/markdown" ||
-      mimeType === "text/x-markdown" ||
-      mimeType === "application/markdown" ||
+      mimeType === "application/pdf" ||
+      mimeType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       fileType === "txt" ||
-      fileType === "md" ||
-      fileType === "markdown"
+      fileType === "pdf" ||
+      fileType === "docx"
     ) {
       return;
     }
