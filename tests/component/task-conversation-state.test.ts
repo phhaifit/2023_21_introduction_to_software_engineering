@@ -561,6 +561,8 @@ describe("In-Memory Conversation State Architecture (Review Unit 2B)", () => {
 
       expect(state.tasks[0].status).toBe("succeeded");
       expect(state.tasks[0].finalizedResult?.text).toBe("Restored final answer");
+      expect(state.tasks[0].processingSnapshot.startedAt).toBeUndefined();
+      expect(state.tasks[0].processingSnapshot.steps).toEqual([]);
     });
 
     it("57. Restoring conversations advances the New chat sequence past restored IDs", () => {

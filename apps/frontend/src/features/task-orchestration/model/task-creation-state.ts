@@ -965,12 +965,21 @@ function createRestoredTaskRecord({
   return {
     ...base,
     status: "succeeded",
+    processingSnapshot: createRestoredRuntimeSnapshot(),
     finalizedResult: {
       text: assistantMessage.content,
       finalizedAt: assistantMessage.timestamp || updatedAt,
       artifacts: [],
       followUpPromptSuggestions: []
     }
+  };
+}
+
+function createRestoredRuntimeSnapshot(): import("./task-processing").ProcessingSnapshot {
+  return {
+    startedAt: undefined,
+    steps: [],
+    logs: []
   };
 }
 

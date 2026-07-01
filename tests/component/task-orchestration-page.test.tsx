@@ -239,4 +239,55 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
     expect(screen.getByText("Searching web")).toBeVisible();
   });
+
+  it("does not synthesize fixed processing steps for restored completed history", async () => {
+    const user = userEvent.setup();
+    const taskId = "TASK-RESTORED-DONE" as EntityId<"taskId">;
+    const restoredConversation: Conversation = {
+      conversationId: "CONV-000001" as any,
+      workspaceId: "workspace-demo" as any,
+      title: "Restored completed task",
+      createdAt: "2026-06-26T10:00:00.000Z",
+      updatedAt: "2026-06-26T10:00:30.000Z",
+      messages: [
+        {
+          messageId: taskId as any,
+          conversationId: "CONV-000001" as any,
+          role: "user",
+          content: "Summarize project status",
+          timestamp: "2026-06-26T10:00:00.000Z"
+        },
+        {
+          messageId: `${taskId}-assistant` as any,
+          conversationId: "CONV-000001" as any,
+          role: "assistant",
+          content: "Project status is green.",
+          timestamp: "2026-06-26T10:00:30.000Z"
+        }
+      ]
+    };
+    const client: TaskOrchestrationClient = {
+      createTask: vi.fn(),
+      getTask: vi.fn(),
+      cancelTask: vi.fn(),
+      deleteConversation: vi.fn(),
+      deleteTask: vi.fn(),
+      fetchConversations: vi.fn().mockResolvedValue([restoredConversation]),
+      subscribeToTaskEvents: vi.fn(() => ({ subscriptionId: "sub-restored-done", taskId })),
+      unsubscribeFromTaskEvents: vi.fn()
+    };
+
+    render(<TaskOrchestrationPage taskOrchestrationClient={client} />);
+
+    expect(await screen.findByText("Project status is green.")).toBeVisible();
+    await openProcessingDetailsFromAssistantMenu(user);
+    const dialog = screen.getByRole("dialog", { name: "Processing details" });
+
+    expect(within(dialog).getByLabelText("Task status: Completed")).toBeVisible();
+    expect(within(dialog).queryByText("Waiting")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("No runtime activity was captured for this turn.")).toBeVisible();
+    expect(within(dialog).queryByText("Validate input")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Analyze request")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Execute task")).not.toBeInTheDocument();
+  });
 });

@@ -573,10 +573,10 @@
 
 .task-processing-detail-modal__meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem;
   margin: 0 0 1.5rem 0;
-  padding: 1rem;
+  padding: 0.9rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -593,11 +593,12 @@
 .task-processing-detail-modal__meta dd {
   margin: 0;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .task-processing-detail-modal__section-title {
   font-size: 1rem;
-  margin: 1.5rem 0 1rem 0;
+  margin: 1.25rem 0 0.75rem 0;
   font-weight: 600;
 }
 

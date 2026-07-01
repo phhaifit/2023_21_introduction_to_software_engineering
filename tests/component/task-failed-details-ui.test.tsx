@@ -406,6 +406,8 @@ describe("9. Accessibility", () => {
 
     const modal = screen.getByRole("dialog", { name: "Processing details" });
     expect(modal).toHaveAttribute("aria-labelledby", "processing-detail-title");
+    expect(within(modal).getByLabelText("Processing identifiers")).not.toBeVisible();
+    await user.click(within(modal).getByRole("button", { name: "Show Advanced details" }));
     expect(within(modal).getByLabelText("Processing identifiers")).toBeVisible();
   });
 });
