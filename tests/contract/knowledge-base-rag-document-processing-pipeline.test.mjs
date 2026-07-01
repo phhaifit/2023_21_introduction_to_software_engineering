@@ -6,6 +6,7 @@ import {
   InMemoryKnowledgeDocumentRepository,
   InMemoryKnowledgeIngestionJobRepository
 } from "@vcp/backend/modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
+import { KnowledgeDocumentParserError } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-document-text-extractor.ts";
 import { KnowledgeDocumentProcessingPipeline } from "@vcp/backend/modules/knowledge-base-rag/worker/knowledge-document-processing-pipeline.ts";
 import { chunkKnowledgeDocumentText } from "@vcp/backend/modules/knowledge-base-rag/worker/knowledge-document-text-chunker.ts";
 import { normalizeKnowledgeDocumentText } from "@vcp/backend/modules/knowledge-base-rag/worker/knowledge-document-text-normalizer.ts";
@@ -76,6 +77,7 @@ await assertSuccessfulProcessing();
 await assertEmptyContentFailure();
 await assertUnsupportedContentFailure();
 await assertReaderFailureIsSafe();
+await assertParserFailureIsSafe();
 
 console.log("knowledge-base-rag document processing pipeline checks passed");
 
@@ -238,12 +240,12 @@ async function assertEmptyContentFailure() {
 async function assertUnsupportedContentFailure() {
   const result = await runFailingPipeline({
     document: createDocument({
-      documentId: "document-pdf",
-      mimeType: "application/pdf",
-      fileType: "pdf"
+      documentId: "document-csv",
+      mimeType: "text/csv",
+      fileType: "csv"
     }),
-    job: createJob({ jobId: "job-pdf", documentId: "document-pdf" }),
-    reader: async () => "PDF bytes are not parsed in this issue."
+    job: createJob({ jobId: "job-csv", documentId: "document-csv" }),
+    reader: async () => "Unsupported content."
   });
 
   assert.equal(result.job.status, "failed");
@@ -277,6 +279,30 @@ async function assertReaderFailureIsSafe() {
     JSON.stringify(result).includes("raw storageKey private/object/key secret token"),
     false,
     "reader failure should not leak raw content or private adapter details"
+  );
+  assertSafePublicPayload(result.events);
+}
+
+async function assertParserFailureIsSafe() {
+  const result = await runFailingPipeline({
+    document: createDocument({ documentId: "document-parser-failure" }),
+    job: createJob({
+      jobId: "job-parser-failure",
+      documentId: "document-parser-failure"
+    }),
+    reader: async () => {
+      throw new KnowledgeDocumentParserError(
+        "knowledge.document_extraction_failed",
+        "Knowledge document text could not be extracted."
+      );
+    }
+  });
+
+  assert.equal(result.job.status, "failed");
+  assert.equal(result.job.errorCode, "knowledge.document_extraction_failed");
+  assert.equal(
+    result.job.errorMessage,
+    "Knowledge document text could not be extracted."
   );
   assertSafePublicPayload(result.events);
 }

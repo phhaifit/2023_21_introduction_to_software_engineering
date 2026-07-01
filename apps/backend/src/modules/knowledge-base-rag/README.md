@@ -15,15 +15,15 @@ models, application repository ports, application use cases, safe DTO mappers,
 Prisma repository adapters, deterministic in-memory repositories, a thin
 workspace-scoped HTTP API router, a module-local file storage boundary for real
 uploads, and a worker handoff skeleton for document ingestion lifecycle
-updates. The worker boundary also includes a deterministic text processing
-pipeline for supported text/markdown documents and an injected embedding/vector
+updates. The worker boundary also includes document text extraction behind an
+injected parser boundary, a deterministic text processing pipeline for
+TXT/DOCX/text-based PDF documents, and an injected embedding/vector
 indexing adapter boundary for persisted chunks. It also has a local end-to-end
 flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
-It still does not contain real file parsing, real embedding provider calls,
-real vector database calls, full worker runtime handlers, or retrieval
-implementation.
+It still does not contain OCR, real embedding provider calls, real vector
+database calls, full worker runtime handlers, or retrieval implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -247,8 +247,8 @@ Current application use cases cover metadata-only upload validation, safe
 upload preparation into pending document/ingestion-job records, real file upload
 storage through `KnowledgeFileStorage`, document and chunk reads, ingestion-job
 reads, data-source placeholder connection, sync-scope updates, and queued manual
-sync-job creation. They do not parse files, enqueue real workers, call embedding
-providers, or write vectors.
+sync-job creation. Stored document parsing is isolated behind a backend parser
+boundary; application use cases do not call parser dependencies directly.
 
 ## Local Upload Storage
 
@@ -259,6 +259,20 @@ The storage key and local path remain backend-private; public DTOs expose only
 safe document metadata. If repository persistence fails after a file write, the
 upload use case attempts best-effort cleanup through the storage boundary before
 returning a safe API failure.
+
+## Document Text Extraction
+
+`KnowledgeDocumentTextExtractor` keeps parser implementation details behind a
+backend-only boundary. `RuntimeKnowledgeDocumentTextExtractor` uses strict
+UTF-8 `TextDecoder` behavior for TXT, `mammoth` for DOCX, and `pdf-parse` for
+text-based PDF content. Extracted text is normalized before downstream
+processing, and internal attribution retains only workspace ID, document ID,
+original filename, and media type.
+
+Corrupt, unreadable, and empty documents produce controlled parser errors.
+Storage keys, local paths, parser stack traces, raw XML/PDF data, and dependency
+errors are not included in public DTOs or persisted failure messages. PDF files
+without extractable text require future OCR and fail safely in this slice.
 
 The worker handoff skeleton processes an already-created pending ingestion job
 at the lifecycle level only:
@@ -271,12 +285,12 @@ pending -> ingesting -> failed
 It updates KB/RAG-owned document and ingestion-job status through repository
 ports, creates safe ingestion started/completed/failed events through existing
 event contracts, and returns/publishes only public lifecycle payloads. It does
-not read file bytes directly, call object storage, generate embeddings, write
+not call storage or parser implementations directly, generate embeddings, write
 vectors, or run external sync.
 
 The document processing pipeline is the first real ingestion processor boundary.
-It reads text through an injected content reader, supports text/plain and
-markdown-style content, normalizes whitespace deterministically, splits text
+It reads extracted text through an injected content reader, supports TXT, DOCX,
+and text-based PDF content, normalizes whitespace deterministically, splits text
 into stable chunks, and persists `KnowledgeDocumentChunk` records through the
 document repository. It marks ingestion as complete while leaving
 embedding/vector indexing pending.
@@ -293,9 +307,9 @@ through public DTOs or events. It is intentionally not wired into the ingestion
 handoff automatically in this slice so the existing text-processing lifecycle
 remains narrow and predictable.
 
-Real PDF/DOC/DOCX parsing, OCR, object storage integration, provider-backed
-embeddings, provider-backed vector writes, retrieval, and queue/runtime
-orchestration remain future adapter/runtime scope.
+Legacy DOC parsing, OCR, object storage integration, provider-backed embeddings,
+provider-backed vector writes, retrieval, and queue/runtime orchestration remain
+future adapter/runtime scope.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing
