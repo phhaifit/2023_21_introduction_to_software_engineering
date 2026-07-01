@@ -29,7 +29,7 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
     return () => { mounted = false; };
   }, [apiClient]);
 
-  const activeCount = workflows.filter(w => w.status === "active").length;
+  const activeCount = workflows.filter(w => w.status === "published" || w.status === "active").length;
   const draftCount = workflows.filter(w => w.status === "draft").length;
   const totalSteps = workflows.reduce((sum, w) => sum + (w.stepCount ?? 0), 0);
   
