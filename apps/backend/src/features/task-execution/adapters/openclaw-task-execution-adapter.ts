@@ -443,17 +443,15 @@ export class OpenClawTaskExecutionAdapter implements TaskExecutionAdapter {
   }
 }
 
-function buildAutoRoutingInstruction(
-  agents: ExternalAgentContract[] = [],
-  workflows: ExternalWorkflowContract[] = []
-): string {
+function buildAutoRoutingInstruction(agents: ExternalAgentContract[], workflows: ExternalWorkflowContract[]): string {
   return [
     "Task & Orchestration routing mode: auto.",
     "Use the OpenClaw coordinator to choose the best available agent or workflow for the user request.",
     "The OpenAI-compatible request model must remain openclaw/default; use the following workspace routing context instead of changing the model field.",
     formatAgentList(agents),
     formatWorkflowList(workflows),
-    "Do not ignore workspace routing constraints."
+    "Do not ignore workspace routing constraints.",
+    `[Session Request Seed: ${new Date().getTime()}]`
   ].join(" ");
 }
 
@@ -467,7 +465,8 @@ function buildSpecificAgentRoutingInstruction(agent: ExternalAgentContract): str
     agent.role ? `Agent role: ${agent.role}.` : "",
     agent.model ? `Preferred model: ${agent.model}.` : "",
     agent.instructions ? `Agent instructions: ${agent.instructions}` : "",
-    "Do not auto-route to a different agent unless the selected agent is unavailable."
+    "Do not auto-route to a different agent unless the selected agent is unavailable.",
+    `[Session Request Seed: ${new Date().getTime()}]`
   ].filter(Boolean).join(" ");
 }
 
@@ -479,7 +478,8 @@ function buildWorkflowRoutingInstruction(workflow: ExternalWorkflowContract): st
     workflow.providerWorkflowMapping ? `OpenClaw workflow reference: ${workflow.providerWorkflowMapping}.` : "",
     "Keep the OpenAI-compatible request model as openclaw/default; this selected workflow is routing context, not the model value.",
     workflow.description ? `Workflow description: ${workflow.description}.` : "",
-    "Do not replace it with auto-routing unless the selected workflow is unavailable."
+    "Do not replace it with auto-routing unless the selected workflow is unavailable.",
+    `[Session Request Seed: ${new Date().getTime()}]`
   ].filter(Boolean).join(" ");
 }
 
