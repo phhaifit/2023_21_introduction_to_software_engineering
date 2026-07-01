@@ -226,12 +226,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
               : 30000; // Default to 30 seconds if not configured
             const maxAttempts = Math.ceil(timeoutMs / 500);
 
-            console.log(`[Timeout Debug] raw env:`, process.env.WORKFLOW_STEP_TIMEOUT_MS);
-            console.log(`[Timeout Debug] parsed timeoutMs:`, timeoutMs);
-            console.log(`[Timeout Debug] maxAttempts:`, maxAttempts);
-
             let state = await this.orchestrator.getExposedState(command.taskId);
-            console.log(`[Timeout Debug] initial task state:`, state?.status);
             let attempts = 0;
             while(state.status === "pending" || state.status === "in-progress") {
               await new Promise(r => setTimeout(r, 500));
@@ -255,6 +250,12 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
                 }
               }
             } else {
+              // Clean up resources: automatically cancel the stuck task execution on the gateway
+              try {
+                await this.orchestrator.forwardCancellation({}, command.taskId, workspaceId);
+              } catch (cancelErr) {
+                // Ignore cancel errors to preserve original failure trace
+              }
               throw new Error(`Task did not complete successfully. Final status: ${state.status}`);
             }
           }
