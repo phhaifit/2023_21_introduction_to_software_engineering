@@ -402,6 +402,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
 
       return "Workflow completed successfully.";
     } catch (error: any) {
+      console.error("[executeDAGFromChat Error]:", error);
       await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Failed", new Date().toISOString());
       await this.eventBus.publish({
         name: "workflow.execution_failed",
