@@ -19,13 +19,14 @@ Current submit flow:
 ```text
 TaskOrchestrationPage
   -> HttpTaskOrchestrationProvider.createTask
-  -> generate frontend Task ID and Work ID
+  -> POST /api/workspaces/demo_workspace_1/tasks
+  -> receive backend Task ID and Work ID
   -> POST /api/workspaces/demo_workspace_1/executions/start
   -> subscribe EventSource /api/workspaces/demo_workspace_1/executions/:taskId/stream
   -> reduce runtime events into CreatedTaskRecord snapshots
 ```
 
-The provider returns a local `CreatedTaskRecord` immediately so the UI can subscribe to the event stream before backend events arrive.
+The provider waits for `/tasks` so the backend owns Task/Work identity, then returns a local `CreatedTaskRecord` immediately after scheduling `/executions/start` asynchronously. That keeps the UI able to subscribe to the event stream before execution lifecycle events arrive.
 
 ## Providers
 
@@ -41,6 +42,6 @@ The default routing catalog client reads:
 
 The local test catalog still provides deterministic agent/workflow options for component tests.
 
-## Important Current Gap
+## Persistence Boundary
 
-The UI does not currently call `POST /api/workspaces/:workspaceId/tasks`. It uses the execution API path directly. The backend `CreateTaskService` and Prisma `Task`/`TaskRun` schema are the foundation for a future persisted create-task path, but they are not the active UI submission path today.
+`POST /api/workspaces/:workspaceId/tasks` uses the backend `CreateTaskService` and Task/TaskRun repository implementations to create the task intent and first work attempt. `/executions/*` still owns live OpenClaw execution state and SSE event projection in memory.

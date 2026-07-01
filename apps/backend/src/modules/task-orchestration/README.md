@@ -4,10 +4,10 @@
 
 The Task & Orchestration module serves as the coordination hub for task intent modeling, routing validation, conversation history, execution start/cancel/state APIs, and execution observation within virtual company workspaces.
 
-This README describes the current code, not only the intended architecture. Today there are two related paths:
+This README describes the current code, not only the intended architecture. The active UI flow now uses two explicit steps:
 
-- `CreateTaskService` contains the domain/application foundation for creating `Task` and `TaskWork` records and publishing `task.submitted`, but the local server does not currently mount `POST /api/workspaces/:workspaceId/tasks`.
-- The active frontend path calls `/api/workspaces/:workspaceId/executions/start`, which uses `OpenClawExecutionOrchestrator`, `OpenClawTaskExecutionAdapter`, and `OpenClawHttpSSETransport`. Execution task/binding/event state for this path is currently held in orchestrator/adapter memory; conversation history may use Prisma when `DATABASE_URL` is configured.
+- `POST /api/workspaces/:workspaceId/tasks` calls `CreateTaskService` to create `Task` and `TaskWork` records and publish `task.submitted`.
+- `POST /api/workspaces/:workspaceId/executions/start` starts OpenClaw execution using the backend-generated Task/Work IDs through `OpenClawExecutionOrchestrator`, `OpenClawTaskExecutionAdapter`, and `OpenClawHttpSSETransport`. Execution binding/event state for this path is currently held in orchestrator/adapter memory; conversation history may use Prisma when `DATABASE_URL` is configured.
 
 ## Architectural Boundaries
 
@@ -105,7 +105,7 @@ The `OpenClawExecutionOrchestrator` coordinates the initiation of execution thro
 1. **Receive authenticated and authorized request context**: Derives principal identity and verifies authorization via external authentication services.
 2. **Validate Task input**: Ensures `StartExecutionCommand` contains only platform fields and explicitly excludes raw credentials or container configurations.
 3. **Validate routing selection through external catalogs**: Verifies the active status and mappings of specific agents or workflows via `ExternalAgentCatalog` or `ExternalWorkflowCatalog`.
-4. **Create platform Task and TaskWork**: In the current `/executions/*` path, initializes in-memory task state in `pending`; the separate `CreateTaskService` foundation persists through repository ports when used by tests or future route wiring.
+4. **Create platform Task and TaskWork**: The current UI first calls `/tasks`, which persists through `CreateTaskService` repository ports. The later `/executions/*` path initializes execution state in memory for live OpenClaw streaming.
 5. **Resolve externally supplied execution runtime**: Invokes `WorkspaceExecutionRuntimeResolver` to obtain a verified, running runtime instance reference.
 6. **Start execution through the adapter**: Invokes `TaskExecutionAdapter.startExecution` to map the request and dispatch it via non-blocking initialization.
 7. **Store the execution association**: Records the `ExecutionBinding` linking Platform Task ↔ external runtime reference ↔ provider execution reference.
@@ -134,5 +134,5 @@ To maintain resilience against network disconnects and unstable transport layers
 
 ### Live API Path
 - The local server mounts `createTaskOrchestrationRouter` under `/api/workspaces/:workspaceId`.
-- The current frontend provider calls `/executions/start`, `/executions/:taskId/stream`, `/executions/:taskId/state`, and `/executions/:taskId/cancel`.
-- `POST /api/workspaces/:workspaceId/tasks` remains a planned public create-task route; its domain service foundation exists but is not the active UI path.
+- The current frontend provider calls `/tasks` first, then `/executions/start`, `/executions/:taskId/stream`, `/executions/:taskId/state`, and `/executions/:taskId/cancel`.
+- `POST /api/workspaces/:workspaceId/tasks` is the backend identity source for Task ID and Work ID.

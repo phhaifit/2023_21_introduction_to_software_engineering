@@ -71,6 +71,7 @@ import {
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
+import { CreateTaskService } from "./modules/task-orchestration/application/create-task-service.ts";
 import {
   OpenClawTaskExecutionAdapter,
   OpenClawExecutionOrchestrator,
@@ -90,6 +91,9 @@ import {
 } from "./features/task-execution/adapters/openclaw-agent-materializer.ts";
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
 import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
+import { InMemoryTaskRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-repository.ts";
+import { InMemoryTaskWorkRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-work-repository.ts";
+import { InMemoryTaskEventPublisher } from "./modules/task-orchestration/infrastructure/in-memory-task-event-publisher.ts";
 import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
 import type { WorkflowRepository } from "./modules/workflow-management/infrastructure/workflow-repository.ts";
 
@@ -367,6 +371,28 @@ async function createConversationRepository(): Promise<any> {
   return new InMemoryConversationRepository();
 }
 
+async function createTaskRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    const { PrismaTaskRepository } = await import(
+      "./modules/task-orchestration/infrastructure/prisma-task-repository.ts"
+    );
+    return new PrismaTaskRepository(prisma);
+  }
+  return new InMemoryTaskRepository();
+}
+
+async function createTaskWorkRepository(): Promise<any> {
+  const prisma = await getPrismaClient();
+  if (prisma) {
+    const { PrismaTaskWorkRepository } = await import(
+      "./modules/task-orchestration/infrastructure/prisma-task-work-repository.ts"
+    );
+    return new PrismaTaskWorkRepository(prisma);
+  }
+  return new InMemoryTaskWorkRepository();
+}
+
 function createSkillWriter(): AgentSkillWriter {
   if (process.env.AGENT_SKILLS_DIR) {
     return new FileSystemAgentSkillWriter(process.env.AGENT_SKILLS_DIR);
@@ -624,6 +650,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const serverAuthService = new ServerAuthenticationService();
 
   const conversationRepository = await createConversationRepository();
+  const taskRepository = await createTaskRepository();
+  const taskWorkRepository = await createTaskWorkRepository();
   const openclawTransport = new OpenClawHttpSSETransport();
   const openclawAdapter = new OpenClawTaskExecutionAdapter(
     serverWorkspaceMgmt.getWorkspaceExecutionRuntimeResolver(),
@@ -640,10 +668,42 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     undefined,
     conversationRepository
   );
+  const createTaskUseCase = new CreateTaskService(
+    {
+      nextTaskId: () => `task_${randomUUID()}` as EntityId<"taskId">,
+      nextWorkId: () => `work_${randomUUID()}` as EntityId<"workId">
+    },
+    {
+      now: () => new Date().toISOString()
+    },
+    {
+      nextEventId: () => `evt_${randomUUID()}` as EntityId<"eventId">
+    },
+    {
+      isAgentSelectable: async (workspaceId, agentId) => {
+        const agent = await serverAgentCatalog.validateAndGetAgent(workspaceId, agentId);
+        return agent.status === "active";
+      }
+    },
+    {
+      isWorkflowExecutable: async (workspaceId, workflowId) => {
+        const workflow = await serverWorkflowCatalog.validateAndGetWorkflow(workspaceId, workflowId);
+        return workflow.status === "active";
+      }
+    },
+    taskRepository,
+    taskWorkRepository,
+    new InMemoryTaskEventPublisher()
+  );
 
   app.use(
     "/api/workspaces/:workspaceId",
-    createTaskOrchestrationRouter({ orchestrator: openclawOrchestrator, adapter: openclawAdapter, conversationRepository })
+    createTaskOrchestrationRouter({
+      orchestrator: openclawOrchestrator,
+      adapter: openclawAdapter,
+      conversationRepository,
+      createTaskUseCase
+    })
   );
 
   const executionService = new WorkflowExecutionService(
