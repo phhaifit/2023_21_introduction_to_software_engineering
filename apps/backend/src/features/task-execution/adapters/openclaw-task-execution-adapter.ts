@@ -517,11 +517,12 @@ function formatWorkflowList(workflows: ExternalWorkflowContract[]): string {
 export class OpenClawExecutionOrchestrator {
   private authService: ExternalAuthenticationService;
   private workspaceMgmt: ExternalWorkspaceManagement;
-  private agentCatalog: ExternalAgentCatalog;
+  public agentCatalog: ExternalAgentCatalog;
   private workflowCatalog: ExternalWorkflowCatalog;
   private toolCatalog?: ExternalToolCatalog;
   private adapter: OpenClawTaskExecutionAdapter;
-  private conversationRepository?: any;
+  public conversationRepository?: any;
+  public workflowExecutionService?: any;
   
   // In-memory storage for orchestration state
   private taskStore = new Map<string, { taskId: EntityId<"taskId">; workId: EntityId<"workId">; status: CanonicalTaskStatus; prompt: string }>();
@@ -544,6 +545,10 @@ export class OpenClawExecutionOrchestrator {
     this.adapter = adapter;
     this.toolCatalog = toolCatalog;
     this.conversationRepository = conversationRepository;
+  }
+
+  setWorkflowExecutionService(service: any) {
+    this.workflowExecutionService = service;
   }
 
   /**
@@ -648,10 +653,61 @@ export class OpenClawExecutionOrchestrator {
       }
     });
 
-    const binding = await this.adapter.startExecution(command);
+    let binding: ExecutionBinding;
+    if (command.routing.mode === "predefined-workflow" && this.workflowExecutionService) {
+      const executionId = `wfe_${command.taskId}`;
+      binding = {
+        providerExecutionReference: `openclaw-workflow-exec-${Date.now()}` as any,
+        endpoint: "local",
+        credentialReference: "local"
+      };
 
-    // Step 7: Store the execution association
-    this.bindingStore.set(taskIdStr, binding);
+      // Store binding and initial pending state
+      this.bindingStore.set(taskIdStr, binding);
+
+      const self = this;
+      // Trigger workflow execution asynchronously in the background
+      void (async () => {
+        try {
+          // 1. Send execution-started event to push UI status from pending to in-progress
+          self.publishEvent(command.taskId, {
+            type: "execution-started",
+            taskId: command.taskId,
+            timestamp: new Date().toISOString()
+          });
+
+          // 2. Drive workflow steps sequentially from platform backend
+          const finalOutput = await self.workflowExecutionService.executeDAGFromChat(
+            command.workspaceId,
+            command.routing.workflowId,
+            { prompt: command.prompt },
+            executionId,
+            principal.principalId,
+            command.taskId,
+            convId
+          );
+
+          // 3. Send completion event to finish task
+          self.publishEvent(command.taskId, {
+            type: "execution-completed",
+            taskId: command.taskId,
+            timestamp: new Date().toISOString(),
+            finalOutput: finalOutput || "Workflow execution completed successfully."
+          });
+        } catch (err: any) {
+          // 4. Propagate failure event if workflow execution fails
+          self.publishEvent(command.taskId, {
+            type: "execution-failed",
+            taskId: command.taskId,
+            timestamp: new Date().toISOString(),
+            errorMsg: err.message
+          });
+        }
+      })();
+    } else {
+      binding = await this.adapter.startExecution(command);
+      this.bindingStore.set(taskIdStr, binding);
+    }
 
     // Step 10: Expose state through the platform API
     const exposedState = await this.getExposedState(command.taskId);

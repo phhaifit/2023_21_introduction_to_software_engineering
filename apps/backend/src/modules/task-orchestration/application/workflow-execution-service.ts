@@ -124,7 +124,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
   }
 
   // Execute a workflow via BFS (DAG traversal)
-  async executeDAG(workflow: any, initialInput: any, executionId: EntityId<"executionId">, triggeredBy: EntityId<"userId">): Promise<void> {
+  async executeDAG(workflow: any, initialInput: any, executionId: EntityId<"executionId">, triggeredBy: EntityId<"userId">, convId?: string): Promise<void> {
     const steps = workflow.steps;
     if (!steps || steps.length === 0) return;
 
@@ -252,7 +252,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
             } else {
               // Clean up resources: automatically cancel the stuck task execution on the gateway
               try {
-                await this.orchestrator.forwardCancellation({}, command.taskId, workspaceId);
+                await this.orchestrator.forwardCancellation({}, command.taskId, workflow.workspaceId);
               } catch (cancelErr) {
                 // Ignore cancel errors to preserve original failure trace
               }
@@ -261,6 +261,23 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
           }
 
           completedOutputs[step.workflowStepId] = outputData;
+
+          // Append message of the finished agent into conversation if it runs from chat
+          if (convId && this.orchestrator.conversationRepository) {
+            try {
+              const agentProfile = await this.orchestrator.agentCatalog.validateAndGetAgent(workflow.workspaceId, step.agentId);
+              const agentName = agentProfile?.name || `Agent ${step.agentId}`;
+              await this.orchestrator.conversationRepository.appendMessage(convId, {
+                messageId: `msg_${randomUUID()}`,
+                conversationId: convId,
+                role: "assistant",
+                content: `### [Agent: ${agentName}]\n\n${outputData}`,
+                timestamp: new Date().toISOString()
+              });
+            } catch (chatErr) {
+              console.error("[WorkflowExecutionService] Error appending agent output message:", chatErr);
+            }
+          }
 
           await this.workflowRepo.updateStepLog(logId, "Success", outputData, undefined, new Date().toISOString());
 
@@ -312,5 +329,92 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
     }
 
     console.log("[WorkflowExecutor] Workflow completed successfully. Outputs:", completedOutputs);
+  }
+
+  // Triggered when running a workflow from the Chat interface
+  async executeDAGFromChat(
+    workspaceId: EntityId<"workspaceId">,
+    workflowId: EntityId<"workflowId">,
+    initialInput: Record<string, string>,
+    executionId: string,
+    triggeredBy: string,
+    taskId: EntityId<"taskId">,
+    convId: string
+  ): Promise<string | null> {
+    const workflow = await this.workflowRepo.findById(workspaceId, workflowId);
+    if (!workflow) {
+      throw new Error("Workflow not found during chat execution");
+    }
+
+    // 1. Emit workflow execution started event
+    await this.eventBus.publish({
+      name: "workflow.execution_started",
+      eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+      occurredAt: new Date().toISOString(),
+      payload: {
+        workspaceId,
+        workflowId,
+        executionId
+      }
+    });
+
+    const steps = workflow.steps || [];
+
+    try {
+      // 2. Execute the DAG with convId so steps append messages
+      await this.executeDAG(workflow, initialInput, executionId as any, triggeredBy as any, convId);
+
+      // 3. Update status in repo
+      await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Success", new Date().toISOString());
+
+      // 4. Emit completed event
+      await this.eventBus.publish({
+        name: "workflow.execution_completed",
+        eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+        occurredAt: new Date().toISOString(),
+        payload: {
+          workspaceId,
+          workflowId,
+          executionId
+        }
+      });
+
+      // 5. Find the final step's output to return as the final answer
+      if (steps.length > 0) {
+        let maxOrderStep = steps[0];
+        for (const s of steps) {
+          if (s.stepOrder > maxOrderStep.stepOrder) {
+            maxOrderStep = s;
+          }
+        }
+        const finalStepId = maxOrderStep.workflowStepId;
+        const dbLogs = await this.workflowRepo.findStepLogs(workspaceId, executionId);
+        const finalLog = dbLogs.find(l => l.workflowStepId === finalStepId && l.status === "Success");
+        if (finalLog) {
+          return finalLog.outputData;
+        }
+        
+        const successfulLogs = dbLogs.filter(l => l.status === "Success");
+        if (successfulLogs.length > 0) {
+          return successfulLogs[successfulLogs.length - 1].outputData;
+        }
+      }
+
+      return "Workflow completed successfully.";
+    } catch (error: any) {
+      await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Failed", new Date().toISOString());
+      await this.eventBus.publish({
+        name: "workflow.execution_failed",
+        eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+        occurredAt: new Date().toISOString(),
+        payload: {
+          workspaceId,
+          workflowId,
+          executionId,
+          errorMsg: error.message
+        }
+      });
+      throw error;
+    }
   }
 }

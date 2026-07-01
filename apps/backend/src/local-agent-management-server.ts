@@ -712,6 +712,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     eventBus
   );
 
+  openclawOrchestrator.setWorkflowExecutionService(executionService);
+
   const workflowUseCases = new WorkflowUseCases(
     workflowRepository,
     agentProvider,
