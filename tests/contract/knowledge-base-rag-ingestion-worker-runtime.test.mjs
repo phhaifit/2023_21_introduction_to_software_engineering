@@ -10,6 +10,7 @@ import { KnowledgeIngestionWorkerError } from "@vcp/backend/modules/knowledge-ba
 
 await testQueuedJobProcessing();
 await testFifoSelectionAndEmptyQueue();
+await testNonPendingJobsAreNotReprocessed();
 await testStorageReadFailure();
 await testParserFailure();
 await testEmptyExtractionFailure();
@@ -97,10 +98,34 @@ async function testQueuedJobProcessing() {
     ]
   );
   assertSafeResult(result);
+
+  await assert.rejects(
+    () => runner.processJob("workspace-a", "job-a"),
+    (error) =>
+      error instanceof KnowledgeIngestionWorkerError &&
+      error.errorCode === "knowledge.ingestion_job_not_queued"
+  );
+  const chunksAfterRepeatedCall =
+    await fixture.documentRepository.listDocumentChunks("workspace-a", "document-a");
+  assert.equal(storageReads.length, 1);
+  assert.equal(extractionInputs.length, 1);
+  assert.equal(chunksAfterRepeatedCall.total, chunks.total);
 }
 
 async function testFifoSelectionAndEmptyQueue() {
   const fixture = await createFixture();
+  await fixture.documentRepository.saveDocument(
+    createDocument({
+      documentId: "document-0",
+      storageKey: "private/document-0.txt"
+    })
+  );
+  await fixture.ingestionJobRepository.saveIngestionJob(
+    createJob({
+      jobId: "job-0",
+      documentId: "document-0"
+    })
+  );
   await fixture.documentRepository.saveDocument(
     createDocument({ documentId: "document-b", storageKey: "private/document-b.txt" })
   );
@@ -123,15 +148,80 @@ async function testFifoSelectionAndEmptyQueue() {
 
   const first = await runner.processNextQueuedJob("workspace-a");
   const second = await runner.processNextQueuedJob("workspace-a");
+  const third = await runner.processNextQueuedJob("workspace-a");
   const none = await runner.processNextQueuedJob("workspace-a");
 
-  assert.equal(first.job.jobId, "job-a");
-  assert.equal(second.job.jobId, "job-b");
+  assert.equal(first.job.jobId, "job-0");
+  assert.equal(second.job.jobId, "job-a");
+  assert.equal(third.job.jobId, "job-b");
   assert.equal(none, null);
   assert.deepEqual(processedStorageKeys, [
+    "private/document-0.txt",
     "private/workspace-a/document-a.txt",
     "private/document-b.txt"
   ]);
+}
+
+async function testNonPendingJobsAreNotReprocessed() {
+  for (const status of ["ingesting", "failed"]) {
+    const fixture = await createFixture();
+    await fixture.ingestionJobRepository.saveIngestionJob(
+      createJob({
+        status,
+        startedAt: "2026-07-01T00:02:00.000Z",
+        ...(status === "failed"
+          ? {
+              failedAt: "2026-07-01T00:03:00.000Z",
+              errorCode: "knowledge.ingestion_failed",
+              errorMessage: "Knowledge ingestion failed during worker handoff."
+            }
+          : {})
+      })
+    );
+    let storageReads = 0;
+    let extractions = 0;
+    let chunkWrites = 0;
+    const saveChunk = fixture.documentRepository.saveDocumentChunk.bind(
+      fixture.documentRepository
+    );
+    fixture.documentRepository.saveDocumentChunk = async (chunk) => {
+      chunkWrites += 1;
+      return saveChunk(chunk);
+    };
+    const runner = createRunner(fixture, {
+      fileStorage: {
+        async read() {
+          storageReads += 1;
+          return Buffer.from("stored bytes");
+        }
+      },
+      textExtractor: {
+        async extract(input) {
+          extractions += 1;
+          return {
+            text: "This content must not be processed.",
+            characterCount: 35,
+            attribution: input.attribution
+          };
+        }
+      }
+    });
+
+    await assert.rejects(
+      () => runner.processJob("workspace-a", "job-a"),
+      (error) =>
+        error instanceof KnowledgeIngestionWorkerError &&
+        error.errorCode === "knowledge.ingestion_job_not_queued"
+    );
+    assert.equal(storageReads, 0);
+    assert.equal(extractions, 0);
+    assert.equal(chunkWrites, 0);
+    const persistedJob = await fixture.ingestionJobRepository.getIngestionJobById(
+      "workspace-a",
+      "job-a"
+    );
+    assert.equal(persistedJob.status, status);
+  }
 }
 
 async function testStorageReadFailure() {
@@ -193,10 +283,31 @@ async function testEmptyExtractionFailure() {
 
 async function testChunkPersistenceFailure() {
   const fixture = await createFixture();
-  fixture.documentRepository.saveDocumentChunk = async () => {
-    throw new Error("database internals queuePayload workerPayload secret");
+  const saveChunk = fixture.documentRepository.saveDocumentChunk.bind(
+    fixture.documentRepository
+  );
+  let chunkWrites = 0;
+  fixture.documentRepository.saveDocumentChunk = async (chunk) => {
+    chunkWrites += 1;
+    if (chunkWrites === 2) {
+      throw new Error("database internals queuePayload workerPayload secret");
+    }
+    return saveChunk(chunk);
   };
-  const runner = createRunner(fixture);
+  const runner = createRunner(fixture, {
+    textExtractor: {
+      async extract(input) {
+        return {
+          text:
+            "First paragraph is long enough to become a chunk.\n\n" +
+            "Second paragraph must fail while being persisted.",
+          characterCount: 102,
+          attribution: input.attribution
+        };
+      }
+    },
+    chunkerOptions: { maxCharactersPerChunk: 55 }
+  });
 
   const result = await runner.processNextQueuedJob("workspace-a");
   assertFailed(
@@ -204,6 +315,14 @@ async function testChunkPersistenceFailure() {
     "knowledge.ingestion_failed",
     "Knowledge ingestion failed during worker handoff."
   );
+  const chunks = await fixture.documentRepository.listDocumentChunks(
+    "workspace-a",
+    "document-a"
+  );
+  assert.equal(chunkWrites, 2);
+  assert.equal(chunks.total, 1);
+  assert.equal(result.document.chunkCount, 0);
+  assert.notEqual(result.document.status, "ready");
 }
 
 async function testCrossWorkspaceRejection() {
@@ -254,7 +373,7 @@ function createRunner(fixture, overrides = {}) {
     generateEventId: () => `event-${eventSequence++}`,
     generateChunkId: ({ documentId, chunkIndex }) =>
       `${documentId}-chunk-${chunkIndex}`,
-    chunkerOptions: { maxCharactersPerChunk: 70 },
+    chunkerOptions: overrides.chunkerOptions ?? { maxCharactersPerChunk: 70 },
     eventPublisher: overrides.eventPublisher
   });
 }
