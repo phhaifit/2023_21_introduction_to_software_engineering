@@ -401,9 +401,6 @@ export function TaskConversationNavigation({
           </button>
         </div>
       )}
-      <footer className="task-conversation-navigation__notice">
-        <p>Session-scoped history (in-memory).</p>
-      </footer>
     </nav>
   );
 }

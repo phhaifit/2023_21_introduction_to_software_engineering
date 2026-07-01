@@ -11,6 +11,10 @@ export interface WorkflowExecutionHandoff {
   handoffExecution(request: ExecuteWorkflowRequest): Promise<void>;
 }
 
+export interface WorkflowMaterializationPort {
+  materializePublishedWorkflow(workflow: import("../domain/workflow.ts").Workflow): Promise<void>;
+}
+
 export interface CreateWorkflowCommand {
   workspaceId: EntityId<"workspaceId">;
   name: string;
@@ -43,11 +47,18 @@ export class WorkflowUseCases {
   private repository: WorkflowRepository;
   private agentProvider: AgentSummaryProvider;
   private executionHandoff: WorkflowExecutionHandoff;
+  private materializationPort?: WorkflowMaterializationPort;
 
-  constructor(repository: WorkflowRepository, agentProvider: AgentSummaryProvider, executionHandoff: WorkflowExecutionHandoff) {
+  constructor(
+    repository: WorkflowRepository,
+    agentProvider: AgentSummaryProvider,
+    executionHandoff: WorkflowExecutionHandoff,
+    materializationPort?: WorkflowMaterializationPort
+  ) {
     this.repository = repository;
     this.agentProvider = agentProvider;
     this.executionHandoff = executionHandoff;
+    this.materializationPort = materializationPort;
   }
 
   async createWorkflow(command: CreateWorkflowCommand): Promise<{ workflow: WorkflowDto; steps: WorkflowStepDto[] }> {
@@ -93,6 +104,10 @@ export class WorkflowUseCases {
     validateWorkflowDAG(stepDtos);
 
     await this.repository.save(workflow);
+
+    if (workflow.status === "published") {
+      await this.syncPublishedWorkflowMaterialization(workflow);
+    }
 
     return {
       workflow: toWorkflowSummary(workflow),
@@ -186,10 +201,26 @@ export class WorkflowUseCases {
 
     await this.repository.save(targetWorkflow);
 
+    if (targetWorkflow.status === "published") {
+      await this.syncPublishedWorkflowMaterialization(targetWorkflow);
+    }
+
     return {
       workflow: toWorkflowSummary(targetWorkflow),
       steps: targetWorkflow.steps.map(toWorkflowStepDto),
     };
+  }
+
+  private async syncPublishedWorkflowMaterialization(workflow: import("../domain/workflow.ts").Workflow): Promise<void> {
+    if (!this.materializationPort) {
+      return;
+    }
+
+    try {
+      await this.materializationPort.materializePublishedWorkflow(workflow);
+    } catch (err) {
+      console.error("[WorkflowUseCases] Failed to materialize published workflow:", err);
+    }
   }
 
   async getWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: EntityId<"workflowId">): Promise<{ workflow: WorkflowDto; steps: WorkflowStepDto[] } | null> {
