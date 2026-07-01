@@ -398,7 +398,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff {
           }
         }
         const finalStepId = maxOrderStep.workflowStepId;
-        const dbLogs = await this.workflowRepo.findStepLogs(workspaceId, executionId);
+        const dbLogs = await this.workflowRepo.getExecutionLogs(workspaceId, executionId as any);
         const finalLog = dbLogs.find(l => l.workflowStepId === finalStepId && l.status === "Success");
         if (finalLog) {
           return finalLog.outputData;
