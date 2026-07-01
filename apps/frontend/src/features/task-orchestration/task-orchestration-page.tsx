@@ -180,14 +180,24 @@ export function TaskOrchestrationPage({
   const taskStateRef = useRef(taskState);
   taskStateRef.current = taskState;
   // Persist conversations + tasks to sessionStorage so state survives SPA navigation
+  // Only persist non-empty conversations (with at least 1 task) to avoid restoring blank sessions
   useEffect(() => {
     try {
+      const conversationsToSave = taskState.conversations.filter(
+        (c) => c.taskIds.length > 0
+      );
+      const savedConvTaskIds = new Set(
+        conversationsToSave.flatMap((c) => c.taskIds as string[])
+      );
       sessionStorage.setItem(
         "task-orchestration-state",
         JSON.stringify({
-          conversations: taskState.conversations,
-          tasks: taskState.tasks,
-          activeConversationId: taskState.activeConversationId,
+          conversations: conversationsToSave,
+          tasks: taskState.tasks.filter((t) => savedConvTaskIds.has(t.taskId as string)),
+          activeConversationId:
+            conversationsToSave.some((c) => c.conversationId === taskState.activeConversationId)
+              ? taskState.activeConversationId
+              : conversationsToSave[conversationsToSave.length - 1]?.conversationId,
           conversationSequence: taskState.conversationSequence
         })
       );
@@ -372,18 +382,23 @@ export function TaskOrchestrationPage({
       return;
     }
 
-    try {
-      await clientRef.current.deleteConversation(
-        DEMO_WORKSPACE_ID,
-        deleteConversationTargetId
-      );
-    } catch {
-      dispatchTaskAction({
-        type: "submission-failed",
-        message: "Conversation could not be deleted. Try again after sync completes."
-      });
-      setDeleteConversationTargetId(null);
-      return;
+    // If the conversation has no tasks it was never persisted to the backend;
+    // skip the API call and delete it locally only.
+    const isLocalOnly = conversation.taskIds.length === 0;
+    if (!isLocalOnly) {
+      try {
+        await clientRef.current.deleteConversation(
+          DEMO_WORKSPACE_ID,
+          deleteConversationTargetId
+        );
+      } catch {
+        dispatchTaskAction({
+          type: "submission-failed",
+          message: "Conversation could not be deleted. Try again after sync completes."
+        });
+        setDeleteConversationTargetId(null);
+        return;
+      }
     }
 
     cleanupTaskSubscriptions(conversation.taskIds.map((id) => id as string));
