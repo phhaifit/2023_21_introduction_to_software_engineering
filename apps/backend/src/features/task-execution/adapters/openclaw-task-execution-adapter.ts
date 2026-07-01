@@ -12,7 +12,8 @@ import type {
 } from "@vcp/shared";
 import { validateStartExecutionCommand, validateExecutionBinding, mapRuntimeObservationToTaskStatus } from "@vcp/shared";
 import { OpenClawRawEventMapper, type OpenClawNetworkTransport } from "./openclaw-network-transport.ts";
-import { TaskLogRepository, NoOpTaskLogRepository } from "./task-log-repository.ts";
+import type { TaskLogRepository } from "./task-log-repository.ts";
+import { NoOpTaskLogRepository } from "./task-log-repository.ts";
 
 // Conceptual Consumer Ports for External Dependencies (Agent Management, Workflow Management, Authentication, Workspace Management)
 export interface ExternalAgentContract {
