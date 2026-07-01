@@ -382,18 +382,18 @@ function WorkflowsList({
       setStreamingWorkflowName(workflowName);
     } catch (err: any) {
       console.error(err);
-      let errorMsg = "Không thể thực thi Workflow.";
+      let errorMsg = "Failed to execute workflow.";
       if (err.details?.missingAgents?.length > 0 || err.details?.disabledAgents?.length > 0) {
         const missing = err.details.missingAgents || [];
         const disabled = err.details.disabledAgents || [];
-        errorMsg = "Không thể chạy Workflow do một số Agent trong cấu hình các bước của Workflow đã bị xóa hoặc bị vô hiệu hóa:\n" +
+        errorMsg = "Cannot execute workflow because one or more agents assigned to the steps are missing or disabled:\n" +
           [
-            missing.length > 0 ? `- Thiếu Agent ID: ${missing.join(", ")}` : null,
-            disabled.length > 0 ? `- Agent bị tắt ID: ${disabled.join(", ")}` : null
+            missing.length > 0 ? `- Missing Agent IDs: ${missing.join(", ")}` : null,
+            disabled.length > 0 ? `- Disabled Agent IDs: ${disabled.join(", ")}` : null
           ].filter(Boolean).join("\n") +
-          "\n\nVui lòng chỉnh sửa Workflow (nút Edit) để cập nhật lại các Agent hợp lệ.";
+          "\n\nPlease edit the workflow config (Edit button) to re-assign valid active agents.";
       } else {
-        errorMsg += ` Chi tiết: ${err.message || "Lỗi không xác định"}`;
+        errorMsg += ` Details: ${err.message || "Unknown error"}`;
       }
       alert(errorMsg);
       setExecutingId(null);
