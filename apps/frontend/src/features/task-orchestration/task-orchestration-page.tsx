@@ -24,7 +24,7 @@ import {
   initialTaskCreationState,
   taskCreationReducer
 } from "./model/task-creation-state";
-import { toTaskPresentationStatus } from "./model/task-lifecycle";
+import { isTerminalTaskStatus, toTaskPresentationStatus } from "./model/task-lifecycle";
 import {
   createBrowserTaskProcessingRuntime,
   type TaskProcessingRuntime
@@ -275,6 +275,18 @@ export function TaskOrchestrationPage({
     }
   }
 
+  function subscribeToTaskEvents(taskId: string): void {
+    if (subscriptionsRef.current.has(taskId)) {
+      return;
+    }
+    const sub = clientRef.current.subscribeToTaskEvents(taskId, (event) => {
+      if (mountedRef.current) {
+        dispatchTaskAction({ type: "runtime-event", event });
+      }
+    });
+    subscriptionsRef.current.set(taskId, sub);
+  }
+
   function handleSelectConversation(conversationId: string): void {
     clearModalTargets();
     dispatchTaskAction({
@@ -434,6 +446,15 @@ export function TaskOrchestrationPage({
   }, [detailModalTaskId, taskState.tasks]);
 
   useEffect(() => {
+    for (const task of taskState.tasks) {
+      const taskId = task.taskId as string;
+      if (!isTerminalTaskStatus(task.status)) {
+        subscribeToTaskEvents(taskId);
+      }
+    }
+  }, [taskState.tasks]);
+
+  useEffect(() => {
     setIsCancelDialogOpen(false);
     setCancelTargetTaskId(null);
   }, [activeTask?.taskId]);
@@ -493,12 +514,7 @@ export function TaskOrchestrationPage({
       });
       setPrompt("");
 
-      const sub = clientRef.current.subscribeToTaskEvents(response.taskId as string, (event) => {
-        if (mountedRef.current) {
-          dispatchTaskAction({ type: "runtime-event", event });
-        }
-      });
-      subscriptionsRef.current.set(response.taskId as string, sub);
+      subscribeToTaskEvents(response.taskId as string);
     } catch {
       dispatchTaskAction({
         type: "submission-failed",

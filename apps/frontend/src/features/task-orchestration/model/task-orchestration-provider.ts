@@ -497,6 +497,342 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     return task;
   }
 
+  private async replayExecutionState(
+    taskId: string,
+    handler: (event: TaskRuntimeEvent) => void
+  ): Promise<void> {
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/state`
+      );
+      if (!res.ok) {
+        return;
+      }
+      const payload = await res.json().catch(() => undefined);
+      const state = payload?.data;
+      if (!state || state.taskId !== taskId) {
+        return;
+      }
+
+      if (Array.isArray(state.events)) {
+        for (const runtimeEvent of state.events) {
+          const projected = this.applyRuntimeEventData(taskId, runtimeEvent);
+          if (projected) {
+            handler(projected);
+          }
+        }
+      }
+
+      const currentTask = this.tasks.get(taskId);
+      if (!currentTask || currentTask.status !== "queued") {
+        return;
+      }
+      const timestamp = new Date().toISOString();
+      if (state.status === "in-progress") {
+        const snapshot = this.applyTaskAction(taskId, {
+          type: "provider-processing-started",
+          taskId: currentTask.taskId,
+          startedAt: timestamp
+        });
+        if (snapshot) {
+          handler({
+            taskId: snapshot.taskId,
+            workId: snapshot.workId,
+            timestamp,
+            kind: "task-started",
+            taskSnapshot: snapshot
+          });
+        }
+      } else if (state.status === "completed") {
+        const snapshot = this.applyTaskAction(taskId, {
+          type: "task-completed",
+          taskId: currentTask.taskId,
+          result: {
+            text: "Completed successfully.",
+            finalizedAt: timestamp,
+            artifacts: [],
+            followUpPromptSuggestions: []
+          }
+        });
+        if (snapshot) {
+          handler({
+            taskId: snapshot.taskId,
+            workId: snapshot.workId,
+            timestamp,
+            kind: "task-completed",
+            finalResult: snapshot.finalizedResult!,
+            taskSnapshot: snapshot
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to replay execution state", err);
+    }
+  }
+
+  private applyTaskAction(
+    taskId: string,
+    action: import("./task-creation-state").TaskCreationAction
+  ): CreatedTaskRecord | undefined {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      return undefined;
+    }
+    const state: import("./task-creation-state").TaskCreationState = {
+      tasks: [task],
+      conversations: [],
+      isSubmitting: false,
+      conversationSequence: 1
+    };
+    const nextState = taskCreationReducer(state, action);
+    const updatedTask = nextState.tasks[0];
+    if (updatedTask) {
+      this.tasks.set(taskId, updatedTask);
+    }
+    return updatedTask;
+  }
+
+  private applyRuntimeEventData(
+    taskId: string,
+    data: any
+  ): TaskRuntimeEvent | null {
+    const subscribedTask = this.tasks.get(taskId);
+    if (!subscribedTask) return null;
+
+    if (typeof data.taskId === "string" && data.taskId !== taskId) {
+      return null;
+    }
+
+    if (
+      typeof data.workId === "string" &&
+      data.workId !== (subscribedTask.workId as string) &&
+      !isSyntheticRestoredWorkId(subscribedTask)
+    ) {
+      return null;
+    }
+
+    if (typeof data.timestamp === "string") {
+      const eventTime = Date.parse(data.timestamp);
+      const taskCreatedTime = Date.parse(subscribedTask.createdAt);
+      if (!Number.isNaN(eventTime) && !Number.isNaN(taskCreatedTime) && eventTime < taskCreatedTime) {
+        return null;
+      }
+    }
+
+    const timestamp = data.timestamp || new Date().toISOString();
+    const base = {
+      taskId: subscribedTask.taskId,
+      workId: subscribedTask.workId,
+      timestamp
+    };
+
+    const ensureProviderProcessingStarted = () => {
+      const currentTask = this.tasks.get(taskId);
+      if (currentTask?.status === "queued" && currentTask.processingSnapshot.startedAt === undefined) {
+        this.applyTaskAction(taskId, {
+          type: "provider-processing-started",
+          taskId: currentTask.taskId,
+          startedAt: timestamp
+        });
+      }
+    };
+
+    let snapshot: CreatedTaskRecord | undefined;
+    const currentTask = this.tasks.get(taskId);
+    if (currentTask?.status === "queued" && data.type !== "execution-accepted") {
+      ensureProviderProcessingStarted();
+    }
+
+    if (data.type === "execution-accepted") {
+      snapshot = this.applyTaskAction(taskId, {
+        type: "provider-processing-started",
+        taskId: subscribedTask.taskId,
+        startedAt: timestamp
+      });
+      return { ...base, kind: "task-accepted", taskSnapshot: snapshot };
+    }
+
+    if (data.type === "execution-started") {
+      ensureProviderProcessingStarted();
+      return { ...base, kind: "task-started", taskSnapshot: this.tasks.get(taskId) };
+    }
+
+    if (data.type === "step-started") {
+      const stepId = data.stepId || "step-1";
+      const stepName = data.stepName || stepId;
+      ensureProviderProcessingStarted();
+      snapshot = this.applyTaskAction(taskId, {
+        type: "provider-step-started",
+        taskId: subscribedTask.taskId,
+        stepId,
+        stepName,
+        startedAt: timestamp
+      });
+      const stepIndex = Math.max(0, snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0);
+      return { ...base, kind: "step-started", stepName, stepIndex, taskSnapshot: snapshot };
+    }
+
+    if (data.type === "step-completed") {
+      const stepId = data.stepId || "step-1";
+      const stepName = data.stepName || stepId;
+      ensureProviderProcessingStarted();
+      snapshot = this.applyTaskAction(taskId, {
+        type: "provider-step-completed",
+        taskId: subscribedTask.taskId,
+        stepId,
+        stepName,
+        completedAt: timestamp
+      });
+      const stepIndex = Math.max(0, snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0);
+      return { ...base, kind: "step-completed", stepName, stepIndex, taskSnapshot: snapshot };
+    }
+
+    if (
+      data.type === "sub-activity" ||
+      data.type === "tool-call" ||
+      data.type === "tool-call-started" ||
+      data.type === "tool-started" ||
+      data.type === "web-search" ||
+      data.type === "web-search-started" ||
+      data.type === "reading" ||
+      data.type === "document-reading" ||
+      data.type === "file-reading"
+    ) {
+      const activityType = data.activityType || "provider";
+      const details =
+        data.details ||
+        data.toolName ||
+        data.query ||
+        data.resource ||
+        data.stepName ||
+        activityType;
+      const stepId =
+        data.stepId ||
+        (data.type.includes("search")
+          ? "openclaw-web-search"
+          : data.type.includes("tool")
+          ? `openclaw-tool-${String(data.toolName || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+          : data.type.includes("reading")
+          ? `openclaw-reading-${String(data.resource || activityType).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+          : `openclaw-${activityType}`);
+      const stepName =
+        data.stepName ||
+        (data.type.includes("search")
+          ? "Searching web"
+          : data.type.includes("tool")
+          ? `Calling tool ${data.toolName || ""}`.trim()
+          : data.type.includes("reading")
+          ? "Reading context"
+          : `OpenClaw ${activityType}`);
+      ensureProviderProcessingStarted();
+      snapshot = this.applyTaskAction(taskId, {
+        type: "provider-step-started",
+        taskId: subscribedTask.taskId,
+        stepId,
+        stepName,
+        startedAt: timestamp
+      });
+      snapshot = this.applyTaskAction(taskId, {
+        type: "processing-log-appended",
+        taskId: subscribedTask.taskId,
+        log: {
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          stepId,
+          level: "info",
+          message: details,
+          timestamp
+        }
+      });
+      const stepIndex = Math.max(0, snapshot?.processingSnapshot.steps.findIndex((s) => s.id === stepId) ?? 0);
+      return { ...base, kind: "step-started", stepName, stepIndex, taskSnapshot: snapshot };
+    }
+
+    if (data.type === "partial-output-received") {
+      const chunkText = data.outputChunk || "";
+      ensureProviderProcessingStarted();
+      const taskBeforeStreaming = this.tasks.get(taskId);
+      if (taskBeforeStreaming?.streamingSnapshot?.phase === "idle") {
+        this.applyTaskAction(taskId, {
+          type: "streaming-started",
+          taskId: subscribedTask.taskId,
+          startedAt: timestamp
+        });
+      }
+      snapshot = this.applyTaskAction(taskId, {
+        type: "streaming-fragment-appended",
+        taskId: subscribedTask.taskId,
+        fragmentId: `frag-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        sequence: (this.tasks.get(taskId)?.streamingSnapshot?.fragments.length || 0) + 1,
+        text: chunkText,
+        appendedAt: timestamp
+      });
+      return { ...base, kind: "partial-output", chunkText, taskSnapshot: snapshot };
+    }
+
+    if (data.type === "execution-completed") {
+      const finalOutput = data.finalOutput || "Completed successfully.";
+      ensureProviderProcessingStarted();
+      const latestTask = this.tasks.get(taskId);
+      const activeStep = latestTask?.processingSnapshot.steps.find((s) => s.status === "active");
+      if (activeStep) {
+        this.applyTaskAction(taskId, {
+          type: "provider-step-completed",
+          taskId: subscribedTask.taskId,
+          stepId: activeStep.id,
+          stepName: activeStep.label,
+          completedAt: timestamp
+        });
+      }
+      const taskBeforeComplete = this.tasks.get(taskId);
+      if (taskBeforeComplete?.streamingSnapshot?.phase === "idle") {
+        this.applyTaskAction(taskId, { type: "streaming-started", taskId: subscribedTask.taskId, startedAt: timestamp });
+        this.applyTaskAction(taskId, { type: "streaming-exhausted", taskId: subscribedTask.taskId, exhaustedAt: timestamp });
+      } else if (taskBeforeComplete?.streamingSnapshot?.phase === "streaming") {
+        this.applyTaskAction(taskId, { type: "streaming-exhausted", taskId: subscribedTask.taskId, exhaustedAt: timestamp });
+      }
+      snapshot = this.applyTaskAction(taskId, {
+        type: "task-completed",
+        taskId: subscribedTask.taskId,
+        result: { text: finalOutput, finalizedAt: timestamp, artifacts: [], followUpPromptSuggestions: [] } as any
+      });
+      return {
+        ...base,
+        kind: "task-completed",
+        finalResult: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] } as any,
+        taskSnapshot: snapshot
+      };
+    }
+
+    if (data.type === "execution-failed") {
+      ensureProviderProcessingStarted();
+      const activeStep = this.tasks.get(taskId)?.processingSnapshot.steps.find((s) => s.status === "active");
+      const message = data.errorMessage || data.error?.message || "Execution failed";
+      snapshot = this.applyTaskAction(taskId, {
+        type: "task-failed",
+        taskId: subscribedTask.taskId,
+        error: {
+          code: "runtime-error",
+          stepId: activeStep?.id || "unknown",
+          title: "Execution failed",
+          message,
+          occurredAt: timestamp
+        }
+      });
+      return { ...base, kind: "task-failed", error: { code: "runtime-error", message } as any, taskSnapshot: snapshot };
+    }
+
+    if (data.type === "execution-canceled") {
+      snapshot = this.applyTaskAction(taskId, {
+        type: "task-cancelled",
+        taskId: subscribedTask.taskId,
+        cancelledAt: timestamp
+      });
+      return { ...base, kind: "task-canceled", taskSnapshot: snapshot };
+    }
+
+    return null;
+  }
+
   async fetchConversations(workspaceId: string): Promise<import("@vcp/shared").Conversation[]> {
     try {
       const res = await fetch(`${this.baseUrl}/api/workspaces/${workspaceId}/conversations`);
@@ -563,6 +899,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
     const subscriptionId = `sub-http-${this.subIdCounter++}`;
     this.subscriptionHandlers.set(subscriptionId, { taskId, handler });
+    void this.replayExecutionState(taskId, handler);
     try {
       const es = new EventSource(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/stream`);
       es.onmessage = (event) => {
@@ -575,7 +912,11 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
             return;
           }
 
-          if (typeof data.workId === "string" && data.workId !== (subscribedTask.workId as string)) {
+          if (
+            typeof data.workId === "string" &&
+            data.workId !== (subscribedTask.workId as string) &&
+            !isSyntheticRestoredWorkId(subscribedTask)
+          ) {
             return;
           }
 
@@ -797,4 +1138,8 @@ export function resolveTaskOrchestrationProvider(
   }
 ): TaskOrchestrationClient {
   return new HttpTaskOrchestrationProvider(config);
+}
+
+function isSyntheticRestoredWorkId(task: CreatedTaskRecord): boolean {
+  return (task.workId as string) === `work-${task.taskId as string}`;
 }
