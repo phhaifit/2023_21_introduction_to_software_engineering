@@ -235,6 +235,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
 
     const handleEvent = async (event: NormalizedRuntimeEvent) => {
       try {
+        console.log(`[WorkflowExecutionService] 🔔 Received OpenClaw event: type=${event.type}, stepId=${event.stepId || 'none'}, stepName=${(event as any).stepName || 'none'}`);
         const matchingStep = materializedWorkflow.steps.find(
           (s) =>
             s.workflowStepId === event.stepId ||
