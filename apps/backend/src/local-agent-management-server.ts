@@ -89,7 +89,16 @@ import {
   type OpenClawAgentMaterializer,
   type OpenClawMaterializedAgent
 } from "./features/task-execution/adapters/openclaw-agent-materializer.ts";
+import {
+  DockerOpenClawWorkflowArtifactMirror,
+  FileSystemOpenClawWorkflowMaterializer,
+  NoOpOpenClawWorkflowArtifactMirror,
+  NoOpOpenClawWorkflowMaterializer,
+  type OpenClawWorkflowArtifactMirror,
+  type OpenClawWorkflowMaterializer
+} from "./features/task-execution/adapters/openclaw-workflow-materializer.ts";
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
+import { FileSystemTaskLogRepository } from "./features/task-execution/adapters/task-log-repository.ts";
 import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
 import { InMemoryTaskRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-repository.ts";
 import { InMemoryTaskWorkRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-work-repository.ts";
@@ -211,9 +220,11 @@ function compactLogValue(value: string): string {
 
 class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
   private readonly repository: WorkflowRepository;
+  private readonly materializer: OpenClawWorkflowMaterializer;
 
-  constructor(repository: WorkflowRepository) {
+  constructor(repository: WorkflowRepository, materializer: OpenClawWorkflowMaterializer = new NoOpOpenClawWorkflowMaterializer()) {
     this.repository = repository;
+    this.materializer = materializer;
   }
 
   async validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string) {
@@ -228,10 +239,12 @@ class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
       };
     }
 
+    const materialized = await this.materializer.getMaterializedWorkflow(workspaceId, workflowId);
+
     return {
       workflowId,
       workspaceId: workspaceId as string,
-      providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
+      providerWorkflowMapping: materialized?.providerWorkflowMapping ?? `openclaw/workflow/${workflow.workflowId}`,
       status: "active" as const,
       name: workflow.name,
       description: workflow.description
@@ -241,16 +254,25 @@ class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
   async listAvailableWorkflows(workspaceId: EntityId<"workspaceId">) {
     const result = await this.repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
 
-    return result.items
-      .filter((workflow) => workflow.status === "published")
-      .map((workflow) => ({
-        workflowId: workflow.workflowId as string,
-        workspaceId: workspaceId as string,
-        providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
-        status: "active" as const,
-        name: workflow.name,
-        description: workflow.description
-      }));
+    return Promise.all(
+      result.items
+        .filter((workflow) => workflow.status === "published")
+        .map(async (workflow) => {
+          const materialized = await this.materializer.getMaterializedWorkflow(
+            workspaceId,
+            workflow.workflowId as string
+          );
+
+          return {
+            workflowId: workflow.workflowId as string,
+            workspaceId: workspaceId as string,
+            providerWorkflowMapping: materialized?.providerWorkflowMapping ?? `openclaw/workflow/${workflow.workflowId}`,
+            status: "active" as const,
+            name: workflow.name,
+            description: workflow.description
+          };
+        })
+    );
   }
 }
 
@@ -425,6 +447,44 @@ function createSkillWriter(): AgentSkillWriter {
   return new NoOpAgentSkillWriter();
 }
 
+function createOpenClawWorkflowMaterializer(): OpenClawWorkflowMaterializer {
+  const baseDir = resolveOpenClawWorkflowWorkspaceDir();
+  if (baseDir) {
+    return new FileSystemOpenClawWorkflowMaterializer(baseDir, undefined, createOpenClawWorkflowArtifactMirror());
+  }
+  return new NoOpOpenClawWorkflowMaterializer();
+}
+
+function resolveOpenClawWorkflowWorkspaceDir(): string | null {
+  if (process.env.OPENCLAW_WORKFLOW_WORKSPACE_DIR) {
+    return process.env.OPENCLAW_WORKFLOW_WORKSPACE_DIR;
+  }
+
+  const agentDir = process.env.OPENCLAW_AGENT_WORKSPACE_DIR || process.env.AGENT_SKILLS_DIR;
+  if (!agentDir) {
+    return null;
+  }
+
+  return agentDir.endsWith("openclaw-agents")
+    ? agentDir.replace(/openclaw-agents$/, "openclaw-workflows")
+    : `${agentDir}-workflows`;
+}
+
+function createOpenClawWorkflowArtifactMirror(): OpenClawWorkflowArtifactMirror {
+  const containerName = process.env.OPENCLAW_WORKFLOW_MIRROR_CONTAINER || process.env.OPENCLAW_AGENT_MIRROR_CONTAINER;
+  const destinationDir =
+    process.env.OPENCLAW_WORKFLOW_MIRROR_DIR ||
+    (process.env.OPENCLAW_AGENT_MIRROR_DIR
+      ? process.env.OPENCLAW_AGENT_MIRROR_DIR.replace(/openclaw-agents$/, "openclaw-workflows")
+      : undefined);
+
+  if (containerName && destinationDir) {
+    return new DockerOpenClawWorkflowArtifactMirror(containerName, destinationDir);
+  }
+
+  return new NoOpOpenClawWorkflowArtifactMirror();
+}
+
 function createOpenClawAgentMaterializer(): OpenClawAgentMaterializer {
   const baseDir = process.env.OPENCLAW_AGENT_WORKSPACE_DIR || process.env.AGENT_SKILLS_DIR;
   if (baseDir) {
@@ -449,6 +509,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
   const openclawAgentMaterializer = createOpenClawAgentMaterializer();
+  const openclawWorkflowMaterializer = createOpenClawWorkflowMaterializer();
   
   const eventBus = new InMemoryEventBus();
 
@@ -671,7 +732,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const serverWorkspaceMgmt = new ServerWorkspaceManagement();
   const serverAgentCatalog = new ServerAgentCatalog(repository, useCases, openclawAgentMaterializer);
-  const serverWorkflowCatalog = new ServerWorkflowCatalog(workflowRepository);
+  const serverWorkflowCatalog = new ServerWorkflowCatalog(workflowRepository, openclawWorkflowMaterializer);
   const serverAuthService = new ServerAuthenticationService();
 
   const conversationRepository = await createConversationRepository();
@@ -684,6 +745,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     serverWorkflowCatalog,
     openclawTransport
   );
+  const taskLogRepository = new FileSystemTaskLogRepository();
   const openclawOrchestrator = new OpenClawExecutionOrchestrator(
     serverAuthService,
     serverWorkspaceMgmt,
@@ -691,7 +753,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     serverWorkflowCatalog,
     openclawAdapter,
     undefined,
-    conversationRepository
+    conversationRepository,
+    taskLogRepository
   );
   const createTaskUseCase = new CreateTaskService(
     {
@@ -734,12 +797,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const executionService = new WorkflowExecutionService(
     workflowRepository,
     openclawOrchestrator,
-    eventBus
+    eventBus,
+    openclawWorkflowMaterializer
   );
+
+  openclawOrchestrator.setWorkflowExecutionService(executionService);
 
   const workflowUseCases = new WorkflowUseCases(
     workflowRepository,
     agentProvider,
+    executionService,
     executionService
   );
 

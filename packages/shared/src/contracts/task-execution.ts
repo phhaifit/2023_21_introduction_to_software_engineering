@@ -25,6 +25,13 @@ export type StartExecutionCommand = {
   prompt: string;
   routing: TaskRoutingSelection;
   attachments?: AttachmentReference[];
+  /** When container-backed, agent/workflow profiles are read from the OpenClaw runtime instead of the request. */
+  routingPresentation?: "full-profile" | "container-backed";
+  workflowStepContext?: {
+    workflowId: EntityId<"workflowId">;
+    stepOrder: number;
+    providerWorkflowMapping?: string;
+  };
 
   ["rawCredentials"]?: never;
   containerConfiguration?: never;
