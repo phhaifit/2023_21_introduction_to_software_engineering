@@ -5,6 +5,10 @@ import type {
   KnowledgeDocumentChunk
 } from "../domain/knowledge-document.ts";
 import type { KnowledgeEmbeddingAdapter } from "./knowledge-embedding-adapter.ts";
+import type {
+  KnowledgeEmbeddingInput,
+  KnowledgeEmbeddingResult
+} from "./knowledge-embedding-adapter.ts";
 import {
   KnowledgeDocumentIndexingError,
   toSafeKnowledgeIndexingFailure,
@@ -72,7 +76,11 @@ export class KnowledgeDocumentIndexingPipeline {
 
       for (const chunk of chunkResult.items) {
         this.assertIndexableChunk(input.workspaceId, input.documentId, chunk);
-        const indexedChunk = await this.indexChunk(chunk);
+      }
+      const bulkEmbeddings = await this.generateBulkEmbeddings(chunkResult.items);
+
+      for (const [index, chunk] of chunkResult.items.entries()) {
+        const indexedChunk = await this.indexChunk(chunk, bulkEmbeddings?.[index]);
         indexedChunks.push(indexedChunk);
       }
 
@@ -110,7 +118,8 @@ export class KnowledgeDocumentIndexingPipeline {
   }
 
   private async indexChunk(
-    chunk: KnowledgeDocumentChunk
+    chunk: KnowledgeDocumentChunk,
+    suppliedEmbedding?: KnowledgeEmbeddingResult
   ): Promise<KnowledgeDocumentChunk> {
     const inProgressChunk = await this.dependencies.documentRepository.saveDocumentChunk({
       ...chunk,
@@ -118,26 +127,9 @@ export class KnowledgeDocumentIndexingPipeline {
       updatedAt: this.dependencies.now()
     });
 
-    let embeddingResult;
-    try {
-      embeddingResult = await this.dependencies.embeddingAdapter.generateEmbedding({
-        workspaceId: inProgressChunk.workspaceId,
-        documentId: inProgressChunk.documentId,
-        chunkId: inProgressChunk.chunkId,
-        chunkIndex: inProgressChunk.chunkIndex,
-        chunkText: inProgressChunk.contentText,
-        metadata: {
-          contentHash: inProgressChunk.contentHash,
-          tokenCount: inProgressChunk.tokenCount,
-          sourceLocator: inProgressChunk.sourceLocator
-        }
-      });
-    } catch {
-      throw new KnowledgeDocumentIndexingError(
-        "knowledge.embedding_failed",
-        "Knowledge document chunk embedding generation failed."
-      );
-    }
+    const embeddingResult =
+      suppliedEmbedding ?? (await this.generateSingleEmbedding(inProgressChunk));
+    this.assertEmbeddingResult(inProgressChunk, embeddingResult);
 
     let vectorResult;
     try {
@@ -166,6 +158,79 @@ export class KnowledgeDocumentIndexingPipeline {
       vectorRef: vectorResult.vectorRef,
       updatedAt: this.dependencies.now()
     });
+  }
+
+  private async generateBulkEmbeddings(
+    chunks: readonly KnowledgeDocumentChunk[]
+  ): Promise<KnowledgeEmbeddingResult[] | undefined> {
+    if (!this.dependencies.embeddingAdapter.generateEmbeddings) {
+      return undefined;
+    }
+    try {
+      const results = await this.dependencies.embeddingAdapter.generateEmbeddings(
+        chunks.map((chunk) => this.toEmbeddingInput(chunk))
+      );
+      if (results.length !== chunks.length) {
+        throw new Error("Unexpected embedding result count.");
+      }
+      return results;
+    } catch {
+      throw new KnowledgeDocumentIndexingError(
+        "knowledge.embedding_failed",
+        "Knowledge document chunk embedding generation failed."
+      );
+    }
+  }
+
+  private async generateSingleEmbedding(
+    chunk: KnowledgeDocumentChunk
+  ): Promise<KnowledgeEmbeddingResult> {
+    try {
+      return await this.dependencies.embeddingAdapter.generateEmbedding(
+        this.toEmbeddingInput(chunk)
+      );
+    } catch {
+      throw new KnowledgeDocumentIndexingError(
+        "knowledge.embedding_failed",
+        "Knowledge document chunk embedding generation failed."
+      );
+    }
+  }
+
+  private toEmbeddingInput(chunk: KnowledgeDocumentChunk): KnowledgeEmbeddingInput {
+    return {
+      workspaceId: chunk.workspaceId,
+      documentId: chunk.documentId,
+      chunkId: chunk.chunkId,
+      chunkIndex: chunk.chunkIndex,
+      chunkText: chunk.contentText,
+      metadata: {
+        contentHash: chunk.contentHash,
+        tokenCount: chunk.tokenCount,
+        sourceLocator: chunk.sourceLocator
+      }
+    };
+  }
+
+  private assertEmbeddingResult(
+    chunk: KnowledgeDocumentChunk,
+    result: KnowledgeEmbeddingResult
+  ): void {
+    if (
+      result.workspaceId !== chunk.workspaceId ||
+      result.documentId !== chunk.documentId ||
+      result.chunkId !== chunk.chunkId ||
+      result.chunkIndex !== chunk.chunkIndex ||
+      result.embedding.length === 0 ||
+      !result.embedding.every(
+        (value) => typeof value === "number" && Number.isFinite(value)
+      )
+    ) {
+      throw new KnowledgeDocumentIndexingError(
+        "knowledge.embedding_result_invalid",
+        "Knowledge document chunk embedding result is invalid."
+      );
+    }
   }
 
   private async markStarted(document: KnowledgeDocument): Promise<KnowledgeDocument> {
