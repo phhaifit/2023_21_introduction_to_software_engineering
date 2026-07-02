@@ -22,9 +22,8 @@ indexing adapter boundary for persisted chunks. It also has a local end-to-end
 flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
-It still does not contain OCR, real embedding provider calls, real vector
-database calls, external queue/worker daemon infrastructure, or retrieval
-implementation.
+It still does not contain OCR, real vector database calls, external
+queue/worker daemon infrastructure, or retrieval implementation.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -329,15 +328,38 @@ document indexing as `ingesting`, generates embeddings through an injected
 `KnowledgeEmbeddingAdapter`, upserts vectors through an injected
 `KnowledgeVectorIndexAdapter`, marks chunks ready with opaque internal
 `vectorRef` values, and marks the document indexing state `ready` or `failed`.
-It does not call OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, or any
-other real provider/client, and it does not expose embeddings or vector internals
-through public DTOs or events. It is intentionally not wired into the ingestion
-handoff automatically in this slice so the existing text-processing lifecycle
-remains narrow and predictable.
+It does not expose embeddings or vector internals through public DTOs or
+events. It is intentionally not wired into the ingestion handoff automatically
+so the existing text-processing lifecycle remains narrow and predictable.
 
-Legacy DOC parsing, OCR, object storage integration, provider-backed embeddings,
-provider-backed vector writes, retrieval, and queue/runtime orchestration remain
-future adapter/runtime scope.
+## Real Embedding Provider
+
+`OpenAICompatibleKnowledgeEmbeddingAdapter` implements the existing backend
+embedding port using built-in `fetch`. It accepts persisted chunk text from the
+indexing pipeline, batches requests deterministically, restores provider results
+to input order, and validates result count, numeric values, and configured
+dimensions before handing vectors to `KnowledgeVectorIndexAdapter`.
+
+Required runtime configuration:
+
+```text
+KNOWLEDGE_EMBEDDING_PROVIDER=openai-compatible
+KNOWLEDGE_EMBEDDING_BASE_URL=https://provider.example/v1
+KNOWLEDGE_EMBEDDING_API_KEY=<secret>
+KNOWLEDGE_EMBEDDING_MODEL=<provider-model>
+KNOWLEDGE_EMBEDDING_DIMENSIONS=<positive integer>
+```
+
+`KNOWLEDGE_EMBEDDING_BATCH_SIZE` defaults to `32`, and
+`KNOWLEDGE_EMBEDDING_TIMEOUT_MS` defaults to `30000`. Configuration and
+provider failures use fixed safe errors; API keys, authorization headers, raw
+requests/responses, and raw embeddings are not persisted or mapped publicly.
+Tests retain deterministic inline adapters and use injected mock fetch
+implementations, never real provider calls.
+
+Legacy DOC parsing, OCR, object storage integration, provider-backed vector
+writes, retrieval, and queue/runtime orchestration remain future adapter/runtime
+scope.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing

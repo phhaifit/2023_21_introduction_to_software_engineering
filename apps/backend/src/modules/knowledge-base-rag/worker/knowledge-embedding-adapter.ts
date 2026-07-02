@@ -23,4 +23,7 @@ export type KnowledgeEmbeddingResult = {
 
 export type KnowledgeEmbeddingAdapter = {
   generateEmbedding(input: KnowledgeEmbeddingInput): Promise<KnowledgeEmbeddingResult>;
+  generateEmbeddings?(
+    inputs: readonly KnowledgeEmbeddingInput[]
+  ): Promise<KnowledgeEmbeddingResult[]>;
 };
