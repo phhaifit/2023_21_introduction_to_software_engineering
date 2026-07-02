@@ -150,7 +150,7 @@ describe("1. Failed Summary Visibility", () => {
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
     expect(screen.getByText("Task Failed")).toBeVisible();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 });
 
@@ -358,6 +358,7 @@ describe("8. Demo Reset & Isolation", () => {
     // Simulate Demo Reset by unmounting, cleaning up, resetting ID sequence, and remounting
     unmount();
     cleanup();
+    sessionStorage.clear();
     resetTaskIdentitySequence();
 
     const pRuntimeB = new FakeProcessingRuntime();

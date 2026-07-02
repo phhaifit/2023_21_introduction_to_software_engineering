@@ -314,6 +314,7 @@ describe("Task 8B — In-Progress integration", () => {
 
     unmount();
     cleanup();
+    sessionStorage.clear();
     resetTaskIdentitySequence();
 
     const second = makeRuntime();
