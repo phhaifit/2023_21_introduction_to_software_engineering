@@ -54,3 +54,13 @@ export class KnowledgeRetrievalError extends Error {
     this.errorCode = errorCode;
   }
 }
+
+export class KnowledgeRagAnswerError extends Error {
+  readonly errorCode: string;
+
+  constructor(errorCode: string, message: string) {
+    super(message);
+    this.name = "KnowledgeRagAnswerError";
+    this.errorCode = errorCode;
+  }
+}

@@ -12,7 +12,8 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   connectDataSource: "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect",
   syncScope: "/api/workspaces/:workspaceId/knowledge/sync-scope",
   syncJobs: "/api/workspaces/:workspaceId/knowledge/sync-jobs",
-  retrievalSearch: "/api/workspaces/:workspaceId/knowledge/retrieval/search"
+  retrievalSearch: "/api/workspaces/:workspaceId/knowledge/retrieval/search",
+  ragAnswer: "/api/workspaces/:workspaceId/knowledge/rag/answer"
 } as const;
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
@@ -27,7 +28,8 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
-  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch }
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer }
 ] as const;
 
 export type KnowledgeBaseRagApiRoute =
@@ -79,6 +81,9 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeRetrievalSearchRequest",
   "KnowledgeEvidenceDto",
   "KnowledgeRetrievalSearchResponse",
+  "KnowledgeRagAnswerRequest",
+  "KnowledgeRagAnswerCitationDto",
+  "KnowledgeRagAnswerResponse",
   "KnowledgeBaseApiError"
 ] as const;
 
@@ -250,6 +255,46 @@ export type KnowledgeEvidenceDto = {
 export type KnowledgeRetrievalSearchResponse = {
   results: KnowledgeEvidenceDto[];
   total: number;
+};
+
+export const KNOWLEDGE_RAG_ANSWER_STATUSES = [
+  "answered",
+  "answered_with_caution",
+  "insufficient_evidence",
+  "provider_error"
+] as const;
+
+export type KnowledgeRagAnswerStatus =
+  (typeof KNOWLEDGE_RAG_ANSWER_STATUSES)[number];
+
+export type KnowledgeRagAnswerOptions = {
+  maxAnswerLength?: number;
+  includeCitations?: boolean;
+};
+
+export type KnowledgeRagAnswerRequest = {
+  query: string;
+  topK?: number;
+  filters?: KnowledgeRetrievalFilters;
+  answerOptions?: KnowledgeRagAnswerOptions;
+};
+
+export type KnowledgeRagAnswerCitationDto = {
+  citationId: string;
+  evidenceId: string;
+  documentId: EntityId<"documentId">;
+  chunkId: string;
+  rank: number;
+  snippet: string;
+};
+
+export type KnowledgeRagAnswerResponse = {
+  answerId: string;
+  status: KnowledgeRagAnswerStatus;
+  answer: string;
+  citations: KnowledgeRagAnswerCitationDto[];
+  evidence: KnowledgeEvidenceDto[];
+  warnings: string[];
 };
 
 export type KnowledgeBaseApiError = ApiError & {
