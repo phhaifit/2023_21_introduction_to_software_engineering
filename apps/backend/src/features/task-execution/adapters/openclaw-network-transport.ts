@@ -355,6 +355,14 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
     }
 
+    if (!this.isCustomFetcher) {
+      try {
+        return await this.startControlProtocolExecution(endpoint, credentialReference, request);
+      } catch (err) {
+        // Preserve the OpenAI-compatible HTTP/SSE path when Gateway Control is not available.
+      }
+    }
+
     if (false) {
       console.log(`\n[OpenClaw Transport] === STARTING EXECUTION REQUEST ===`);
       console.log(`[OpenClaw Transport] Target Gateway Endpoint: ${endpoint}/v1/chat/completions`);
@@ -468,17 +476,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       const runId = `vcp-run-${Date.now()}`;
       await client.request("sessions.subscribe", {});
       await client.request("sessions.messages.subscribe", { key: sessionKey });
-      const sendResult = await client.request("chat.send", {
-        sessionKey,
-        ...(request.openClawAgentId ? { agentId: request.openClawAgentId } : {}),
-        message: buildControlProtocolMessage(request),
-        deliver: false,
-        idempotencyKey: runId
-      });
-      const providerRunId = typeof sendResult?.runId === "string" && sendResult.runId.trim()
-        ? sendResult.runId.trim()
-        : runId;
-      const providerExecutionReference = `openclaw-control:${sessionKey}:${providerRunId}`;
+      const providerExecutionReference = `openclaw-control:${sessionKey}:${runId}`;
       const state: OpenClawControlExecutionState = {
         client,
         context: {
@@ -498,6 +496,32 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       });
       this.activeControlExecutions.set(providerExecutionReference, state);
       this.activeProgressContexts.set(providerExecutionReference, state.context);
+      const sendResult = await client.request("chat.send", {
+        sessionKey,
+        ...(request.openClawAgentId ? { agentId: request.openClawAgentId } : {}),
+        message: buildControlProtocolMessage(request),
+        deliver: false,
+        idempotencyKey: runId
+      });
+      const providerRunId = typeof sendResult?.runId === "string" && sendResult.runId.trim()
+        ? sendResult.runId.trim()
+        : runId;
+      if (providerRunId !== runId) {
+        state.pendingEvents.push({
+          object: "chat.completion.chunk",
+          executionId: providerExecutionReference,
+          timestamp: Date.now(),
+          openclaw_extension: {
+            stepId: "openclaw-control-run-started",
+            stepName: "OpenClaw control run",
+            status: "started",
+            activityType: "provider-diagnostic",
+            displayLabel: "OpenClaw control run",
+            details: `Provider run ${sanitizeObservabilityPayload(providerRunId)} started`,
+            providerEventName: "chat.send"
+          }
+        });
+      }
 
       return {
         providerExecutionReference,
@@ -743,7 +767,7 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       try {
         await client.connect();
         if (closed) return;
-        await client.request("sessions.subscribe", {});
+        await client.request("sessions.subscribe", { key: context.conversationId });
         if (closed) return;
         await client.request("sessions.messages.subscribe", { key: context.conversationId });
       } catch (err) {
@@ -999,8 +1023,8 @@ class NodeGatewayControlClient implements GatewayControlClient {
       if (!pending) return;
       this.pending.delete(frame.id);
       clearTimeout(pending.timer);
-      if (frame.ok) {
-        pending.resolve(frame.payload);
+      if (frame.ok !== false && !frame.error) {
+        pending.resolve(frame.payload ?? frame.result ?? frame.data ?? frame);
         if (frame.id.startsWith("connect-")) {
           this.resolveConnect();
         }

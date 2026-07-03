@@ -434,7 +434,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         routingInstruction: "Use auto routing"
       });
 
-      expect(start.providerExecutionReference).toBe("openclaw-control:control-session-1:control-run-1");
+      expect(start.providerExecutionReference).toMatch(/^openclaw-control:control-session-1:vcp-run-/);
       expect(fakeControl.connected).toBe(true);
       expect(fakeControl.requests.map((request) => request.method)).toEqual([
         "sessions.create",
@@ -609,7 +609,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       await flushAsyncTasks();
       expect(fakeControl.connected).toBe(true);
       expect(fakeControl.requests).toEqual([
-        { method: "sessions.subscribe", params: {} },
+        { method: "sessions.subscribe", params: { key: "conv-123" } },
         { method: "sessions.messages.subscribe", params: { key: "conv-123" } }
       ]);
 
