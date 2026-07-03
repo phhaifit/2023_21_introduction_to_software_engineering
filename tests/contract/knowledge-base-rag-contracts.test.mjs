@@ -32,6 +32,9 @@ const expectedDtoExports = [
   "KnowledgeRetrievalSearchRequest",
   "KnowledgeEvidenceDto",
   "KnowledgeRetrievalSearchResponse",
+  "KnowledgeRagAnswerRequest",
+  "KnowledgeRagAnswerCitationDto",
+  "KnowledgeRagAnswerResponse",
   "KnowledgeBaseApiError"
 ];
 
@@ -60,7 +63,8 @@ const expectedRoutes = [
   ["PUT", "/api/workspaces/:workspaceId/knowledge/sync-scope"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/sync-jobs"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs"],
-  ["POST", "/api/workspaces/:workspaceId/knowledge/retrieval/search"]
+  ["POST", "/api/workspaces/:workspaceId/knowledge/retrieval/search"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/rag/answer"]
 ];
 
 assert.deepEqual(

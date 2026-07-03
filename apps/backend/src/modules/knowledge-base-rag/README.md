@@ -435,6 +435,37 @@ response, error codes, and use-case method can be mirrored directly with
 FastAPI/Pydantic if the backend stack is migrated later. This endpoint returns
 evidence only and does not generate a RAG answer.
 
+### Grounded RAG answer runtime
+
+`POST /api/workspaces/:workspaceId/knowledge/rag/answer` accepts the retrieval
+query, bounded `topK`, the existing safe retrieval filters, and optional
+`maxAnswerLength` / `includeCitations` answer options. The application use case
+reuses retrieval/search and passes only ranked, bounded evidence snippets to an
+injected answer provider.
+
+The runtime calls an OpenAI-compatible `chat/completions` endpoint only when at
+least one evidence item has usable text and meets the conservative score gate.
+No or weak evidence returns `insufficient_evidence` without a provider call.
+Provider failures return a safe `provider_error` fallback. Answers cite only
+evidence included in the same response; unknown provider citation IDs are
+discarded.
+
+Real provider mode uses:
+
+- `KNOWLEDGE_RAG_PROVIDER=openai-compatible`
+- `KNOWLEDGE_RAG_BASE_URL`
+- `KNOWLEDGE_RAG_API_KEY`
+- `KNOWLEDGE_RAG_MODEL`
+- optional `KNOWLEDGE_RAG_TIMEOUT_MS` (default `30000`)
+- optional `KNOWLEDGE_RAG_MAX_OUTPUT_TOKENS` (default `800`)
+
+Raw prompts, provider payloads, credentials, embeddings, vectors, storage
+details, and chain-of-thought are backend-internal and are never public DTO
+fields. Tests use injected deterministic providers or mocked `fetch`; they do
+not call external services. This framework-neutral request/use-case/response
+boundary can be mirrored with FastAPI/Pydantic later. It is an optional
+downstream capability over the indexing-focused KB/RAG core, not a chatbot UI.
+
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing
 pipeline, then runs the indexing pipeline over persisted chunks. Tests inject a

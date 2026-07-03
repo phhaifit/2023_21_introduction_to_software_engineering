@@ -52,11 +52,13 @@ import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/applic
 import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
 import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
+import { KnowledgeRagAnswerUseCase } from "./modules/knowledge-base-rag/application/knowledge-rag-answer-use-case.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
 import type { KnowledgeDocumentRepository } from "./modules/knowledge-base-rag/application/knowledge-document-repository.ts";
 import { LocalKnowledgeFileStorage } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
 import { createKnowledgeEmbeddingAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-embedding-adapter.ts";
+import { createKnowledgeRagAnswerProviderFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-rag-answer-provider.ts";
 import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/pgvector-knowledge-vector-index-adapter.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
@@ -149,6 +151,30 @@ function createKnowledgeRetrievalSearchUseCase(
         throw new Error("Knowledge retrieval vector index is not configured.");
       }
     }
+  });
+}
+
+function createKnowledgeRagAnswerUseCase(
+  retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase
+): KnowledgeRagAnswerUseCase {
+  const hasRagConfig = Boolean(
+    process.env.KNOWLEDGE_RAG_PROVIDER &&
+      process.env.KNOWLEDGE_RAG_BASE_URL &&
+      process.env.KNOWLEDGE_RAG_API_KEY &&
+      process.env.KNOWLEDGE_RAG_MODEL
+  );
+  const answerProvider = hasRagConfig
+    ? createKnowledgeRagAnswerProviderFromEnvironment()
+    : {
+        async generateAnswer() {
+          throw new Error("Knowledge answer provider is not configured.");
+        }
+      };
+
+  return new KnowledgeRagAnswerUseCase({
+    retrievalSearchUseCase,
+    answerProvider,
+    generateAnswerId: () => randomUUID()
   });
 }
 
@@ -614,6 +640,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     syncScopeRepository: knowledgeSyncScopeRepository,
     syncJobRepository: knowledgeSyncJobRepository
   };
+  const retrievalSearchUseCase = createKnowledgeRetrievalSearchUseCase(
+    prisma,
+    knowledgeDocumentRepository
+  );
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
@@ -639,10 +669,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       now: () => new Date().toISOString(),
       generateJobId: () => randomUUID() as any
     }),
-    retrievalSearchUseCase: createKnowledgeRetrievalSearchUseCase(
-      prisma,
-      knowledgeDocumentRepository
-    )
+    retrievalSearchUseCase,
+    ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase)
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {

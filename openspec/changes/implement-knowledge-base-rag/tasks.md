@@ -16,15 +16,15 @@
 
 ## 2. Remaining Production Runtime Work
 
-- [ ] 2.1 Implement real file/object storage upload and content-read runtime
+- [x] 2.1 Implement real file/object storage upload and content-read runtime
 - [ ] 2.2 Implement real PDF/DOC/DOCX/OCR parsing beyond the current text/markdown processing boundary
 - [ ] 2.3 Implement production queue/scheduler runtime entrypoints for ingestion, indexing, and sync
 - [ ] 2.4 Implement real external provider sync for Google Drive, Notion, Confluence, or similar sources
 - [ ] 2.5 Implement real OAuth/credential handling for external providers
-- [ ] 2.6 Implement real embedding provider adapter integration
-- [ ] 2.7 Implement real vector database adapter integration
+- [x] 2.6 Implement real embedding provider adapter integration
+- [x] 2.7 Implement real vector database adapter integration
 - [x] 2.8 Implement semantic retrieval/vector search public boundary
-- [ ] 2.9 Implement RAG answer generation or task/agent retrieval integration
+- [x] 2.9 Implement RAG answer generation or task/agent retrieval integration
 - [ ] 2.10 Implement agent knowledge assignment and access checks
 - [ ] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue
 

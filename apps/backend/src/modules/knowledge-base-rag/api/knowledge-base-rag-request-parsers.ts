@@ -1,5 +1,6 @@
 import type {
   ConnectKnowledgeDataSourceRequest,
+  KnowledgeRagAnswerRequest,
   KnowledgeRetrievalSearchRequest,
   PrepareUploadRequest,
   RequestKnowledgeSyncJobRequest,
@@ -199,6 +200,55 @@ export function parseKnowledgeRetrievalSearchRequest(
   };
 }
 
+export function parseKnowledgeRagAnswerRequest(
+  body: unknown
+): KnowledgeRagAnswerRequest {
+  const payload = requirePlainObject(body, "knowledge RAG answer request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["query", "topK", "filters", "answerOptions"],
+    "knowledge RAG answer request"
+  );
+
+  const retrieval = parseKnowledgeRetrievalSearchRequest({
+    query: payload["query"],
+    topK: payload["topK"],
+    filters: payload["filters"]
+  });
+  const answerOptionsValue = payload["answerOptions"];
+  let answerOptions: KnowledgeRagAnswerRequest["answerOptions"];
+  if (answerOptionsValue !== undefined) {
+    const options = requirePlainObject(answerOptionsValue, "answerOptions");
+    assertOnlyKeys(
+      options,
+      ["maxAnswerLength", "includeCitations"],
+      "answerOptions"
+    );
+    answerOptions = {
+      maxAnswerLength:
+        options["maxAnswerLength"] === undefined
+          ? undefined
+          : requireFiniteNumber(
+              options["maxAnswerLength"],
+              "answerOptions.maxAnswerLength"
+            ),
+      includeCitations:
+        options["includeCitations"] === undefined
+          ? undefined
+          : requireBoolean(
+              options["includeCitations"],
+              "answerOptions.includeCitations"
+            )
+    };
+  }
+
+  return {
+    ...retrieval,
+    answerOptions
+  };
+}
+
 export function assertNoForbiddenRequestKeys(
   value: unknown,
   allowedForbiddenKeys: readonly string[] = []
@@ -266,6 +316,13 @@ function requireFiniteNumber(value: unknown, path: string): number {
     throw new KnowledgeBaseRagValidationError([`${path} must be a finite number`]);
   }
 
+  return value;
+}
+
+function requireBoolean(value: unknown, path: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new KnowledgeBaseRagValidationError([`${path} must be a boolean`]);
+  }
   return value;
 }
 

@@ -10,6 +10,7 @@ import type { KnowledgeIngestionUseCases } from "../application/knowledge-ingest
 import type { KnowledgeDataSourceUseCases } from "../application/knowledge-data-source-use-cases.ts";
 import type { KnowledgeSyncUseCases } from "../application/knowledge-sync-use-cases.ts";
 import type { KnowledgeRetrievalSearchUseCase } from "../application/knowledge-retrieval-search-use-case.ts";
+import type { KnowledgeRagAnswerUseCase } from "../application/knowledge-rag-answer-use-case.ts";
 import {
   KnowledgeBaseRagValidationError,
   KnowledgeDataSourceNotFoundError,
@@ -17,6 +18,7 @@ import {
   KnowledgeFileStorageError,
   KnowledgeIngestionJobNotFoundError,
   KnowledgeRetrievalError,
+  KnowledgeRagAnswerError,
   KnowledgeSyncJobNotFoundError
 } from "../application/knowledge-base-rag-errors.ts";
 import {
@@ -29,6 +31,7 @@ import {
   parseConnectDataSourceRequest,
   parseListQuery,
   parseKnowledgeRetrievalSearchRequest,
+  parseKnowledgeRagAnswerRequest,
   parsePrepareUploadRequest,
   parseRequestKnowledgeSyncJobRequest,
   parseUpdateSyncScopeRequest,
@@ -44,6 +47,7 @@ export type KnowledgeBaseRagRouterDependencies = {
   dataSourceUseCases: KnowledgeDataSourceUseCases;
   syncUseCases: KnowledgeSyncUseCases;
   retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase;
+  ragAnswerUseCase: KnowledgeRagAnswerUseCase;
   checkoutUseCases?: CheckoutUseCases;
 };
 
@@ -277,6 +281,17 @@ export function createKnowledgeBaseRagRouter(
     }
   );
 
+  router.post(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId } = enforceWorkspaceContext(request);
+        const payload = parseKnowledgeRagAnswerRequest(request.body);
+        return dependencies.ragAnswerUseCase.answer(workspaceId, payload);
+      });
+    }
+  );
+
   return router;
 }
 
@@ -341,6 +356,16 @@ async function handleKnowledgeBaseRagRequest<T>(
     }
 
     if (error instanceof KnowledgeRetrievalError) {
+      sendKnowledgeBaseRagApiFailure(
+        request,
+        response,
+        "system.unexpected_error",
+        error.message
+      );
+      return;
+    }
+
+    if (error instanceof KnowledgeRagAnswerError) {
       sendKnowledgeBaseRagApiFailure(
         request,
         response,
