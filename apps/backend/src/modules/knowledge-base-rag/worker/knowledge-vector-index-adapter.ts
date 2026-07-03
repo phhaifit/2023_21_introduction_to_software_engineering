@@ -27,6 +27,10 @@ export type KnowledgeVectorQueryInput = {
   topK: number;
   documentId?: EntityId<"documentId">;
   sourceLocator?: string;
+  documentIds?: readonly EntityId<"documentId">[];
+  sourceLocators?: readonly string[];
+  sourceTypes?: readonly string[];
+  statuses?: readonly string[];
 };
 
 export type KnowledgeVectorQueryMatch = {

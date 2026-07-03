@@ -44,3 +44,13 @@ export class KnowledgeSyncJobNotFoundError extends Error {
     this.name = "KnowledgeSyncJobNotFoundError";
   }
 }
+
+export class KnowledgeRetrievalError extends Error {
+  readonly errorCode: string;
+
+  constructor(errorCode: string, message: string) {
+    super(message);
+    this.name = "KnowledgeRetrievalError";
+    this.errorCode = errorCode;
+  }
+}

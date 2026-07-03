@@ -9,12 +9,14 @@ import type { KnowledgeUploadUseCases } from "../application/knowledge-upload-us
 import type { KnowledgeIngestionUseCases } from "../application/knowledge-ingestion-use-cases.ts";
 import type { KnowledgeDataSourceUseCases } from "../application/knowledge-data-source-use-cases.ts";
 import type { KnowledgeSyncUseCases } from "../application/knowledge-sync-use-cases.ts";
+import type { KnowledgeRetrievalSearchUseCase } from "../application/knowledge-retrieval-search-use-case.ts";
 import {
   KnowledgeBaseRagValidationError,
   KnowledgeDataSourceNotFoundError,
   KnowledgeDocumentNotFoundError,
   KnowledgeFileStorageError,
   KnowledgeIngestionJobNotFoundError,
+  KnowledgeRetrievalError,
   KnowledgeSyncJobNotFoundError
 } from "../application/knowledge-base-rag-errors.ts";
 import {
@@ -26,6 +28,7 @@ import {
 import {
   parseConnectDataSourceRequest,
   parseListQuery,
+  parseKnowledgeRetrievalSearchRequest,
   parsePrepareUploadRequest,
   parseRequestKnowledgeSyncJobRequest,
   parseUpdateSyncScopeRequest,
@@ -40,6 +43,7 @@ export type KnowledgeBaseRagRouterDependencies = {
   ingestionUseCases: KnowledgeIngestionUseCases;
   dataSourceUseCases: KnowledgeDataSourceUseCases;
   syncUseCases: KnowledgeSyncUseCases;
+  retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase;
   checkoutUseCases?: CheckoutUseCases;
 };
 
@@ -262,6 +266,17 @@ export function createKnowledgeBaseRagRouter(
     }
   );
 
+  router.post(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId } = enforceWorkspaceContext(request);
+        const payload = parseKnowledgeRetrievalSearchRequest(request.body);
+        return dependencies.retrievalSearchUseCase.search(workspaceId, payload);
+      });
+    }
+  );
+
   return router;
 }
 
@@ -316,6 +331,16 @@ async function handleKnowledgeBaseRagRequest<T>(
     }
 
     if (error instanceof KnowledgeFileStorageError) {
+      sendKnowledgeBaseRagApiFailure(
+        request,
+        response,
+        "system.unexpected_error",
+        error.message
+      );
+      return;
+    }
+
+    if (error instanceof KnowledgeRetrievalError) {
       sendKnowledgeBaseRagApiFailure(
         request,
         response,
@@ -398,7 +423,8 @@ function enforceKnowledgeManagePermission(
 }
 
 function requirePathParam(request: Request, name: string): string {
-  const value = request.params[name];
+  const rawValue = request.params[name];
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
   if (!value || value.trim() === "") {
     throw new KnowledgeBaseRagValidationError([`${name} path parameter is required`]);
   }

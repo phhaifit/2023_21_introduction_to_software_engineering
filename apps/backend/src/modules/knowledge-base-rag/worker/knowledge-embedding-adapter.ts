@@ -21,9 +21,22 @@ export type KnowledgeEmbeddingResult = {
   embedding: readonly number[];
 };
 
+export type KnowledgeQueryEmbeddingInput = {
+  workspaceId: EntityId<"workspaceId">;
+  query: string;
+};
+
+export type KnowledgeQueryEmbeddingResult = {
+  workspaceId: EntityId<"workspaceId">;
+  embedding: readonly number[];
+};
+
 export type KnowledgeEmbeddingAdapter = {
   generateEmbedding(input: KnowledgeEmbeddingInput): Promise<KnowledgeEmbeddingResult>;
   generateEmbeddings?(
     inputs: readonly KnowledgeEmbeddingInput[]
   ): Promise<KnowledgeEmbeddingResult[]>;
+  generateQueryEmbedding?(
+    input: KnowledgeQueryEmbeddingInput
+  ): Promise<KnowledgeQueryEmbeddingResult>;
 };

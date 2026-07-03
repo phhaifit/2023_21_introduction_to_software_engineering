@@ -189,7 +189,11 @@ export class PgvectorKnowledgeVectorIndexAdapter
       !Number.isSafeInteger(input.topK) ||
       input.topK <= 0 ||
       (input.documentId !== undefined && !input.documentId) ||
-      (input.sourceLocator !== undefined && !input.sourceLocator.trim())
+      (input.sourceLocator !== undefined && !input.sourceLocator.trim()) ||
+      !isOptionalNonEmptyStringArray(input.documentIds) ||
+      !isOptionalNonEmptyStringArray(input.sourceLocators) ||
+      !isOptionalNonEmptyStringArray(input.sourceTypes) ||
+      !isOptionalNonEmptyStringArray(input.statuses)
     ) {
       throw invalidInput();
     }
@@ -308,7 +312,11 @@ function createVectorQuery(
   const conditions = [
     `chunk."embedding" IS NOT NULL`,
     `chunk."embeddingDimensions" = $2`,
-    `chunk."workspaceId" = $3`
+    `chunk."workspaceId" = $3`,
+    `chunk."embeddingStatus" = 'ready'`,
+    `document."workspaceId" = $3`,
+    `document."indexingStatus" = 'ready'`,
+    `document."deletedAt" IS NULL`
   ];
   if (input.documentId) {
     values.push(input.documentId);
@@ -317,6 +325,22 @@ function createVectorQuery(
   if (input.sourceLocator) {
     values.push(input.sourceLocator);
     conditions.push(`chunk."sourceLocator" = $${values.length}`);
+  }
+  if (input.documentIds) {
+    values.push([...input.documentIds]);
+    conditions.push(`chunk."documentId" = ANY($${values.length}::text[])`);
+  }
+  if (input.sourceLocators) {
+    values.push([...input.sourceLocators]);
+    conditions.push(`chunk."sourceLocator" = ANY($${values.length}::text[])`);
+  }
+  if (input.sourceTypes) {
+    values.push([...input.sourceTypes]);
+    conditions.push(`document."sourceType" = ANY($${values.length}::text[])`);
+  }
+  if (input.statuses) {
+    values.push([...input.statuses]);
+    conditions.push(`document."indexingStatus" = ANY($${values.length}::text[])`);
   }
   values.push(input.topK);
   const operator = toDistanceOperator(config.distance);
@@ -332,6 +356,9 @@ function createVectorQuery(
         chunk."sourceLocator",
         (chunk."embedding" ${operator} $1::vector) AS distance
       FROM "knowledge_document_chunks" AS chunk
+      INNER JOIN "documents" AS document
+        ON document."documentId" = chunk."documentId"
+       AND document."workspaceId" = chunk."workspaceId"
       WHERE ${conditions.join("\n        AND ")}
       ORDER BY chunk."embedding" ${operator} $1::vector ASC
       LIMIT $${values.length}`,
@@ -458,6 +485,15 @@ function isNullableString(value: unknown): value is string | null {
 
 function isNullableInteger(value: unknown): value is number | null {
   return value === null || Number.isSafeInteger(value);
+}
+
+function isOptionalNonEmptyStringArray(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) &&
+      value.length > 0 &&
+      value.every((item) => typeof item === "string" && item.trim().length > 0))
+  );
 }
 
 function invalidConfiguration(): KnowledgeVectorDatabaseError {

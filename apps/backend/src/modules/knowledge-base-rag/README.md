@@ -398,16 +398,49 @@ distance ordering rather than creating an ANN index tied to one dimension.
 Adding a production ANN index requires selecting and fixing a model dimension
 in a later migration.
 
-Legacy DOC parsing, OCR, retrieval/search API, RAG answer generation, and
-queue/runtime orchestration remain outside this adapter slice.
+Legacy DOC parsing, OCR, RAG answer generation, and queue/runtime orchestration
+remain outside this adapter slice.
+
+## Retrieval/Search API
+
+`POST /api/workspaces/:workspaceId/knowledge/retrieval/search` accepts:
+
+```json
+{
+  "query": "escalation policy",
+  "topK": 5,
+  "filters": {
+    "documentIds": ["document-id"],
+    "sourceTypes": ["upload"],
+    "sourceLocators": ["text:0"],
+    "statuses": ["ready"]
+  }
+}
+```
+
+`KnowledgeRetrievalSearchUseCase` validates and normalizes the request,
+generates a query embedding through the configured embedding adapter, queries
+the pgvector adapter with mandatory workspace scope, and hydrates matches from
+the document repository. Only ready documents and ready indexed chunks are
+eligible.
+
+The response contains ranked evidence with safe document/chunk IDs, document
+title, bounded snippet, source type/locator, score, and chunk index. It does not
+contain embeddings, vectors, vector references, storage paths, SQL, provider
+payloads, credentials, secrets, or tokens. Empty searches return
+`{ "results": [], "total": 0 }`.
+
+Application validation and DTOs are independent of Express. The request,
+response, error codes, and use-case method can be mirrored directly with
+FastAPI/Pydantic if the backend stack is migrated later. This endpoint returns
+evidence only and does not generate a RAG answer.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing
 pipeline, then runs the indexing pipeline over persisted chunks. Tests inject a
 fake content reader, deterministic embedding adapter, fake in-memory vector
 index adapter, clocks, and ID generators. It does not schedule background jobs,
-read real storage, call real providers, expose an HTTP route, or implement
-retrieval/RAG answer generation.
+read real storage, call real providers, or implement RAG answer generation.
 
 ## Worker Handoff
 

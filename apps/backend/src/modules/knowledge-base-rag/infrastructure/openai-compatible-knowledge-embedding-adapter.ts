@@ -1,7 +1,9 @@
 import type {
   KnowledgeEmbeddingAdapter,
   KnowledgeEmbeddingInput,
-  KnowledgeEmbeddingResult
+  KnowledgeEmbeddingResult,
+  KnowledgeQueryEmbeddingInput,
+  KnowledgeQueryEmbeddingResult
 } from "../worker/knowledge-embedding-adapter.ts";
 
 export type OpenAICompatibleKnowledgeEmbeddingConfig = {
@@ -96,6 +98,23 @@ export class OpenAICompatibleKnowledgeEmbeddingAdapter
       );
     }
     return results;
+  }
+
+  async generateQueryEmbedding(
+    input: KnowledgeQueryEmbeddingInput
+  ): Promise<KnowledgeQueryEmbeddingResult> {
+    const query = input.query.trim();
+    if (!input.workspaceId || !query) {
+      throw new KnowledgeEmbeddingProviderError(
+        "knowledge.embedding_input_invalid",
+        "Knowledge embedding input must contain text."
+      );
+    }
+    const [embedding] = await this.requestBatch([query]);
+    return {
+      workspaceId: input.workspaceId,
+      embedding
+    };
   }
 
   private async requestBatch(texts: readonly string[]): Promise<number[][]> {

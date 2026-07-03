@@ -51,9 +51,13 @@ import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/k
 import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/application/knowledge-data-source-use-cases.ts";
 import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
+import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import type { KnowledgeDocumentRepository } from "./modules/knowledge-base-rag/application/knowledge-document-repository.ts";
 import { LocalKnowledgeFileStorage } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
+import { createKnowledgeEmbeddingAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-embedding-adapter.ts";
+import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/pgvector-knowledge-vector-index-adapter.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
   InMemoryKnowledgeDocumentRepository,
@@ -105,6 +109,48 @@ import { InMemoryTaskWorkRepository } from "./modules/task-orchestration/infrast
 import { InMemoryTaskEventPublisher } from "./modules/task-orchestration/infrastructure/in-memory-task-event-publisher.ts";
 import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
 import type { WorkflowRepository } from "./modules/workflow-management/infrastructure/workflow-repository.ts";
+
+function createKnowledgeRetrievalSearchUseCase(
+  prisma: any,
+  documentRepository: KnowledgeDocumentRepository
+): KnowledgeRetrievalSearchUseCase {
+  const hasEmbeddingConfig = Boolean(
+    process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
+      process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
+      process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
+      process.env.KNOWLEDGE_EMBEDDING_MODEL &&
+      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+  );
+  const hasVectorConfig = Boolean(
+    process.env.KNOWLEDGE_VECTOR_PROVIDER &&
+      process.env.KNOWLEDGE_VECTOR_DIMENSIONS &&
+      process.env.KNOWLEDGE_VECTOR_DISTANCE
+  );
+
+  if (prisma && hasEmbeddingConfig && hasVectorConfig) {
+    const embeddingAdapter = createKnowledgeEmbeddingAdapterFromEnvironment();
+    const vectorAdapter = createKnowledgeVectorIndexAdapterFromEnvironment(prisma);
+    return new KnowledgeRetrievalSearchUseCase({
+      documentRepository,
+      queryEmbeddingAdapter: embeddingAdapter,
+      vectorQueryAdapter: vectorAdapter
+    });
+  }
+
+  return new KnowledgeRetrievalSearchUseCase({
+    documentRepository,
+    queryEmbeddingAdapter: {
+      async generateQueryEmbedding() {
+        throw new Error("Knowledge retrieval embedding is not configured.");
+      }
+    },
+    vectorQueryAdapter: {
+      async query() {
+        throw new Error("Knowledge retrieval vector index is not configured.");
+      }
+    }
+  });
+}
 
 class ServerAgentCatalog implements ExternalAgentCatalog {
   private readonly repository: AgentRepository;
@@ -592,7 +638,11 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       syncJobRepository: knowledgeSyncJobRepository,
       now: () => new Date().toISOString(),
       generateJobId: () => randomUUID() as any
-    })
+    }),
+    retrievalSearchUseCase: createKnowledgeRetrievalSearchUseCase(
+      prisma,
+      knowledgeDocumentRepository
+    )
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {

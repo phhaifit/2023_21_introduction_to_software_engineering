@@ -239,6 +239,32 @@ async function testScopedQuery() {
     }),
     []
   );
+
+  calls.length = 0;
+  await adapter.query({
+    workspaceId: "workspace-a",
+    embedding: [1, 2, 3],
+    topK: 4,
+    documentIds: ["document-a", "document-b"],
+    sourceLocators: ["page:1"],
+    sourceTypes: ["upload"],
+    statuses: ["ready"]
+  });
+  assert.match(calls[0].sql, /INNER JOIN "documents"/);
+  assert.match(calls[0].sql, /chunk\."documentId" = ANY\(\$4::text\[\]\)/);
+  assert.match(calls[0].sql, /chunk\."sourceLocator" = ANY\(\$5::text\[\]\)/);
+  assert.match(calls[0].sql, /document\."sourceType" = ANY\(\$6::text\[\]\)/);
+  assert.match(calls[0].sql, /document\."indexingStatus" = ANY\(\$7::text\[\]\)/);
+  assert.deepEqual(calls[0].values, [
+    "[1,2,3]",
+    3,
+    "workspace-a",
+    ["document-a", "document-b"],
+    ["page:1"],
+    ["upload"],
+    ["ready"],
+    4
+  ]);
 }
 
 async function testInputValidation() {
