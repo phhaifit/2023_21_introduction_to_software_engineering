@@ -2,6 +2,47 @@ import { describe, it, expect, vi } from "vitest";
 import type { EntityId } from "@vcp/shared";
 import { OpenClawRawEventMapper, OpenClawHttpSSETransport } from "./openclaw-network-transport.ts";
 
+class FakeGatewayControlClient {
+  connected = false;
+  closed = false;
+  connectError?: Error;
+  requests: Array<{ method: string; params: Record<string, any> }> = [];
+  private listeners = new Set<(frame: Record<string, any>) => void>();
+
+  async connect(): Promise<void> {
+    if (this.connectError) {
+      throw this.connectError;
+    }
+    this.connected = true;
+  }
+
+  async request(method: string, params: Record<string, any> = {}): Promise<any> {
+    this.requests.push({ method, params });
+    if (method === "sessions.create") {
+      return { key: "control-session-1" };
+    }
+    if (method === "chat.send") {
+      return { runId: "control-run-1", status: "started" };
+    }
+    return { ok: true };
+  }
+
+  close(): void {
+    this.closed = true;
+  }
+
+  onEvent(listener: (frame: Record<string, any>) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  emit(frame: Record<string, any>): void {
+    for (const listener of this.listeners) {
+      listener(frame);
+    }
+  }
+}
+
 describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
   const taskId = "task-123" as EntityId<"taskId">;
 
@@ -365,6 +406,155 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
       expect(resp.status).toBe("canceled");
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to Gateway Control protocol when chat completions route is unavailable", async () => {
+      const fakeControl = new FakeGatewayControlClient();
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: async () => "Not Found"
+      });
+      const transport = new OpenClawHttpSSETransport(mockFetch as any, {
+        gatewayControlClientFactory: () => fakeControl as any
+      });
+
+      const start = await transport.startExecution("http://127.0.0.1:18789", "cred-123", {
+        taskId: "task-123",
+        prompt: "Find current OpenClaw Gateway progress",
+        target: "openclaw/default",
+        mode: "auto",
+        conversationId: "conv-requested",
+        routingInstruction: "Use auto routing"
+      });
+
+      expect(start.providerExecutionReference).toBe("openclaw-control:control-session-1:control-run-1");
+      expect(fakeControl.connected).toBe(true);
+      expect(fakeControl.requests.map((request) => request.method)).toEqual([
+        "sessions.create",
+        "sessions.subscribe",
+        "sessions.messages.subscribe",
+        "chat.send"
+      ]);
+      expect(fakeControl.requests[3].params).toMatchObject({
+        sessionKey: "control-session-1",
+        deliver: false,
+        idempotencyKey: expect.stringMatching(/^vcp-run-/)
+      });
+      expect(String(fakeControl.requests[3].params.message)).toContain("Use auto routing");
+      expect(String(fakeControl.requests[3].params.message)).toContain("Find current OpenClaw Gateway progress");
+
+      fakeControl.emit({
+        type: "event",
+        event: "session.operation",
+        payload: {
+          sessionKey: "control-session-1",
+          operationId: "route-1",
+          name: "Routing",
+          status: "running",
+          details: "Selecting workspace agent"
+        }
+      });
+
+      const onEvent = vi.fn();
+      const sub = transport.subscribeEventStream(
+        "http://127.0.0.1:18789",
+        "cred-123",
+        start.providerExecutionReference,
+        onEvent,
+        vi.fn()
+      );
+
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+        object: "chat.completion.chunk",
+        executionId: start.providerExecutionReference,
+        openclaw_extension: expect.objectContaining({
+          activityType: "routing",
+          details: "Selecting workspace agent"
+        })
+      }));
+
+      fakeControl.emit({
+        type: "event",
+        event: "chat",
+        payload: {
+          sessionKey: "control-session-1",
+          state: "streaming",
+          delta: "Partial answer"
+        }
+      });
+      fakeControl.emit({
+        type: "event",
+        event: "chat",
+        payload: {
+          sessionKey: "control-session-1",
+          state: "final",
+          text: "Final answer"
+        }
+      });
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+        choices: [{ delta: { content: "Partial answer" } }]
+      }));
+      expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+        choices: [{ finish_reason: "stop" }],
+        finalOutput: "Final answer"
+      }));
+
+      sub.unsubscribe();
+      expect(fakeControl.closed).toBe(true);
+    });
+
+    it("should report Gateway Control device-auth rejection safely", async () => {
+      const fakeControl = new FakeGatewayControlClient();
+      fakeControl.connectError = Object.assign(new Error("control ui requires device identity"), {
+        gatewayError: {
+          code: "INVALID_REQUEST",
+          message: "control ui requires device identity",
+          details: { code: "CONTROL_UI_DEVICE_IDENTITY_REQUIRED" }
+        }
+      });
+      const transport = new OpenClawHttpSSETransport(vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: async () => "Not Found"
+      }) as any, {
+        gatewayControlClientFactory: () => fakeControl as any
+      });
+
+      await expect(
+        transport.startExecution("http://127.0.0.1:18789", "cred-123", {
+          taskId: "task-123",
+          prompt: "Hello",
+          target: "openclaw/default",
+          mode: "auto"
+        })
+      ).rejects.toThrow(/provider-authentication-rejected/);
+      expect(fakeControl.closed).toBe(true);
+    });
+
+    it("should close active Gateway Control execution on cancellation", async () => {
+      const fakeControl = new FakeGatewayControlClient();
+      const transport = new OpenClawHttpSSETransport(vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: async () => "Not Found"
+      }) as any, {
+        gatewayControlClientFactory: () => fakeControl as any
+      });
+      const start = await transport.startExecution("http://127.0.0.1:18789", "cred-123", {
+        taskId: "task-123",
+        prompt: "Hello",
+        target: "openclaw/default",
+        mode: "auto"
+      });
+
+      const cancel = await transport.cancelExecution("http://127.0.0.1:18789", "cred-123", {
+        taskId: "task-123",
+        providerExecutionReference: start.providerExecutionReference
+      });
+
+      expect(cancel.status).toBe("canceled");
+      expect(fakeControl.closed).toBe(true);
     });
 
     it("should report an unavailable stream when no active OpenClaw stream exists", async () => {

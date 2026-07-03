@@ -1,5 +1,8 @@
 import type { EntityId, NormalizedRuntimeEvent, RuntimeActivityStatus, RuntimeActivityType } from "@vcp/shared";
 import { sanitizeObservabilityPayload } from "@vcp/shared";
+import * as crypto from "node:crypto";
+import * as net from "node:net";
+import * as tls from "node:tls";
 
 // 1.4 Define raw OpenClaw provider DTOs based on OpenAI-compatible HTTP API specification.
 export interface OpenClawExecutionRequest {
@@ -95,6 +98,29 @@ interface OpenClawGatewayProgressContext {
   taskId: string;
   conversationId: string;
 }
+
+interface OpenClawControlExecutionState {
+  client: GatewayControlClient;
+  context: OpenClawGatewayProgressContext;
+  pendingEvents: OpenClawChatCompletionChunk[];
+  subscriber?: (rawEvent: unknown) => void;
+}
+
+interface OpenClawControlStartResult {
+  providerExecutionReference: string;
+  sessionKey: string;
+  runId: string;
+  startedAt: string;
+}
+
+interface GatewayControlClient {
+  connect(): Promise<void>;
+  request(method: string, params?: Record<string, unknown>): Promise<any>;
+  close(): void;
+  onEvent(listener: (frame: Record<string, any>) => void): () => void;
+}
+
+type GatewayControlClientFactory = (endpoint: string, credentialReference: string) => GatewayControlClient;
 
 interface MinimalWebSocket {
   onopen: ((event: unknown) => void) | null;
@@ -265,7 +291,7 @@ function mapOpenAiToolCallActivity(
     return null;
   }
 
-  const toolName = toSafeShortText(toolCall.function?.name || toolCall.name || toolCall.type);
+  const toolName = toSafeShortText(toolCall.function?.name || toolCall.name || (toolCall as any).type);
   const inputPreview = toSafeShortText(toolCall.function?.arguments || toolCall.arguments);
   const displayLabel = toolName ? `Calling ${toolName}` : "Calling tool";
 
@@ -329,10 +355,14 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
   private activeStreams = new Map<string, ReadableStream<Uint8Array>>();
   private activeControllers = new Map<string, AbortController>();
   private activeProgressContexts = new Map<string, OpenClawGatewayProgressContext>();
+  private activeControlExecutions = new Map<string, OpenClawControlExecutionState>();
+  private gatewayControlClientFactory: GatewayControlClientFactory;
 
-  constructor(customFetcher?: typeof fetch) {
+  constructor(customFetcher?: typeof fetch, options?: { gatewayControlClientFactory?: GatewayControlClientFactory }) {
     this.isCustomFetcher = !!customFetcher;
     this.fetcher = customFetcher || globalThis.fetch;
+    this.gatewayControlClientFactory = options?.gatewayControlClientFactory ||
+      ((endpoint, credentialReference) => new NodeGatewayControlClient(endpoint, credentialReference));
   }
 
   async startExecution(endpoint: string, credentialReference: string, request: OpenClawExecutionRequest): Promise<OpenClawExecutionResponse> {
@@ -382,6 +412,9 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       }
 
       if (!response.ok) {
+        if (response.status === 404) {
+          return await this.startControlProtocolExecution(endpoint, credentialReference, request);
+        }
         let errText = "";
         try { errText = await response.text(); } catch (e) {}
         if (false) {
@@ -433,6 +466,65 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     }
   }
 
+  private async startControlProtocolExecution(
+    endpoint: string,
+    credentialReference: string,
+    request: OpenClawExecutionRequest
+  ): Promise<OpenClawExecutionResponse> {
+    const client = this.gatewayControlClientFactory(endpoint, credentialReference);
+    try {
+      await client.connect();
+      const session = await client.request("sessions.create", {
+        label: request.targetLabel || `Task ${request.taskId}`
+      });
+      const sessionKey = typeof session?.key === "string" && session.key.trim()
+        ? session.key.trim()
+        : request.conversationId || `vcp-session-${Date.now()}`;
+      const runId = `vcp-run-${Date.now()}`;
+      await client.request("sessions.subscribe", {});
+      await client.request("sessions.messages.subscribe", { key: sessionKey });
+      const sendResult = await client.request("chat.send", {
+        sessionKey,
+        ...(request.openClawAgentId ? { agentId: request.openClawAgentId } : {}),
+        message: buildControlProtocolMessage(request),
+        deliver: false,
+        idempotencyKey: runId
+      });
+      const providerRunId = typeof sendResult?.runId === "string" && sendResult.runId.trim()
+        ? sendResult.runId.trim()
+        : runId;
+      const providerExecutionReference = `openclaw-control:${sessionKey}:${providerRunId}`;
+      const state: OpenClawControlExecutionState = {
+        client,
+        context: {
+          taskId: request.taskId,
+          conversationId: sessionKey
+        },
+        pendingEvents: []
+      };
+      client.onEvent((frame) => {
+        const rawEvent = mapGatewayFrameToChatChunk(frame, providerExecutionReference, state.context);
+        if (!rawEvent) return;
+        if (state.subscriber) {
+          state.subscriber(rawEvent);
+        } else {
+          state.pendingEvents.push(rawEvent);
+        }
+      });
+      this.activeControlExecutions.set(providerExecutionReference, state);
+      this.activeProgressContexts.set(providerExecutionReference, state.context);
+
+      return {
+        providerExecutionReference,
+        status: "started",
+        startedAt: new Date().toISOString()
+      };
+    } catch (err: any) {
+      client.close();
+      throw normalizeControlProtocolError(err);
+    }
+  }
+
   async cancelExecution(endpoint: string, credentialReference: string, request: OpenClawCancelRequest): Promise<OpenClawCancelResponse> {
     if (!endpoint) {
       throw new Error(JSON.stringify({ code: "execution-runtime-unavailable", message: "Execution runtime unavailable: missing endpoint reference" }));
@@ -451,6 +543,13 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       if (false) {
         console.log(`[OpenClaw Transport] ✓ Successfully aborted gateway connection stream.`);
       }
+    }
+
+    const controlExecution = this.activeControlExecutions.get(request.providerExecutionReference);
+    if (controlExecution) {
+      controlExecution.client.close();
+      this.activeControlExecutions.delete(request.providerExecutionReference);
+      this.activeProgressContexts.delete(request.providerExecutionReference);
     }
 
     return {
@@ -473,6 +572,30 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     }
 
     let isSubscribed = true;
+    const controlExecution = this.activeControlExecutions.get(providerExecutionReference);
+    if (controlExecution) {
+      controlExecution.subscriber = (rawEvent) => {
+        if (isSubscribed) {
+          onEvent(rawEvent);
+        }
+      };
+      while (controlExecution.pendingEvents.length > 0) {
+        const rawEvent = controlExecution.pendingEvents.shift();
+        if (rawEvent) {
+          onEvent(rawEvent);
+        }
+      }
+      return {
+        unsubscribe: () => {
+          isSubscribed = false;
+          controlExecution.subscriber = undefined;
+          controlExecution.client.close();
+          this.activeControlExecutions.delete(providerExecutionReference);
+          this.activeProgressContexts.delete(providerExecutionReference);
+        }
+      };
+    }
+
     const sideChannelSubscription = this.subscribeGatewayProgressSideChannel(
       endpoint,
       credentialReference,
@@ -765,6 +888,390 @@ function buildOpenClawMessages(request: OpenClawExecutionRequest): Array<{
   return messages;
 }
 
+function buildControlProtocolMessage(request: OpenClawExecutionRequest): string {
+  const parts = [
+    request.routingInstruction ? `[Routing]\n${request.routingInstruction}` : "",
+    request.targetLabel ? `[Target]\n${request.targetLabel}` : "",
+    request.prompt || "Start execution"
+  ].filter(Boolean);
+  return parts.join("\n\n");
+}
+
+function normalizeControlProtocolError(err: any): Error {
+  const gatewayError = err?.gatewayError || err?.error || err;
+  const code = String(gatewayError?.details?.code || gatewayError?.code || "").toUpperCase();
+  const message = sanitizeObservabilityPayload(
+    String(gatewayError?.message || err?.message || "OpenClaw Gateway Control protocol request failed")
+  );
+  if (
+    code.includes("AUTH") ||
+    code.includes("PAIRING") ||
+    code.includes("DEVICE") ||
+    code.includes("SCOPE") ||
+    message.toLowerCase().includes("pairing") ||
+    message.toLowerCase().includes("device identity")
+  ) {
+    return new Error(JSON.stringify({
+      code: "provider-authentication-rejected",
+      message: `Provider authentication rejected by OpenClaw Gateway: ${message}`
+    }));
+  }
+  return new Error(JSON.stringify({
+    code: "execution-start-rejected",
+    message: `OpenClaw Gateway Control protocol rejected execution start: ${message}`
+  }));
+}
+
+const GATEWAY_CONTROL_SCOPES = ["operator.admin", "operator.read", "operator.write", "operator.approvals", "operator.pairing"];
+
+class NodeGatewayControlClient implements GatewayControlClient {
+  private socket?: net.Socket | tls.TLSSocket;
+  private frameBuffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+  private handshakeBuffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+  private handshakeComplete = false;
+  private requestSequence = 1;
+  private pending = new Map<string, {
+    resolve: (value: any) => void;
+    reject: (error: Error) => void;
+    timer: NodeJS.Timeout;
+  }>();
+  private eventListeners = new Set<(frame: Record<string, any>) => void>();
+  private connectPromise?: {
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timer: NodeJS.Timeout;
+  };
+  private deviceIdentity = createGatewayDeviceIdentity();
+  private readonly endpoint: string;
+  private readonly credentialReference: string;
+
+  constructor(endpoint: string, credentialReference: string) {
+    this.endpoint = endpoint;
+    this.credentialReference = credentialReference;
+  }
+
+  connect(): Promise<void> {
+    if (this.connectPromise) {
+      return new Promise((resolve, reject) => {
+        const originalResolve = this.connectPromise!.resolve;
+        const originalReject = this.connectPromise!.reject;
+        this.connectPromise!.resolve = () => {
+          originalResolve();
+          resolve();
+        };
+        this.connectPromise!.reject = (error) => {
+          originalReject(error);
+          reject(error);
+        };
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      const wsUrl = new URL(toGatewayWebSocketUrl(this.endpoint));
+      const isSecure = wsUrl.protocol === "wss:";
+      const port = wsUrl.port ? Number(wsUrl.port) : isSecure ? 443 : 80;
+      const timer = setTimeout(() => {
+        reject(new Error("OpenClaw Gateway Control protocol connect timed out"));
+        this.close();
+      }, 15_000);
+      this.connectPromise = { resolve, reject, timer };
+
+      const onConnect = () => {
+        const key = crypto.randomBytes(16).toString("base64");
+        const path = `${wsUrl.pathname || "/"}${wsUrl.search || ""}`;
+        this.socket?.write([
+          `GET ${path} HTTP/1.1`,
+          `Host: ${wsUrl.host}`,
+          "Upgrade: websocket",
+          "Connection: Upgrade",
+          `Sec-WebSocket-Key: ${key}`,
+          "Sec-WebSocket-Version: 13",
+          `Origin: ${new URL(this.endpoint).origin}`,
+          "User-Agent: vcp-backend-task-orchestration",
+          "\r\n"
+        ].join("\r\n"));
+      };
+
+      this.socket = isSecure
+        ? tls.connect({ host: wsUrl.hostname, port, servername: wsUrl.hostname }, onConnect)
+        : net.connect({ host: wsUrl.hostname, port }, onConnect);
+      this.socket.on("data", (chunk) => this.handleData(chunk));
+      this.socket.on("error", (error) => this.failAll(error));
+      this.socket.on("close", () => this.failAll(new Error("OpenClaw Gateway Control protocol socket closed")));
+    });
+  }
+
+  request(method: string, params: Record<string, unknown> = {}): Promise<any> {
+    if (!this.socket || this.socket.destroyed) {
+      return Promise.reject(new Error("OpenClaw Gateway Control protocol is not connected"));
+    }
+    const id = `vcp-${Date.now()}-${this.requestSequence++}`;
+    const frame = { type: "req", id, method, params };
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`OpenClaw Gateway Control protocol request timed out: ${method}`));
+      }, 15_000);
+      this.pending.set(id, { resolve, reject, timer });
+      this.socket?.write(encodeGatewayWebSocketTextFrame(JSON.stringify(frame)));
+    });
+  }
+
+  close(): void {
+    try {
+      this.socket?.end();
+      this.socket?.destroy();
+    } catch (err) {
+      // best-effort close
+    }
+    this.failAll(new Error("OpenClaw Gateway Control protocol client closed"));
+  }
+
+  onEvent(listener: (frame: Record<string, any>) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => this.eventListeners.delete(listener);
+  }
+
+  private handleData(chunk: Buffer | string): void {
+    chunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    if (!this.handshakeComplete) {
+      this.handshakeBuffer = Buffer.concat([this.handshakeBuffer, chunk]);
+      const marker = this.handshakeBuffer.indexOf("\r\n\r\n");
+      if (marker < 0) return;
+      const header = this.handshakeBuffer.subarray(0, marker).toString("utf8");
+      if (!header.startsWith("HTTP/1.1 101") && !header.startsWith("HTTP/1.0 101")) {
+        this.rejectConnect(new Error(`OpenClaw Gateway WebSocket upgrade failed: ${sanitizeObservabilityPayload(header.split("\r\n")[0] || "unknown")}`));
+        return;
+      }
+      this.handshakeComplete = true;
+      const rest = this.handshakeBuffer.subarray(marker + 4);
+      this.handshakeBuffer = Buffer.alloc(0);
+      if (rest.length === 0) return;
+      chunk = rest;
+    }
+
+    this.frameBuffer = Buffer.concat([this.frameBuffer, chunk]);
+    for (;;) {
+      const decoded = decodeGatewayWebSocketTextFrame(this.frameBuffer);
+      if (!decoded) return;
+      this.frameBuffer = decoded.remaining;
+      if (decoded.text === null) {
+        this.close();
+        return;
+      }
+      this.handleTextFrame(decoded.text);
+    }
+  }
+
+  private handleTextFrame(text: string): void {
+    let frame: Record<string, any>;
+    try {
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object") return;
+      frame = parsed as Record<string, any>;
+    } catch (err) {
+      return;
+    }
+
+    if (isGatewayConnectChallenge(frame)) {
+      this.sendConnect(frame.payload?.nonce);
+      return;
+    }
+
+    if (frame.type === "res" && typeof frame.id === "string") {
+      const pending = this.pending.get(frame.id);
+      if (!pending) return;
+      this.pending.delete(frame.id);
+      clearTimeout(pending.timer);
+      if (frame.ok) {
+        pending.resolve(frame.payload);
+        if (frame.id.startsWith("connect-")) {
+          this.resolveConnect();
+        }
+      } else {
+        const error = new Error(frame.error?.message || "OpenClaw Gateway request failed") as Error & { gatewayError?: unknown };
+        error.gatewayError = frame.error;
+        pending.reject(error);
+        if (frame.id.startsWith("connect-")) {
+          this.rejectConnect(error);
+        }
+      }
+      return;
+    }
+
+    if (frame.type === "event") {
+      for (const listener of this.eventListeners) {
+        listener(frame);
+      }
+    }
+  }
+
+  private sendConnect(nonce?: string): void {
+    if (!this.socket || this.socket.destroyed) return;
+    const signedAt = Date.now();
+    const token = this.credentialReference || "";
+    const signingPayload = [
+      "v2",
+      this.deviceIdentity.id,
+      "openclaw-control-ui",
+      "webchat",
+      "operator",
+      GATEWAY_CONTROL_SCOPES.join(","),
+      String(signedAt),
+      token,
+      nonce || ""
+    ].join("|");
+    const id = `connect-${Date.now()}-${this.requestSequence++}`;
+    const frame = {
+      type: "req",
+      id,
+      method: "connect",
+      params: {
+        minProtocol: 4,
+        maxProtocol: 4,
+        client: {
+          id: "openclaw-control-ui",
+          version: "vcp-backend-task-orchestration",
+          platform: "node",
+          mode: "webchat"
+        },
+        role: "operator",
+        scopes: GATEWAY_CONTROL_SCOPES,
+        caps: ["tool-events"],
+        auth: this.credentialReference ? { token: this.credentialReference } : undefined,
+        device: {
+          id: this.deviceIdentity.id,
+          publicKey: this.deviceIdentity.publicKey,
+          signature: base64Url(crypto.sign(null, Buffer.from(signingPayload), this.deviceIdentity.privateKey)),
+          signedAt,
+          nonce
+        },
+        locale: "en-US",
+        userAgent: "vcp-backend-task-orchestration"
+      }
+    };
+    const timer = setTimeout(() => {
+      this.pending.delete(id);
+      this.rejectConnect(new Error("OpenClaw Gateway Control protocol connect request timed out"));
+    }, 15_000);
+    this.pending.set(id, {
+      resolve: () => this.resolveConnect(),
+      reject: (error) => this.rejectConnect(error),
+      timer
+    });
+    this.socket.write(encodeGatewayWebSocketTextFrame(JSON.stringify(frame)));
+  }
+
+  private resolveConnect(): void {
+    if (!this.connectPromise) return;
+    clearTimeout(this.connectPromise.timer);
+    this.connectPromise.resolve();
+    this.connectPromise = undefined;
+  }
+
+  private rejectConnect(error: Error): void {
+    if (!this.connectPromise) return;
+    clearTimeout(this.connectPromise.timer);
+    this.connectPromise.reject(error);
+    this.connectPromise = undefined;
+  }
+
+  private failAll(error: Error): void {
+    this.rejectConnect(error);
+    for (const [id, pending] of this.pending.entries()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+      this.pending.delete(id);
+    }
+  }
+}
+
+function createGatewayDeviceIdentity(): {
+  id: string;
+  publicKey: string;
+  privateKey: crypto.KeyObject;
+} {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const rawPublicKey = rawEd25519PublicKey(publicKey);
+  return {
+    id: crypto.createHash("sha256").update(rawPublicKey).digest("hex"),
+    publicKey: base64Url(rawPublicKey),
+    privateKey
+  };
+}
+
+function rawEd25519PublicKey(publicKey: crypto.KeyObject): Buffer {
+  const der = publicKey.export({ type: "spki", format: "der" }) as Buffer;
+  return der.subarray(der.length - 32);
+}
+
+function base64Url(value: Buffer | Uint8Array): string {
+  return Buffer.from(value)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function encodeGatewayWebSocketTextFrame(text: string): Buffer {
+  const payload = Buffer.from(text, "utf8");
+  const headerLength = payload.length < 126 ? 2 : payload.length < 65_536 ? 4 : 10;
+  const header = Buffer.alloc(headerLength);
+  header[0] = 0x81;
+  if (payload.length < 126) {
+    header[1] = 0x80 | payload.length;
+  } else if (payload.length < 65_536) {
+    header[1] = 0x80 | 126;
+    header.writeUInt16BE(payload.length, 2);
+  } else {
+    header[1] = 0x80 | 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+  const mask = crypto.randomBytes(4);
+  const maskedPayload = Buffer.alloc(payload.length);
+  for (let i = 0; i < payload.length; i += 1) {
+    maskedPayload[i] = payload[i] ^ mask[i % 4];
+  }
+  return Buffer.concat([header, mask, maskedPayload]);
+}
+
+function decodeGatewayWebSocketTextFrame(
+  buffer: Buffer<ArrayBufferLike>
+): { text: string | null; remaining: Buffer<ArrayBufferLike> } | null {
+  if (buffer.length < 2) return null;
+  const opcode = buffer[0] & 0x0f;
+  let length = buffer[1] & 0x7f;
+  let offset = 2;
+  if (length === 126) {
+    if (buffer.length < 4) return null;
+    length = buffer.readUInt16BE(2);
+    offset = 4;
+  } else if (length === 127) {
+    if (buffer.length < 10) return null;
+    length = Number(buffer.readBigUInt64BE(2));
+    offset = 10;
+  }
+  const masked = (buffer[1] & 0x80) !== 0;
+  const maskOffset = offset;
+  if (masked) {
+    offset += 4;
+  }
+  if (buffer.length < offset + length) return null;
+  let payload = buffer.subarray(offset, offset + length);
+  if (masked) {
+    const mask = buffer.subarray(maskOffset, maskOffset + 4);
+    payload = Buffer.from(payload.map((value, index) => value ^ mask[index % 4]));
+  }
+  const remaining = buffer.subarray(offset + length);
+  if (opcode === 0x8) {
+    return { text: null, remaining };
+  }
+  if (opcode !== 0x1) {
+    return { text: "", remaining };
+  }
+  return { text: payload.toString("utf8"), remaining };
+}
+
 function toGatewayWebSocketUrl(endpoint: string): string {
   const url = new URL(endpoint);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -840,9 +1347,30 @@ function mapGatewayFrameToChatChunk(
     };
   }
 
+  if (eventName === "chat" || eventName.startsWith("chat.")) {
+    const text = extractGatewayText(payload);
+    if (isTerminalGatewayChatPayload(payload)) {
+      return {
+        object: "chat.completion.chunk",
+        executionId: providerExecutionReference,
+        timestamp,
+        choices: [{ finish_reason: "stop" }],
+        finalOutput: text || "Execution completed successfully."
+      };
+    }
+    if (text) {
+      return {
+        object: "chat.completion.chunk",
+        executionId: providerExecutionReference,
+        timestamp,
+        choices: [{ delta: { content: text } }]
+      };
+    }
+  }
+
   if (eventName.includes("message")) {
     const role = payload.role || payload.author?.role;
-    const text = payload.content || payload.text || payload.message;
+    const text = extractGatewayText(payload);
     if (role === "assistant" && typeof text === "string" && text.length > 0) {
       return {
         object: "chat.completion.chunk",
@@ -1042,6 +1570,25 @@ function getGatewayPayload(frame: Record<string, any>): Record<string, any> {
 function isFrameForSession(payload: Record<string, any>, conversationId: string): boolean {
   const sessionKey = payload.sessionKey || payload.key || payload.session?.key || payload.sessionId || payload.conversationId;
   return !sessionKey || sessionKey === conversationId;
+}
+
+function extractGatewayText(payload: Record<string, any>): string | undefined {
+  const candidate = payload.delta ||
+    payload.content ||
+    payload.text ||
+    payload.message ||
+    payload.output ||
+    payload.result ||
+    payload.response ||
+    payload.finalOutput ||
+    payload.assistantMessage?.content ||
+    payload.message?.content;
+  return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
+}
+
+function isTerminalGatewayChatPayload(payload: Record<string, any>): boolean {
+  const state = String(payload.state || payload.status || payload.phase || payload.event || "").toLowerCase();
+  return ["final", "done", "completed", "complete", "success", "succeeded", "aborted", "error"].includes(state);
 }
 
 function isGatewayConnectChallenge(frame: Record<string, any>): boolean {
