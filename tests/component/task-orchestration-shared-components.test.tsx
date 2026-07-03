@@ -170,6 +170,8 @@ describe("TaskAssistantProgressSummary", () => {
     ["Calling API", "Calling API"],
     ["Reading Roadmap.pdf", "Reading Roadmap.pdf"],
     ["Read workspace file", "Reading workspace"],
+    ["reasoning about next action", "Thinking"],
+    ["Thinking", "Thinking"],
     ["final output", "Composing response"]
   ])("summarizes provider activity %s", (label, expected) => {
     expect(resolveActivityLabel(label).label).toBe(expected);

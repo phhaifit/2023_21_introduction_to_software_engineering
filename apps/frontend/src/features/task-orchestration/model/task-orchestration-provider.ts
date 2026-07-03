@@ -986,6 +986,7 @@ function resolveRuntimeActivityProjection(data: any): {
 
 function inferLegacyActivityType(data: any): string {
   const type = String(data.type || "").toLowerCase();
+  if (/\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(type)) return "provider-diagnostic";
   if (type.includes("search")) return "web-search";
   if (type.includes("tool")) return "tool-call";
   if (type.includes("reading") || type.includes("read")) return "document-read";
@@ -1018,7 +1019,11 @@ function labelForActivityType(activityType: string, data: any): string {
     case "sub-agent":
       return "Agent activity";
     case "provider-diagnostic":
-      return "Provider diagnostic";
+      return /\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(
+        String(data.providerEventName || data.summary || data.details || "").toLowerCase()
+      )
+        ? "Thinking"
+        : "Provider diagnostic";
     default:
       return "OpenClaw activity";
   }

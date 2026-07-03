@@ -178,6 +178,77 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       });
     });
 
+    it("should map OpenAI-compatible tool call deltas into safe activity", () => {
+      const rawPayload = {
+        object: "chat.completion.chunk",
+        executionId: "exec-tool",
+        timestamp: 1672531199000,
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  id: "call-1",
+                  function: {
+                    name: "web_search",
+                    arguments: "{\"query\":\"OpenClaw token abc123\"}"
+                  }
+                }
+              ]
+            },
+            finish_reason: "tool_calls"
+          }
+        ]
+      };
+
+      const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
+      expect(mapped).toEqual(expect.objectContaining({
+        type: "sub-activity",
+        taskId,
+        activityType: "tool-call",
+        displayLabel: "Calling web_search",
+        summary: "Calling web_search",
+        status: "started",
+        stepId: "tool-call-call-1",
+        toolName: "web_search",
+        inputPreview: "{\"query\":\"OpenClaw token [REDACTED]\"}",
+        providerEventName: "openai.chat.delta.tool_calls",
+        providerExecutionReference: "exec-tool"
+      }));
+    });
+
+    it("should map reasoning and thinking deltas without exposing raw reasoning content", () => {
+      const rawPayload = {
+        object: "chat.completion.chunk",
+        executionId: "exec-reasoning",
+        timestamp: 1672531199000,
+        choices: [
+          {
+            delta: {
+              reasoning_content: "private chain of thought with token abc123",
+              reasoning_summary: "Planning next action"
+            }
+          }
+        ]
+      };
+
+      const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
+      expect(mapped).toEqual(expect.objectContaining({
+        type: "sub-activity",
+        taskId,
+        activityType: "provider-diagnostic",
+        displayLabel: "Thinking",
+        summary: "Planning next action",
+        details: "Planning next action",
+        status: "in-progress",
+        stepId: "provider-diagnostic-thinking",
+        providerEventName: "openai.chat.delta.reasoning",
+        providerExecutionReference: "exec-reasoning"
+      }));
+      expect(JSON.stringify(mapped)).not.toContain("private chain of thought");
+      expect(JSON.stringify(mapped)).not.toContain("abc123");
+    });
+
     it("should return null for malformed or unknown payloads", () => {
       expect(OpenClawRawEventMapper.mapRawEvent(taskId, null)).toBeNull();
       expect(OpenClawRawEventMapper.mapRawEvent(taskId, "not-an-object")).toBeNull();
@@ -496,6 +567,36 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         });
         instances[0].onmessage?.({
           data: JSON.stringify({
+            event: "session.message.progress",
+            payload: {
+              sessionKey: "conv-activity",
+              id: "tool-rich-1",
+              toolCalls: [
+                {
+                  id: "call-rich-1",
+                  function: {
+                    name: "crm_lookup",
+                    arguments: "{\"customer\":\"Acme\",\"token\":\"secret-value\"}"
+                  }
+                }
+              ],
+              summary: "Calling CRM lookup"
+            }
+          })
+        });
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            event: "session.reasoning.delta",
+            payload: {
+              sessionKey: "conv-activity",
+              id: "think-1",
+              reasoning: "private reasoning with token secret-value",
+              summary: "Planning search strategy"
+            }
+          })
+        });
+        instances[0].onmessage?.({
+          data: JSON.stringify({
             event: "session.api.request",
             payload: {
               sessionKey: "other-conv",
@@ -505,7 +606,7 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           })
         });
 
-        expect(onEvent).toHaveBeenCalledTimes(3);
+        expect(onEvent).toHaveBeenCalledTimes(5);
         expect(onEvent.mock.calls[0][0].openclaw_extension).toMatchObject({
           activityType: "web-search",
           displayLabel: "Searching web",
@@ -524,6 +625,19 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           status: "failed",
           details: "Command failed with token [REDACTED]"
         });
+        expect(onEvent.mock.calls[3][0].openclaw_extension).toMatchObject({
+          activityType: "tool-call",
+          displayLabel: "Calling crm_lookup",
+          toolName: "crm_lookup",
+          inputPreview: "{\"customer\":\"Acme\",\"token\":\"[REDACTED]\"}"
+        });
+        expect(onEvent.mock.calls[4][0].openclaw_extension).toMatchObject({
+          activityType: "provider-diagnostic",
+          displayLabel: "Thinking",
+          details: "Planning search strategy",
+          providerEventName: "session.reasoning.delta"
+        });
+        expect(JSON.stringify(onEvent.mock.calls[4][0])).not.toContain("private reasoning");
 
         sub.unsubscribe();
       } finally {

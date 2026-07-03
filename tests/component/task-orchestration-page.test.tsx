@@ -207,7 +207,19 @@ describe("TaskOrchestrationPage base workspace", () => {
         ],
         logs: []
       },
-      streamingSnapshot: createInitialStreamingSnapshot()
+      streamingSnapshot: {
+        phase: "streaming",
+        startedAt: "2026-06-26T10:00:06.000Z",
+        exhaustedAt: null,
+        fragments: [
+          {
+            id: "frag-openclaw-1",
+            sequence: 1,
+            text: "OpenClaw partial competitor notes",
+            appendedAt: "2026-06-26T10:00:06.000Z"
+          }
+        ]
+      }
     };
     const client: TaskOrchestrationClient = {
       createTask: vi.fn(),
@@ -238,6 +250,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(await screen.findByText("Research competitors")).toBeVisible();
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
     expect(screen.getByText("Searching web")).toBeVisible();
+    expect(screen.getByText("OpenClaw partial competitor notes")).toBeVisible();
   });
 
   it("does not synthesize fixed processing steps for restored completed history", async () => {

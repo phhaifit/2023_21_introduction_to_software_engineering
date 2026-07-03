@@ -117,6 +117,14 @@ export function resolveActivityLabel(rawLabel: string): ActivityLabel {
     };
   }
 
+  if (lower === "thinking" || /\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(lower)) {
+    return {
+      kind: "message",
+      label: "Thinking",
+      hint: label
+    };
+  }
+
   if (/\b(tool|function|call|calling|execute|command|api)\b/.test(lower)) {
     return {
       kind: "tool",

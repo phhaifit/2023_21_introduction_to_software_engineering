@@ -39,6 +39,30 @@ export interface OpenClawChatCompletionChunk {
     delta?: {
       content?: string;
       role?: string;
+      tool_calls?: Array<{
+        id?: string;
+        type?: string;
+        name?: string;
+        arguments?: string;
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      }>;
+      tool_call?: {
+        id?: string;
+        name?: string;
+        arguments?: string;
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      };
+      reasoning?: unknown;
+      reasoning_content?: unknown;
+      reasoning_summary?: unknown;
+      thinking?: unknown;
+      thinking_summary?: unknown;
     };
     text?: string;
     finish_reason?: string | null;
@@ -189,6 +213,16 @@ export class OpenClawRawEventMapper {
     // 3. Check choices for partial output or completion
     const choice = payload.choices?.[0];
     if (choice) {
+      const toolActivity = mapOpenAiToolCallActivity(taskId, choice.delta, timestampStr, providerExecutionReference);
+      if (toolActivity) {
+        return toolActivity;
+      }
+
+      const reasoningActivity = mapOpenAiReasoningActivity(taskId, choice.delta, timestampStr, providerExecutionReference);
+      if (reasoningActivity) {
+        return reasoningActivity;
+      }
+
       if (choice.finish_reason) {
         const finalContent = payload.finalOutput || choice.text || choice.delta?.content || "Execution completed successfully.";
         return {
@@ -213,6 +247,75 @@ export class OpenClawRawEventMapper {
 
     return null;
   }
+}
+
+function mapOpenAiToolCallActivity(
+  taskId: EntityId<"taskId">,
+  delta: NonNullable<OpenClawChatCompletionChunk["choices"]>[number]["delta"] | undefined,
+  timestamp: string,
+  providerExecutionReference: string
+): NormalizedRuntimeEvent | null {
+  const toolCalls = delta?.tool_calls || (delta?.tool_call ? [delta.tool_call] : []);
+  const toolCall = toolCalls.find(Boolean);
+  if (!toolCall) {
+    return null;
+  }
+
+  const toolName = toSafeShortText(toolCall.function?.name || toolCall.name || toolCall.type);
+  const inputPreview = toSafeShortText(toolCall.function?.arguments || toolCall.arguments);
+  const displayLabel = toolName ? `Calling ${toolName}` : "Calling tool";
+
+  return {
+    type: "sub-activity",
+    taskId,
+    activityType: "tool-call",
+    details: displayLabel,
+    displayLabel,
+    summary: displayLabel,
+    status: "started",
+    stepId: `tool-call-${safeStepId(toolCall.id || toolName || "openai-tool-call")}`,
+    toolName,
+    inputPreview,
+    providerEventName: "openai.chat.delta.tool_calls",
+    timestamp,
+    providerExecutionReference
+  };
+}
+
+function mapOpenAiReasoningActivity(
+  taskId: EntityId<"taskId">,
+  delta: NonNullable<OpenClawChatCompletionChunk["choices"]>[number]["delta"] | undefined,
+  timestamp: string,
+  providerExecutionReference: string
+): NormalizedRuntimeEvent | null {
+  if (!delta) {
+    return null;
+  }
+
+  const hasReasoning = delta.reasoning !== undefined ||
+    delta.reasoning_content !== undefined ||
+    delta.reasoning_summary !== undefined ||
+    delta.thinking !== undefined ||
+    delta.thinking_summary !== undefined;
+  if (!hasReasoning) {
+    return null;
+  }
+
+  const safeSummary = toSafeShortText(delta.reasoning_summary || delta.thinking_summary) || "Reasoning in progress";
+
+  return {
+    type: "sub-activity",
+    taskId,
+    activityType: "provider-diagnostic",
+    details: safeSummary,
+    displayLabel: "Thinking",
+    summary: safeSummary,
+    status: "in-progress",
+    stepId: "provider-diagnostic-thinking",
+    providerEventName: "openai.chat.delta.reasoning",
+    timestamp,
+    providerExecutionReference
+  };
 }
 
 // 3.1 Implement concrete transport using the OpenAI-compatible HTTP API protocol.
@@ -733,6 +836,14 @@ function mapGatewayFrameToChatChunk(
 }
 
 function classifyGatewayActivity(eventName: string, payload: Record<string, any>): RuntimeActivityType | null {
+  if (isReasoningSignal(eventName, payload)) return "provider-diagnostic";
+  if (Array.isArray(payload.toolCalls) || Array.isArray(payload.tool_calls) || payload.toolCall || payload.tool_call) {
+    return "tool-call";
+  }
+  if (payload.searchQuery || payload.query || payload.search) {
+    return "web-search";
+  }
+
   const haystack = [
     eventName,
     payload.type,
@@ -740,6 +851,13 @@ function classifyGatewayActivity(eventName: string, payload: Record<string, any>
     payload.category,
     payload.activityType,
     payload.toolType,
+    payload.toolName,
+    payload.tool,
+    payload.function?.name,
+    payload.action,
+    payload.operation,
+    payload.command,
+    payload.searchQuery,
     payload.name,
     payload.title
   ]
@@ -776,14 +894,39 @@ function buildGatewayActivityMetadata(
   inputPreview?: string;
   outputPreview?: string;
 } {
-  const toolName = toSafeShortText(payload.toolName || payload.tool || payload.name);
-  const queryPreview = toSafeShortText(payload.query || payload.searchQuery || payload.input);
+  const reasoningSignal = isReasoningSignal(eventName, payload);
+  const toolName = toSafeShortText(
+    payload.toolName ||
+      payload.tool ||
+      payload.function?.name ||
+      payload.toolCall?.function?.name ||
+      payload.tool_call?.function?.name ||
+      payload.toolCalls?.[0]?.function?.name ||
+      payload.tool_calls?.[0]?.function?.name ||
+      payload.name
+  );
+  const queryPreview = toSafeShortText(payload.query || payload.searchQuery || payload.search?.query || payload.input);
   const resourceLabel = toSafeShortText(payload.resourceLabel || payload.resource || payload.fileName || payload.documentName || payload.url);
-  const inputPreview = toSafeShortText(payload.input || payload.arguments || payload.request);
+  const inputPreview = toSafeShortText(
+    payload.input ||
+      payload.arguments ||
+      payload.function?.arguments ||
+      payload.toolCall?.function?.arguments ||
+      payload.tool_call?.function?.arguments ||
+      payload.toolCalls?.[0]?.function?.arguments ||
+      payload.tool_calls?.[0]?.function?.arguments ||
+      payload.request
+  );
   const outputPreview = toSafeShortText(payload.output || payload.result || payload.response);
-  const summary = summarizeGatewayPayload(payload);
+  const summary = reasoningSignal
+    ? toSafeShortText(payload.summary || payload.status || payload.state || payload.phase) || "Reasoning in progress"
+    : summarizeGatewayPayload(payload);
   const baseId = payload.toolCallId ||
     payload.toolId ||
+    payload.toolCall?.id ||
+    payload.tool_call?.id ||
+    payload.toolCalls?.[0]?.id ||
+    payload.tool_calls?.[0]?.id ||
     payload.operationId ||
     payload.runId ||
     payload.messageId ||
@@ -797,7 +940,7 @@ function buildGatewayActivityMetadata(
 
   return {
     stepId: `${activityType}-${safeStepId(baseId)}`,
-    displayLabel: resolveActivityDisplayLabel(activityType, { toolName, queryPreview, resourceLabel }),
+    displayLabel: reasoningSignal ? "Thinking" : resolveActivityDisplayLabel(activityType, { toolName, queryPreview, resourceLabel }),
     summary,
     toolName,
     queryPreview,
@@ -865,6 +1008,32 @@ function isFrameForSession(payload: Record<string, any>, conversationId: string)
   return !sessionKey || sessionKey === conversationId;
 }
 
+function isReasoningSignal(eventName: string, payload: Record<string, any>): boolean {
+  const haystack = [
+    eventName,
+    payload.type,
+    payload.kind,
+    payload.category,
+    payload.activityType,
+    payload.phase,
+    payload.state,
+    payload.status,
+    payload.name,
+    payload.title
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return /\b(reasoning|reason|thinking|thought|planning|deliberat|reflect)\b/.test(haystack) ||
+    payload.reasoning !== undefined ||
+    payload.reasoningContent !== undefined ||
+    payload.reasoning_content !== undefined ||
+    payload.thinking !== undefined ||
+    payload.thinkingContent !== undefined ||
+    payload.thinking_content !== undefined;
+}
+
 function normalizeGatewayTimestamp(value: unknown): number {
   if (typeof value === "number") {
     return value > 10_000_000_000 ? value : value * 1000;
@@ -919,9 +1088,16 @@ function toSafeShortText(value: unknown): string | undefined {
   if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
     return undefined;
   }
-  const text = sanitizeObservabilityPayload(String(value)).trim().replace(/\s+/g, " ");
+  const text = redactInlineSensitiveText(sanitizeObservabilityPayload(String(value))).trim().replace(/\s+/g, " ");
   if (!text) {
     return undefined;
   }
   return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+function redactInlineSensitiveText(value: string): string {
+  return value.replace(
+    /(["']?(?:bearer|api[_-]?key|password|secret|token)["']?\s*[:=]\s*["']?)[^"',}\s;]+(["']?)/gi,
+    "$1[REDACTED]$2"
+  );
 }

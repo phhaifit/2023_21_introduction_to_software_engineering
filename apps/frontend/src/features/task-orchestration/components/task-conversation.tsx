@@ -39,14 +39,7 @@ export function TaskConversation({
   const isStreaming = task.streamingSnapshot.phase === "streaming";
   const shouldShowPartialResult =
     task.status === "running" &&
-    partialText.trim().length > 0 &&
-    task.processingSnapshot.steps.some(
-      (s) =>
-        (s.id === "execute-task" ||
-          s.id === "aggregate-result" ||
-          s.id === "finalize") &&
-        (s.status === "active" || s.status === "completed")
-    );
+    partialText.trim().length > 0;
 
   return (
     <div className="task-conversation" aria-label="Task chat conversation">
