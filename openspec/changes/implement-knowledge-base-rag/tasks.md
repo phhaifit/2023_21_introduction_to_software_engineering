@@ -26,7 +26,7 @@
 - [x] 2.8 Implement semantic retrieval/vector search public boundary
 - [x] 2.9 Implement RAG answer generation or task/agent retrieval integration
 - [x] 2.10 Implement agent knowledge assignment and access checks
-- [ ] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue
+- [x] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue
 
 ## 3. Remaining Verification and Handoff
 
