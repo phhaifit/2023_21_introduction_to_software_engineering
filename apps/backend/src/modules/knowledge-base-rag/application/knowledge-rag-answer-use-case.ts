@@ -5,7 +5,10 @@ import type {
   KnowledgeRagAnswerResponse
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
-import type { KnowledgeRetrievalSearchUseCase } from "./knowledge-retrieval-search-use-case.ts";
+import type {
+  KnowledgeRetrievalAccessContext,
+  KnowledgeRetrievalSearchUseCase
+} from "./knowledge-retrieval-search-use-case.ts";
 import {
   DEFAULT_RETRIEVAL_TOP_K,
   MAX_RETRIEVAL_QUERY_LENGTH,
@@ -50,7 +53,8 @@ export class KnowledgeRagAnswerUseCase {
 
   async answer(
     workspaceId: EntityId<"workspaceId">,
-    request: KnowledgeRagAnswerRequest
+    request: KnowledgeRagAnswerRequest,
+    accessContext: KnowledgeRetrievalAccessContext = {}
   ): Promise<KnowledgeRagAnswerResponse> {
     if (!workspaceId) {
       throw new KnowledgeBaseRagValidationError(["workspaceId is required"]);
@@ -70,7 +74,7 @@ export class KnowledgeRagAnswerUseCase {
         query: normalized.query,
         topK: normalized.topK,
         filters: normalized.filters
-      });
+      }, accessContext);
     } catch {
       throw new KnowledgeRagAnswerError(
         "knowledge.rag_retrieval_failed",

@@ -64,3 +64,12 @@ export class KnowledgeRagAnswerError extends Error {
     this.errorCode = errorCode;
   }
 }
+
+export class KnowledgeAccessDeniedError extends Error {
+  readonly errorCode = "knowledge.access_denied";
+
+  constructor() {
+    super("Knowledge Base / RAG access denied.");
+    this.name = "KnowledgeAccessDeniedError";
+  }
+}

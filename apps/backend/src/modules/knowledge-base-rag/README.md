@@ -398,8 +398,8 @@ distance ordering rather than creating an ANN index tied to one dimension.
 Adding a production ANN index requires selecting and fixing a model dimension
 in a later migration.
 
-Legacy DOC parsing, OCR, RAG answer generation, and queue/runtime orchestration
-remain outside this adapter slice.
+Legacy DOC parsing, OCR, and external synchronization remain outside this
+runtime slice.
 
 ## Retrieval/Search API
 
@@ -465,6 +465,33 @@ fields. Tests use injected deterministic providers or mocked `fetch`; they do
 not call external services. This framework-neutral request/use-case/response
 boundary can be mirrored with FastAPI/Pydantic later. It is an optional
 downstream capability over the indexing-focused KB/RAG core, not a chatbot UI.
+
+## Permission and Access Control
+
+`KnowledgeBaseRagAccessPolicy` is the framework-neutral authorization boundary.
+Authenticated workspace members use the existing role permissions:
+
+- `workspace:read` permits document/source/status reads, retrieval, and RAG
+  answers.
+- `knowledge:manage` permits upload/delete policy checks, source changes,
+  synchronization-scope changes, and manual synchronization requests.
+
+The HTTP router derives user, role, and workspace from trusted request context.
+Route/body filters cannot replace workspace scope. Repositories, pgvector
+queries, evidence hydration, and stored-content reads all re-check workspace
+ownership.
+
+Agent access is narrower than user workspace access. Internal agent retrieval
+requires an active `KnowledgeAccessGrant` for each document. Granted document
+IDs are applied before embedding/vector calls and re-checked during evidence
+hydration. RAG answer generation forwards the same internal agent context to
+retrieval, so only authorized evidence can reach the answer provider.
+
+Agent instructions, requested-knowledge configuration, and `skill.md`
+references are intent only. They are not policy inputs and never create grants.
+The repository/policy boundary supports active and revoked grants, but this
+slice does not add a public grant-management API; an explicit administration
+workflow remains a follow-up.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing

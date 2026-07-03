@@ -53,6 +53,7 @@ import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/applicat
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
 import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeRagAnswerUseCase } from "./modules/knowledge-base-rag/application/knowledge-rag-answer-use-case.ts";
+import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
 import type { KnowledgeDocumentRepository } from "./modules/knowledge-base-rag/application/knowledge-document-repository.ts";
@@ -62,12 +63,14 @@ import { createKnowledgeRagAnswerProviderFromEnvironment } from "./modules/knowl
 import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/pgvector-knowledge-vector-index-adapter.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
+  InMemoryKnowledgeAccessGrantRepository,
   InMemoryKnowledgeDocumentRepository,
   InMemoryKnowledgeIngestionJobRepository,
   InMemoryKnowledgeSyncJobRepository,
   InMemoryKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
 import { PrismaKnowledgeDataSourceRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-data-source-repository.ts";
+import { PrismaKnowledgeAccessGrantRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-access-grant-repository.ts";
 import { PrismaKnowledgeDocumentRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-document-repository.ts";
 import { PrismaKnowledgeIngestionJobRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-ingestion-job-repository.ts";
 import {
@@ -114,7 +117,8 @@ import type { WorkflowRepository } from "./modules/workflow-management/infrastru
 
 function createKnowledgeRetrievalSearchUseCase(
   prisma: any,
-  documentRepository: KnowledgeDocumentRepository
+  documentRepository: KnowledgeDocumentRepository,
+  accessPolicy: KnowledgeBaseRagAccessPolicy
 ): KnowledgeRetrievalSearchUseCase {
   const hasEmbeddingConfig = Boolean(
     process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
@@ -135,7 +139,8 @@ function createKnowledgeRetrievalSearchUseCase(
     return new KnowledgeRetrievalSearchUseCase({
       documentRepository,
       queryEmbeddingAdapter: embeddingAdapter,
-      vectorQueryAdapter: vectorAdapter
+      vectorQueryAdapter: vectorAdapter,
+      accessPolicy
     });
   }
 
@@ -150,7 +155,8 @@ function createKnowledgeRetrievalSearchUseCase(
       async query() {
         throw new Error("Knowledge retrieval vector index is not configured.");
       }
-    }
+    },
+    accessPolicy
   });
 }
 
@@ -633,16 +639,24 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const knowledgeSyncJobRepository = prisma
     ? new PrismaKnowledgeSyncJobRepository(prisma)
     : new InMemoryKnowledgeSyncJobRepository();
+  const knowledgeAccessGrantRepository = prisma
+    ? new PrismaKnowledgeAccessGrantRepository(prisma)
+    : new InMemoryKnowledgeAccessGrantRepository();
+  const knowledgeAccessPolicy = new KnowledgeBaseRagAccessPolicy(
+    knowledgeAccessGrantRepository
+  );
   const knowledgeBaseRagRepositories = {
     documentRepository: knowledgeDocumentRepository,
     ingestionJobRepository: knowledgeIngestionJobRepository,
     dataSourceRepository: knowledgeDataSourceRepository,
     syncScopeRepository: knowledgeSyncScopeRepository,
-    syncJobRepository: knowledgeSyncJobRepository
+    syncJobRepository: knowledgeSyncJobRepository,
+    accessGrantRepository: knowledgeAccessGrantRepository
   };
   const retrievalSearchUseCase = createKnowledgeRetrievalSearchUseCase(
     prisma,
-    knowledgeDocumentRepository
+    knowledgeDocumentRepository,
+    knowledgeAccessPolicy
   );
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
@@ -670,7 +684,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       generateJobId: () => randomUUID() as any
     }),
     retrievalSearchUseCase,
-    ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase)
+    ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
+    accessPolicy: knowledgeAccessPolicy
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {

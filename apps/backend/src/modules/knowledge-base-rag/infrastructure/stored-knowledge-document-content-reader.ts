@@ -21,6 +21,15 @@ export class StoredKnowledgeDocumentContentReader
   }
 
   async readText(input: KnowledgeDocumentContentReaderInput): Promise<string> {
+    if (
+      !input.workspaceId ||
+      input.document.workspaceId !== input.workspaceId
+    ) {
+      throw new KnowledgeDocumentParserError(
+        "knowledge.document_access_denied",
+        "Knowledge document content is unavailable."
+      );
+    }
     const storageKey = input.document.storageKey;
     if (!storageKey) {
       throw new KnowledgeDocumentParserError(
