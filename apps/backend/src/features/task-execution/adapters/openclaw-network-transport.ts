@@ -105,7 +105,11 @@ interface MinimalWebSocket {
   close(): void;
 }
 
-type MinimalWebSocketConstructor = new (url: string) => MinimalWebSocket;
+type MinimalWebSocketConstructor = new (
+  url: string,
+  protocols?: string | string[],
+  options?: { headers?: Record<string, string> }
+) => MinimalWebSocket;
 
 // 1.3 Define OpenClawNetworkTransport boundary.
 export interface OpenClawNetworkTransport {
@@ -621,11 +625,13 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     let socket: MinimalWebSocket | undefined;
     let closed = false;
     let connectAccepted = false;
+    let connectAttempted = false;
     let frameSequence = 1;
     const sendFrame = (method: string, params?: Record<string, unknown>) => {
       if (!socket || closed) return;
       try {
         socket.send(JSON.stringify({
+          type: "req",
           id: `vcp-${Date.now()}-${frameSequence++}`,
           method,
           params
@@ -634,19 +640,42 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
         // Side-channel progress is best-effort and must not fail execution.
       }
     };
+    const sendConnectFrame = (nonce?: string) => {
+      if (connectAttempted) return;
+      connectAttempted = true;
+      sendFrame("connect", {
+        minProtocol: 4,
+        maxProtocol: 4,
+        client: {
+          id: "openclaw-control-ui",
+          version: "vcp-backend-task-orchestration",
+          platform: "node",
+          mode: "webchat"
+        },
+        role: "operator",
+        scopes: ["operator.admin", "operator.read", "operator.write", "operator.approvals", "operator.pairing"],
+        caps: ["tool-events"],
+        auth: credentialReference ? { token: credentialReference } : undefined,
+        locale: "en-US",
+        userAgent: "vcp-backend-task-orchestration",
+        nonce
+      });
+    };
 
     try {
-      socket = new WebSocketCtor(toGatewayWebSocketUrl(endpoint));
+      socket = new WebSocketCtor(toGatewayWebSocketUrl(endpoint), [], {
+        headers: {
+          Origin: new URL(endpoint).origin
+        }
+      });
     } catch (err) {
       return { unsubscribe: () => {} };
     }
 
     socket.onopen = () => {
-      sendFrame("connect", {
-        token: credentialReference,
-        client: "vcp-backend-task-orchestration",
-        sessionKey: context.conversationId
-      });
+      setTimeout(() => {
+        sendConnectFrame();
+      }, 750);
     };
 
     socket.onmessage = (event) => {
@@ -654,6 +683,12 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
 
       const frame = parseGatewayFrame(event.data);
       if (!frame) return;
+
+      if (isGatewayConnectChallenge(frame)) {
+        const nonce = typeof frame.payload?.nonce === "string" ? frame.payload.nonce : undefined;
+        sendConnectFrame(nonce);
+        return;
+      }
 
       if (!connectAccepted && isGatewayConnectAccepted(frame)) {
         connectAccepted = true;
@@ -759,6 +794,7 @@ function isGatewayConnectAccepted(frame: Record<string, any>): boolean {
   const status = String(frame.status || frame.result?.status || frame.payload?.status || "");
   return type === "connected" ||
     type === "hello-ok" ||
+    (type === "res" && frame.ok === true) ||
     method === "connect" ||
     status === "connected" ||
     status === "ok";
@@ -1006,6 +1042,10 @@ function getGatewayPayload(frame: Record<string, any>): Record<string, any> {
 function isFrameForSession(payload: Record<string, any>, conversationId: string): boolean {
   const sessionKey = payload.sessionKey || payload.key || payload.session?.key || payload.sessionId || payload.conversationId;
   return !sessionKey || sessionKey === conversationId;
+}
+
+function isGatewayConnectChallenge(frame: Record<string, any>): boolean {
+  return frame.type === "event" && frame.event === "connect.challenge";
 }
 
 function isReasoningSignal(eventName: string, payload: Record<string, any>): boolean {

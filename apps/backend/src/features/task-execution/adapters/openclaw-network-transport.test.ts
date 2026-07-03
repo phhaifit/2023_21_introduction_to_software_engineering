@@ -211,10 +211,11 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         status: "started",
         stepId: "tool-call-call-1",
         toolName: "web_search",
-        inputPreview: "{\"query\":\"OpenClaw token [REDACTED]\"}",
         providerEventName: "openai.chat.delta.tool_calls",
         providerExecutionReference: "exec-tool"
       }));
+      expect(mapped?.inputPreview).toContain("[REDACTED]");
+      expect(mapped?.inputPreview).not.toContain("abc123");
     });
 
     it("should map reasoning and thinking deltas without exposing raw reasoning content", () => {
@@ -428,15 +429,30 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
 
         expect(instances[0].url).toBe("wss://openclaw.internal/");
         instances[0].onopen?.({});
+        expect(instances[0].sent).toEqual([]);
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            type: "event",
+            event: "connect.challenge",
+            payload: { nonce: "nonce-123" }
+          })
+        });
         expect(instances[0].sent[0]).toMatchObject({
+          type: "req",
           method: "connect",
           params: {
-            token: "cred-123",
-            sessionKey: "conv-123"
+            minProtocol: 4,
+            maxProtocol: 4,
+            client: {
+              id: "openclaw-control-ui",
+              mode: "webchat"
+            },
+            auth: { token: "cred-123" },
+            nonce: "nonce-123"
           }
         });
 
-        instances[0].onmessage?.({ data: JSON.stringify({ type: "connected", status: "ok" }) });
+        instances[0].onmessage?.({ data: JSON.stringify({ type: "res", id: instances[0].sent[0].id, ok: true }) });
         expect(instances[0].sent.map((frame) => frame.method)).toEqual([
           "connect",
           "sessions.subscribe",
