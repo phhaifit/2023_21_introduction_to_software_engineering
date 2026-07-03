@@ -21,8 +21,36 @@ export type KnowledgeVectorIndexResult = {
   vectorRef: string;
 };
 
+export type KnowledgeVectorQueryInput = {
+  workspaceId: EntityId<"workspaceId">;
+  embedding: readonly number[];
+  topK: number;
+  documentId?: EntityId<"documentId">;
+  sourceLocator?: string;
+};
+
+export type KnowledgeVectorQueryMatch = {
+  workspaceId: EntityId<"workspaceId">;
+  documentId: EntityId<"documentId">;
+  chunkId: string;
+  chunkIndex: number;
+  score: number;
+  metadata: {
+    contentHash?: string;
+    tokenCount?: number;
+    sourceLocator?: string;
+  };
+};
+
 export type KnowledgeVectorIndexAdapter = {
   upsertChunkEmbedding(
     input: KnowledgeVectorIndexInput
   ): Promise<KnowledgeVectorIndexResult>;
+  upsertChunkEmbeddings?(
+    inputs: readonly KnowledgeVectorIndexInput[]
+  ): Promise<KnowledgeVectorIndexResult[]>;
+  ensureIndex?(): Promise<void>;
+  query?(
+    input: KnowledgeVectorQueryInput
+  ): Promise<KnowledgeVectorQueryMatch[]>;
 };
