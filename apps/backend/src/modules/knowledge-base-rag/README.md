@@ -486,12 +486,18 @@ requires an active `KnowledgeAccessGrant` for each document. Granted document
 IDs are applied before embedding/vector calls and re-checked during evidence
 hydration. RAG answer generation forwards the same internal agent context to
 retrieval, so only authorized evidence can reach the answer provider.
+Changing the unique workspace/document/agent grant to `revoked` immediately
+removes that document from agent retrieval and RAG evidence.
 
 Agent instructions, requested-knowledge configuration, and `skill.md`
 references are intent only. They are not policy inputs and never create grants.
 The repository/policy boundary supports active and revoked grants, but this
 slice does not add a public grant-management API; an explicit administration
-workflow remains a follow-up.
+workflow remains a follow-up. Grants are document-level only. Source-level
+grants are deferred; source filters are still intersected with the agent's
+granted document IDs. No frontend or grant-administration UI is added here.
+The action, subject, and repository boundaries are independent of Express and
+can be mirrored by a future FastAPI dependency/policy layer.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing

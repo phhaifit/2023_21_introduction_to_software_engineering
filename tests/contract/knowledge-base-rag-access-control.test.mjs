@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import express from "express";
 
@@ -19,6 +22,7 @@ import { StoredKnowledgeDocumentContentReader } from "@vcp/backend/modules/knowl
 const grantRepository = new InMemoryKnowledgeAccessGrantRepository();
 const accessPolicy = new KnowledgeBaseRagAccessPolicy(grantRepository);
 
+testGrantPersistenceArtifacts();
 await testUserPolicy();
 await testAgentGrantPolicy();
 await testAgentScopedRetrievalAndRag();
@@ -27,6 +31,58 @@ await testPrismaGrantScoping();
 await testHttpAccessControl();
 
 console.log("knowledge-base-rag access control checks passed");
+
+function testGrantPersistenceArtifacts() {
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const schema = readFileSync(
+    join(root, "packages/database/prisma/schema.prisma"),
+    "utf8"
+  );
+  const foundationMigration = readFileSync(
+    join(
+      root,
+      "packages/database/prisma/migrations/0002_establish_platform_data_model_boundaries/migration.sql"
+    ),
+    "utf8"
+  );
+  const integrityMigration = readFileSync(
+    join(
+      root,
+      "packages/database/prisma/migrations/0003_harden_platform_data_integrity/migration.sql"
+    ),
+    "utf8"
+  );
+  const kbMigration = readFileSync(
+    join(
+      root,
+      "packages/database/prisma/migrations/20260625130000_add_kb_rag_persistence_boundary/migration.sql"
+    ),
+    "utf8"
+  );
+
+  assert.match(schema, /model KnowledgeAccessGrant \{/);
+  assert.match(schema, /status\s+String @default\("active"\)/);
+  assert.match(
+    schema,
+    /@@unique\(\[workspaceId, documentId, agentId\]\)/
+  );
+  assert.match(
+    foundationMigration,
+    /CREATE TABLE "knowledge_access_grants"/
+  );
+  assert.match(
+    foundationMigration,
+    /CREATE INDEX "knowledge_access_grants_workspaceId_status_idx"/
+  );
+  assert.match(
+    integrityMigration,
+    /CREATE UNIQUE INDEX "knowledge_access_grants_workspaceId_documentId_agentId_key"/
+  );
+  assert.match(
+    kbMigration,
+    /ADD CONSTRAINT "knowledge_access_grants_documentId_fkey"/
+  );
+}
 
 async function testUserPolicy() {
   for (const role of ["admin", "editor"]) {
@@ -98,6 +154,37 @@ async function testAgentGrantPolicy() {
     "agent-a",
     "document-a"
   );
+  await grantRepository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-active-revoked",
+      documentId: "document-a",
+      status: "revoked"
+    })
+  );
+  assert.deepEqual(
+    await accessPolicy.listAgentDocumentIds("workspace-a", "agent-a"),
+    []
+  );
+  await assert.rejects(
+    () =>
+      accessPolicy.assertAgentCanAccessDocument(
+        "workspace-a",
+        "agent-a",
+        "document-a"
+      ),
+    KnowledgeAccessDeniedError
+  );
+  await grantRepository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-active-restored",
+      documentId: "document-a"
+    })
+  );
+  await accessPolicy.assertAgentCanAccessDocument(
+    "workspace-a",
+    "agent-a",
+    "document-a"
+  );
   await assert.rejects(
     () =>
       accessPolicy.assertAgentCanAccessDocument(
@@ -116,9 +203,30 @@ async function testAgentGrantPolicy() {
       ),
     KnowledgeAccessDeniedError
   );
+  await grantRepository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-other-agent",
+      documentId: "document-other",
+      agentId: "agent-other"
+    })
+  );
+  await assert.rejects(
+    () =>
+      accessPolicy.assertAgentCanAccessDocument(
+        "workspace-a",
+        "agent-a",
+        "document-other"
+      ),
+    KnowledgeAccessDeniedError
+  );
 
   const skillReference = {
-    requestedKnowledge: [{ documentId: "document-ungranted" }]
+    requestedKnowledge: [
+      {
+        documentId: "document-ungranted",
+        sourceLocator: "notion:restricted-page"
+      }
+    ]
   };
   assert.equal(skillReference.requestedKnowledge.length, 1);
   await assert.rejects(
@@ -136,8 +244,31 @@ async function testAgentGrantPolicy() {
 async function testAgentScopedRetrievalAndRag() {
   const documentRepository = new InMemoryKnowledgeDocumentRepository();
   await seedDocument(documentRepository, "workspace-a", "document-a", "chunk-a");
+  await seedDocument(documentRepository, "workspace-a", "document-c", "chunk-c");
   await seedDocument(documentRepository, "workspace-a", "document-ungranted", "chunk-u");
   await seedDocument(documentRepository, "workspace-b", "document-b", "chunk-b");
+  await grantRepository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-multi-a",
+      agentId: "agent-multi",
+      documentId: "document-a"
+    })
+  );
+  await grantRepository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-multi-c",
+      agentId: "agent-multi",
+      documentId: "document-c"
+    })
+  );
+  await grantRepository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-multi-revoked",
+      agentId: "agent-multi",
+      documentId: "document-ungranted",
+      status: "revoked"
+    })
+  );
 
   let embeddingCalls = 0;
   let vectorCalls = 0;
@@ -153,11 +284,12 @@ async function testAgentScopedRetrievalAndRag() {
     vectorQueryAdapter: {
       async query(input) {
         vectorCalls += 1;
-        assert.deepEqual(input.documentIds, ["document-a"]);
+        assert.deepEqual(input.documentIds, ["document-a", "document-c"]);
         return [
           createMatch("workspace-a", "document-ungranted", "chunk-u", 0.99),
           createMatch("workspace-b", "document-b", "chunk-b", 0.98),
-          createMatch("workspace-a", "document-a", "chunk-a", 0.9)
+          createMatch("workspace-a", "document-a", "chunk-a", 0.9),
+          createMatch("workspace-a", "document-c", "chunk-c", 0.88)
         ];
       }
     }
@@ -166,10 +298,13 @@ async function testAgentScopedRetrievalAndRag() {
   const result = await retrieval.search(
     "workspace-a",
     { query: "policy" },
-    { agentId: "agent-a" }
+    { agentId: "agent-multi" }
   );
-  assert.equal(result.total, 1);
-  assert.equal(result.results[0].documentId, "document-a");
+  assert.equal(result.total, 2);
+  assert.deepEqual(
+    result.results.map((item) => item.documentId),
+    ["document-a", "document-c"]
+  );
   assertSafePublicValue(result);
 
   const callsBeforeDenied = { embeddingCalls, vectorCalls };
@@ -199,12 +334,15 @@ async function testAgentScopedRetrievalAndRag() {
   const answer = await answerUseCase.answer(
     "workspace-a",
     { query: "policy" },
-    { agentId: "agent-a" }
+    { agentId: "agent-multi" }
   );
   assert.equal(answer.status, "answered");
-  assert.equal(answer.evidence.length, 1);
-  assert.equal(answer.evidence[0].documentId, "document-a");
-  assert.equal(providerEvidence.length, 1);
+  assert.equal(answer.evidence.length, 2);
+  assert.deepEqual(
+    answer.evidence.map((item) => item.documentId),
+    ["document-a", "document-c"]
+  );
+  assert.equal(providerEvidence.length, 2);
   assert.equal(providerEvidence[0].evidenceId, answer.evidence[0].evidenceId);
   assertSafePublicValue(answer);
 
@@ -215,6 +353,45 @@ async function testAgentScopedRetrievalAndRag() {
     { agentId: "agent-without-grants" }
   );
   assert.equal(deniedAnswer.status, "insufficient_evidence");
+  assert.equal(providerEvidence, undefined);
+
+  const skillOnlyConfiguration = {
+    agentId: "agent-skill-only",
+    requestedKnowledge: [
+      {
+        documentId: "document-a",
+        sourceLocator: "text:0"
+      }
+    ]
+  };
+  const callsBeforeSkillOnly = { embeddingCalls, vectorCalls };
+  const skillOnlyRetrieval = await retrieval.search(
+    "workspace-a",
+    {
+      query: "policy",
+      filters: {
+        documentIds: [skillOnlyConfiguration.requestedKnowledge[0].documentId],
+        sourceLocators: [
+          skillOnlyConfiguration.requestedKnowledge[0].sourceLocator
+        ]
+      }
+    },
+    { agentId: skillOnlyConfiguration.agentId }
+  );
+  assert.deepEqual(skillOnlyRetrieval, { results: [], total: 0 });
+  assert.deepEqual(
+    { embeddingCalls, vectorCalls },
+    callsBeforeSkillOnly,
+    "skill-only references must not trigger embedding/vector calls"
+  );
+
+  providerEvidence = undefined;
+  const skillOnlyAnswer = await answerUseCase.answer(
+    "workspace-a",
+    { query: "policy" },
+    { agentId: skillOnlyConfiguration.agentId }
+  );
+  assert.equal(skillOnlyAnswer.status, "insufficient_evidence");
   assert.equal(providerEvidence, undefined);
 }
 
@@ -263,7 +440,10 @@ async function testPrismaGrantScoping() {
       },
       async upsert(args) {
         calls.push(["upsert", args]);
-        return createGrant({ knowledgeAccessGrantId: "grant-active" });
+        return {
+          ...args.create,
+          ...args.update
+        };
       }
     }
   });
@@ -291,6 +471,26 @@ async function testPrismaGrantScoping() {
     documentId: "document-a",
     status: "active"
   });
+
+  const active = await repository.saveAccessGrant(
+    createGrant({ knowledgeAccessGrantId: "grant-persisted" })
+  );
+  assert.equal(active.status, "active");
+  const revoked = await repository.saveAccessGrant(
+    createGrant({
+      knowledgeAccessGrantId: "grant-persisted",
+      status: "revoked"
+    })
+  );
+  assert.equal(revoked.status, "revoked");
+  assert.deepEqual(calls[2][1].where, {
+    workspaceId_documentId_agentId: {
+      workspaceId: "workspace-a",
+      documentId: "document-a",
+      agentId: "agent-a"
+    }
+  });
+  assert.equal(calls[3][1].update.status, "revoked");
 }
 
 async function testHttpAccessControl() {
