@@ -27,6 +27,17 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
   private orchestrator: OpenClawExecutionOrchestrator;
   private eventBus: EventBus;
   private workflowMaterializer: OpenClawWorkflowMaterializer;
+  private autoRouteActiveWorkflows = new Map<
+    string,
+    {
+      workflowId: EntityId<"workflowId">;
+      executionId: EntityId<"executionId">;
+      steps: import("../../workflow-management/domain/workflow.ts").WorkflowStep[];
+      activeStepLogs: Map<string, EntityId<"logId">>;
+      activeStepOutputs: Map<string, string>;
+      currentActiveStepId: string | null;
+    }
+  >();
 
   constructor(
     workflowRepo: WorkflowRepository,
@@ -165,8 +176,8 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
         executionId,
         triggeredBy,
         conversationId: convId,
-        emitStepEvents: false,
-        createStepLogs: false
+        emitStepEvents: true,
+        createStepLogs: true
       });
 
       await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Success", new Date().toISOString());
@@ -422,6 +433,179 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
     }
 
     return refs;
+  }
+
+  async handleAutoRoutedWorkflowEvent(
+    taskId: EntityId<"taskId">,
+    workspaceId: EntityId<"workspaceId">,
+    triggeredBy: EntityId<"userId">,
+    event: NormalizedRuntimeEvent
+  ): Promise<void> {
+    const taskIdStr = taskId as string;
+
+    // 1. Auto detect workflow if not already tracked
+    let active = this.autoRouteActiveWorkflows.get(taskIdStr);
+    
+    const eventStepId = (event as any).stepId as string | undefined;
+
+    if (!active && eventStepId) {
+      const { items: workflows } = await this.workflowRepo.listByWorkspace(workspaceId);
+      for (const wf of workflows) {
+        const matchingStep = wf.steps.find(
+          (s) =>
+            s.workflowStepId === eventStepId ||
+            `step-${s.stepOrder}` === eventStepId ||
+            `step_${s.stepOrder}` === eventStepId ||
+            String(s.stepOrder) === eventStepId
+        );
+        if (matchingStep) {
+          const executionId = `wfe_${taskId}` as EntityId<"executionId">;
+          active = {
+            workflowId: wf.workflowId,
+            executionId,
+            steps: wf.steps,
+            activeStepLogs: new Map(),
+            activeStepOutputs: new Map(),
+            currentActiveStepId: null
+          };
+          this.autoRouteActiveWorkflows.set(taskIdStr, active);
+
+          // Create WorkflowExecution record
+          await this.workflowRepo.createExecution({
+            executionId,
+            workspaceId,
+            workflowId: wf.workflowId,
+            status: "Running",
+            triggeredBy,
+            startedAt: new Date().toISOString(),
+            completedAt: null
+          });
+
+          // Publish workflow.execution_started event
+          await this.eventBus.publish({
+            name: "workflow.execution_started",
+            eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+            occurredAt: new Date().toISOString(),
+            payload: { workspaceId, workflowId: wf.workflowId, executionId }
+          });
+          break;
+        }
+      }
+    }
+
+    if (!active) {
+      return;
+    }
+
+    const { executionId, steps, activeStepLogs, activeStepOutputs } = active;
+
+    try {
+      const matchingStep = steps.find(
+        (s) =>
+          s.workflowStepId === eventStepId ||
+          `step-${s.stepOrder}` === eventStepId ||
+          `step_${s.stepOrder}` === eventStepId ||
+          String(s.stepOrder) === eventStepId
+      );
+
+      const realStepId = matchingStep?.workflowStepId;
+
+      if (event.type === "step-started") {
+        active.currentActiveStepId = eventStepId ?? null;
+        if (eventStepId) {
+          activeStepOutputs.set(eventStepId, "");
+          const logId = `wfsl_${randomUUID()}` as EntityId<"logId">;
+          activeStepLogs.set(eventStepId, logId);
+
+          if (realStepId) {
+            await this.workflowRepo.createStepLog({
+              logId,
+              workspaceId,
+              executionId,
+              workflowStepId: realStepId,
+              status: "Running",
+              inputData: { stepName: (event as any).stepName },
+              startedAt: new Date().toISOString()
+            });
+
+            await this.eventBus.publish({
+              name: "workflow.step_started",
+              eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+              occurredAt: new Date().toISOString(),
+              payload: {
+                workspaceId,
+                workflowId: active.workflowId,
+                executionId,
+                workflowStepId: realStepId,
+                stepOrder: matchingStep.stepOrder,
+                agentId: matchingStep.agentId ?? undefined
+              }
+            });
+          }
+        }
+      } else if (event.type === "partial-output-received") {
+        const stepIdToAppend = eventStepId || active.currentActiveStepId;
+        if (stepIdToAppend) {
+          const currentText = activeStepOutputs.get(stepIdToAppend) || "";
+          activeStepOutputs.set(stepIdToAppend, currentText + ((event as any).outputChunk || ""));
+        }
+      } else if (event.type === "step-completed") {
+        if (eventStepId && realStepId) {
+          const logId = activeStepLogs.get(eventStepId);
+          if (logId) {
+            const rawOutput = activeStepOutputs.get(eventStepId) || "";
+            const stepOutput = rawOutput.trim() || (event as any).result || "Completed";
+
+            await this.workflowRepo.updateStepLog(
+              logId,
+              "Success",
+              { text: stepOutput },
+              undefined,
+              new Date().toISOString()
+            );
+
+            await this.eventBus.publish({
+              name: "workflow.step_completed",
+              eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+              occurredAt: new Date().toISOString(),
+              payload: {
+                workspaceId,
+                workflowId: active.workflowId,
+                executionId,
+                workflowStepId: realStepId,
+                stepOrder: matchingStep.stepOrder,
+                agentId: matchingStep.agentId ?? undefined,
+                outputData: { text: stepOutput }
+              }
+            });
+          }
+          if (active.currentActiveStepId === eventStepId) {
+            active.currentActiveStepId = null;
+          }
+        }
+      } else if (event.type === "execution-completed") {
+        await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Success", new Date().toISOString());
+        await this.eventBus.publish({
+          name: "workflow.execution_completed",
+          eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+          occurredAt: new Date().toISOString(),
+          payload: { workspaceId, workflowId: active.workflowId, executionId }
+        });
+        this.autoRouteActiveWorkflows.delete(taskIdStr);
+      } else if (event.type === "execution-failed" || event.type === "execution-canceled") {
+        const errorMsg = (event as any).error?.message || "Execution stopped";
+        await this.workflowRepo.updateExecutionStatus(workspaceId, executionId, "Failed", new Date().toISOString());
+        await this.eventBus.publish({
+          name: "workflow.execution_failed",
+          eventId: `evt_${randomUUID()}` as EntityId<"eventId">,
+          occurredAt: new Date().toISOString(),
+          payload: { workspaceId, workflowId: active.workflowId, executionId, errorMsg }
+        });
+        this.autoRouteActiveWorkflows.delete(taskIdStr);
+      }
+    } catch (err) {
+      console.error("[WorkflowExecutionService] Error handling auto-routed workflow event:", err);
+    }
   }
 }
 

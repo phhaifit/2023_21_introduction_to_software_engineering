@@ -658,6 +658,15 @@ export class OpenClawExecutionOrchestrator {
       const logs = this.eventLogs.get(taskIdStr);
       if (logs) logs.push(event);
 
+      if (this.workflowExecutionService) {
+        void this.workflowExecutionService.handleAutoRoutedWorkflowEvent(
+          command.taskId,
+          command.workspaceId,
+          principal.principalId as EntityId<"userId">,
+          event
+        ).catch((err: any) => console.error("[AutoRoute Workflow Event Error]:", err));
+      }
+
       const task = this.taskStore.get(taskIdStr);
       if (task) {
         if (event.type === "execution-started") task.status = "in-progress";
