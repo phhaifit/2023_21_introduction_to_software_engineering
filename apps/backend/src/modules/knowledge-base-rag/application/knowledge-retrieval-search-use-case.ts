@@ -10,6 +10,7 @@ import type {
   KnowledgeDocumentChunk
 } from "../domain/knowledge-document.ts";
 import type { KnowledgeDocumentRepository } from "./knowledge-document-repository.ts";
+import type { KnowledgeBaseRagAccessPolicy } from "./knowledge-base-rag-access-policy.ts";
 import {
   KnowledgeBaseRagValidationError,
   KnowledgeRetrievalError
@@ -58,6 +59,11 @@ export type KnowledgeRetrievalSearchDependencies = {
   documentRepository: KnowledgeDocumentRepository;
   queryEmbeddingAdapter: KnowledgeRetrievalQueryEmbeddingPort;
   vectorQueryAdapter: KnowledgeRetrievalVectorQueryPort;
+  accessPolicy?: Pick<KnowledgeBaseRagAccessPolicy, "listAgentDocumentIds">;
+};
+
+export type KnowledgeRetrievalAccessContext = {
+  agentId?: EntityId<"agentId">;
 };
 
 type NormalizedRetrievalRequest = {
@@ -80,22 +86,71 @@ export class KnowledgeRetrievalSearchUseCase {
 
   async search(
     workspaceId: EntityId<"workspaceId">,
-    request: KnowledgeRetrievalSearchRequest
+    request: KnowledgeRetrievalSearchRequest,
+    accessContext: KnowledgeRetrievalAccessContext = {}
   ): Promise<KnowledgeRetrievalSearchResponse> {
     if (!workspaceId) {
       throw new KnowledgeBaseRagValidationError(["workspaceId is required"]);
     }
     const normalized = normalizeRequest(request);
+    const authorized = await this.applyAgentAccess(
+      workspaceId,
+      normalized,
+      accessContext
+    );
+    if (!authorized) {
+      return { results: [], total: 0 };
+    }
     const embedding = await this.generateQueryEmbedding(
       workspaceId,
-      normalized.query
+      authorized.query
     );
-    const matches = await this.queryVectors(workspaceId, embedding, normalized);
-    const results = await this.hydrateEvidence(workspaceId, matches, normalized);
+    const matches = await this.queryVectors(workspaceId, embedding, authorized);
+    const results = await this.hydrateEvidence(workspaceId, matches, authorized);
 
     return {
       results,
       total: results.length
+    };
+  }
+
+  private async applyAgentAccess(
+    workspaceId: EntityId<"workspaceId">,
+    request: NormalizedRetrievalRequest,
+    accessContext: KnowledgeRetrievalAccessContext
+  ): Promise<NormalizedRetrievalRequest | null> {
+    if (!accessContext.agentId) {
+      return request;
+    }
+    if (!this.dependencies.accessPolicy) {
+      return null;
+    }
+    let grantedDocumentIds: EntityId<"documentId">[];
+    try {
+      grantedDocumentIds =
+        await this.dependencies.accessPolicy.listAgentDocumentIds(
+          workspaceId,
+          accessContext.agentId
+        );
+    } catch {
+      throw new KnowledgeRetrievalError(
+        "knowledge.retrieval_access_failed",
+        "Knowledge retrieval access validation failed."
+      );
+    }
+    const requested = request.filters.documentIds;
+    const documentIds = requested
+      ? requested.filter((documentId) => grantedDocumentIds.includes(documentId))
+      : grantedDocumentIds;
+    if (documentIds.length === 0) {
+      return null;
+    }
+    return {
+      ...request,
+      filters: {
+        ...request.filters,
+        documentIds
+      }
     };
   }
 

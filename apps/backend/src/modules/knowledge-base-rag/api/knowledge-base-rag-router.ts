@@ -2,8 +2,11 @@ import { Router, type Request, type Response } from "express";
 
 import { KNOWLEDGE_BASE_RAG_API_ROUTES } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
-import { canPerform } from "../../../shared/rbac/permissions.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
+import {
+  KnowledgeBaseRagAccessPolicy,
+  type KnowledgeUserAction
+} from "../application/knowledge-base-rag-access-policy.ts";
 import type { KnowledgeDocumentUseCases } from "../application/knowledge-document-use-cases.ts";
 import type { KnowledgeUploadUseCases } from "../application/knowledge-upload-use-cases.ts";
 import type { KnowledgeIngestionUseCases } from "../application/knowledge-ingestion-use-cases.ts";
@@ -13,6 +16,7 @@ import type { KnowledgeRetrievalSearchUseCase } from "../application/knowledge-r
 import type { KnowledgeRagAnswerUseCase } from "../application/knowledge-rag-answer-use-case.ts";
 import {
   KnowledgeBaseRagValidationError,
+  KnowledgeAccessDeniedError,
   KnowledgeDataSourceNotFoundError,
   KnowledgeDocumentNotFoundError,
   KnowledgeFileStorageError,
@@ -48,6 +52,7 @@ export type KnowledgeBaseRagRouterDependencies = {
   syncUseCases: KnowledgeSyncUseCases;
   retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase;
   ragAnswerUseCase: KnowledgeRagAnswerUseCase;
+  accessPolicy?: KnowledgeBaseRagAccessPolicy;
   checkoutUseCases?: CheckoutUseCases;
 };
 
@@ -62,12 +67,18 @@ export function createKnowledgeBaseRagRouter(
   dependencies: KnowledgeBaseRagRouterDependencies
 ): Router {
   const router = Router({ mergeParams: true });
+  const accessPolicy =
+    dependencies.accessPolicy ?? new KnowledgeBaseRagAccessPolicy();
 
   router.get(
     KNOWLEDGE_BASE_RAG_API_ROUTES.documents,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "document:read"
+        );
         const filters = parseListQuery(request.query as Record<string, unknown>);
         const result = await dependencies.documentUseCases.listDocuments(workspaceId, {
           page: filters.page,
@@ -93,7 +104,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.uploadDocuments,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId, actorId } = enforceKnowledgeManagePermission(request);
+        const { workspaceId, actorId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "document:upload"
+        );
         const files = await parseKnowledgeUploadMultipartRequest(request);
 
         return dependencies.uploadUseCases.uploadDocuments(
@@ -109,7 +124,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.validateUploads,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceKnowledgeManagePermission(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "document:upload"
+        );
         const payload = parseUploadValidationRequest(request.body);
 
         return dependencies.uploadUseCases.validateUploadCandidates(
@@ -124,7 +143,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.prepareUploads,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId, actorId } = enforceKnowledgeManagePermission(request);
+        const { workspaceId, actorId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "document:upload"
+        );
 
         // Quota Enforcement: Chặn nếu dung lượng lưu trữ của workspace đã đạt giới hạn tối đa
         if (dependencies.checkoutUseCases) {
@@ -152,7 +175,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.ingestionJobs,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "ingestion:read"
+        );
         const filters = parseListQuery(request.query as Record<string, unknown>);
         const result = await dependencies.ingestionUseCases.listIngestionJobs(workspaceId, {
           documentId: filters.documentId as EntityId<"documentId"> | undefined,
@@ -177,7 +204,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.dataSources,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "source:read"
+        );
         const filters = parseListQuery(request.query as Record<string, unknown>);
 
         return dependencies.dataSourceUseCases.listDataSources(workspaceId, {
@@ -192,7 +223,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.connectDataSource,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId, actorId } = enforceKnowledgeManagePermission(request);
+        const { workspaceId, actorId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "source:manage"
+        );
         const payload = parseConnectDataSourceRequest(request.body);
 
         return dependencies.dataSourceUseCases.connectDataSourcePlaceholder(
@@ -209,7 +244,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "sync-scope:read"
+        );
         const filters = parseListQuery(request.query as Record<string, unknown>);
 
         return dependencies.syncUseCases.getSyncScope(workspaceId, filters.sourceId);
@@ -221,7 +260,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceKnowledgeManagePermission(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "sync-scope:manage"
+        );
         const payload = parseUpdateSyncScopeRequest(request.body);
 
         return dependencies.syncUseCases.updateSyncScope(workspaceId, payload);
@@ -233,7 +276,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId, actorId } = enforceKnowledgeManagePermission(request);
+        const { workspaceId, actorId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "sync:trigger"
+        );
         const payload = parseRequestKnowledgeSyncJobRequest(request.body);
 
         return dependencies.syncUseCases.requestManualSync(
@@ -249,7 +296,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "sync:read"
+        );
         const filters = parseListQuery(request.query as Record<string, unknown>);
         const result = await dependencies.syncUseCases.listSyncJobs(workspaceId, {
           page: filters.page,
@@ -274,7 +325,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "retrieval:search"
+        );
         const payload = parseKnowledgeRetrievalSearchRequest(request.body);
         return dependencies.retrievalSearchUseCase.search(workspaceId, payload);
       });
@@ -285,7 +340,11 @@ export function createKnowledgeBaseRagRouter(
     KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer,
     async (request: Request, response: Response) => {
       await handleKnowledgeBaseRagRequest(request, response, async () => {
-        const { workspaceId } = enforceWorkspaceContext(request);
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "rag:answer"
+        );
         const payload = parseKnowledgeRagAnswerRequest(request.body);
         return dependencies.ragAnswerUseCase.answer(workspaceId, payload);
       });
@@ -325,6 +384,16 @@ async function handleKnowledgeBaseRagRequest<T>(
     }
 
     if (error instanceof AuthorizationError) {
+      sendKnowledgeBaseRagApiFailure(
+        request,
+        response,
+        "auth.forbidden",
+        error.message
+      );
+      return;
+    }
+
+    if (error instanceof KnowledgeAccessDeniedError) {
       sendKnowledgeBaseRagApiFailure(
         request,
         response,
@@ -434,16 +503,13 @@ function enforceWorkspaceContext(
   };
 }
 
-function enforceKnowledgeManagePermission(
-  request: Request
+function enforceKnowledgePermission(
+  request: Request,
+  accessPolicy: KnowledgeBaseRagAccessPolicy,
+  action: KnowledgeUserAction
 ): { workspaceId: EntityId<"workspaceId">; actorId: EntityId<"userId">; context: RequestContext } {
   const scoped = enforceWorkspaceContext(request);
-  const decision = canPerform(scoped.context.workspace!.role, "knowledge:manage");
-
-  if (!decision.allowed) {
-    throw new AuthorizationError(decision.reason ?? "Knowledge Base / RAG access denied.");
-  }
-
+  accessPolicy.assertUserCan(scoped.context.workspace!.role, action);
   return scoped;
 }
 

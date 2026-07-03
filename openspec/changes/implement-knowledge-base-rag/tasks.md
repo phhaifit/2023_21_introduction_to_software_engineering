@@ -25,11 +25,11 @@
 - [x] 2.7 Implement real vector database adapter integration
 - [x] 2.8 Implement semantic retrieval/vector search public boundary
 - [x] 2.9 Implement RAG answer generation or task/agent retrieval integration
-- [ ] 2.10 Implement agent knowledge assignment and access checks
+- [x] 2.10 Implement agent knowledge assignment and access checks
 - [ ] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue
 
 ## 3. Remaining Verification and Handoff
 
 - [ ] 3.1 Add production-runtime tests for real storage/parser/provider/vector adapters when those integrations are implemented
-- [ ] 3.2 Add retrieval/search and agent-access tests when those features are implemented
+- [x] 3.2 Add retrieval/search and agent-access tests when those features are implemented
 - [ ] 3.3 Run OpenSpec validation once the `openspec` CLI is available in the environment
