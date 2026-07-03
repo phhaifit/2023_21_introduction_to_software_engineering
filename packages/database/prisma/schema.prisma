@@ -384,6 +384,8 @@ model KnowledgeDocumentChunk {
   contentHash    String?
   tokenCount     Int?
   embeddingStatus String @default("pending")
+  embedding       Unsupported("vector")?
+  embeddingDimensions Int?
   vectorRef      String?
   sourceLocator  String?
   createdAt      String
@@ -395,6 +397,7 @@ model KnowledgeDocumentChunk {
   @@index([workspaceId])
   @@index([documentId])
   @@index([workspaceId, embeddingStatus])
+  @@index([workspaceId, embeddingDimensions])
   @@index([workspaceId, contentHash])
   @@map("knowledge_document_chunks")
 }

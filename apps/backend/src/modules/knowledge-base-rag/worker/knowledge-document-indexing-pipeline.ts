@@ -14,7 +14,11 @@ import {
   toSafeKnowledgeIndexingFailure,
   type SafeKnowledgeIndexingFailure
 } from "./knowledge-indexing-errors.ts";
-import type { KnowledgeVectorIndexAdapter } from "./knowledge-vector-index-adapter.ts";
+import type {
+  KnowledgeVectorIndexAdapter,
+  KnowledgeVectorIndexInput,
+  KnowledgeVectorIndexResult
+} from "./knowledge-vector-index-adapter.ts";
 
 export type KnowledgeDocumentIndexingPipelineDependencies = {
   documentRepository: KnowledgeDocumentRepository;
@@ -79,9 +83,18 @@ export class KnowledgeDocumentIndexingPipeline {
       }
       const bulkEmbeddings = await this.generateBulkEmbeddings(chunkResult.items);
 
-      for (const [index, chunk] of chunkResult.items.entries()) {
-        const indexedChunk = await this.indexChunk(chunk, bulkEmbeddings?.[index]);
-        indexedChunks.push(indexedChunk);
+      if (
+        bulkEmbeddings &&
+        this.dependencies.vectorIndexAdapter.upsertChunkEmbeddings
+      ) {
+        indexedChunks.push(
+          ...(await this.indexChunksInBulk(chunkResult.items, bulkEmbeddings))
+        );
+      } else {
+        for (const [index, chunk] of chunkResult.items.entries()) {
+          const indexedChunk = await this.indexChunk(chunk, bulkEmbeddings?.[index]);
+          indexedChunks.push(indexedChunk);
+        }
       }
 
       const completedDocument = await this.dependencies.documentRepository.saveDocument({
@@ -151,6 +164,7 @@ export class KnowledgeDocumentIndexingPipeline {
         "Knowledge document chunk vector indexing failed."
       );
     }
+    this.assertVectorResult(inProgressChunk, vectorResult);
 
     return this.dependencies.documentRepository.saveDocumentChunk({
       ...inProgressChunk,
@@ -158,6 +172,59 @@ export class KnowledgeDocumentIndexingPipeline {
       vectorRef: vectorResult.vectorRef,
       updatedAt: this.dependencies.now()
     });
+  }
+
+  private async indexChunksInBulk(
+    chunks: readonly KnowledgeDocumentChunk[],
+    embeddings: readonly KnowledgeEmbeddingResult[]
+  ): Promise<KnowledgeDocumentChunk[]> {
+    const inProgressChunks: KnowledgeDocumentChunk[] = [];
+    for (const [index, chunk] of chunks.entries()) {
+      const inProgressChunk =
+        await this.dependencies.documentRepository.saveDocumentChunk({
+          ...chunk,
+          embeddingStatus: "ingesting",
+          updatedAt: this.dependencies.now()
+        });
+      this.assertEmbeddingResult(inProgressChunk, embeddings[index]);
+      inProgressChunks.push(inProgressChunk);
+    }
+
+    let vectorResults: KnowledgeVectorIndexResult[];
+    try {
+      vectorResults =
+        await this.dependencies.vectorIndexAdapter.upsertChunkEmbeddings!(
+          inProgressChunks.map((chunk, index) =>
+            this.toVectorIndexInput(chunk, embeddings[index])
+          )
+        );
+    } catch {
+      throw new KnowledgeDocumentIndexingError(
+        "knowledge.vector_index_failed",
+        "Knowledge document chunk vector indexing failed."
+      );
+    }
+    if (vectorResults.length !== inProgressChunks.length) {
+      throw new KnowledgeDocumentIndexingError(
+        "knowledge.vector_index_failed",
+        "Knowledge document chunk vector indexing failed."
+      );
+    }
+
+    const indexedChunks: KnowledgeDocumentChunk[] = [];
+    for (const [index, chunk] of inProgressChunks.entries()) {
+      const vectorResult = vectorResults[index];
+      this.assertVectorResult(chunk, vectorResult);
+      indexedChunks.push(
+        await this.dependencies.documentRepository.saveDocumentChunk({
+          ...chunk,
+          embeddingStatus: "ready",
+          vectorRef: vectorResult.vectorRef,
+          updatedAt: this.dependencies.now()
+        })
+      );
+    }
+    return indexedChunks;
   }
 
   private async generateBulkEmbeddings(
@@ -212,6 +279,24 @@ export class KnowledgeDocumentIndexingPipeline {
     };
   }
 
+  private toVectorIndexInput(
+    chunk: KnowledgeDocumentChunk,
+    embedding: KnowledgeEmbeddingResult
+  ): KnowledgeVectorIndexInput {
+    return {
+      workspaceId: chunk.workspaceId,
+      documentId: chunk.documentId,
+      chunkId: chunk.chunkId,
+      chunkIndex: chunk.chunkIndex,
+      embedding: embedding.embedding,
+      metadata: {
+        contentHash: chunk.contentHash,
+        tokenCount: chunk.tokenCount,
+        sourceLocator: chunk.sourceLocator
+      }
+    };
+  }
+
   private assertEmbeddingResult(
     chunk: KnowledgeDocumentChunk,
     result: KnowledgeEmbeddingResult
@@ -240,6 +325,24 @@ export class KnowledgeDocumentIndexingPipeline {
       indexingStatus: "ingesting",
       updatedAt: this.dependencies.now()
     });
+  }
+
+  private assertVectorResult(
+    chunk: KnowledgeDocumentChunk,
+    result: KnowledgeVectorIndexResult
+  ): void {
+    if (
+      result.workspaceId !== chunk.workspaceId ||
+      result.documentId !== chunk.documentId ||
+      result.chunkId !== chunk.chunkId ||
+      result.chunkIndex !== chunk.chunkIndex ||
+      !result.vectorRef
+    ) {
+      throw new KnowledgeDocumentIndexingError(
+        "knowledge.vector_index_failed",
+        "Knowledge document chunk vector indexing failed."
+      );
+    }
   }
 
   private assertInput(input: KnowledgeDocumentIndexingInput): void {

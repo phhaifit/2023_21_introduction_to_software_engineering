@@ -357,9 +357,49 @@ requests/responses, and raw embeddings are not persisted or mapped publicly.
 Tests retain deterministic inline adapters and use injected mock fetch
 implementations, never real provider calls.
 
-Legacy DOC parsing, OCR, object storage integration, provider-backed vector
-writes, retrieval, and queue/runtime orchestration remain future adapter/runtime
-scope.
+## PostgreSQL pgvector Index
+
+`PgvectorKnowledgeVectorIndexAdapter` implements the backend vector index port
+through the existing Prisma/PostgreSQL connection. Embeddings are stored on
+the existing workspace-scoped chunk rows using the pgvector `vector` type. No
+separate vector database service or connection is used.
+
+Required runtime configuration:
+
+```text
+DATABASE_URL=<primary PostgreSQL connection>
+KNOWLEDGE_VECTOR_PROVIDER=pgvector
+KNOWLEDGE_VECTOR_DIMENSIONS=<embedding dimension>
+KNOWLEDGE_VECTOR_DISTANCE=cosine
+```
+
+`KNOWLEDGE_VECTOR_BATCH_SIZE` defaults to `64`. Supported distance modes are
+`cosine`, `euclidean`, and `inner-product`. The configured dimension is checked
+before every write and query and persisted beside each vector.
+
+The pgvector schema is installed through the repository migration, not at
+runtime. `ensureIndex()` performs a non-destructive readiness check for the
+extension and vector column. Upserts update the existing chunk row using its
+workspace/document/chunk identity, so reindexing replaces the prior vector.
+
+Internal vector queries require `workspaceId` and add that condition directly
+to parameterized SQL. Optional exact document and source-locator filters are
+supported. Query rows select safe attribution and distance only; raw vectors,
+SQL details, database configuration, and internal vector references are not
+returned.
+
+The indexing pipeline uses batch embedding/vector methods when both adapters
+support them and retains the single-item path for deterministic fakes. Tests
+inject a mocked Prisma-compatible raw-query boundary and do not require a
+running PostgreSQL service.
+
+The vector column is dimension-flexible, so this slice uses exact pgvector
+distance ordering rather than creating an ANN index tied to one dimension.
+Adding a production ANN index requires selecting and fixing a model dimension
+in a later migration.
+
+Legacy DOC parsing, OCR, retrieval/search API, RAG answer generation, and
+queue/runtime orchestration remain outside this adapter slice.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing

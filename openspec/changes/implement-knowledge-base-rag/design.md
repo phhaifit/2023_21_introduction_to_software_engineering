@@ -1,6 +1,6 @@
 ## Context
 
-Knowledge Base / RAG gives agents access to workspace-specific documents and internal data. The foundation selected a vector database behind an adapter, with Qdrant as the expected V1 target and an embedding adapter that can be mocked locally.
+Knowledge Base / RAG gives agents access to workspace-specific documents and internal data. The foundation stores chunk vectors in the primary PostgreSQL database through pgvector behind an adapter, with an embedding adapter that can be mocked locally.
 
 ## Goals / Non-Goals
 
@@ -23,8 +23,8 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Alternative considered: Do all processing inside upload requests. Rejected due to timeout and retry risk.
 
 2. Use vector and embedding adapters.
-   - Rationale: The team can demo with mocks or local services while preserving the Qdrant-oriented architecture.
-   - Alternative considered: Direct Qdrant calls throughout the module. Rejected because it would make tests and future replacement harder.
+   - Rationale: The team can test with mocks while production vector persistence remains in the primary PostgreSQL database through pgvector.
+   - Alternative considered: A separate external vector database. Rejected because the SAD architecture selects PostgreSQL pgvector and separate infrastructure would add operational and tenant-boundary complexity.
 
 3. Keep knowledge access assignment agent-specific.
    - Rationale: Requirements need precise control over which agent can access which documents.
@@ -99,7 +99,7 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 18. Add an embedding/vector indexing adapter boundary after persisted chunks exist.
    - Rationale: The worker needs a safe boundary that can index persisted chunks with deterministic fakes now and real providers later without exposing provider or vector database internals to public contracts.
    - Boundary: The indexing pipeline loads workspace-scoped persisted chunks through the KB/RAG document repository, marks document indexing as `ingesting`, generates embeddings through an injected `KnowledgeEmbeddingAdapter`, upserts chunk embeddings through an injected `KnowledgeVectorIndexAdapter`, updates chunk embedding status/vector references internally, and marks document indexing `ready` or `failed`.
-   - Constraint: This slice does not call real OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, FAISS, Elasticsearch, or other provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
+   - Constraint: This slice does not call real embedding or external vector database provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
 
 19. Add a local end-to-end flow runner for deterministic integration tests.
    - Rationale: The team needs one local proof that prepared document state can move through handoff, text processing, chunk persistence, embedding, vector upsert, and final indexing status without creating production scheduling/runtime coupling.
