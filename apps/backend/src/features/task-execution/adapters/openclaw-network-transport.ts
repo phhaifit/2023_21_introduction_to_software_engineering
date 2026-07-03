@@ -122,21 +122,6 @@ interface GatewayControlClient {
 
 type GatewayControlClientFactory = (endpoint: string, credentialReference: string) => GatewayControlClient;
 
-interface MinimalWebSocket {
-  onopen: ((event: unknown) => void) | null;
-  onmessage: ((event: { data: unknown }) => void) | null;
-  onerror: ((event: unknown) => void) | null;
-  onclose: ((event: unknown) => void) | null;
-  send(data: string): void;
-  close(): void;
-}
-
-type MinimalWebSocketConstructor = new (
-  url: string,
-  protocols?: string | string[],
-  options?: { headers?: Record<string, string> }
-) => MinimalWebSocket;
-
 // 1.3 Define OpenClawNetworkTransport boundary.
 export interface OpenClawNetworkTransport {
   startExecution(endpoint: string, credentialReference: string, request: OpenClawExecutionRequest): Promise<OpenClawExecutionResponse>;
@@ -740,106 +725,37 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     onEvent: (rawEvent: unknown) => void
   ): { unsubscribe: () => void } {
     const context = this.activeProgressContexts.get(providerExecutionReference);
-    const WebSocketCtor = (globalThis as any).WebSocket as MinimalWebSocketConstructor | undefined;
-    if (!context || !WebSocketCtor) {
+    if (!context) {
       return { unsubscribe: () => {} };
     }
 
-    let socket: MinimalWebSocket | undefined;
     let closed = false;
-    let connectAccepted = false;
-    let connectAttempted = false;
-    let frameSequence = 1;
-    const sendFrame = (method: string, params?: Record<string, unknown>) => {
-      if (!socket || closed) return;
-      try {
-        socket.send(JSON.stringify({
-          type: "req",
-          id: `vcp-${Date.now()}-${frameSequence++}`,
-          method,
-          params
-        }));
-      } catch (err) {
-        // Side-channel progress is best-effort and must not fail execution.
-      }
-    };
-    const sendConnectFrame = (nonce?: string) => {
-      if (connectAttempted) return;
-      connectAttempted = true;
-      sendFrame("connect", {
-        minProtocol: 4,
-        maxProtocol: 4,
-        client: {
-          id: "openclaw-control-ui",
-          version: "vcp-backend-task-orchestration",
-          platform: "node",
-          mode: "webchat"
-        },
-        role: "operator",
-        scopes: ["operator.admin", "operator.read", "operator.write", "operator.approvals", "operator.pairing"],
-        caps: ["tool-events"],
-        auth: credentialReference ? { token: credentialReference } : undefined,
-        locale: "en-US",
-        userAgent: "vcp-backend-task-orchestration",
-        nonce
-      });
-    };
-
-    try {
-      socket = new WebSocketCtor(toGatewayWebSocketUrl(endpoint), [], {
-        headers: {
-          Origin: new URL(endpoint).origin
-        }
-      });
-    } catch (err) {
-      return { unsubscribe: () => {} };
-    }
-
-    socket.onopen = () => {
-      setTimeout(() => {
-        sendConnectFrame();
-      }, 750);
-    };
-
-    socket.onmessage = (event) => {
+    const client = this.gatewayControlClientFactory(endpoint, credentialReference);
+    client.onEvent((frame) => {
       if (closed) return;
-
-      const frame = parseGatewayFrame(event.data);
-      if (!frame) return;
-
-      if (isGatewayConnectChallenge(frame)) {
-        const nonce = typeof frame.payload?.nonce === "string" ? frame.payload.nonce : undefined;
-        sendConnectFrame(nonce);
-        return;
-      }
-
-      if (!connectAccepted && isGatewayConnectAccepted(frame)) {
-        connectAccepted = true;
-        sendFrame("sessions.subscribe", { key: context.conversationId });
-        sendFrame("sessions.messages.subscribe", { key: context.conversationId });
-      }
-
       const rawEvent = mapGatewayFrameToChatChunk(frame, providerExecutionReference, context);
       if (rawEvent) {
         onEvent(rawEvent);
       }
-    };
+    });
 
-    socket.onerror = () => {
-      // Do not surface side-channel failures as execution failures.
-    };
-    socket.onclose = () => {
-      closed = true;
-    };
+    void (async () => {
+      try {
+        await client.connect();
+        if (closed) return;
+        await client.request("sessions.subscribe", {});
+        if (closed) return;
+        await client.request("sessions.messages.subscribe", { key: context.conversationId });
+      } catch (err) {
+        client.close();
+        // Side-channel progress is best-effort and must not fail execution.
+      }
+    })();
 
     return {
       unsubscribe: () => {
         closed = true;
-        try {
-          socket?.close();
-        } catch (err) {
-          // best-effort close
-        }
+        client.close();
       }
     };
   }
@@ -1279,32 +1195,6 @@ function toGatewayWebSocketUrl(endpoint: string): string {
   url.search = "";
   url.hash = "";
   return url.toString();
-}
-
-function parseGatewayFrame(data: unknown): Record<string, any> | null {
-  try {
-    const text = typeof data === "string"
-      ? data
-      : data instanceof Uint8Array
-      ? new TextDecoder().decode(data)
-      : String(data);
-    const frame = JSON.parse(text);
-    return frame && typeof frame === "object" ? frame as Record<string, any> : null;
-  } catch (err) {
-    return null;
-  }
-}
-
-function isGatewayConnectAccepted(frame: Record<string, any>): boolean {
-  const type = String(frame.type || frame.event || "");
-  const method = String(frame.method || "");
-  const status = String(frame.status || frame.result?.status || frame.payload?.status || "");
-  return type === "connected" ||
-    type === "hello-ok" ||
-    (type === "res" && frame.ok === true) ||
-    method === "connect" ||
-    status === "connected" ||
-    status === "ok";
 }
 
 function mapGatewayFrameToChatChunk(

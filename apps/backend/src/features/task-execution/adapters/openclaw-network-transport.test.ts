@@ -43,6 +43,12 @@ class FakeGatewayControlClient {
   }
 }
 
+const flushAsyncTasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
 describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
   const taskId = "task-123" as EntityId<"taskId">;
 
@@ -567,288 +573,222 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       sub.unsubscribe();
     });
 
-    it("should subscribe to OpenClaw Gateway WebSocket progress as a best-effort side-channel", async () => {
-      const originalWebSocket = (globalThis as any).WebSocket;
-      const instances: FakeGatewayWebSocket[] = [];
-      class FakeGatewayWebSocket {
-        onopen: ((event: unknown) => void) | null = null;
-        onmessage: ((event: { data: unknown }) => void) | null = null;
-        onerror: ((event: unknown) => void) | null = null;
-        onclose: ((event: unknown) => void) | null = null;
-        sent: any[] = [];
-        closed = false;
-        constructor(readonly url: string) {
-          instances.push(this);
-        }
-        send(data: string) {
-          this.sent.push(JSON.parse(data));
-        }
-        close() {
-          this.closed = true;
-        }
-      }
-      (globalThis as any).WebSocket = FakeGatewayWebSocket;
-
-      try {
-        const mockFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          body: new ReadableStream<Uint8Array>({
-            start(controller) {
-              controller.close();
-            }
-          })
-        });
-
-        const transport = new OpenClawHttpSSETransport(mockFetch as any);
-        const start = await transport.startExecution("https://openclaw.internal", "cred-123", {
-          taskId: "task-123",
-          prompt: "Route with progress",
-          target: "openclaw/default",
-          mode: "auto",
-          conversationId: "conv-123"
-        });
-        const onEvent = vi.fn();
-        const sub = transport.subscribeEventStream(
-          "https://openclaw.internal",
-          "cred-123",
-          start.providerExecutionReference,
-          onEvent,
-          vi.fn()
-        );
-
-        expect(instances[0].url).toBe("wss://openclaw.internal/");
-        instances[0].onopen?.({});
-        expect(instances[0].sent).toEqual([]);
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            type: "event",
-            event: "connect.challenge",
-            payload: { nonce: "nonce-123" }
-          })
-        });
-        expect(instances[0].sent[0]).toMatchObject({
-          type: "req",
-          method: "connect",
-          params: {
-            minProtocol: 4,
-            maxProtocol: 4,
-            client: {
-              id: "openclaw-control-ui",
-              mode: "webchat"
-            },
-            auth: { token: "cred-123" },
-            nonce: "nonce-123"
+    it("should emit Gateway Control progress before the first SSE content chunk", async () => {
+      const encoder = new TextEncoder();
+      const fakeControl = new FakeGatewayControlClient();
+      let streamController!: ReadableStreamDefaultController<Uint8Array>;
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            streamController = controller;
           }
-        });
+        })
+      });
 
-        instances[0].onmessage?.({ data: JSON.stringify({ type: "res", id: instances[0].sent[0].id, ok: true }) });
-        expect(instances[0].sent.map((frame) => frame.method)).toEqual([
-          "connect",
-          "sessions.subscribe",
-          "sessions.messages.subscribe"
-        ]);
+      const transport = new OpenClawHttpSSETransport(mockFetch as any, {
+        gatewayControlClientFactory: () => fakeControl as any
+      });
+      const start = await transport.startExecution("https://openclaw.internal", "cred-123", {
+        taskId: "task-123",
+        prompt: "Route with progress",
+        target: "openclaw/default",
+        mode: "auto",
+        conversationId: "conv-123"
+      });
+      const onEvent = vi.fn();
+      const sub = transport.subscribeEventStream(
+        "https://openclaw.internal",
+        "cred-123",
+        start.providerExecutionReference,
+        onEvent,
+        vi.fn()
+      );
 
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.operation",
-            payload: {
-              sessionKey: "conv-123",
-              operationId: "route-1",
-              name: "Routing",
-              status: "running",
-              details: "Selecting workspace agent"
-            }
-          })
-        });
+      await flushAsyncTasks();
+      expect(fakeControl.connected).toBe(true);
+      expect(fakeControl.requests).toEqual([
+        { method: "sessions.subscribe", params: {} },
+        { method: "sessions.messages.subscribe", params: { key: "conv-123" } }
+      ]);
 
-        expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
-          object: "chat.completion.chunk",
-          executionId: start.providerExecutionReference,
-          openclaw_extension: expect.objectContaining({
-            stepId: "routing-route-1",
-            stepName: "Routing request",
-            status: "in-progress",
-            activityType: "routing",
-            details: "Selecting workspace agent",
-            displayLabel: "Routing request",
-            providerEventName: "session.operation"
-          })
-        }));
+      fakeControl.emit({
+        event: "session.operation",
+        payload: {
+          sessionKey: "conv-123",
+          operationId: "route-1",
+          name: "Routing",
+          status: "running",
+          details: "Selecting workspace agent"
+        }
+      });
 
-        sub.unsubscribe();
-        expect(instances[0].closed).toBe(true);
-      } finally {
-        (globalThis as any).WebSocket = originalWebSocket;
-      }
+      expect(onEvent).toHaveBeenCalledTimes(1);
+      expect(onEvent.mock.calls[0][0]).toEqual(expect.objectContaining({
+        object: "chat.completion.chunk",
+        executionId: start.providerExecutionReference,
+        openclaw_extension: expect.objectContaining({
+          stepId: "routing-route-1",
+          stepName: "Routing request",
+          status: "in-progress",
+          activityType: "routing",
+          details: "Selecting workspace agent",
+          displayLabel: "Routing request",
+          providerEventName: "session.operation"
+        })
+      }));
+
+      streamController.enqueue(encoder.encode(
+        "data: {\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"content\":\"Final answer\"}}]}\n\n"
+      ));
+      await flushAsyncTasks();
+
+      expect(onEvent).toHaveBeenCalledTimes(3);
+      expect(onEvent.mock.calls[1][0].openclaw_extension).toMatchObject({
+        stepName: "Agent Execution",
+        status: "started"
+      });
+      expect(onEvent.mock.calls[2][0].choices[0].delta.content).toBe("Final answer");
+
+      streamController.close();
+      sub.unsubscribe();
+      expect(fakeControl.closed).toBe(true);
     });
 
     it("should map rich Gateway progress frames into sanitized provider-neutral activities", async () => {
-      const originalWebSocket = (globalThis as any).WebSocket;
-      const instances: FakeGatewayWebSocket[] = [];
-      class FakeGatewayWebSocket {
-        onopen: ((event: unknown) => void) | null = null;
-        onmessage: ((event: { data: unknown }) => void) | null = null;
-        onerror: ((event: unknown) => void) | null = null;
-        onclose: ((event: unknown) => void) | null = null;
-        sent: any[] = [];
-        closed = false;
-        constructor(readonly url: string) {
-          instances.push(this);
+      let streamController!: ReadableStreamDefaultController<Uint8Array>;
+      const fakeControl = new FakeGatewayControlClient();
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            streamController = controller;
+          }
+        })
+      });
+
+      const transport = new OpenClawHttpSSETransport(mockFetch as any, {
+        gatewayControlClientFactory: () => fakeControl as any
+      });
+      const start = await transport.startExecution("https://openclaw.internal", "cred-123", {
+        taskId: "task-123",
+        prompt: "Use tools",
+        target: "openclaw/default",
+        mode: "auto",
+        conversationId: "conv-activity"
+      });
+      const onEvent = vi.fn();
+      const sub = transport.subscribeEventStream(
+        "https://openclaw.internal",
+        "cred-123",
+        start.providerExecutionReference,
+        onEvent,
+        vi.fn()
+      );
+
+      await flushAsyncTasks();
+      onEvent.mockClear();
+
+      fakeControl.emit({
+        event: "session.search.query",
+        payload: {
+          sessionKey: "conv-activity",
+          id: "search-1",
+          query: "OpenClaw Gateway progress",
+          summary: "Searching public web"
         }
-        send(data: string) {
-          this.sent.push(JSON.parse(data));
+      });
+      fakeControl.emit({
+        event: "session.document.read",
+        payload: {
+          sessionKey: "conv-activity",
+          documentId: "doc-1",
+          documentName: "Roadmap.pdf",
+          details: "Reading from C:\\Users\\admin\\Roadmap.pdf"
         }
-        close() {
-          this.closed = true;
+      });
+      fakeControl.emit({
+        event: "session.shell.command",
+        payload: {
+          sessionKey: "conv-activity",
+          id: "shell-1",
+          status: "error",
+          command: "npm test",
+          details: "Command failed with token abc123"
         }
-      }
-      (globalThis as any).WebSocket = FakeGatewayWebSocket;
+      });
+      fakeControl.emit({
+        event: "session.message.progress",
+        payload: {
+          sessionKey: "conv-activity",
+          id: "tool-rich-1",
+          toolCalls: [
+            {
+              id: "call-rich-1",
+              function: {
+                name: "crm_lookup",
+                arguments: "{\"customer\":\"Acme\",\"token\":\"secret-value\"}"
+              }
+            }
+          ],
+          summary: "Calling CRM lookup"
+        }
+      });
+      fakeControl.emit({
+        event: "session.reasoning.delta",
+        payload: {
+          sessionKey: "conv-activity",
+          id: "think-1",
+          reasoning: "private reasoning with token secret-value",
+          summary: "Planning search strategy"
+        }
+      });
+      fakeControl.emit({
+        event: "session.api.request",
+        payload: {
+          sessionKey: "other-conv",
+          id: "api-ignored",
+          summary: "This belongs elsewhere"
+        }
+      });
 
-      try {
-        const mockFetch = vi.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          body: new ReadableStream<Uint8Array>({
-            start(controller) {
-              controller.close();
-            }
-          })
-        });
+      expect(onEvent).toHaveBeenCalledTimes(5);
+      expect(onEvent.mock.calls[0][0].openclaw_extension).toMatchObject({
+        activityType: "web-search",
+        displayLabel: "Searching web",
+        queryPreview: "OpenClaw Gateway progress",
+        providerEventName: "session.search.query"
+      });
+      expect(onEvent.mock.calls[1][0].openclaw_extension).toMatchObject({
+        activityType: "document-read",
+        displayLabel: "Reading Roadmap.pdf",
+        resourceLabel: "Roadmap.pdf",
+        details: "Reading from [REDACTED_PATH]"
+      });
+      expect(onEvent.mock.calls[2][0].openclaw_extension).toMatchObject({
+        activityType: "shell",
+        displayLabel: "Running command",
+        status: "failed",
+        details: "Command failed with token [REDACTED]"
+      });
+      expect(onEvent.mock.calls[3][0].openclaw_extension).toMatchObject({
+        activityType: "tool-call",
+        displayLabel: "Calling crm_lookup",
+        toolName: "crm_lookup",
+        inputPreview: "{\"customer\":\"Acme\",\"token\":\"[REDACTED]\"}"
+      });
+      expect(onEvent.mock.calls[4][0].openclaw_extension).toMatchObject({
+        activityType: "provider-diagnostic",
+        displayLabel: "Thinking",
+        details: "Planning search strategy",
+        providerEventName: "session.reasoning.delta"
+      });
+      expect(JSON.stringify(onEvent.mock.calls[4][0])).not.toContain("private reasoning");
 
-        const transport = new OpenClawHttpSSETransport(mockFetch as any);
-        const start = await transport.startExecution("https://openclaw.internal", "cred-123", {
-          taskId: "task-123",
-          prompt: "Use tools",
-          target: "openclaw/default",
-          mode: "auto",
-          conversationId: "conv-activity"
-        });
-        const onEvent = vi.fn();
-        const sub = transport.subscribeEventStream(
-          "https://openclaw.internal",
-          "cred-123",
-          start.providerExecutionReference,
-          onEvent,
-          vi.fn()
-        );
-
-        instances[0].onopen?.({});
-        instances[0].onmessage?.({ data: JSON.stringify({ type: "connected", status: "ok" }) });
-        onEvent.mockClear();
-
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.search.query",
-            payload: {
-              sessionKey: "conv-activity",
-              id: "search-1",
-              query: "OpenClaw Gateway progress",
-              summary: "Searching public web"
-            }
-          })
-        });
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.document.read",
-            payload: {
-              sessionKey: "conv-activity",
-              documentId: "doc-1",
-              documentName: "Roadmap.pdf",
-              details: "Reading from C:\\Users\\admin\\Roadmap.pdf"
-            }
-          })
-        });
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.shell.command",
-            payload: {
-              sessionKey: "conv-activity",
-              id: "shell-1",
-              status: "error",
-              command: "npm test",
-              details: "Command failed with token abc123"
-            }
-          })
-        });
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.message.progress",
-            payload: {
-              sessionKey: "conv-activity",
-              id: "tool-rich-1",
-              toolCalls: [
-                {
-                  id: "call-rich-1",
-                  function: {
-                    name: "crm_lookup",
-                    arguments: "{\"customer\":\"Acme\",\"token\":\"secret-value\"}"
-                  }
-                }
-              ],
-              summary: "Calling CRM lookup"
-            }
-          })
-        });
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.reasoning.delta",
-            payload: {
-              sessionKey: "conv-activity",
-              id: "think-1",
-              reasoning: "private reasoning with token secret-value",
-              summary: "Planning search strategy"
-            }
-          })
-        });
-        instances[0].onmessage?.({
-          data: JSON.stringify({
-            event: "session.api.request",
-            payload: {
-              sessionKey: "other-conv",
-              id: "api-ignored",
-              summary: "This belongs elsewhere"
-            }
-          })
-        });
-
-        expect(onEvent).toHaveBeenCalledTimes(5);
-        expect(onEvent.mock.calls[0][0].openclaw_extension).toMatchObject({
-          activityType: "web-search",
-          displayLabel: "Searching web",
-          queryPreview: "OpenClaw Gateway progress",
-          providerEventName: "session.search.query"
-        });
-        expect(onEvent.mock.calls[1][0].openclaw_extension).toMatchObject({
-          activityType: "document-read",
-          displayLabel: "Reading Roadmap.pdf",
-          resourceLabel: "Roadmap.pdf",
-          details: "Reading from [REDACTED_PATH]"
-        });
-        expect(onEvent.mock.calls[2][0].openclaw_extension).toMatchObject({
-          activityType: "shell",
-          displayLabel: "Running command",
-          status: "failed",
-          details: "Command failed with token [REDACTED]"
-        });
-        expect(onEvent.mock.calls[3][0].openclaw_extension).toMatchObject({
-          activityType: "tool-call",
-          displayLabel: "Calling crm_lookup",
-          toolName: "crm_lookup",
-          inputPreview: "{\"customer\":\"Acme\",\"token\":\"[REDACTED]\"}"
-        });
-        expect(onEvent.mock.calls[4][0].openclaw_extension).toMatchObject({
-          activityType: "provider-diagnostic",
-          displayLabel: "Thinking",
-          details: "Planning search strategy",
-          providerEventName: "session.reasoning.delta"
-        });
-        expect(JSON.stringify(onEvent.mock.calls[4][0])).not.toContain("private reasoning");
-
-        sub.unsubscribe();
-      } finally {
-        (globalThis as any).WebSocket = originalWebSocket;
-      }
+      streamController.close();
+      sub.unsubscribe();
     });
 
     it("should successfully get snapshot via v1/models", async () => {
