@@ -447,14 +447,15 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
     event: NormalizedRuntimeEvent
   ): Promise<void> {
     const taskIdStr = taskId as string;
+    const eventStepId = (event as any).stepId as string | undefined;
+    console.log(`[WorkflowExecutionService] 🛡️ handleAutoRoutedWorkflowEvent: taskId=${taskIdStr}, eventType=${event.type}, eventStepId=${eventStepId || 'none'}`);
 
     // 1. Auto detect workflow if not already tracked
     let active = this.autoRouteActiveWorkflows.get(taskIdStr);
     
-    const eventStepId = (event as any).stepId as string | undefined;
-
     if (!active && eventStepId) {
       const { items: workflows } = await this.workflowRepo.listByWorkspace(workspaceId);
+      console.log(`[WorkflowExecutionService] AutoRoute detection: found ${workflows.length} workflows in workspace ${workspaceId}`);
       for (const wf of workflows) {
         const matchingStep = wf.steps.find(
           (s) =>
@@ -464,6 +465,7 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
             String(s.stepOrder) === eventStepId
         );
         if (matchingStep) {
+          console.log(`[WorkflowExecutionService] AutoRoute detection SUCCESS: resolved workflowId=${wf.workflowId} via matchingStep=${matchingStep.workflowStepId}`);
           const executionId = `wfe_${taskId}` as EntityId<"executionId">;
           active = {
             workflowId: wf.workflowId,
