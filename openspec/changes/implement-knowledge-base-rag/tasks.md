@@ -23,7 +23,7 @@
 - [ ] 2.5 Implement real OAuth/credential handling for external providers
 - [ ] 2.6 Implement real embedding provider adapter integration
 - [ ] 2.7 Implement real vector database adapter integration
-- [ ] 2.8 Implement semantic retrieval/vector search public boundary
+- [x] 2.8 Implement semantic retrieval/vector search public boundary
 - [ ] 2.9 Implement RAG answer generation or task/agent retrieval integration
 - [ ] 2.10 Implement agent knowledge assignment and access checks
 - [ ] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue

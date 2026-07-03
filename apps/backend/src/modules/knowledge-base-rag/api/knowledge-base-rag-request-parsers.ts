@@ -1,5 +1,6 @@
 import type {
   ConnectKnowledgeDataSourceRequest,
+  KnowledgeRetrievalSearchRequest,
   PrepareUploadRequest,
   RequestKnowledgeSyncJobRequest,
   UpdateSyncScopeRequest,
@@ -149,6 +150,55 @@ export function parseRequestKnowledgeSyncJobRequest(
   };
 }
 
+export function parseKnowledgeRetrievalSearchRequest(
+  body: unknown
+): KnowledgeRetrievalSearchRequest {
+  const payload = requirePlainObject(body, "knowledge retrieval request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(payload, ["query", "topK", "filters"], "knowledge retrieval request");
+
+  const filtersValue = payload["filters"];
+  let filters: KnowledgeRetrievalSearchRequest["filters"];
+  if (filtersValue !== undefined) {
+    const filterPayload = requirePlainObject(filtersValue, "filters");
+    assertOnlyKeys(
+      filterPayload,
+      ["documentIds", "sourceTypes", "sourceLocators", "statuses"],
+      "filters"
+    );
+    filters = {
+      documentIds:
+        filterPayload["documentIds"] === undefined
+          ? undefined
+          : requireStringArray(filterPayload["documentIds"], "filters.documentIds") as any,
+      sourceTypes:
+        filterPayload["sourceTypes"] === undefined
+          ? undefined
+          : requireStringArray(filterPayload["sourceTypes"], "filters.sourceTypes") as any,
+      sourceLocators:
+        filterPayload["sourceLocators"] === undefined
+          ? undefined
+          : requireStringArray(
+              filterPayload["sourceLocators"],
+              "filters.sourceLocators"
+            ),
+      statuses:
+        filterPayload["statuses"] === undefined
+          ? undefined
+          : requireStringArray(filterPayload["statuses"], "filters.statuses") as any
+    };
+  }
+
+  return {
+    query: requireString(payload["query"], "query"),
+    topK:
+      payload["topK"] === undefined
+        ? undefined
+        : requireFiniteNumber(payload["topK"], "topK"),
+    filters
+  };
+}
+
 export function assertNoForbiddenRequestKeys(
   value: unknown,
   allowedForbiddenKeys: readonly string[] = []
@@ -187,6 +237,20 @@ function requirePlainObject(value: unknown, label: string): Record<string, unkno
   }
 
   return value as Record<string, unknown>;
+}
+
+function assertOnlyKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  label: string
+): void {
+  const allowed = new Set(allowedKeys);
+  const unknownKeys = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknownKeys.length > 0) {
+    throw new KnowledgeBaseRagValidationError(
+      unknownKeys.sort().map((key) => `${label}.${key} is not supported`)
+    );
+  }
 }
 
 function requireString(value: unknown, path: string): string {

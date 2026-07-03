@@ -21,6 +21,7 @@ const baseConfig = {
 
 testConfigurationValidation();
 await testBatchingAndOrder();
+await testQueryEmbedding();
 await testProviderFailures();
 await testResponseValidation();
 await testEmptyInputs();
@@ -115,6 +116,29 @@ async function testBatchingAndOrder() {
       ["chunk-2", [5, 2, 0]]
     ]
   );
+}
+
+async function testQueryEmbedding() {
+  const requests = [];
+  const adapter = new OpenAICompatibleKnowledgeEmbeddingAdapter(
+    baseConfig,
+    async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return jsonResponse({
+        data: [{ index: 0, embedding: [1, 2, 3] }]
+      });
+    }
+  );
+  const result = await adapter.generateQueryEmbedding({
+    workspaceId: "workspace-a",
+    query: "  escalation policy  "
+  });
+
+  assert.deepEqual(requests[0].input, ["escalation policy"]);
+  assert.deepEqual(result, {
+    workspaceId: "workspace-a",
+    embedding: [1, 2, 3]
+  });
 }
 
 async function testProviderFailures() {

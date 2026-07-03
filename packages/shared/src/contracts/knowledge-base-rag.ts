@@ -11,7 +11,8 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   dataSources: "/api/workspaces/:workspaceId/knowledge/data-sources",
   connectDataSource: "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect",
   syncScope: "/api/workspaces/:workspaceId/knowledge/sync-scope",
-  syncJobs: "/api/workspaces/:workspaceId/knowledge/sync-jobs"
+  syncJobs: "/api/workspaces/:workspaceId/knowledge/sync-jobs",
+  retrievalSearch: "/api/workspaces/:workspaceId/knowledge/retrieval/search"
 } as const;
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
@@ -25,7 +26,8 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope },
   { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
-  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs }
+  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch }
 ] as const;
 
 export type KnowledgeBaseRagApiRoute =
@@ -74,6 +76,9 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeDataSourceDto",
   "SyncScopeNodeDto",
   "SyncJobDto",
+  "KnowledgeRetrievalSearchRequest",
+  "KnowledgeEvidenceDto",
+  "KnowledgeRetrievalSearchResponse",
   "KnowledgeBaseApiError"
 ] as const;
 
@@ -210,6 +215,41 @@ export type UpdateSyncScopeRequest = {
 export type RequestKnowledgeSyncJobRequest = {
   sourceId?: string;
   scopeNodeIds?: string[];
+};
+
+export type KnowledgeRetrievalFilters = {
+  documentIds?: EntityId<"documentId">[];
+  sourceTypes?: KnowledgeDocumentSource[];
+  sourceLocators?: string[];
+  statuses?: KnowledgeIndexStatus[];
+};
+
+export type KnowledgeRetrievalSearchRequest = {
+  query: string;
+  topK?: number;
+  filters?: KnowledgeRetrievalFilters;
+};
+
+export type KnowledgeEvidenceDto = {
+  evidenceId: string;
+  rank: number;
+  score: number;
+  documentId: EntityId<"documentId">;
+  chunkId: string;
+  documentTitle: string;
+  snippet: string;
+  source: {
+    type: KnowledgeDocumentSource;
+    locator?: string;
+  };
+  metadata: {
+    chunkIndex: number;
+  };
+};
+
+export type KnowledgeRetrievalSearchResponse = {
+  results: KnowledgeEvidenceDto[];
+  total: number;
 };
 
 export type KnowledgeBaseApiError = ApiError & {

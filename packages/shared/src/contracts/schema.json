@@ -315,7 +315,8 @@
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
       { "method": "PUT", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
-      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" }
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/retrieval/search" }
     ],
     "dtoExports": [
       "KnowledgeDocumentDto",
@@ -329,6 +330,9 @@
       "KnowledgeDataSourceDto",
       "SyncScopeNodeDto",
       "SyncJobDto",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeEvidenceDto",
+      "KnowledgeRetrievalSearchResponse",
       "KnowledgeBaseApiError"
     ],
     "requestDtoExports": [
@@ -336,7 +340,8 @@
       "PrepareUploadRequest",
       "ConnectKnowledgeDataSourceRequest",
       "UpdateSyncScopeRequest",
-      "RequestKnowledgeSyncJobRequest"
+      "RequestKnowledgeSyncJobRequest",
+      "KnowledgeRetrievalSearchRequest"
     ],
     "domainEvents": [
       "knowledge.document.uploadValidated",

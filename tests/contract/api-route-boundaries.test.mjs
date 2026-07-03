@@ -99,7 +99,8 @@ const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/knowledge/sync-scope", "implemented"],
   ["PUT", "/api/workspaces/:workspaceId/knowledge/sync-scope", "implemented"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "implemented"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "implemented"]
+  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs", "implemented"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/retrieval/search", "implemented"]
 ];
 
 for (const [method, path, status] of expectedRoutes) {
@@ -110,7 +111,7 @@ for (const [method, path, status] of expectedRoutes) {
 
 assert.equal(
   expectedRoutes.filter(([, , status]) => status === "implemented").length,
-  29,
+  30,
   "Implemented routes should be marked implemented by this matrix"
 );
 
