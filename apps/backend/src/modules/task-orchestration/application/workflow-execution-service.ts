@@ -435,6 +435,11 @@ export class WorkflowExecutionService implements WorkflowExecutionHandoff, Workf
     return refs;
   }
 
+  /**
+   * Tracks and records logs dynamically for auto-routed workflows executing on OpenClaw.
+   * Resolves the matching workflow in the workspace based on the incoming step ID.
+   * Maps progress events directly to WorkflowExecution and WorkflowStepLog records.
+   */
   async handleAutoRoutedWorkflowEvent(
     taskId: EntityId<"taskId">,
     workspaceId: EntityId<"workspaceId">,
