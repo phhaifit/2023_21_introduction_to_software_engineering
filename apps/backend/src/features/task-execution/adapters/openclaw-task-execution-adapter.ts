@@ -658,6 +658,7 @@ export class OpenClawExecutionOrchestrator {
       const logs = this.eventLogs.get(taskIdStr);
       if (logs) logs.push(event);
 
+      // Automatically detect and sync workflow execution logs if the active task triggers a workflow step
       if (this.workflowExecutionService) {
         void this.workflowExecutionService.handleAutoRoutedWorkflowEvent(
           command.taskId,
