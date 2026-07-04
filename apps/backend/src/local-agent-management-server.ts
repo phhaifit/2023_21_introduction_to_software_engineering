@@ -58,9 +58,14 @@ import { AgentKnowledgeRetrievalTool } from "./modules/knowledge-base-rag/applic
 import { AgentKnowledgeOrchestrationUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
 import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
-import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import {
+  KnowledgeUploadUseCases,
+  type KnowledgeUploadUseCaseDependencies
+} from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
 import type { KnowledgeDocumentRepository } from "./modules/knowledge-base-rag/application/knowledge-document-repository.ts";
 import { LocalKnowledgeFileStorage } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
+import { RuntimeKnowledgeDocumentTextExtractor } from "./modules/knowledge-base-rag/infrastructure/knowledge-document-text-extractor.ts";
+import { StoredKnowledgeDocumentContentReader } from "./modules/knowledge-base-rag/infrastructure/stored-knowledge-document-content-reader.ts";
 import { createKnowledgeEmbeddingAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-embedding-adapter.ts";
 import { createKnowledgeRagAnswerProviderFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-rag-answer-provider.ts";
 import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/pgvector-knowledge-vector-index-adapter.ts";
@@ -80,6 +85,7 @@ import {
   PrismaKnowledgeSyncJobRepository,
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
+import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -661,6 +667,40 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     knowledgeDocumentRepository,
     knowledgeAccessPolicy
   );
+  const knowledgeFileStorage = new LocalKnowledgeFileStorage();
+  const inlineIngestionEnabled =
+    process.env.KNOWLEDGE_INGESTION_MODE?.trim().toLowerCase() === "inline";
+  let postUploadProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
+  if (inlineIngestionEnabled) {
+    if (!prisma) {
+      throw new Error(
+        "KNOWLEDGE_INGESTION_MODE=inline requires DATABASE_URL and PostgreSQL."
+      );
+    }
+    const embeddingAdapter = createKnowledgeEmbeddingAdapterFromEnvironment();
+    const vectorIndexAdapter =
+      createKnowledgeVectorIndexAdapterFromEnvironment(prisma);
+    const inlineRunner = createKnowledgeBaseRagLocalFlowRunner({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      contentReader: new StoredKnowledgeDocumentContentReader(
+        knowledgeFileStorage,
+        new RuntimeKnowledgeDocumentTextExtractor()
+      ),
+      embeddingAdapter,
+      vectorIndexAdapter,
+      now: () => new Date().toISOString(),
+      generateChunkId: ({ documentId, chunkIndex }) =>
+        `${documentId}:chunk:${chunkIndex}`,
+      generateEventId: () => randomUUID() as any
+    });
+    postUploadProcessor = {
+      async process(input) {
+        const result = await inlineRunner.run(input);
+        return { document: result.document, job: result.job };
+      }
+    };
+  }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
@@ -668,7 +708,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     uploadUseCases: new KnowledgeUploadUseCases({
       documentRepository: knowledgeDocumentRepository,
       ingestionJobRepository: knowledgeIngestionJobRepository,
-      fileStorage: new LocalKnowledgeFileStorage(),
+      fileStorage: knowledgeFileStorage,
+      postUploadProcessor,
       now: () => new Date().toISOString(),
       generateDocumentId: () => randomUUID() as any,
       generateJobId: () => randomUUID() as any

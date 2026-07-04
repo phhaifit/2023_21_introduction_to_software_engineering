@@ -37,6 +37,7 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | --- | --- | --- |
 | `DATABASE_URL` | Persistent API data and pgvector | Use local PostgreSQL. |
 | `KNOWLEDGE_FILE_STORAGE_DIR` | Optional upload location | Defaults to `.data/knowledge-base-rag/uploads`; keep it private. |
+| `KNOWLEDGE_INGESTION_MODE` | Optional local upload processing | Set to `inline` to parse, chunk, embed, and index before upload returns. Requires PostgreSQL and provider/vector config. |
 | `KNOWLEDGE_EMBEDDING_PROVIDER` | Live embedding/retrieval | Currently `openai-compatible`. |
 | `KNOWLEDGE_EMBEDDING_BASE_URL` | Live embedding/retrieval | Provider base URL. |
 | `KNOWLEDGE_EMBEDDING_API_KEY` | Live embedding/retrieval | Never commit this local secret. |
@@ -154,7 +155,7 @@ TXT upload. Useful questions include:
 
 ## Manual demo flow
 
-The browser supports upload and status inspection, but the current flow is not
+Without inline mode, the browser supports upload and status inspection, but the flow is not
 one-click end to end:
 
 1. Configure `.env`, apply migrations, then run `npm run dev`.
@@ -187,10 +188,25 @@ contain only safe evidence and citation IDs, never storage paths, raw vectors,
 provider payloads, or credentials.
 
 Steps 6 and 8 are integration boundaries, not checked-in CLI commands. There is
-no worker daemon, polling loop, public process-next endpoint, or simple manual
-indexing command. For a reliable demo today, use the deterministic production
-test for the complete upload-to-answer proof and the browser for upload,
-document listing, and queued Processing Status.
+no worker daemon, polling loop, or public process-next endpoint.
+
+For a real local upload-to-index demo, configure `DATABASE_URL`, the embedding
+settings, pgvector settings, and:
+
+```bash
+KNOWLEDGE_INGESTION_MODE=inline
+```
+
+Then a supported upload runs storage, extraction, chunk persistence, embedding,
+vector upsert, and status updates before the upload response returns. Refresh
+**Processing Status** to confirm the job is completed/ready. Failed parsing,
+embedding, or vector indexing appears as failed with a safe error summary.
+
+For deterministic verification without PostgreSQL or provider credentials:
+
+```bash
+node tests/contract/knowledge-base-rag-local-upload-to-index.test.mjs
+```
 
 ## Agent document assignment
 
@@ -278,8 +294,9 @@ configuration to be available.
 - **Backend reports a missing `.env`:** copy `.env.example` to `.env`.
 - **Ports are busy:** run `lsof -nP -iTCP:3001 -sTCP:LISTEN` and the equivalent
   command for port `5173`.
-- **Upload stays queued:** expected until a caller invokes the module-local
-  worker runtime; the development server does not poll jobs.
+- **Upload stays queued:** enable `KNOWLEDGE_INGESTION_MODE=inline` with the
+  required database/provider/vector configuration, or invoke the module-local
+  worker runtime explicitly. The development server does not poll jobs.
 - **Status does not change automatically:** select **Refresh status**. Polling,
   SSE, and WebSocket updates are not implemented.
 - **Retrieval adapter is unavailable:** configure both embedding and vector
@@ -294,8 +311,8 @@ configuration to be available.
 
 - No worker daemon, scheduler, production queue, atomic multi-worker claim, or
   retry endpoint is included.
-- The ingestion runtime extracts and chunks but does not compose the separate
-  embedding/vector indexing pipeline.
+- Inline local mode composes ingestion and indexing, but the default queued
+  mode still requires an external caller.
 - Google Drive, Notion, and Confluence remain placeholders; OAuth and
   credential storage are not implemented.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
@@ -315,3 +332,4 @@ Later, separately reviewed changes can add:
 2. production OpenClaw/Agent Orchestration registration of `knowledge.retrieve`;
 3. optional provider-backed answer composition behind the safe evidence port;
 4. an Ask UI and live provider/database browser acceptance coverage.
+5. an upload-to-Task-chat cross-feature acceptance test.
