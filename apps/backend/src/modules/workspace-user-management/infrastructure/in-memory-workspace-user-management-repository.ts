@@ -8,6 +8,7 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
   private invitations: Map<string, InvitationResponse> = new Map();
   private adminRequests: Map<string, AdminRequestResponse> = new Map();
   private events: WorkspaceEvent[] = [];
+  private transactionLock: Promise<void> = Promise.resolve();
 
   async createWorkspace(workspace: Workspace): Promise<void> {
     this.workspaces.set(workspace.workspaceId, workspace);
@@ -27,7 +28,10 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
   }
 
   async getWorkspaceMemberByMemberId(workspaceId: string, memberId: string): Promise<WorkspaceMember | null> {
-    const member = this.members.get(memberId);
+    let member = this.members.get(memberId);
+    if (!member) {
+      member = Array.from(this.members.values()).find(m => m.workspaceId === workspaceId && m.userId === memberId);
+    }
     return member?.workspaceId === workspaceId ? member : null;
   }
 
@@ -67,7 +71,7 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
     this.invitations.set(invitation.invitationId, invitation);
   }
 
-  async updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "revoked"): Promise<void> {
+  async updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "cancelled" | "expired" | "replaced" | "rejected" | "revoked"): Promise<void> {
     const inv = this.invitations.get(invitationId);
     if (inv) {
       inv.status = status;
@@ -137,5 +141,19 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
 
   async getWorkspaceEvents(workspaceId: string): Promise<WorkspaceEvent[]> {
     return this.events.filter(e => e.workspaceId === workspaceId);
+  }
+
+  async transaction<T>(operation: (tx: WorkspaceUserManagementRepository) => Promise<T>): Promise<T> {
+    let releaseLock: () => void;
+    const acquireLock = new Promise<void>(resolve => { releaseLock = resolve; });
+    const previousLock = this.transactionLock;
+    this.transactionLock = previousLock.then(() => acquireLock);
+
+    await previousLock;
+    try {
+      return await operation(this);
+    } finally {
+      releaseLock!();
+    }
   }
 }

@@ -102,7 +102,7 @@ class FakeWorkspaceUserManagementRepository implements WorkspaceUserManagementRe
     this.invitations.set(invitation.invitationId, { ...invitation });
   }
 
-  async updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "revoked"): Promise<void> {
+  async updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "cancelled" | "expired" | "replaced" | "rejected" | "revoked"): Promise<void> {
     const invitation = this.invitations.get(invitationId);
     if (invitation) {
       this.invitations.set(invitationId, { ...invitation, status });
@@ -134,6 +134,10 @@ class FakeWorkspaceUserManagementRepository implements WorkspaceUserManagementRe
 
   async getWorkspaceEvents(id: string): Promise<WorkspaceEvent[]> {
     return this.events.filter((event) => event.workspaceId === id);
+  }
+
+  async transaction<T>(operation: (tx: WorkspaceUserManagementRepository) => Promise<T>): Promise<T> {
+    return operation(this);
   }
 }
 
@@ -293,7 +297,9 @@ describe("WorkspaceUserManagementService", () => {
     ).rejects.toThrow("Admin can only remove Editor or Viewer");
   });
 
-  it("lets managers update or cancel a pending invitation without recreating it", async () => {
+
+
+  it("lets managers update or cancel a pending invitation with secure token invalidation", async () => {
     const { repository, service, emailService } = makeService();
     await repository.addInvitation({
       invitationId: "invitation-pending",
@@ -312,14 +318,22 @@ describe("WorkspaceUserManagementService", () => {
       hostUserId,
       "host"
     );
-    await service.cancelInvitation(workspaceId, "invitation-pending", hostUserId, "host");
 
-    expect(updated.invitationId).toBe("invitation-pending");
+    // Old token should be replaced, and new token should be generated
+    expect(updated.invitationId).not.toBe("invitation-pending");
     expect(updated.role).toBe("editor");
-    expect(await repository.getInvitationByCode("invitation-pending")).toBe(null);
+
+    const oldInv = await repository.getInvitationByCode("invitation-pending");
+    expect(oldInv?.status).toBe("replaced");
+
+    // Cancel the new generated invitation token
+    await service.cancelInvitation(workspaceId, updated.invitationId, hostUserId, "host");
+    const cancelledInv = await repository.getInvitationByCode(updated.invitationId);
+    expect(cancelledInv?.status).toBe("cancelled");
+
     expect(emailService.sendMail).toHaveBeenCalledWith(
       "pending@example.com",
-      expect.stringContaining("role updated"),
+      expect.stringContaining("updated"),
       expect.stringContaining("Editor")
     );
     expect(emailService.sendMail).toHaveBeenCalledWith(
@@ -442,6 +456,67 @@ describe("WorkspaceUserManagementService", () => {
       userId: invitedUserId,
       role: "viewer",
       isAccepted: true
+    });
+  });
+
+  it("accepts a valid token even when post-accept email notification fails", async () => {
+    const { repository, service, emailService } = makeService();
+    emailService.sendMail.mockRejectedValueOnce(new Error("SMTP timeout"));
+    await repository.addInvitation({
+      invitationId: "invitation-1",
+      workspaceId,
+      email: "invited@example.com",
+      role: "viewer",
+      status: "pending",
+      invitedByUserId: adminUserId,
+      createdAt: "2026-06-29T00:00:00.000Z",
+      expiresAt: "2026-07-06T00:00:00.000Z"
+    });
+
+    const result = await service.acceptInvitation("invitation-1", invitedUserId, "invited@example.com");
+
+    expect(result).toMatchObject({
+      invitationId: "invitation-1",
+      workspaceId,
+      email: "invited@example.com",
+      role: "viewer"
+    });
+    expect((await repository.getInvitationByCode("invitation-1"))?.status).toBe("accepted");
+    expect(await repository.getWorkspaceMember(workspaceId, invitedUserId)).toMatchObject({
+      workspaceId,
+      userId: invitedUserId,
+      role: "viewer",
+      isAccepted: true
+    });
+  });
+
+  it("treats an already accepted invitation as success when the same user is already a member", async () => {
+    const { repository, service } = makeService();
+    await repository.addInvitation({
+      invitationId: "accepted-invitation",
+      workspaceId,
+      email: "invited@example.com",
+      role: "viewer",
+      status: "accepted",
+      invitedByUserId: adminUserId,
+      createdAt: "2026-06-29T00:00:00.000Z"
+    });
+    await repository.addWorkspaceMember({
+      memberId: "member-invited-existing",
+      workspaceId,
+      userId: invitedUserId,
+      role: "viewer",
+      isAccepted: true,
+      joinedAt: "2026-06-29T00:00:00.000Z"
+    });
+
+    await expect(
+      service.acceptInvitation("accepted-invitation", invitedUserId, "invited@example.com")
+    ).resolves.toMatchObject({
+      invitationId: "accepted-invitation",
+      workspaceId,
+      email: "invited@example.com",
+      role: "viewer"
     });
   });
 

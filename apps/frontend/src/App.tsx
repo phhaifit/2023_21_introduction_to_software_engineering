@@ -16,6 +16,7 @@ import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEdito
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
 import { AcceptInvitePage } from "./features/workspace-user-management/pages/AcceptInvitePage.tsx";
+import { InvitationInvalidPage } from "./features/workspace-user-management/pages/InvitationInvalidPage.tsx";
 
 export function App() {
 
@@ -43,6 +44,7 @@ export function App() {
           <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="/authentication" element={<AuthenticationPage />} />
           <Route path="/workspace/invitation/accept" element={<AcceptInvitePage />} />
+          <Route path="/workspace/invitation/invalid" element={<InvitationInvalidPage />} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

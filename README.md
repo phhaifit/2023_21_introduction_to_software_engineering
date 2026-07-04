@@ -20,6 +20,11 @@ OpenSpec là source of truth cho planning và implementation. Không implement m
 
 ## Setup
 
+Recommended Node.js version:
+
+- Node.js `22.14.0`
+- On Windows, this project has been tested with local Node at `D:\.tools\node-v22.14.0-win-x64`
+
 Install dependencies:
 
 ```bash
@@ -40,10 +45,28 @@ Run the local backend and frontend from the repository root:
 npm run dev
 ```
 
+Windows PowerShell example:
+
+```powershell
+cd D:\University\third_year\hk6\cnpm\project\2023_21_introduction_to_software_engineering
+$env:Path = 'D:\.tools\node-v22.14.0-win-x64;' + $env:Path
+npm.cmd run dev
+```
+
+Or use the included helper script:
+
+```powershell
+.\run-dev-local.cmd
+```
+
 Default local URLs:
 
 - Frontend: `http://127.0.0.1:5173`
 - Backend API: `http://127.0.0.1:3001`
+
+Keep the terminal running while demoing the application. Press `Ctrl + C` to stop the dev server.
+
+If the backend cannot connect to Prisma/PostgreSQL, it falls back to in-memory repositories for local demo use. In-memory data is reset when the server stops.
 
 If a port is already in use, check existing processes:
 
@@ -63,23 +86,40 @@ npm run prisma -- migrate deploy
 
 `DATABASE_URL` for Prisma may include `?schema=public`. For `psql`, use a URL without that query parameter.
 
+## Environment And Secrets
+
+Do not commit real environment files or credentials. The repository ignores:
+
+- `.env`
+- `.env.*`
+- log files
+- `node_modules`
+- build output such as `dist`
+
+Use `.env.example` as the template for local configuration. For email invitation sending, configure SMTP values locally only. If SMTP is not configured, the app can still run, but email delivery may be skipped or fail depending on the flow being tested.
+
 ## Verification
 
-Run the main verification commands from the repository root:
+Run the focused Workspace User Management verification commands from the repository root:
 
-```bash
-npm test
+```powershell
+$env:Path = 'D:\.tools\node-v22.14.0-win-x64;' + $env:Path
+.\node_modules\.bin\vitest.cmd run --config vitest.config.ts --environment jsdom tests/component/accept-invite-page.test.tsx tests/component/authentication-page-validation.test.tsx tests/component/authentication-api-client.test.ts tests/component/authentication-context.test.tsx tests/component/workspace-unified-routing.test.ts tests/component/workspace-user-management-api-client.test.ts tests/component/workspace-management-api-client.test.ts tests/component/workspace-invitation-extra2.test.ts
+.\node_modules\.bin\vitest.cmd run --config vitest.config.ts --environment jsdom apps/backend/src/modules/workspace-user-management/application/workspace-user-management-service.test.ts apps/backend/src/shared/email/email-service.test.ts apps/backend/src/modules/workspace-management/application/workspace-use-cases.test.ts
 npm run build
-openspec validate --all --strict
 git diff --check
 ```
 
 Additional commands:
 
 ```bash
+npm test
 npm run test:contracts
 npm run test:e2e
+openspec validate --all --strict
 ```
+
+Note: the full `npm test` suite may fail in the task-orchestration contract runner if Node runs `.mjs` files that import `.ts` files directly. That failure is outside Workspace User Management. Use the focused commands above for this feature.
 
 ## Documentation
 

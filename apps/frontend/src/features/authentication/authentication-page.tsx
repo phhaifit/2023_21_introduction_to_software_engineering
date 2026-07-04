@@ -233,9 +233,10 @@ function AuthForms({ signIn, signUp, isSubmitting, redirectTarget, redirectMessa
     if (!result.ok) {
       setFormError(getAuthErrorMessage(result.code));
     } else {
-      // Navigate to redirect target or workspaces after successful login
-      const target = redirectTarget ? decodeURIComponent(redirectTarget) : '/workspaces';
-      navigate(target, { replace: true });
+      // If redirectTarget is present, the useEffect will handle redirection once context updates.
+      if (!redirectTarget) {
+        navigate('/workspaces', { replace: true });
+      }
     }
   }
 

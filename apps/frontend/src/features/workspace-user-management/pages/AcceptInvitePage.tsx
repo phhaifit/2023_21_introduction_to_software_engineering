@@ -42,6 +42,23 @@ export const AcceptInvitePage: React.FC = () => {
           const returnUrl = encodeURIComponent(location.pathname + location.search);
           const msg = encodeURIComponent('You need to log in or register to accept this invitation.');
           navigate(`/authentication?redirect=${returnUrl}&message=${msg}`);
+        } else if (
+          err instanceof WorkspaceUserManagementApiError &&
+          (err.code === "workspace.conflict" || err.message?.includes("already accepted") || err.message?.includes("already a member")) &&
+          err.details?.workspaceId
+        ) {
+          // Already accepted/joined - redirect to the workspace
+          setStatus('success');
+          redirectTimer = window.setTimeout(() => {
+            navigate(`/workspaces/${err.details?.workspaceId}`, { replace: true });
+          }, 900);
+        } else if (
+          err instanceof WorkspaceUserManagementApiError &&
+          (err.message?.includes("Invalid invitation") ||
+           err.message?.includes("Invitation expired") ||
+           err.message?.includes("Invitation cancelled"))
+        ) {
+          navigate('/workspace/invitation/invalid', { replace: true });
         } else {
           setStatus('error');
           setErrorMsg(err.message || 'Failed to accept invitation.');
@@ -82,7 +99,7 @@ export const AcceptInvitePage: React.FC = () => {
       <h2>Invitation Accepted!</h2>
       <p>You have successfully joined the workspace.</p>
       <p>Redirecting you to the workspace...</p>
-      <button 
+      <button
         style={{ padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
         onClick={() => acceptedInvitation ? navigate(`/workspaces/${acceptedInvitation.workspaceId}`) : navigate('/workspaces')}
       >

@@ -29,7 +29,7 @@ export interface InvitationResponse {
   workspaceId: string;
   email: string;
   role: WorkspaceRole;
-  status: "pending" | "accepted" | "revoked";
+  status: "pending" | "accepted" | "cancelled" | "expired" | "replaced" | "rejected" | "revoked";
   invitedByUserId: string;
   createdAt: string;
   expiresAt?: string;

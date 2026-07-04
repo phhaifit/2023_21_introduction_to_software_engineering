@@ -29,9 +29,9 @@ export function createAcceptInvitationRouter({
   });
 
   router.post("/:code/accept", async (req: Request, res: Response) => {
+    const code = req.params.code;
     try {
       const user = requireAuthenticatedUser((req as any).context);
-      const code = req.params.code;
       if (!code) {
         return sendAuthApiFailure(req, res, "validation.invalid_input", "code is required");
       }
@@ -42,8 +42,19 @@ export function createAcceptInvitationRouter({
       if (err.message?.includes("Authenticated user required")) {
         return sendAuthApiFailure(req, res, "auth.unauthorized", "Authentication required.");
       }
+
+      let workspaceId: string | undefined;
+      if (code) {
+        try {
+          const inv = await service.getInvitationByCode(code);
+          if (inv) {
+            workspaceId = inv.workspaceId;
+          }
+        } catch {}
+      }
+
       if (err.message?.includes("already a member")) {
-        return sendAuthApiFailure(req, res, "workspace.conflict", err.message);
+        return sendAuthApiFailure(req, res, "workspace.conflict", err.message, workspaceId ? { workspaceId } : undefined);
       }
       if (
         err.message?.includes("different email") ||
@@ -52,7 +63,7 @@ export function createAcceptInvitationRouter({
         err.message?.includes("Invitation cancelled") ||
         err.message?.includes("Invitation already accepted")
       ) {
-        return sendAuthApiFailure(req, res, "auth.forbidden", err.message);
+        return sendAuthApiFailure(req, res, "auth.forbidden", err.message, workspaceId ? { workspaceId } : undefined);
       }
       sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
     }

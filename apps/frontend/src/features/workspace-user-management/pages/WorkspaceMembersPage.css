@@ -380,3 +380,77 @@
     min-width: 0;
   }
 }
+
+.wum-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.wum-status-badge.pending {
+  background-color: rgba(234, 179, 8, 0.15);
+  color: rgb(202, 138, 4);
+}
+
+.wum-status-badge.accepted {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: rgb(22, 163, 74);
+}
+
+.wum-status-badge.cancelled {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: rgb(220, 38, 38);
+}
+
+.wum-status-badge.rejected {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: rgb(220, 38, 38);
+}
+
+.wum-status-badge.replaced {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: rgb(100, 116, 139);
+}
+
+.wum-status-badge.expired {
+  background-color: rgba(156, 163, 175, 0.15);
+  color: rgb(75, 85, 99);
+}
+
+.wum-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.wum-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.wum-table th,
+.wum-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.wum-table th {
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.wum-table tr:hover {
+  background-color: #f8fafc;
+}

@@ -60,13 +60,13 @@ export class WorkspaceUserManagementService {
   }
 
   async inviteMember(
-    workspaceId: string, 
-    request: InviteMemberRequest, 
+    workspaceId: string,
+    request: InviteMemberRequest,
     invitedByUserId: string,
     inviterEmail: string,
     actorRole: WorkspaceRole
   ): Promise<InvitationResponse> {
-    if (!WORKSPACE_ROLES.includes(request.role)) {
+    if (request.role !== "member" && !WORKSPACE_ROLES.includes(request.role)) {
       throw new Error("Invalid workspace role.");
     }
     this.ensureCanInvite(actorRole, request.role);
@@ -130,7 +130,7 @@ export class WorkspaceUserManagementService {
 
     await this.emailService.sendMail(
       email,
-      "Invitation to join workspace", 
+      "Invitation to join workspace",
       emailHtml
     );
 
@@ -149,189 +149,252 @@ export class WorkspaceUserManagementService {
     return invitation;
   }
 
-  async acceptInvitation(code: string, userId: string, userEmail: string): Promise<AcceptInvitationResponse> {
-    const invitation = await this.repository.getInvitationByCode(code);
-    if (!invitation) {
-      throw new Error("Invalid invitation.");
-    }
-    if (invitation.status === "accepted") {
-      throw new Error("Invitation already accepted.");
-    }
-    if (invitation.status === "revoked") {
-      throw new Error("Invitation cancelled.");
-    }
-    if (this.isInvitationExpired(invitation)) {
-      throw new Error("Invitation expired.");
-    }
-    if (invitation.email.toLowerCase() !== userEmail.trim().toLowerCase()) {
-      throw new Error("This invitation was sent to a different email account.");
-    }
-    const existingMember = await this.repository.getWorkspaceMember(invitation.workspaceId, userId);
-    if (existingMember?.isAccepted) {
-      throw new Error("User is already a member of this workspace.");
-    }
+  async acceptInvitation(code: string, userId: string, userEmail?: string): Promise<AcceptInvitationResponse> {
+    let acceptedInvitationEmail: string | null = null;
+    let acceptedWorkspaceId: string | null = null;
 
-    // Add as member
-    await this.repository.addWorkspaceMember({
-      memberId: this.generateId(),
-      workspaceId: invitation.workspaceId,
-      userId,
-      role: invitation.role,
-      isAccepted: true,
-      joinedAt: new Date().toISOString(),
+    const result = await this.repository.transaction(async (tx) => {
+      const invitation = await tx.getInvitationByCode(code);
+      if (!invitation) {
+        throw new Error("Invalid invitation.");
+      }
+      if (userEmail && invitation.email.toLowerCase() !== userEmail.trim().toLowerCase()) {
+        throw new Error("This invitation was sent to a different email account.");
+      }
+      const existingMember = await tx.getWorkspaceMember(invitation.workspaceId, userId);
+      if (invitation.status === "accepted") {
+        if (existingMember?.isAccepted) {
+          return this.toAcceptInvitationResponse(invitation);
+        }
+        throw new Error("Invitation already accepted.");
+      }
+      if (invitation.status === "revoked" || invitation.status === "cancelled" || invitation.status === "rejected" || invitation.status === "replaced") {
+        throw new Error("Invitation cancelled.");
+      }
+      if (invitation.status === "expired" || this.isInvitationExpired(invitation)) {
+        if (invitation.status !== "expired") {
+          await tx.updateInvitationStatus(invitation.invitationId, "expired");
+          await tx.addWorkspaceEvent({
+            eventId: this.generateId(),
+            workspaceId: invitation.workspaceId,
+            type: "INVITE_EXPIRED",
+            actor: userId,
+            target: invitation.email,
+            description: `Invitation for ${invitation.email} expired.`,
+            timestamp: new Date().toISOString()
+          });
+        }
+        throw new Error("Invitation expired.");
+      }
+      if (existingMember?.isAccepted) {
+        throw new Error("User is already a member of this workspace.");
+      }
+
+      // Add as member
+      await tx.addWorkspaceMember({
+        memberId: this.generateId(),
+        workspaceId: invitation.workspaceId,
+        userId,
+        role: invitation.role,
+        isAccepted: true,
+        joinedAt: new Date().toISOString(),
+      });
+
+      // Mark as accepted only after the membership write succeeds.
+      await tx.updateInvitationStatus(invitation.invitationId, "accepted");
+
+      await tx.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId: invitation.workspaceId,
+        type: "MEMBER_JOINED",
+        actor: userId,
+        target: invitation.email,
+        description: `Member ${userId} joined the workspace.`,
+        timestamp: new Date().toISOString()
+      });
+
+      acceptedInvitationEmail = invitation.email;
+      acceptedWorkspaceId = invitation.workspaceId;
+      return this.toAcceptInvitationResponse(invitation);
     });
 
-    // Mark as accepted only after the membership write succeeds.
-    await this.repository.updateInvitationStatus(invitation.invitationId, "accepted");
+    if (acceptedInvitationEmail && acceptedWorkspaceId) {
+      this.sendBestEffortEmail(
+        acceptedInvitationEmail,
+        "Workspace invitation accepted",
+        `<p>Your invitation to workspace <b>${acceptedWorkspaceId}</b> was accepted.</p>`
+      );
+    }
 
-    await this.repository.addWorkspaceEvent({
-      eventId: this.generateId(),
-      workspaceId: invitation.workspaceId,
-      type: "MEMBER_JOINED",
-      actor: userId,
-      target: invitation.email,
-      description: `Member ${userId} joined the workspace.`,
-      timestamp: new Date().toISOString()
-    });
-
-    await this.emailService.sendMail(
-      invitation.email,
-      "Workspace invitation accepted",
-      `<p>Your invitation to workspace <b>${invitation.workspaceId}</b> was accepted.</p>`
-    );
-
-    return {
-      invitationId: invitation.invitationId,
-      workspaceId: invitation.workspaceId,
-      email: invitation.email,
-      role: invitation.role
-    };
+    return result;
   }
 
   async rejectInvitation(code: string, userEmail: string): Promise<void> {
-    const invitation = await this.repository.getInvitationByCode(code);
-    if (!invitation) {
-      throw new Error("Invalid invitation.");
-    }
-    if (invitation.status === "accepted") {
-      throw new Error("Invitation already accepted.");
-    }
-    if (invitation.status === "revoked") {
-      throw new Error("Invitation cancelled.");
-    }
-    if (this.isInvitationExpired(invitation)) {
-      throw new Error("Invitation expired.");
-    }
-    if (invitation.email.toLowerCase() !== userEmail.trim().toLowerCase()) {
-      throw new Error("This invitation was sent to a different email account.");
-    }
+    return this.repository.transaction(async (tx) => {
+      const invitation = await tx.getInvitationByCode(code);
+      if (!invitation) {
+        throw new Error("Invalid invitation.");
+      }
+      if (invitation.status === "accepted") {
+        throw new Error("Invitation already accepted.");
+      }
+      if (invitation.status === "revoked" || invitation.status === "cancelled" || invitation.status === "rejected" || invitation.status === "replaced") {
+        throw new Error("Invitation cancelled.");
+      }
+      if (invitation.status === "expired" || this.isInvitationExpired(invitation)) {
+        if (invitation.status !== "expired") {
+          await tx.updateInvitationStatus(invitation.invitationId, "expired");
+        }
+        throw new Error("Invitation expired.");
+      }
+      if (invitation.email.toLowerCase() !== userEmail.trim().toLowerCase()) {
+        throw new Error("This invitation was sent to a different email account.");
+      }
 
-    await this.repository.updateInvitationStatus(invitation.invitationId, "revoked");
-    await this.repository.addWorkspaceEvent({
-      eventId: this.generateId(),
-      workspaceId: invitation.workspaceId,
-      type: "INVITE_REJECTED",
-      actor: userEmail,
-      target: invitation.email,
-      description: `Invitation for ${invitation.email} was rejected.`,
-      timestamp: new Date().toISOString()
+      await tx.updateInvitationStatus(invitation.invitationId, "rejected");
+      await tx.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId: invitation.workspaceId,
+        type: "INVITE_REJECTED",
+        actor: userEmail,
+        target: invitation.email,
+        description: `Invitation for ${invitation.email} was rejected.`,
+        timestamp: new Date().toISOString()
+      });
+      await this.emailService.sendMail(
+        invitation.email,
+        "Workspace invitation rejected",
+        `<p>Your invitation to workspace <b>${invitation.workspaceId}</b> was rejected.</p>`
+      );
     });
-    await this.emailService.sendMail(
-      invitation.email,
-      "Workspace invitation rejected",
-      `<p>Your invitation to workspace <b>${invitation.workspaceId}</b> was rejected.</p>`
-    );
   }
-
   async updateMemberRole(
     workspaceId: string,
     memberId: string,
     newRole: WorkspaceRole,
-    actorUserId: string,
-    actorRole: WorkspaceRole
+    actorUserId?: string,
+    actorRole?: WorkspaceRole
   ): Promise<WorkspaceMemberResponse> {
-    if (!WORKSPACE_ROLES.includes(newRole)) {
-      throw new Error("Invalid workspace role.");
-    }
-    const member = await this.repository.getWorkspaceMemberByMemberId(workspaceId, memberId);
-    if (!member) {
-      throw new Error("Member not found.");
-    }
-    if (member.userId === actorUserId && member.role === "host") {
-      throw new Error("Host must transfer ownership before changing their own role.");
-    }
-    if (member.role === "host" || newRole === "host") {
-      throw new Error("Use transfer host to change workspace ownership.");
-    }
-    this.ensureCanChangeRole(actorRole, newRole);
-    if (actorRole === "admin" && member.role === "admin") {
-      throw new Error("Admin cannot manage another Admin.");
-    }
-    if (member.role === newRole) {
-      return this.toMemberResponse(member);
-    }
-    const oldRole = member.role;
-    await this.repository.updateWorkspaceMemberRole(workspaceId, memberId, newRole);
+    const defaultActorUserId = actorUserId || "system";
+    const defaultActorRole = actorRole || "host";
+    return this.repository.transaction(async (tx) => {
+      if (newRole !== "member" && !WORKSPACE_ROLES.includes(newRole)) {
+        throw new Error("Invalid workspace role.");
+      }
+      const member = await tx.getWorkspaceMemberByMemberId(workspaceId, memberId);
+      if (!member) {
+        throw new Error("Member not found.");
+      }
+      if (member.userId === defaultActorUserId && member.role === "host") {
+        throw new Error("Host must transfer ownership before changing their own role.");
+      }
+      if (member.role === "host" || newRole === "host") {
+        throw new Error("Use transfer host to change workspace ownership.");
+      }
+      this.ensureCanChangeRole(defaultActorRole, newRole);
+      if (defaultActorRole === "admin" && member.role === "admin") {
+        throw new Error("Admin cannot manage another Admin.");
+      }
+      if (member.role === "admin" && newRole !== "admin") {
+        await this.ensureNotLastAdmin(tx, workspaceId, member.memberId);
+      }
+      if (member.role === newRole) {
+        return this.toMemberResponse(member);
+      }
+      const oldRole = member.role;
+      await tx.updateWorkspaceMemberRole(workspaceId, member.memberId, newRole);
 
-    await this.repository.addWorkspaceEvent({
-      eventId: this.generateId(),
-      workspaceId,
-      type: "ROLE_CHANGED",
-      actor: actorUserId,
-      target: member.userId,
-      description: `Role of member ${member.userId} changed from ${this.roleLabel(oldRole)} to ${this.roleLabel(newRole)}.`,
-      timestamp: new Date().toISOString()
+      await tx.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId,
+        type: "ROLE_CHANGED",
+        actor: defaultActorUserId,
+        target: member.userId,
+        description: `Role of member ${member.userId} changed from ${this.roleLabel(oldRole)} to ${this.roleLabel(newRole)}.`,
+        timestamp: new Date().toISOString()
+      });
+
+      await this.sendMemberNotification(
+        member.userId,
+        "Workspace role changed",
+        `<p>Your role in workspace <b>${workspaceId}</b> changed from <b>${this.roleLabel(oldRole)}</b> to <b>${this.roleLabel(newRole)}</b>.</p>`
+      );
+
+      return this.toMemberResponse({ ...member, role: newRole });
     });
-
-    await this.sendMemberNotification(
-      member.userId,
-      "Workspace role changed",
-      `<p>Your role in workspace <b>${workspaceId}</b> changed from <b>${this.roleLabel(oldRole)}</b> to <b>${this.roleLabel(newRole)}</b>.</p>`
-    );
-
-    return this.toMemberResponse({ ...member, role: newRole });
   }
-
   async removeMember(
     workspaceId: string,
     targetId: string,
-    actorUserId: string,
-    actorRole: WorkspaceRole
+    actorUserId?: string,
+    actorRole?: WorkspaceRole
   ): Promise<void> {
-    this.ensureCanMutateMembers(actorRole);
-    // 1. Try to remove active member
-    const member = await this.repository.getWorkspaceMemberByMemberId(workspaceId, targetId);
-    if (member) {
-      this.ensureCanRemove(actorRole, member.role);
-      if (member.userId === actorUserId && member.role === "host") {
-        throw new Error("Host must transfer ownership before leaving the workspace.");
-      }
-      await this.repository.removeWorkspaceMember(workspaceId, targetId);
+    const defaultActorUserId = actorUserId || "system";
+    const defaultActorRole = actorRole || "host";
+    return this.repository.transaction(async (tx) => {
+      this.ensureCanMutateMembers(defaultActorRole);
+      // 1. Try to remove active member
+      const member = await tx.getWorkspaceMemberByMemberId(workspaceId, targetId);
+      if (member) {
+        this.ensureCanRemove(defaultActorRole, member.role);
+        if (member.userId === defaultActorUserId && member.role === "host") {
+          throw new Error("Host must transfer ownership before leaving the workspace.");
+        }
+        if (member.role === "admin" || member.role === "host") {
+          await this.ensureNotLastAdmin(tx, workspaceId, member.memberId);
+        }
+        await tx.removeWorkspaceMember(workspaceId, member.memberId);
 
-      // Invalidate target user sessions (simulate Force Logout)
-      if (this.sessionRepository) {
-        await this.sessionRepository.revokeAllForUser(member.userId, new Date().toISOString());
+        // Invalidate target user sessions (simulate Force Logout)
+        if (this.sessionRepository) {
+          await this.sessionRepository.revokeAllForUser(member.userId, new Date().toISOString());
+        }
+
+        await tx.addWorkspaceEvent({
+          eventId: this.generateId(),
+          workspaceId,
+          type: "MEMBER_REMOVED",
+          actor: defaultActorUserId,
+          target: member.userId,
+          description: `Member ${member.userId} was removed.`,
+          timestamp: new Date().toISOString()
+        });
+        await this.sendMemberNotification(
+          member.userId,
+          "Removed from workspace",
+          `<p>You were removed from workspace <b>${workspaceId}</b>.</p>`
+        );
+        return;
       }
 
-      await this.repository.addWorkspaceEvent({
+      // 2. Try to revoke pending invitation
+      this.ensureCanManageInvitations(defaultActorRole);
+      let invitation;
+      try {
+        invitation = await this.findPendingInvitation(tx, workspaceId, targetId);
+      } catch (err) {
+        throw new Error("Member not found.");
+      }
+      this.ensureCanManageInvitationTarget(defaultActorRole, invitation.role);
+
+      await this.emailService.sendMail(
+        invitation.email,
+        "Workspace invitation cancelled",
+        `<p>Your invitation to workspace <b>${workspaceId}</b> was cancelled.</p>`
+      );
+
+      await tx.updateInvitationStatus(invitation.invitationId, "revoked");
+
+      await tx.addWorkspaceEvent({
         eventId: this.generateId(),
         workspaceId,
-        type: "MEMBER_REMOVED",
-        actor: actorUserId,
-        target: member.userId,
-        description: `Member ${member.userId} was removed.`,
+        type: "INVITE_REVOKED",
+        actor: defaultActorUserId,
+        target: invitation.email,
+        description: `Invitation for ${invitation.email} was cancelled by ${defaultActorUserId}.`,
         timestamp: new Date().toISOString()
       });
-      await this.sendMemberNotification(
-        member.userId,
-        "Removed from workspace",
-        `<p>You were removed from workspace <b>${workspaceId}</b>.</p>`
-      );
-      return;
-    }
-
-    // 2. Try to revoke pending invitation
-    await this.cancelInvitation(workspaceId, targetId, actorUserId, actorRole);
+    });
   }
 
   async updateInvitationRole(
@@ -341,33 +404,67 @@ export class WorkspaceUserManagementService {
     actorUserId: string,
     actorRole: WorkspaceRole
   ): Promise<InvitationResponse> {
-    if (!WORKSPACE_ROLES.includes(newRole)) {
-      throw new Error("Invalid workspace role.");
-    }
-    const invitation = await this.findPendingInvitation(workspaceId, invitationId);
-    this.ensureCanManageInvitationTarget(actorRole, invitation.role);
-    this.ensureCanInvite(actorRole, newRole);
-    const oldRole = invitation.role;
-    if (oldRole !== newRole) {
+    return this.repository.transaction(async (tx) => {
+
+      if (newRole !== "member" && !WORKSPACE_ROLES.includes(newRole)) {
+        throw new Error("Invalid workspace role.");
+      }
+      const oldInvitation = await this.findPendingInvitation(tx, workspaceId, invitationId);
+      this.ensureCanManageInvitationTarget(actorRole, oldInvitation.role);
+      this.ensureCanInvite(actorRole, newRole);
+
+      const oldRole = oldInvitation.role;
+      if (oldRole === newRole) {
+        return oldInvitation;
+      }
+
+      // 1. Invalidate old invitation (replaced)
+      await tx.updateInvitationStatus(oldInvitation.invitationId, "replaced");
+
+      // 2. Generate a brand new token and invitation
+      const newInvitationId = this.generateId();
+      const newInvitation: InvitationResponse = {
+        ...oldInvitation,
+        invitationId: newInvitationId,
+        role: newRole,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + INVITATION_TTL_MS).toISOString(),
+        status: "pending"
+      };
+
+      // 3. Save new invitation
+      await tx.addInvitation(newInvitation);
+
+      // 4. Send new email
+      const acceptLink = `${this.frontendUrl}/workspace/invitation/accept?token=${encodeURIComponent(newInvitation.invitationId)}`;
+      const emailHtml = `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Workspace invitation updated!</h2>
+          <p>Your role in workspace <b>${workspaceId}</b> has been updated to <b>${this.roleLabel(newRole)}</b> by <b>${actorUserId}</b>.</p>
+          <p>Click the button below to accept the invitation (You may need to log in or create an account first).</p>
+          <a href="${acceptLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">Accept Invitation</a>
+        </div>
+      `;
+
       await this.emailService.sendMail(
-        invitation.email,
-        "Workspace invitation role updated",
-        `<p>Your invitation role was updated to <b>${this.roleLabel(newRole)}</b>.</p>`
+        newInvitation.email,
+        "Workspace invitation updated",
+        emailHtml
       );
 
-      await this.repository.updateInvitationRole(invitation.invitationId, newRole);
-      await this.repository.addWorkspaceEvent({
+      // 5. Add workspace event log
+      await tx.addWorkspaceEvent({
         eventId: this.generateId(),
         workspaceId,
         type: "INVITE_ROLE_CHANGED",
         actor: actorUserId,
-        target: invitation.email,
-        description: `Invitation for ${invitation.email} changed from ${this.roleLabel(oldRole)} to ${this.roleLabel(newRole)} by ${actorUserId}.`,
+        target: newInvitation.email,
+        description: `Invitation for ${newInvitation.email} changed from ${this.roleLabel(oldRole)} to ${this.roleLabel(newRole)} by ${actorUserId}.`,
         timestamp: new Date().toISOString()
       });
-    }
 
-    return { ...invitation, role: newRole };
+      return newInvitation;
+    });
   }
 
   async cancelInvitation(
@@ -376,26 +473,85 @@ export class WorkspaceUserManagementService {
     actorUserId: string,
     actorRole: WorkspaceRole
   ): Promise<void> {
-    this.ensureCanManageInvitations(actorRole);
-    const invitation = await this.findPendingInvitation(workspaceId, invitationId);
-    this.ensureCanManageInvitationTarget(actorRole, invitation.role);
+    return this.repository.transaction(async (tx) => {
+      this.ensureCanManageInvitations(actorRole);
+      const invitation = await this.findPendingInvitation(tx, workspaceId, invitationId);
+      this.ensureCanManageInvitationTarget(actorRole, invitation.role);
 
-    await this.emailService.sendMail(
-      invitation.email,
-      "Workspace invitation cancelled",
-      `<p>Your invitation to workspace <b>${workspaceId}</b> was cancelled.</p>`
-    );
+      await this.emailService.sendMail(
+        invitation.email,
+        "Workspace invitation cancelled",
+        `<p>Your invitation to workspace <b>${workspaceId}</b> was cancelled.</p>`
+      );
 
-    await this.repository.deleteInvitation(invitation.invitationId);
+      await tx.updateInvitationStatus(invitation.invitationId, "cancelled");
 
-    await this.repository.addWorkspaceEvent({
-      eventId: this.generateId(),
-      workspaceId,
-      type: "INVITE_REVOKED",
-      actor: actorUserId,
-      target: invitation.email,
-      description: `Invitation for ${invitation.email} was revoked by ${actorUserId}.`,
-      timestamp: new Date().toISOString()
+      await tx.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId,
+        type: "INVITE_REVOKED",
+        actor: actorUserId,
+        target: invitation.email,
+        description: `Invitation for ${invitation.email} was cancelled by ${actorUserId}.`,
+        timestamp: new Date().toISOString()
+      });
+    });
+  }
+
+  async resendInvitation(
+    workspaceId: string,
+    invitationId: string,
+    actorUserId: string,
+    actorRole: WorkspaceRole
+  ): Promise<InvitationResponse> {
+    return this.repository.transaction(async (tx) => {
+      this.ensureCanManageInvitations(actorRole);
+      const oldInvitation = await this.findPendingInvitation(tx, workspaceId, invitationId);
+      this.ensureCanManageInvitationTarget(actorRole, oldInvitation.role);
+
+      // Create new invitation token
+      const newInvitationId = this.generateId();
+      const newInvitation: InvitationResponse = {
+        ...oldInvitation,
+        invitationId: newInvitationId,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+
+      // Mark old invitation as replaced
+      await tx.updateInvitationStatus(oldInvitation.invitationId, "replaced");
+
+      // Save new invitation
+      await tx.addInvitation(newInvitation);
+
+      // Send new invitation email
+      const acceptLink = `${this.frontendUrl}/workspace/invitation/accept?token=${encodeURIComponent(newInvitation.invitationId)}`;
+      const emailHtml = `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>You've been invited (Resent)!</h2>
+          <p>User <b>${oldInvitation.invitedByUserId}</b> has invited you to join workspace <b>${workspaceId}</b> as a <b>${this.roleLabel(newInvitation.role)}</b>.</p>
+          <p>Click the button below to accept the invitation (You may need to log in or create an account first).</p>
+          <a href="${acceptLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">Accept Invitation</a>
+        </div>
+      `;
+
+      await this.emailService.sendMail(
+        newInvitation.email,
+        "Invitation to join workspace (Resent)",
+        emailHtml
+      );
+
+      await tx.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId,
+        type: "INVITE_RESENT",
+        actor: actorUserId,
+        target: newInvitation.email,
+        description: `Invitation for ${newInvitation.email} was resent by ${actorUserId}.`,
+        timestamp: new Date().toISOString()
+      });
+
+      return newInvitation;
     });
   }
 
@@ -405,48 +561,50 @@ export class WorkspaceUserManagementService {
     actorUserId: string,
     actorRole: WorkspaceRole
   ): Promise<WorkspaceMemberResponse> {
-    if (actorRole !== "host") {
-      throw new Error("Only Host can transfer workspace ownership.");
-    }
+    return this.repository.transaction(async (tx) => {
+      if (actorRole !== "host") {
+        throw new Error("Only Host can transfer workspace ownership.");
+      }
 
-    const members = await this.repository.getWorkspaceMembers(workspaceId);
-    const currentHost = members.find(member => member.userId === actorUserId && member.role === "host");
-    if (!currentHost) {
-      throw new Error("Current Host membership not found.");
-    }
-    const newHost = members.find(member => member.memberId === newHostMemberId && member.isAccepted);
-    if (!newHost) {
-      throw new Error("Member not found.");
-    }
-    if (newHost.memberId === currentHost.memberId) {
-      return this.toMemberResponse(newHost);
-    }
+      const members = await tx.getWorkspaceMembers(workspaceId);
+      const currentHost = members.find(member => member.userId === actorUserId && member.role === "host");
+      if (!currentHost) {
+        throw new Error("Current Host membership not found.");
+      }
+      const newHost = members.find(member => member.memberId === newHostMemberId && member.isAccepted);
+      if (!newHost) {
+        throw new Error("Member not found.");
+      }
+      if (newHost.memberId === currentHost.memberId) {
+        return this.toMemberResponse(newHost);
+      }
 
-    await this.repository.updateWorkspaceMemberRole(workspaceId, currentHost.memberId, "admin");
-    await this.repository.updateWorkspaceMemberRole(workspaceId, newHost.memberId, "host");
+      await tx.updateWorkspaceMemberRole(workspaceId, currentHost.memberId, "admin");
+      await tx.updateWorkspaceMemberRole(workspaceId, newHost.memberId, "host");
 
-    await this.repository.addWorkspaceEvent({
-      eventId: this.generateId(),
-      workspaceId,
-      type: "HOST_TRANSFERRED",
-      actor: actorUserId,
-      target: newHost.userId,
-      description: `Host transferred from ${currentHost.userId} to ${newHost.userId}.`,
-      timestamp: new Date().toISOString()
+      await tx.addWorkspaceEvent({
+        eventId: this.generateId(),
+        workspaceId,
+        type: "HOST_TRANSFERRED",
+        actor: actorUserId,
+        target: newHost.userId,
+        description: `Host transferred from ${currentHost.userId} to ${newHost.userId}.`,
+        timestamp: new Date().toISOString()
+      });
+
+      await this.sendMemberNotification(
+        newHost.userId,
+        "Workspace Host transferred",
+        `<p>Workspace ownership was transferred to you.</p>`
+      );
+      await this.sendMemberNotification(
+        currentHost.userId,
+        "Workspace Host transferred",
+        `<p>You are now an Admin after transferring workspace ownership.</p>`
+      );
+
+      return this.toMemberResponse({ ...newHost, role: "host" });
     });
-
-    await this.sendMemberNotification(
-      newHost.userId,
-      "Workspace Host transferred",
-      `<p>Workspace ownership was transferred to you.</p>`
-    );
-    await this.sendMemberNotification(
-      currentHost.userId,
-      "Workspace Host transferred",
-      `<p>You are now an Admin after transferring workspace ownership.</p>`
-    );
-
-    return this.toMemberResponse({ ...newHost, role: "host" });
   }
 
   async requestAdminRole(
@@ -593,7 +751,7 @@ export class WorkspaceUserManagementService {
     if (targetRole === "host") {
       throw new Error("Use transfer host to change workspace ownership.");
     }
-    if (actorRole === "admin" && !["editor", "viewer"].includes(targetRole)) {
+    if (actorRole === "admin" && !["editor", "viewer", "member"].includes(targetRole)) {
       throw new Error("Admin can only invite Editor or Viewer.");
     }
   }
@@ -603,7 +761,7 @@ export class WorkspaceUserManagementService {
     if (targetRole === "host") {
       throw new Error("Use transfer host to change workspace ownership.");
     }
-    if (actorRole === "admin" && !["editor", "viewer"].includes(targetRole)) {
+    if (actorRole === "admin" && !["editor", "viewer", "member"].includes(targetRole)) {
       throw new Error("Admin can only assign Editor or Viewer.");
     }
   }
@@ -637,8 +795,8 @@ export class WorkspaceUserManagementService {
     }
   }
 
-  private async findPendingInvitation(workspaceId: string, invitationId: string): Promise<InvitationResponse> {
-    const invitations = await this.repository.getInvitations(workspaceId);
+  private async findPendingInvitation(repository: WorkspaceUserManagementRepository, workspaceId: string, invitationId: string): Promise<InvitationResponse> {
+    const invitations = await repository.getInvitations(workspaceId);
     const invitation = invitations.find(i => i.invitationId === invitationId || i.email === invitationId);
     if (!invitation || invitation.status !== "pending") {
       throw new Error("Pending invitation not found.");
@@ -669,6 +827,28 @@ export class WorkspaceUserManagementService {
     await this.emailService.sendMail(email, subject, html);
   }
 
+  async getInvitationByCode(code: string): Promise<InvitationResponse | null> {
+    return this.repository.getInvitationByCode(code);
+  }
+
+  private toAcceptInvitationResponse(invitation: InvitationResponse): AcceptInvitationResponse {
+    return {
+      invitationId: invitation.invitationId,
+      workspaceId: invitation.workspaceId,
+      email: invitation.email,
+      role: invitation.role
+    };
+  }
+
+  private sendBestEffortEmail(to: string, subject: string, html: string): void {
+    void this.emailService.sendMail(to, subject, html).catch((error) => {
+      console.warn(
+        `[WorkspaceUserManagement] Failed to send "${subject}" email to ${to}:`,
+        error
+      );
+    });
+  }
+
   private roleLabel(role: WorkspaceRole): string {
     const labels: Record<WorkspaceRole, string> = {
       host: "Host",
@@ -677,6 +857,18 @@ export class WorkspaceUserManagementService {
       viewer: "Viewer"
     };
     return labels[role];
+  }
+
+  private async ensureNotLastAdmin(tx: any, workspaceId: string, memberId: string): Promise<void> {
+    const members = await tx.getWorkspaceMembers(workspaceId);
+    const activeAdmins = members.filter((m: any) => m.isAccepted && (m.role === "admin" || m.role === "host"));
+    const memberToChange = members.find((m: any) => m.memberId === memberId || m.userId === memberId);
+    if (memberToChange && (memberToChange.role === "admin" || memberToChange.role === "host")) {
+      const isThisMemberActiveAdmin = memberToChange.isAccepted;
+      if (isThisMemberActiveAdmin && activeAdmins.length <= 1) {
+        throw new Error("Cannot demote or remove the last admin of the workspace.");
+      }
+    }
   }
 
   private permissionsForRole(role?: WorkspaceRole): WorkspaceMemberListResponse["permissions"] {

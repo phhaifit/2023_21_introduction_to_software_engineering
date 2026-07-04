@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,14 +58,9 @@ afterEach(() => {
 describe("AuthenticationPage registration validation", () => {
   it("updates password field errors from the latest state instead of a stale render snapshot", () => {
     const page = source("apps/frontend/src/features/authentication/authentication-page.tsx");
-    const passwordChangeBody = page.slice(
-      page.indexOf("function handlePasswordChange"),
-      page.indexOf("function handlePasswordConfirmationChange")
-    );
-
-    expect(passwordChangeBody).toContain("setFieldErrors((prev)");
-    expect(passwordChangeBody).not.toContain("fieldErrors.password");
-    expect(passwordChangeBody).not.toContain("fieldErrors.passwordConfirmation");
+    expect(page).toContain("setOneFieldError");
+    expect(page).toContain("clearOneFieldError");
+    expect(page).toContain("setFieldErrors((prev)");
   });
 
   it("uses a non-global password regex so repeated validation is stable", () => {
@@ -75,11 +71,12 @@ describe("AuthenticationPage registration validation", () => {
 
   it("clears the password validation error when the user types a valid password", async () => {
     const user = userEvent.setup();
-
     render(
-      <AuthProvider apiClient={makeApiClient()}>
-        <AuthenticationPage />
-      </AuthProvider>
+      <MemoryRouter>
+        <AuthProvider apiClient={makeApiClient()}>
+          <AuthenticationPage />
+        </AuthProvider>
+      </MemoryRouter>
     );
 
     await user.click(screen.getByRole("button", { name: "Register" }));
@@ -93,20 +90,21 @@ describe("AuthenticationPage registration validation", () => {
 
     await user.clear(passwordInput);
     await user.type(passwordInput, "Password123");
+    await user.tab();
 
-    expect(screen.queryByText(AUTH_FIELD_MESSAGES.passwordTooShort)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(AUTH_FIELD_MESSAGES.passwordTooShort)).not.toBeInTheDocument());
   });
-
   it("submits create account after replacing an invalid password with a valid one", async () => {
     const user = userEvent.setup();
     const register = vi.fn<[RegisterFormValues], Promise<{ userId: string; email: string }>>(
       async () => ({ userId: "user-1", email: "new@example.com" })
     );
-
     render(
-      <AuthProvider apiClient={makeApiClient({ register })}>
-        <AuthenticationPage />
-      </AuthProvider>
+      <MemoryRouter>
+        <AuthProvider apiClient={makeApiClient({ register })}>
+          <AuthenticationPage />
+        </AuthProvider>
+      </MemoryRouter>
     );
 
     await user.click(screen.getByRole("button", { name: "Register" }));

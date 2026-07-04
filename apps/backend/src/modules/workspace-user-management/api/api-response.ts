@@ -51,11 +51,12 @@ export function sendWorkspaceUserManagementApiFailure(
   request: Request,
   response: Response,
   code: ErrorCode,
-  message: string
+  message: string,
+  details?: Record<string, unknown>
 ): void {
   const body: ApiFailure = {
     ok: false,
-    error: { code, message },
+    error: { code, message, details },
     meta: buildMeta(request)
   };
   response.status(HTTP_STATUS_MAP[code]).json(body);

@@ -26,7 +26,7 @@ export interface WorkspaceUserManagementRepository {
   getInvitationsByEmail(email: string): Promise<InvitationResponse[]>;
   getInvitationByCode(code: string): Promise<InvitationResponse | null>;
   addInvitation(invitation: InvitationResponse): Promise<void>;
-  updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "revoked"): Promise<void>;
+  updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "cancelled" | "expired" | "replaced" | "rejected" | "revoked"): Promise<void>;
   updateInvitationRole(invitationId: string, role: WorkspaceRole): Promise<void>;
   deleteInvitation(invitationId: string): Promise<void>;
 
@@ -44,4 +44,6 @@ export interface WorkspaceUserManagementRepository {
 
   addWorkspaceEvent(event: WorkspaceEvent): Promise<void>;
   getWorkspaceEvents(workspaceId: string): Promise<WorkspaceEvent[]>;
+
+  transaction<T>(operation: (tx: WorkspaceUserManagementRepository) => Promise<T>): Promise<T>;
 }

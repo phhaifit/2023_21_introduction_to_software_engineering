@@ -252,6 +252,30 @@ export function createWorkspaceUserManagementRouter({
     }
   });
 
+  router.post("/invitations/:invitationId/resend", async (req: Request, res: Response) => {
+    try {
+      const workspaceContext = requireWorkspaceContext((req as any).context);
+      requirePermission((req as any).context, "members:manage");
+      const user = requireAuthenticatedUser((req as any).context);
+
+      const invitation = await service.resendInvitation(
+        workspaceContext.workspaceId,
+        req.params.invitationId,
+        user.userId,
+        workspaceContext.role
+      );
+      sendAuthApiSuccess(req, res, invitation);
+    } catch (err: any) {
+      if (err.message?.includes("permission") || err.message?.includes("can only")) {
+        return sendAuthApiFailure(req, res, "auth.forbidden", err.message);
+      }
+      if (err.message?.includes("Pending invitation")) {
+        return sendAuthApiFailure(req, res, "validation.invalid_input", err.message);
+      }
+      sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
+    }
+  });
+
   router.post("/members/:memberId/transfer-host", async (req: Request, res: Response) => {
     try {
       const workspaceContext = requireWorkspaceContext((req as any).context);

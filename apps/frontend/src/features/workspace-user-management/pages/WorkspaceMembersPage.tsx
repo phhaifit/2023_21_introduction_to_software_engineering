@@ -6,13 +6,16 @@ import type {
   WorkspaceActivityResponse,
   WorkspaceMemberListResponse,
   WorkspaceMemberResponse,
-  WorkspaceRole
+  WorkspaceRole,
+  InvitationResponse
 } from "@vcp/shared/contracts/index.ts";
 import { PageHeader } from "../../../components/layout/PageHeader.tsx";
 import { useToast } from "../../../components/shared/Toast.tsx";
 import { useAuth } from "../../authentication/authentication-context.tsx";
 import { WorkspaceUserManagementAPI } from "../api.ts";
 import { ConfirmationModal } from "../components/ConfirmationModal.tsx";
+import { decodeEmail } from "../utils/punycode.ts";
+import { formatDateTime } from "../utils/date.ts";
 import "./WorkspaceMembersPage.css";
 
 const api = new WorkspaceUserManagementAPI("");
@@ -57,6 +60,7 @@ export function WorkspaceMembersPage() {
     confirmText: "Confirm",
     onConfirm: () => {}
   });
+  const [pendingRoleChanges, setPendingRoleChanges] = useState<Record<string, WorkspaceRole>>({});
 
   const currentRole = data?.currentUserRole;
   const permissions = data?.permissions;
@@ -66,6 +70,16 @@ export function WorkspaceMembersPage() {
   const currentAdminRequest = adminRequests.find((request) => request.requester === currentUser?.userId && request.status === "pending");
   const pendingAdminRequests = adminRequests.filter((request) => request.status === "pending");
   const canRequestAdmin = (currentRole === "editor" || currentRole === "viewer") && !currentAdminRequest;
+
+  const pendingInvitations = (data?.invitations ?? []).filter(inv => inv.status !== "accepted");
+  const canManageInvitations = permissions?.canManagePendingInvitations ?? false;
+
+  function getInvitationStatus(invitation: InvitationResponse): string {
+    if (invitation.status === "pending" && invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
+      return "expired";
+    }
+    return invitation.status;
+  }
 
   function refresh() {
     if (!workspaceId) return;
@@ -196,6 +210,57 @@ export function WorkspaceMembersPage() {
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Could not submit Admin request.");
     }
+  }
+
+
+  async function changeInvitationRole(invitationId: string, role: WorkspaceRole) {
+    if (!workspaceId) return;
+    try {
+      await api.updateInvitationRole(workspaceId, invitationId, { role });
+      showSuccess("Invitation role updated.");
+      setPendingRoleChanges((prev) => {
+        const next = { ...prev };
+        delete next[invitationId];
+        return next;
+      });
+      refresh();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Could not update invitation role.");
+      setPendingRoleChanges((prev) => {
+        const next = { ...prev };
+        delete next[invitationId];
+        return next;
+      });
+    }
+  }
+
+  async function resendInvitation(invitationId: string) {
+    if (!workspaceId) return;
+    try {
+      await api.resendInvitation(workspaceId, invitationId);
+      showSuccess("Invitation resent.");
+      refresh();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Could not resend invitation.");
+    }
+  }
+
+  function confirmCancelInvitation(invitation: InvitationResponse) {
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancel Invitation",
+      message: `Cancel pending invitation for ${invitation.email}?`,
+      confirmText: "Cancel Invitation",
+      onConfirm: () => {
+        if (!workspaceId) return;
+        void api.cancelInvitation(workspaceId, invitation.invitationId)
+          .then(() => {
+            showSuccess("Invitation cancelled.");
+            refresh();
+          })
+          .catch((err: unknown) => showError(err instanceof Error ? err.message : "Could not cancel invitation."));
+      }
+    });
   }
 
   function confirmTransferHost() {
@@ -466,7 +531,110 @@ export function WorkspaceMembersPage() {
         </div>
       </section>
 
-      <section className="panel">
+      {canManageInvitations && pendingInvitations.length > 0 && (
+        <section className="panel" style={{ marginTop: 24 }}>
+          <div className="panel-heading">
+            <h2>Pending Invitations</h2>
+            <span className="wum-count">{pendingInvitations.length} total</span>
+          </div>
+          <div className="wum-table-container">
+            <table className="wum-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Invited Time</th>
+                  <th>Expiration Time</th>
+                  <th>Status</th>
+                  <th>Role</th>
+                  <th>Inviter</th>
+                  <th style={{ width: 100, textAlign: "right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingInvitations.map((invitation) => {
+                  const status = getInvitationStatus(invitation);
+                  const isResolved = status === "cancelled" || status === "replaced" || status === "rejected";
+                  return (
+                    <tr key={invitation.invitationId}>
+                      <td>
+                        <span>{decodeEmail(invitation.email)}</span>
+                      </td>
+                      <td>{formatDateTime(invitation.createdAt)}</td>
+                      <td>{formatDateTime(invitation.expiresAt)}</td>
+                      <td>
+                        <span className={`wum-status-badge ${status}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td>
+                        <select
+                          className="wum-role-select"
+                          value={pendingRoleChanges[invitation.invitationId] ?? invitation.role}
+                          onChange={(e) => {
+                            const newRole = e.target.value as WorkspaceRole;
+                            const invitationId = invitation.invitationId;
+                            const email = invitation.email;
+
+                            setPendingRoleChanges((prev) => ({ ...prev, [invitationId]: newRole }));
+
+                            setConfirmModal({
+                              isOpen: true,
+                              title: "Confirm Role Change",
+                              message: `Are you sure you want to change the role for ${decodeEmail(email)} to ${roleLabels[newRole]}?\n\nThis action will invalidate the previous invitation link and send a new invitation email.`,
+                              confirmText: "Confirm Changes",
+                              onConfirm: () => {
+                                void changeInvitationRole(invitationId, newRole);
+                              },
+                              onClose: () => {
+                                setPendingRoleChanges((prev) => {
+                                  const next = { ...prev };
+                                  delete next[invitationId];
+                                  return next;
+                                });
+                                setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+                              }
+                            });
+                          }}
+                          disabled={isResolved}
+                        >
+                          {inviteRoles.map((role) => (
+                            <option key={role} value={role}>{roleLabels[role]}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="wum-text-muted">{invitation.invitedByUserId}</td>
+                      <td>
+                        <div className="wum-row-actions">
+                          <button
+                            type="button"
+                            className="wum-icon-button"
+                            onClick={() => void resendInvitation(invitation.invitationId)}
+                            disabled={status === "replaced"}
+                            title="Resend Invitation"
+                          >
+                            <Activity size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="wum-icon-danger"
+                            onClick={() => confirmCancelInvitation(invitation)}
+                            disabled={isResolved}
+                            title="Cancel Invitation"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <section className="panel" style={{ marginTop: 24 }}>
         <div className="panel-heading">
           <h2>Workspace Activity</h2>
           <span className="wum-count">{activities.length} events</span>
