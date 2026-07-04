@@ -12,6 +12,23 @@ export class PrismaKnowledgeAccessGrantRepository
     this.prisma = prisma;
   }
 
+  async findAccessGrant(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    documentId: EntityId<"documentId">
+  ): Promise<KnowledgeAccessGrant | null> {
+    const record = await this.prisma.knowledgeAccessGrant.findUnique({
+      where: {
+        workspaceId_documentId_agentId: {
+          workspaceId,
+          documentId,
+          agentId
+        }
+      }
+    });
+    return record ? toDomain(record) : null;
+  }
+
   async listActiveDocumentIds(
     workspaceId: EntityId<"workspaceId">,
     agentId: EntityId<"agentId">

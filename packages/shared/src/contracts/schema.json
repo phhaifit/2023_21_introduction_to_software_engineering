@@ -317,7 +317,10 @@
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/retrieval/search" },
-      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/rag/answer" }
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/rag/answer" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" }
     ],
     "dtoExports": [
       "KnowledgeDocumentDto",
@@ -337,6 +340,7 @@
       "KnowledgeRagAnswerRequest",
       "KnowledgeRagAnswerCitationDto",
       "KnowledgeRagAnswerResponse",
+      "AgentKnowledgeDocumentDto",
       "KnowledgeBaseApiError"
     ],
     "requestDtoExports": [

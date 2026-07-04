@@ -53,6 +53,7 @@ import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/applicat
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
 import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeRagAnswerUseCase } from "./modules/knowledge-base-rag/application/knowledge-rag-answer-use-case.ts";
+import { AgentKnowledgeAssignmentUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-assignment-use-case.ts";
 import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
@@ -685,6 +686,18 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     }),
     retrievalSearchUseCase,
     ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
+    agentKnowledgeAssignmentUseCase: new AgentKnowledgeAssignmentUseCase({
+      accessGrantRepository: knowledgeAccessGrantRepository,
+      documentRepository: knowledgeDocumentRepository,
+      agentLookup: {
+        async existsInWorkspace(workspaceId, agentId) {
+          return Boolean(await repository.findById(workspaceId, agentId));
+        }
+      },
+      accessPolicy: knowledgeAccessPolicy,
+      now: () => new Date().toISOString(),
+      generateGrantId: () => randomUUID()
+    }),
     accessPolicy: knowledgeAccessPolicy
   };
   

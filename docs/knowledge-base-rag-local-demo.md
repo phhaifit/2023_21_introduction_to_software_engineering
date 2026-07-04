@@ -192,6 +192,26 @@ indexing command. For a reliable demo today, use the deterministic production
 test for the complete upload-to-answer proof and the browser for upload,
 document listing, and queued Processing Status.
 
+## Agent document assignment API
+
+The backend exposes document-level assignment without adding an assignment UI:
+
+```bash
+curl -sS -X POST \
+  http://127.0.0.1:3001/api/workspaces/workspace-product-demo/knowledge/agents/agent-research/documents/document-policy
+
+curl -sS \
+  http://127.0.0.1:3001/api/workspaces/workspace-product-demo/knowledge/agents/agent-research/documents
+
+curl -sS -X DELETE \
+  http://127.0.0.1:3001/api/workspaces/workspace-product-demo/knowledge/agents/agent-research/documents/document-policy
+```
+
+Replace the example IDs with existing workspace-scoped agent and document IDs.
+Assign/revoke require `knowledge:manage`; listing requires `workspace:read`.
+Assignments are document-level only. Source/collection grants, UI assignment,
+and Agent Orchestration integration remain follow-ups.
+
 ## Troubleshooting
 
 - **Backend reports a missing `.env`:** copy `.env.example` to `.env`.

@@ -16,7 +16,9 @@ export const KNOWLEDGE_USER_ACTIONS = [
   "sync:trigger",
   "sync:read",
   "retrieval:search",
-  "rag:answer"
+  "rag:answer",
+  "grant:read",
+  "grant:manage"
 ] as const;
 
 export type KnowledgeUserAction = (typeof KNOWLEDGE_USER_ACTIONS)[number];
@@ -26,7 +28,8 @@ const MANAGEMENT_ACTIONS = new Set<KnowledgeUserAction>([
   "document:delete",
   "source:manage",
   "sync-scope:manage",
-  "sync:trigger"
+  "sync:trigger",
+  "grant:manage"
 ]);
 
 export class KnowledgeBaseRagAccessPolicy {

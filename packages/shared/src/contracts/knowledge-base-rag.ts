@@ -13,7 +13,11 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   syncScope: "/api/workspaces/:workspaceId/knowledge/sync-scope",
   syncJobs: "/api/workspaces/:workspaceId/knowledge/sync-jobs",
   retrievalSearch: "/api/workspaces/:workspaceId/knowledge/retrieval/search",
-  ragAnswer: "/api/workspaces/:workspaceId/knowledge/rag/answer"
+  ragAnswer: "/api/workspaces/:workspaceId/knowledge/rag/answer",
+  agentKnowledgeDocuments:
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents",
+  agentKnowledgeDocument:
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"
 } as const;
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
@@ -29,7 +33,10 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch },
-  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer }
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer },
+  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocuments },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
+  { method: "DELETE", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument }
 ] as const;
 
 export type KnowledgeBaseRagApiRoute =
@@ -84,6 +91,7 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeRagAnswerRequest",
   "KnowledgeRagAnswerCitationDto",
   "KnowledgeRagAnswerResponse",
+  "AgentKnowledgeDocumentDto",
   "KnowledgeBaseApiError"
 ] as const;
 
@@ -112,6 +120,13 @@ export type KnowledgeDocumentDto = {
   updatedAt: string;
   lastIndexedAt?: string;
   failure?: SafeFailureSummary;
+};
+
+export type AgentKnowledgeDocumentDto = {
+  workspaceId: EntityId<"workspaceId">;
+  agentId: EntityId<"agentId">;
+  document: KnowledgeDocumentDto;
+  grantStatus: "active" | "revoked";
 };
 
 export type KnowledgeDocumentChunkDto = {
