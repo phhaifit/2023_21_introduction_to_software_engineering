@@ -320,7 +320,8 @@
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/rag/answer" },
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
-      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" }
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask" }
     ],
     "dtoExports": [
       "KnowledgeDocumentDto",
@@ -341,6 +342,8 @@
       "KnowledgeRagAnswerCitationDto",
       "KnowledgeRagAnswerResponse",
       "AgentKnowledgeDocumentDto",
+      "AgentKnowledgeAskRequest",
+      "AgentKnowledgeAskResponse",
       "KnowledgeBaseApiError"
     ],
     "requestDtoExports": [
@@ -350,7 +353,8 @@
       "UpdateSyncScopeRequest",
       "RequestKnowledgeSyncJobRequest",
       "KnowledgeRetrievalSearchRequest",
-      "KnowledgeRagAnswerRequest"
+      "KnowledgeRagAnswerRequest",
+      "AgentKnowledgeAskRequest"
     ],
     "domainEvents": [
       "knowledge.document.uploadValidated",

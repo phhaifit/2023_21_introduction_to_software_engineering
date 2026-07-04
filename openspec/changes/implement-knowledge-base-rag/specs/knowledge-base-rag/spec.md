@@ -244,3 +244,15 @@ through a workspace-scoped public API.
 #### Scenario: Non-grant references do not authorize retrieval
 - **WHEN** an agent skill or configuration references a knowledge document without an active document grant
 - **THEN** the internal retrieval tool returns no evidence from that document
+
+#### Scenario: Local agent ask returns grounded citations
+- **WHEN** an authorized workspace member asks an existing agent a question and active assigned evidence is found
+- **THEN** the system invokes the internal agent retrieval tool and returns a deterministic evidence-grounded answer with bounded safe citations
+
+#### Scenario: Local agent ask falls back without evidence
+- **WHEN** no active assigned evidence remains because the agent is ungranted, a grant is revoked, or safe filters remove all granted documents
+- **THEN** the system returns an insufficient-evidence fallback without calling the answer composer
+
+#### Scenario: Agent ask preserves module boundaries
+- **WHEN** the local-demo agent ask integration runs
+- **THEN** it does not import private Task & Orchestration code, register an OpenClaw tool, require an external LLM, or expose private retrieval/runtime fields

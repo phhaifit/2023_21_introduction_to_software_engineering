@@ -41,6 +41,7 @@ Current integration limitation:
 - The router derives workspace and current-user data from a mock request-context boundary.
 - Real authentication and production workspace membership resolution remain outside the local development composition.
 - `apps/backend/src/local-agent-management-server.ts` is a development-only composition root. Without `DATABASE_URL`, it uses resettable in-memory seed data. With `DATABASE_URL`, it uses the Prisma repository through `@vcp/database`.
-- KB/RAG provides the internal `knowledge.retrieve` boundary for evidence from
-  documents actively assigned to an agent. Agent Orchestration registration
-  and answer generation are not wired in this module.
+- KB/RAG provides the internal `knowledge.retrieve` boundary and a local-demo
+  ask route for grounded deterministic answers from actively assigned
+  documents. Production OpenClaw/tool registration is not wired in this
+  module.

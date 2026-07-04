@@ -238,8 +238,23 @@ Run its deterministic local proof without provider credentials or PostgreSQL:
 node tests/contract/agent-knowledge-retrieval-tool.test.mjs
 ```
 
-The tool is currently an application boundary, not a public HTTP endpoint or a
-registered Agent Orchestration tool. A full agent answer flow remains deferred.
+The tool is also consumed by the local-demo agent orchestration route:
+
+```bash
+curl -sS -X POST \
+  -H 'content-type: application/json' \
+  -d '{"message":"What is the equipment approval policy?","topK":5}' \
+  http://127.0.0.1:3001/api/workspaces/workspace-product-demo/knowledge/agents/agent-research/ask
+```
+
+With active assigned evidence, the response is `answered` and includes bounded
+citations. With no grant, after revoke, or when filters remove all granted
+documents, it returns `insufficient_evidence`; no answer composer runs. The
+local composition uses a deterministic evidence-only composer and does not
+require a RAG/LLM provider.
+
+This is not a chatbot UI or production OpenClaw tool registration. Skill/config
+references still do not grant document access.
 
 ## Troubleshooting
 
@@ -269,8 +284,8 @@ registered Agent Orchestration tool. A full agent answer flow remains deferred.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
 - Agent grants and the current assignment UI are document-level only.
-- The internal agent retrieval tool is not yet registered or invoked by Agent
-  Orchestration.
+- The internal tool is invoked by the local-demo ask route but is not registered
+  as a production OpenClaw/Agent Orchestration tool.
 - Processing Status refresh is manual.
 - Image-only PDFs require future OCR.
 - There is no chatbot UI or FastAPI implementation.
@@ -280,6 +295,6 @@ registered Agent Orchestration tool. A full agent answer flow remains deferred.
 Later, separately reviewed changes can add:
 
 1. a safe worker entrypoint/queue integration and indexing composition;
-2. Agent Orchestration registration and invocation of `knowledge.retrieve`;
-3. Agent Orchestration answer generation from returned evidence;
-4. live provider/database smoke tests and browser acceptance coverage.
+2. production OpenClaw/Agent Orchestration registration of `knowledge.retrieve`;
+3. optional provider-backed answer composition behind the safe evidence port;
+4. an Ask UI and live provider/database browser acceptance coverage.
