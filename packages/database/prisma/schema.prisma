@@ -570,6 +570,23 @@ model PaymentMethod {
   @@map("payment_methods")
 }
 
+model PromoCode {
+  promoCodeId   String  @id
+  code          String  @unique
+  discountAmount Float
+  validFrom     String
+  validUntil    String
+  maxUsages     Int     @default(0)
+  currentUsages Int     @default(0)
+  status        String  @default("active")
+  createdAt     String
+  updatedAt     String
+
+  @@index([code])
+  @@index([status])
+  @@map("promo_codes")
+}
+
 model Conversation {
   conversationId   String        @id
   workspaceId      String

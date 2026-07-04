@@ -22,7 +22,10 @@ async function runTests() {
   let txIdSequence = 0;
   let eventIdSequence = 0;
 
-  const now = () => `2026-06-22T12:00:0${timeSequence++}.000Z`;
+  const now = () => {
+    const sec = String(timeSequence++).padStart(2, "0");
+    return `2026-06-22T12:00:${sec}.000Z`;
+  };
   const generateSubscriptionId = () => `sub-${++subIdSequence}`;
   const generateTransactionId = () => `tx-${++txIdSequence}`;
   const generateEventId = () => `evt-${++eventIdSequence}`;
@@ -83,16 +86,16 @@ async function runTests() {
   assert.equal(eventBus.events[0].payload.subscriptionId, "sub-1");
   assert.equal(eventBus.events[0].payload.plan, "standard");
 
-  // Scenario 4: Initiate Upgrade to Premium
+  // Scenario 4: Initiate Upgrade to Premium (prorated based on remaining days)
   const upgradeRes = await useCases.initiateUpgrade(userId, "sub-1");
   assert.equal(upgradeRes.subscriptionId, "sub-1");
   assert.equal(upgradeRes.transactionId, "tx-2");
   assert.ok(upgradeRes.checkoutUrl.includes("plan=premium"));
-  assert.ok(upgradeRes.checkoutUrl.includes("amount=50")); // 79 - 29 = 50
-
+  // Phí nâng cấp giờ tính prorated theo số ngày còn lại thay vì $50 cố định
   const txUpgradePending = await repository.findTransactionById("tx-2");
   assert.equal(txUpgradePending.status, "pending");
-  assert.equal(txUpgradePending.amount, 50);
+  assert.ok(txUpgradePending.amount > 0, "Upgrade amount phải > 0");
+  assert.ok(txUpgradePending.amount <= 50, "Upgrade amount phải <= $50 (chênh lệch tối đa)");
 
   // Scenario 5: Webhook Upgrade successful callback
   const reconcileUpgradeRes = await useCases.reconcilePayment("tx-2", "success");
@@ -129,14 +132,46 @@ async function runTests() {
   const subCancelled = await repository.findSubscriptionById(checkoutRes2.subscriptionId);
   assert.equal(subCancelled.status, "cancelled");
 
-  // Scenario 8: Validate Promo Codes
-  const promoValid = useCases.validatePromo("VCP10");
+  // Scenario 8: Validate Promo Codes (async - query từ database)
+  const promoValid = await useCases.validatePromo("VCP10");
   assert.equal(promoValid.success, true);
   assert.equal(promoValid.discount, 10);
 
-  const promoInvalid = useCases.validatePromo("INVALID_CODE");
+  const promoInvalid = await useCases.validatePromo("INVALID_CODE");
   assert.equal(promoInvalid.success, false);
   assert.equal(promoInvalid.discount, 0);
+
+  // Scenario 8b: Promo code hết hạn
+  await repository.savePromoCode({
+    promoCodeId: "promo-expired",
+    code: "EXPIRED",
+    discountAmount: 50,
+    validFrom: "2020-01-01T00:00:00.000Z",
+    validUntil: "2021-01-01T00:00:00.000Z",
+    maxUsages: 0,
+    currentUsages: 0,
+    status: "active",
+    createdAt: now(),
+    updatedAt: now()
+  });
+  const promoExpired = await useCases.validatePromo("EXPIRED");
+  assert.equal(promoExpired.success, false);
+
+  // Scenario 8c: Promo code hết lượt sử dụng
+  await repository.savePromoCode({
+    promoCodeId: "promo-maxed",
+    code: "MAXED",
+    discountAmount: 15,
+    validFrom: "2020-01-01T00:00:00.000Z",
+    validUntil: "2099-12-31T23:59:59.000Z",
+    maxUsages: 1,
+    currentUsages: 1,
+    status: "active",
+    createdAt: now(),
+    updatedAt: now()
+  });
+  const promoMaxed = await useCases.validatePromo("MAXED");
+  assert.equal(promoMaxed.success, false);
 
   // Scenario 9: Toggle Auto-Renewal
   const subToggleRes = await useCases.toggleAutoRenewal("workspace-123", false);

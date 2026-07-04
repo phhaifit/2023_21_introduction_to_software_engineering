@@ -13,9 +13,11 @@ import {
   isSubscriptionActive,
   toSubscriptionPublicSummary,
   toTransactionPublicSummary,
+  calculateProratedUpgradeAmount,
   type Subscription,
   type Transaction
 } from "../domain/subscription.ts";
+import { isPromoCodeValid } from "../domain/promo-code.ts";
 
 export interface EventBus {
   publish(event: any): Promise<void>;
@@ -59,20 +61,46 @@ export class CheckoutUseCases {
     this.dependencies = dependencies;
   }
 
-  // 1. Áp dụng & Xác thực mã giảm giá
-  validatePromo(promoCode: string): ValidatePromoResponse {
-    const code = promoCode.trim().toUpperCase();
-    if (code === "VCP10") {
-      return { success: true, discount: 10 };
+  // 1. Áp dụng & Xác thực mã giảm giá (async - query từ database)
+  async validatePromo(promoCode: string): Promise<ValidatePromoResponse> {
+    const promo = await this.dependencies.repository.findPromoCodeByCode(promoCode);
+    if (!promo) {
+      return {
+        success: false,
+        discount: 0,
+        message: "Mã giảm giá không tồn tại hoặc đã hết hạn."
+      };
     }
-    if (code === "VCP20") {
-      return { success: true, discount: 20 };
+
+    const nowStr = this.dependencies.now();
+    if (!isPromoCodeValid(promo, nowStr)) {
+      return {
+        success: false,
+        discount: 0,
+        message: "Mã giảm giá đã hết hạn hoặc đã hết lượt sử dụng."
+      };
     }
-    return {
-      success: false,
-      discount: 0,
-      message: "Mã giảm giá không tồn tại hoặc đã hết hạn."
-    };
+
+    return { success: true, discount: promo.discountAmount };
+  }
+
+  // Helper: Áp dụng promo code và tăng usage counter
+  private async applyPromoDiscount(promoCode: string | undefined): Promise<number> {
+    if (!promoCode) return 0;
+    const promo = await this.dependencies.repository.findPromoCodeByCode(promoCode);
+    if (!promo) return 0;
+
+    const nowStr = this.dependencies.now();
+    if (!isPromoCodeValid(promo, nowStr)) return 0;
+
+    // Tăng currentUsages
+    await this.dependencies.repository.savePromoCode({
+      ...promo,
+      currentUsages: promo.currentUsages + 1,
+      updatedAt: nowStr
+    });
+
+    return promo.discountAmount;
   }
 
   // 2. Bật/Tắt tự động gia hạn theo Workspace
@@ -141,21 +169,28 @@ export class CheckoutUseCases {
       }
     }
 
-    // Đếm số documents thực tế từ KnowledgeDocumentRepository
-    let docsUsed = 0;
+    // Tính dung lượng lưu trữ thực tế từ sizeBytes của documents
+    let storageUsedBytes = 0;
     if (this.dependencies.documentRepository) {
       try {
-        const docsResult = await this.dependencies.documentRepository.listDocuments(workspaceId);
-        docsUsed = docsResult.total || docsResult.items.length;
+        if (typeof this.dependencies.documentRepository.getTotalStorageBytes === "function") {
+          // Ưu tiên: Dùng hàm tính tổng dung lượng thực tế (bytes)
+          storageUsedBytes = await this.dependencies.documentRepository.getTotalStorageBytes(workspaceId);
+        } else {
+          // Fallback: Đếm documents và ước lượng
+          const docsResult = await this.dependencies.documentRepository.listDocuments(workspaceId);
+          const docsUsed = docsResult.total || docsResult.items.length;
+          storageUsedBytes = docsUsed * 0.42 * 1024 * 1024 * 1024; // Ước lượng 0.42GB/doc
+        }
       } catch (e) {
-        console.error("Lỗi khi đếm Documents của workspace:", e);
+        console.error("Lỗi khi tính dung lượng Storage của workspace:", e);
       }
     }
 
     // Tính toán tài nguyên dựa trên active agents
     const cpuUsed = agentsUsed * 1;
     const ramUsed = agentsUsed * 2;
-    const storageUsed = Number((docsUsed * 0.42).toFixed(2)); // 0.42 GB cho mỗi document
+    const storageUsed = Number((storageUsedBytes / (1024 * 1024 * 1024)).toFixed(2)); // Chuyển bytes sang GB
 
     const storageMax = entitlements.maxStorageGb;
 
@@ -201,13 +236,7 @@ export class CheckoutUseCases {
     
     // Áp dụng giảm giá
     const baseAmount = PLAN_PRICES[plan];
-    let discount = 0;
-    if (promoCode) {
-      const promo = this.validatePromo(promoCode);
-      if (promo.success) {
-        discount = promo.discount;
-      }
-    }
+    const discount = await this.applyPromoDiscount(promoCode);
     const amount = Math.max(0, baseAmount - discount);
 
     const expiresAt = new Date(new Date(nowStr).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -276,17 +305,11 @@ export class CheckoutUseCases {
 
     const transactionId = this.dependencies.generateTransactionId();
     
-    // Áp dụng giảm giá nâng cấp
+    // Tính phí nâng cấp theo proration (số ngày còn lại)
     const premiumPrice = PLAN_PRICES["premium"];
     const standardPrice = PLAN_PRICES["standard"];
-    const baseUpgradeAmount = premiumPrice - standardPrice; // Phí nâng cấp ($50)
-    let discount = 0;
-    if (promoCode) {
-      const promo = this.validatePromo(promoCode);
-      if (promo.success) {
-        discount = promo.discount;
-      }
-    }
+    const baseUpgradeAmount = calculateProratedUpgradeAmount(sub, premiumPrice, standardPrice, nowStr);
+    const discount = await this.applyPromoDiscount(promoCode);
     const upgradeAmount = Math.max(0, baseUpgradeAmount - discount);
 
     const transaction: Transaction = {
@@ -348,11 +371,11 @@ export class CheckoutUseCases {
 
       if (isUpgrade && sub.plan === "standard") {
         toPlan = "premium";
+        // Giữ nguyên expiresAt cũ vì phí upgrade đã tính pro-rata cho phần thời gian còn lại
         updatedSub = {
           ...sub,
           plan: "premium",
           status: "active",
-          expiresAt: new Date(new Date(nowStr).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           updatedAt: nowStr
         };
 

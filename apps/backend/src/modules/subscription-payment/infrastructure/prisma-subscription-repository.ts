@@ -3,6 +3,7 @@ import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { SubscriptionPlan } from "@vcp/shared/contracts/plans.ts";
 import type { SubscriptionStatus } from "@vcp/shared/contracts/statuses.ts";
 import type { Subscription, Transaction } from "../domain/subscription.ts";
+import type { PromoCode } from "../domain/promo-code.ts";
 import type { SubscriptionRepository } from "../application/subscription-repository.ts";
 
 export class PrismaSubscriptionRepository implements SubscriptionRepository {
@@ -221,5 +222,49 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
       createdAt: record.createdAt,
       updatedAt: record.updatedAt
     }));
+  }
+
+  async findPromoCodeByCode(code: string): Promise<PromoCode | null> {
+    const record = await this.prisma.promoCode.findUnique({
+      where: { code: code.trim().toUpperCase() }
+    });
+
+    if (!record) return null;
+
+    return {
+      promoCodeId: record.promoCodeId as EntityId<"promoCodeId">,
+      code: record.code,
+      discountAmount: record.discountAmount,
+      validFrom: record.validFrom,
+      validUntil: record.validUntil,
+      maxUsages: record.maxUsages,
+      currentUsages: record.currentUsages,
+      status: record.status as "active" | "expired" | "disabled",
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
+    };
+  }
+
+  async savePromoCode(promo: PromoCode): Promise<PromoCode> {
+    const data = {
+      promoCodeId: promo.promoCodeId,
+      code: promo.code.toUpperCase(),
+      discountAmount: promo.discountAmount,
+      validFrom: promo.validFrom,
+      validUntil: promo.validUntil,
+      maxUsages: promo.maxUsages,
+      currentUsages: promo.currentUsages,
+      status: promo.status,
+      createdAt: promo.createdAt,
+      updatedAt: promo.updatedAt
+    };
+
+    await this.prisma.promoCode.upsert({
+      where: { promoCodeId: data.promoCodeId },
+      create: data,
+      update: data
+    });
+
+    return promo;
   }
 }
