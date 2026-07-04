@@ -11,7 +11,15 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   dataSources: "/api/workspaces/:workspaceId/knowledge/data-sources",
   connectDataSource: "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect",
   syncScope: "/api/workspaces/:workspaceId/knowledge/sync-scope",
-  syncJobs: "/api/workspaces/:workspaceId/knowledge/sync-jobs"
+  syncJobs: "/api/workspaces/:workspaceId/knowledge/sync-jobs",
+  retrievalSearch: "/api/workspaces/:workspaceId/knowledge/retrieval/search",
+  ragAnswer: "/api/workspaces/:workspaceId/knowledge/rag/answer",
+  agentKnowledgeDocuments:
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents",
+  agentKnowledgeDocument:
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId",
+  agentKnowledgeAsk:
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask"
 } as const;
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
@@ -25,7 +33,13 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope },
   { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncScope },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
-  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs }
+  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJobs },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.retrievalSearch },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer },
+  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocuments },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
+  { method: "DELETE", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeAsk }
 ] as const;
 
 export type KnowledgeBaseRagApiRoute =
@@ -74,6 +88,15 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeDataSourceDto",
   "SyncScopeNodeDto",
   "SyncJobDto",
+  "KnowledgeRetrievalSearchRequest",
+  "KnowledgeEvidenceDto",
+  "KnowledgeRetrievalSearchResponse",
+  "KnowledgeRagAnswerRequest",
+  "KnowledgeRagAnswerCitationDto",
+  "KnowledgeRagAnswerResponse",
+  "AgentKnowledgeDocumentDto",
+  "AgentKnowledgeAskRequest",
+  "AgentKnowledgeAskResponse",
   "KnowledgeBaseApiError"
 ] as const;
 
@@ -102,6 +125,43 @@ export type KnowledgeDocumentDto = {
   updatedAt: string;
   lastIndexedAt?: string;
   failure?: SafeFailureSummary;
+};
+
+export type AgentKnowledgeDocumentDto = {
+  workspaceId: EntityId<"workspaceId">;
+  agentId: EntityId<"agentId">;
+  document: KnowledgeDocumentDto;
+  grantStatus: "active" | "revoked";
+};
+
+export type AgentKnowledgeAskRequest = {
+  message: string;
+  topK?: number;
+  filters?: Pick<
+    KnowledgeRetrievalFilters,
+    "documentIds" | "sourceTypes" | "sourceLocators"
+  >;
+};
+
+export type AgentKnowledgeAskCitationDto = {
+  citationId: string;
+  documentId: EntityId<"documentId">;
+  documentTitle: string;
+  snippet: string;
+  sourceType: KnowledgeDocumentSource;
+  sourceLocator?: string;
+};
+
+export type AgentKnowledgeAskResponse = {
+  status:
+    | "answered"
+    | "insufficient_evidence"
+    | "unauthorized"
+    | "invalid_request"
+    | "error";
+  answer: string;
+  citations: AgentKnowledgeAskCitationDto[];
+  warnings: string[];
 };
 
 export type KnowledgeDocumentChunkDto = {
@@ -210,6 +270,81 @@ export type UpdateSyncScopeRequest = {
 export type RequestKnowledgeSyncJobRequest = {
   sourceId?: string;
   scopeNodeIds?: string[];
+};
+
+export type KnowledgeRetrievalFilters = {
+  documentIds?: EntityId<"documentId">[];
+  sourceTypes?: KnowledgeDocumentSource[];
+  sourceLocators?: string[];
+  statuses?: KnowledgeIndexStatus[];
+};
+
+export type KnowledgeRetrievalSearchRequest = {
+  query: string;
+  topK?: number;
+  filters?: KnowledgeRetrievalFilters;
+};
+
+export type KnowledgeEvidenceDto = {
+  evidenceId: string;
+  rank: number;
+  score: number;
+  documentId: EntityId<"documentId">;
+  chunkId: string;
+  documentTitle: string;
+  snippet: string;
+  source: {
+    type: KnowledgeDocumentSource;
+    locator?: string;
+  };
+  metadata: {
+    chunkIndex: number;
+  };
+};
+
+export type KnowledgeRetrievalSearchResponse = {
+  results: KnowledgeEvidenceDto[];
+  total: number;
+};
+
+export const KNOWLEDGE_RAG_ANSWER_STATUSES = [
+  "answered",
+  "answered_with_caution",
+  "insufficient_evidence",
+  "provider_error"
+] as const;
+
+export type KnowledgeRagAnswerStatus =
+  (typeof KNOWLEDGE_RAG_ANSWER_STATUSES)[number];
+
+export type KnowledgeRagAnswerOptions = {
+  maxAnswerLength?: number;
+  includeCitations?: boolean;
+};
+
+export type KnowledgeRagAnswerRequest = {
+  query: string;
+  topK?: number;
+  filters?: KnowledgeRetrievalFilters;
+  answerOptions?: KnowledgeRagAnswerOptions;
+};
+
+export type KnowledgeRagAnswerCitationDto = {
+  citationId: string;
+  evidenceId: string;
+  documentId: EntityId<"documentId">;
+  chunkId: string;
+  rank: number;
+  snippet: string;
+};
+
+export type KnowledgeRagAnswerResponse = {
+  answerId: string;
+  status: KnowledgeRagAnswerStatus;
+  answer: string;
+  citations: KnowledgeRagAnswerCitationDto[];
+  evidence: KnowledgeEvidenceDto[];
+  warnings: string[];
 };
 
 export type KnowledgeBaseApiError = ApiError & {

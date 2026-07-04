@@ -12,6 +12,8 @@ import {
   createLocalTaskCreationClient,
   type TaskCreationClient
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-client.ts";
+import { HttpTaskOrchestrationProvider } from
+  "@vcp/frontend/features/task-orchestration/model/task-orchestration-provider.ts";
 import { resetTaskIdentitySequence } from
   "@vcp/frontend/features/task-orchestration/model/task-id.ts";
 import {
@@ -235,6 +237,102 @@ describe("Task 6B task creation UI flow", () => {
 
     expect(await screen.findByText("New answer")).toBeVisible();
     expect(screen.queryByText("Old answer replay")).not.toBeInTheDocument();
+  });
+
+  it("projects normalized runtime activity consistently for state replay and live SSE", async () => {
+    const eventSources: FakeEventSource[] = [];
+    class FakeEventSource {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor(readonly url: string) {
+        eventSources.push(this);
+      }
+      close() {}
+      emit(payload: unknown) {
+        this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+      }
+    }
+    const fetchImplementation = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tasks")) {
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          data: {
+            taskId: "TASK-ACTIVITY",
+            workId: "WORK-ACTIVITY",
+            status: "queued",
+            createdAt: "2026-06-24T12:00:01.000Z"
+          }
+        }));
+      }
+      if (url.includes("/executions/start")) {
+        return Promise.resolve(jsonResponse({ ok: true, data: { status: "queued" } }));
+      }
+      if (url.includes("/executions/TASK-ACTIVITY/state")) {
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          data: {
+            taskId: "TASK-ACTIVITY",
+            status: "in-progress",
+            events: [
+              {
+                type: "sub-activity",
+                taskId: "TASK-ACTIVITY",
+                workId: "WORK-ACTIVITY",
+                activityType: "document-read",
+                stepId: "document-read-roadmap",
+                displayLabel: "Reading Roadmap.pdf",
+                summary: "Reading roadmap safely",
+                status: "in-progress",
+                timestamp: "2026-06-24T12:00:02.000Z"
+              }
+            ]
+          }
+        }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: [] }));
+    });
+    vi.stubGlobal("fetch", fetchImplementation);
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    const provider = new HttpTaskOrchestrationProvider({
+      type: "http",
+      baseUrl: "http://127.0.0.1:3001"
+    });
+    const task = await provider.createTask({
+      prompt: "Show runtime progress",
+      routing: { mode: "auto" }
+    });
+    const handler = vi.fn();
+    provider.subscribeToTaskEvents(task.taskId as string, handler);
+
+    await waitFor(() => {
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        kind: "step-started",
+        stepName: "Reading Roadmap.pdf"
+      }));
+    });
+
+    eventSources[0].emit({
+      type: "sub-activity",
+      taskId: "TASK-ACTIVITY",
+      workId: "WORK-ACTIVITY",
+      activityType: "api-call",
+      stepId: "api-call-status",
+      displayLabel: "Calling API",
+      summary: "Fetching provider status",
+      status: "in-progress",
+      timestamp: "2026-06-24T12:00:03.000Z"
+    });
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "step-started",
+      stepName: "Calling API"
+    }));
+    const lastSnapshot = handler.mock.calls.at(-1)?.[0]?.taskSnapshot;
+    expect(lastSnapshot?.processingSnapshot.logs.at(-1)).toMatchObject({
+      stepId: "api-call-status",
+      message: "Fetching provider status"
+    });
   });
 
   it("creates one pending auto-routed task through the public client boundary", async () => {

@@ -1,4 +1,4 @@
-import type { EntityId, NormalizedRuntimeEvent, NormalizedRuntimeError } from "@vcp/shared";
+import type { EntityId, NormalizedRuntimeEvent, RuntimeActivityStatus, RuntimeActivityType } from "@vcp/shared";
 import { sanitizeObservabilityPayload } from "@vcp/shared";
 
 // 1.4 Define raw OpenClaw provider DTOs based on OpenAI-compatible HTTP API specification.
@@ -54,8 +54,16 @@ export interface OpenClawChatCompletionChunk {
     stepId?: string;
     stepName?: string;
     status?: string;
-    activityType?: "routing" | "workflow" | "tool" | "sub-agent" | "handoff" | "review" | "aggregation" | "completion" | "provider-diagnostic";
+    activityType?: RuntimeActivityType;
     details?: string;
+    displayLabel?: string;
+    summary?: string;
+    toolName?: string;
+    queryPreview?: string;
+    resourceLabel?: string;
+    inputPreview?: string;
+    outputPreview?: string;
+    providerEventName?: string;
   };
 }
 
@@ -112,6 +120,35 @@ export class OpenClawRawEventMapper {
     // 1. Check for OpenClaw extension events (step started, step completed, sub-activity, cancellation)
     if (payload.openclaw_extension) {
       const ext = payload.openclaw_extension;
+      if (ext.status === "canceled") {
+        return {
+          type: "execution-canceled",
+          taskId,
+          timestamp: timestampStr,
+          providerExecutionReference
+        };
+      }
+      if (ext.activityType) {
+        const details = sanitizeObservabilityPayload(ext.details || ext.summary || ext.displayLabel || "");
+        return {
+          type: "sub-activity",
+          taskId,
+          activityType: ext.activityType,
+          details,
+          displayLabel: sanitizeObservabilityPayload(ext.displayLabel || ext.stepName || ""),
+          summary: sanitizeObservabilityPayload(ext.summary || ext.details || ""),
+          status: normalizeSubActivityStatus(ext.status),
+          stepId: ext.stepId,
+          toolName: sanitizeObservabilityPayload(ext.toolName),
+          queryPreview: sanitizeObservabilityPayload(ext.queryPreview),
+          resourceLabel: sanitizeObservabilityPayload(ext.resourceLabel),
+          inputPreview: sanitizeObservabilityPayload(ext.inputPreview),
+          outputPreview: sanitizeObservabilityPayload(ext.outputPreview),
+          providerEventName: sanitizeObservabilityPayload(ext.providerEventName),
+          timestamp: timestampStr,
+          providerExecutionReference
+        };
+      }
       if (ext.status === "started") {
         return {
           type: "step-started",
@@ -128,24 +165,6 @@ export class OpenClawRawEventMapper {
           taskId,
           stepId: ext.stepId || "step-1",
           result: ext.status,
-          timestamp: timestampStr,
-          providerExecutionReference
-        };
-      }
-      if (ext.status === "canceled") {
-        return {
-          type: "execution-canceled",
-          taskId,
-          timestamp: timestampStr,
-          providerExecutionReference
-        };
-      }
-      if (ext.activityType) {
-        return {
-          type: "sub-activity",
-          taskId,
-          activityType: ext.activityType,
-          details: sanitizeObservabilityPayload(ext.details || ""),
           timestamp: timestampStr,
           providerExecutionReference
         };
@@ -656,32 +675,28 @@ function mapGatewayFrameToChatChunk(
   }
 
   const timestamp = normalizeGatewayTimestamp(payload.timestamp || payload.createdAt || frame.timestamp);
-  if (eventName.includes("tool")) {
-    return {
-      object: "chat.completion.chunk",
-      executionId: providerExecutionReference,
-      timestamp,
-      openclaw_extension: {
-        stepId: `tool-${safeStepId(payload.toolCallId || payload.toolId || payload.id || payload.name || "activity")}`,
-        stepName: String(payload.toolName || payload.name || "Tool activity"),
-        activityType: "tool",
-        details: summarizeGatewayPayload(payload)
-      }
-    };
-  }
+  const activity = classifyGatewayActivity(eventName, payload);
 
-  if (eventName.includes("operation")) {
-    const status = normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event);
+  if (activity) {
+    const metadata = buildGatewayActivityMetadata(activity, eventName, payload);
     return {
       object: "chat.completion.chunk",
       executionId: providerExecutionReference,
       timestamp,
       openclaw_extension: {
-        stepId: safeStepId(payload.operationId || payload.runId || payload.id || payload.name || "operation"),
-        stepName: String(payload.title || payload.name || payload.kind || "OpenClaw operation"),
-        status,
-        activityType: "workflow",
-        details: summarizeGatewayPayload(payload)
+        stepId: metadata.stepId,
+        stepName: metadata.displayLabel,
+        status: normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event),
+        activityType: activity,
+        details: metadata.summary,
+        displayLabel: metadata.displayLabel,
+        summary: metadata.summary,
+        toolName: metadata.toolName,
+        queryPreview: metadata.queryPreview,
+        resourceLabel: metadata.resourceLabel,
+        inputPreview: metadata.inputPreview,
+        outputPreview: metadata.outputPreview,
+        providerEventName: eventName
       }
     };
   }
@@ -697,23 +712,142 @@ function mapGatewayFrameToChatChunk(
         choices: [{ delta: { content: text } }]
       };
     }
-  }
-
-  if (eventName.includes("agent")) {
     return {
       object: "chat.completion.chunk",
       executionId: providerExecutionReference,
       timestamp,
       openclaw_extension: {
-        stepId: `agent-${safeStepId(payload.agentId || payload.id || payload.name || "activity")}`,
-        stepName: String(payload.agentName || payload.name || "Agent activity"),
-        activityType: "sub-agent",
-        details: summarizeGatewayPayload(payload)
+        stepId: `message-${safeStepId(payload.messageId || payload.id || "activity")}`,
+        stepName: "Composing response",
+        status: normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event),
+        activityType: "message",
+        details: summarizeGatewayPayload(payload),
+        displayLabel: "Composing response",
+        summary: summarizeGatewayPayload(payload),
+        providerEventName: eventName
       }
     };
   }
 
   return null;
+}
+
+function classifyGatewayActivity(eventName: string, payload: Record<string, any>): RuntimeActivityType | null {
+  const haystack = [
+    eventName,
+    payload.type,
+    payload.kind,
+    payload.category,
+    payload.activityType,
+    payload.toolType,
+    payload.name,
+    payload.title
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/\b(search|web_search|web-search|lookup|retriev|retrieval|query)\b/.test(haystack)) return "web-search";
+  if (/\b(tool|function|tool_call|tool-call|toolcall)\b/.test(haystack)) return "tool-call";
+  if (/\b(document|doc|knowledge|rag|vector|citation)\b/.test(haystack)) return "document-read";
+  if (/\b(file|workspace|artifact|read_file|read-file)\b/.test(haystack)) return "file-read";
+  if (/\b(browser|browse|navigation|navigate|page|url|webpage)\b/.test(haystack)) return "browser";
+  if (/\b(shell|terminal|command|process|exec|script)\b/.test(haystack)) return "shell";
+  if (/\b(api|http|request|endpoint|fetch)\b/.test(haystack)) return "api-call";
+  if (/\b(agent|sub_agent|sub-agent)\b/.test(haystack)) return "sub-agent";
+  if (/\b(operation|workflow|run|step|routing|route)\b/.test(haystack)) {
+    return haystack.includes("rout") ? "routing" : "workflow";
+  }
+  if (/\b(diagnostic|debug|trace|warning|warn)\b/.test(haystack)) return "provider-diagnostic";
+  return null;
+}
+
+function buildGatewayActivityMetadata(
+  activityType: RuntimeActivityType,
+  eventName: string,
+  payload: Record<string, any>
+): {
+  stepId: string;
+  displayLabel: string;
+  summary: string;
+  toolName?: string;
+  queryPreview?: string;
+  resourceLabel?: string;
+  inputPreview?: string;
+  outputPreview?: string;
+} {
+  const toolName = toSafeShortText(payload.toolName || payload.tool || payload.name);
+  const queryPreview = toSafeShortText(payload.query || payload.searchQuery || payload.input);
+  const resourceLabel = toSafeShortText(payload.resourceLabel || payload.resource || payload.fileName || payload.documentName || payload.url);
+  const inputPreview = toSafeShortText(payload.input || payload.arguments || payload.request);
+  const outputPreview = toSafeShortText(payload.output || payload.result || payload.response);
+  const summary = summarizeGatewayPayload(payload);
+  const baseId = payload.toolCallId ||
+    payload.toolId ||
+    payload.operationId ||
+    payload.runId ||
+    payload.messageId ||
+    payload.documentId ||
+    payload.fileId ||
+    payload.agentId ||
+    payload.id ||
+    payload.name ||
+    eventName ||
+    activityType;
+
+  return {
+    stepId: `${activityType}-${safeStepId(baseId)}`,
+    displayLabel: resolveActivityDisplayLabel(activityType, { toolName, queryPreview, resourceLabel }),
+    summary,
+    toolName,
+    queryPreview,
+    resourceLabel,
+    inputPreview,
+    outputPreview
+  };
+}
+
+function resolveActivityDisplayLabel(
+  activityType: RuntimeActivityType,
+  metadata: { toolName?: string; queryPreview?: string; resourceLabel?: string }
+): string {
+  switch (activityType) {
+    case "web-search":
+      return "Searching web";
+    case "tool-call":
+    case "tool":
+      return metadata.toolName ? `Calling ${metadata.toolName}` : "Calling tool";
+    case "document-read":
+      return metadata.resourceLabel ? `Reading ${metadata.resourceLabel}` : "Reading document";
+    case "file-read":
+      return metadata.resourceLabel ? `Reading ${metadata.resourceLabel}` : "Reading file";
+    case "browser":
+      return "Browsing web";
+    case "shell":
+      return "Running command";
+    case "api-call":
+      return "Calling API";
+    case "routing":
+      return "Routing request";
+    case "workflow":
+      return "Running workflow";
+    case "sub-agent":
+      return "Agent activity";
+    case "message":
+      return "Composing response";
+    case "provider-diagnostic":
+      return "Provider diagnostic";
+    case "handoff":
+      return "Handing off task";
+    case "review":
+      return "Reviewing result";
+    case "aggregation":
+      return "Aggregating result";
+    case "completion":
+      return "Finalizing response";
+    default:
+      return "OpenClaw activity";
+  }
 }
 
 function getGatewayEventName(frame: Record<string, any>): string {
@@ -742,12 +876,20 @@ function normalizeGatewayTimestamp(value: unknown): number {
   return Date.now();
 }
 
-function normalizeGatewayProgressStatus(value: unknown): string {
+function normalizeGatewayProgressStatus(value: unknown): RuntimeActivityStatus {
   const status = String(value || "").toLowerCase();
   if (["completed", "complete", "success", "succeeded", "done"].includes(status)) return "completed";
-  if (["failed", "error"].includes(status)) return "completed";
+  if (["failed", "error", "errored"].includes(status)) return "failed";
   if (["canceled", "cancelled"].includes(status)) return "canceled";
+  if (["running", "in-progress", "progress", "processing"].includes(status)) return "in-progress";
   return "started";
+}
+
+function normalizeSubActivityStatus(value: unknown): RuntimeActivityStatus | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return normalizeGatewayProgressStatus(value);
 }
 
 function safeStepId(value: unknown): string {
@@ -759,9 +901,27 @@ function safeStepId(value: unknown): string {
 }
 
 function summarizeGatewayPayload(payload: Record<string, any>): string {
-  const summary = payload.summary || payload.message || payload.details || payload.text || payload.status || payload.state || "";
-  if (typeof summary === "string" && summary.length > 0) {
-    return sanitizeObservabilityPayload(summary);
+  const summary = toSafeShortText(
+    payload.summary ||
+      payload.message ||
+      payload.details ||
+      payload.text ||
+      payload.status ||
+      payload.state ||
+      payload.phase ||
+      payload.name ||
+      payload.title
+  );
+  return summary || "OpenClaw activity";
+}
+
+function toSafeShortText(value: unknown): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+    return undefined;
   }
-  return sanitizeObservabilityPayload(JSON.stringify(payload));
+  const text = sanitizeObservabilityPayload(String(value)).trim().replace(/\s+/g, " ");
+  if (!text) {
+    return undefined;
+  }
+  return text.length > 160 ? `${text.slice(0, 157)}...` : text;
 }

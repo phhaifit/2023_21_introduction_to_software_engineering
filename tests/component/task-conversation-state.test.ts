@@ -17,6 +17,7 @@ import {
   getConversationTasks,
   getLatestConversationTask,
   getActiveTask,
+  conversationHasNonTerminalTasks,
   type TaskCreationState
 } from "../../apps/frontend/src/features/task-orchestration/model/task-creation-state";
 
@@ -581,6 +582,66 @@ describe("In-Memory Conversation State Architecture (Review Unit 2B)", () => {
         "CONV-000002"
       ]);
       expect(newChatState.activeConversationId).toBe("CONV-000002");
+    });
+
+    it("58. Restoring a failed conversation keeps it terminal and deletable", () => {
+      const state = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [
+          {
+            ...restoredConversation,
+            messages: [
+              ...restoredConversation.messages,
+              {
+                messageId: "TASK-RESTORED-001-assistant" as any,
+                conversationId: "CONV-000001" as any,
+                role: "assistant",
+                content: "[Task failed] Provider authentication rejected",
+                timestamp: "2026-06-26T10:03:00.000Z"
+              }
+            ]
+          }
+        ]
+      });
+
+      expect(state.tasks[0].status).toBe("failed");
+      expect(state.tasks[0].error?.message).toBe("Provider authentication rejected");
+      expect(conversationHasNonTerminalTasks(state, "CONV-000001")).toBe(false);
+    });
+
+    it("59. Restored newest-first conversations are displayed oldest-first before New chat", () => {
+      const restoredState = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [
+          {
+            ...restoredConversation,
+            conversationId: "CONV-000002" as any,
+            title: "Second",
+            createdAt: "2026-06-26T10:05:00.000Z",
+            updatedAt: "2026-06-26T10:05:00.000Z",
+            messages: []
+          },
+          {
+            ...restoredConversation,
+            conversationId: "CONV-000001" as any,
+            title: "First",
+            createdAt: "2026-06-26T10:00:00.000Z",
+            updatedAt: "2026-06-26T10:00:00.000Z",
+            messages: []
+          }
+        ]
+      });
+
+      const newChatState = taskCreationReducer(restoredState, {
+        type: "conversation-created",
+        createdAt: "2026-06-26T10:10:00.000Z"
+      });
+
+      expect(newChatState.conversations.map((c) => c.conversationId)).toEqual([
+        "CONV-000001",
+        "CONV-000002",
+        "CONV-000003"
+      ]);
     });
   });
 });

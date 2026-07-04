@@ -7,6 +7,7 @@ import {
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 const workspaceId = "workspace/a b" as EntityId<"workspaceId">;
+const agentId = "agent/a b" as EntityId<"agentId">;
 const encodedWorkspacePath = "/api/workspaces/workspace%2Fa%20b/knowledge";
 
 const pagination = {
@@ -114,6 +115,50 @@ function apiFailure(code = "validation.invalid_input", status = 422): Response {
 }
 
 describe("Knowledge Base / RAG API client", () => {
+  it("lists, assigns, and revokes agent knowledge documents with encoded routes", async () => {
+    const assignment = {
+      workspaceId,
+      agentId,
+      document,
+      grantStatus: "active" as const
+    };
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(success([assignment]))
+      .mockResolvedValueOnce(success(assignment))
+      .mockResolvedValueOnce(success({ ...assignment, grantStatus: "revoked" }));
+    const client = createKnowledgeBaseRagApiClient({ fetchImplementation });
+
+    expect(await client.listAgentKnowledgeDocuments(workspaceId, agentId)).toEqual([
+      assignment
+    ]);
+    await client.assignAgentKnowledgeDocument(
+      workspaceId,
+      agentId,
+      document.documentId
+    );
+    await client.revokeAgentKnowledgeDocument(
+      workspaceId,
+      agentId,
+      document.documentId
+    );
+
+    expect(fetchImplementation.mock.calls.map(([path, init]) => [
+      path,
+      init.method
+    ])).toEqual([
+      [`${encodedWorkspacePath}/agents/agent%2Fa%20b/documents`, undefined],
+      [
+        `${encodedWorkspacePath}/agents/agent%2Fa%20b/documents/document-a`,
+        "POST"
+      ],
+      [
+        `${encodedWorkspacePath}/agents/agent%2Fa%20b/documents/document-a`,
+        "DELETE"
+      ]
+    ]);
+  });
+
   it("lists documents with encoded workspace and safe query parameters", async () => {
     const fetchImplementation = vi.fn(async () => paginatedSuccess([document]));
     const client = createKnowledgeBaseRagApiClient({ fetchImplementation });

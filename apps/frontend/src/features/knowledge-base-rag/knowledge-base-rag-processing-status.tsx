@@ -1,6 +1,18 @@
-import { useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-import { mockProcessingJobs } from "./knowledge-base-rag-mock-data.ts";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import type {
+  IngestionJobDto,
+  KnowledgeDocumentDto
+} from "@vcp/shared/contracts/knowledge-base-rag.ts";
+import type { KnowledgeIndexStatus } from "@vcp/shared/contracts/statuses.ts";
+
+import {
+  createKnowledgeBaseRagApiClient,
+  type KnowledgeBaseRagApiClient
+} from "./knowledge-base-rag-api-client.ts";
 import {
   KnowledgeBaseEmptyState,
   KnowledgeBaseFileTypeBadge,
@@ -23,17 +35,59 @@ type ProcessingStatusMetrics = {
   failed: number;
 };
 
+const defaultApiClient = createKnowledgeBaseRagApiClient();
+
 export type KnowledgeBaseProcessingStatusScreenProps = {
-  jobs?: ProcessingJob[];
+  apiClient?: KnowledgeBaseRagApiClient;
+  workspaceId?: EntityId<"workspaceId">;
 };
 
-export function KnowledgeBaseProcessingStatusScreen({
-  jobs = mockProcessingJobs
-}: KnowledgeBaseProcessingStatusScreenProps) {
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(jobs[0]?.jobId ?? null);
+export function KnowledgeBaseProcessingStatusScreen(
+  props: KnowledgeBaseProcessingStatusScreenProps
+) {
+  const {
+    apiClient = defaultApiClient,
+    workspaceId = DEMO_WORKSPACE_ID
+  } = props;
+  const [jobs, setJobs] = useState<ProcessingJob[]>([]);
+  const [loadState, setLoadState] =
+    useState<"loading" | "loaded" | "error">("loading");
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const metrics = useMemo(() => createProcessingStatusMetrics(jobs), [jobs]);
   const selectedJob =
     jobs.find((job) => job.jobId === selectedJobId) ?? jobs[0] ?? null;
+
+  useEffect(() => {
+    let isActive = true;
+    setLoadState("loading");
+
+    Promise.all([
+      apiClient.listIngestionJobs(workspaceId, { page: 1, pageSize: 100 }),
+      apiClient.listDocuments(workspaceId, { page: 1, pageSize: 100 })
+    ])
+      .then(([jobResponse, documentResponse]) => {
+        if (!isActive) return;
+        const documents = new Map(
+          documentResponse.items.map((document) => [document.documentId, document])
+        );
+        setJobs(
+          jobResponse.items.map((job) =>
+            toProcessingJob(job, documents.get(job.documentId))
+          )
+        );
+        setLoadState("loaded");
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setJobs([]);
+        setLoadState("error");
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiClient, refreshKey, workspaceId]);
 
   return (
     <div className="knowledge-base-rag-processing-status">
@@ -74,11 +128,38 @@ export function KnowledgeBaseProcessingStatusScreen({
         description="Review ingestion and indexing progress for uploaded and synchronized workspace documents."
       >
         <div className="knowledge-base-rag-processing-status-actions" aria-label="Processing actions">
-          <button type="button">Refresh status</button>
-          <button type="button">Clear completed</button>
+          <button
+            type="button"
+            disabled={loadState === "loading"}
+            onClick={() => setRefreshKey((current) => current + 1)}
+          >
+            <RefreshCw aria-hidden="true" size={16} />
+            {loadState === "loading" ? "Refreshing..." : "Refresh status"}
+          </button>
         </div>
 
-        {jobs.length > 0 ? (
+        {loadState === "loading" ? (
+          <div className="knowledge-base-rag-processing-status-feedback" role="status">
+            Loading processing status...
+          </div>
+        ) : null}
+
+        {loadState === "error" ? (
+          <div className="knowledge-base-rag-processing-status-feedback" role="alert">
+            <div>
+              <h3>Unable to load processing status</h3>
+              <p>Processing status is temporarily unavailable. Try again.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRefreshKey((current) => current + 1)}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        {loadState === "loaded" && jobs.length > 0 ? (
           <div className="knowledge-base-rag-processing-status-list" role="list">
             {jobs.map((job) => (
               <ProcessingJobCard
@@ -89,15 +170,17 @@ export function KnowledgeBaseProcessingStatusScreen({
               />
             ))}
           </div>
-        ) : (
+        ) : null}
+
+        {loadState === "loaded" && jobs.length === 0 ? (
           <KnowledgeBaseEmptyState
             title="No processing jobs"
             description="Processing jobs will appear when workspace documents are prepared for ingestion and indexing."
           />
-        )}
+        ) : null}
       </KnowledgeBaseSectionCard>
 
-      {selectedJob ? (
+      {loadState === "loaded" && selectedJob ? (
         <KnowledgeBaseSectionCard
           title="Job details"
           eyebrow="Selected document"
@@ -133,6 +216,119 @@ export function KnowledgeBaseProcessingStatusScreen({
       ) : null}
     </div>
   );
+}
+
+export function mapProcessingJobStatus(
+  status: KnowledgeIndexStatus
+): KnowledgeBaseProcessingJobStatus {
+  const statuses: Record<KnowledgeIndexStatus, KnowledgeBaseProcessingJobStatus> = {
+    pending: "queued",
+    ingesting: "processing",
+    ready: "completed",
+    failed: "failed"
+  };
+  return statuses[status];
+}
+
+function toProcessingJob(
+  job: IngestionJobDto,
+  document?: KnowledgeDocumentDto
+): ProcessingJob {
+  const status = mapProcessingJobStatus(job.status);
+  return {
+    jobId: job.jobId,
+    documentName: document?.name ?? job.documentId,
+    fileType: inferDocumentType(document),
+    sourceName: document ? formatSourceName(document.source) : "Workspace",
+    status,
+    progress: mapProgress(status, job.progressPercent),
+    currentStep: job.currentStep ?? getCurrentStep(status),
+    startedAt: formatDateTime(job.startedAt ?? job.queuedAt),
+    ...(status === "completed" && job.finishedAt
+      ? { completedAt: formatDateTime(job.finishedAt) }
+      : {}),
+    ...(status === "failed" && job.finishedAt
+      ? { failedAt: formatDateTime(job.finishedAt) }
+      : {}),
+    ...(status === "failed"
+      ? { safeErrorMessage: getSafeFailureMessage(job.failure?.errorMessage) }
+      : {})
+  };
+}
+
+function mapProgress(
+  status: KnowledgeBaseProcessingJobStatus,
+  progress: number
+): number {
+  const value = clampProgress(progress);
+  if (status === "queued") return 0;
+  if (status === "completed") return 100;
+  if (status === "processing") return value > 0 ? Math.min(99, value) : 50;
+  return Math.min(99, value);
+}
+
+function getCurrentStep(status: KnowledgeBaseProcessingJobStatus): string {
+  const steps: Record<KnowledgeBaseProcessingJobStatus, string> = {
+    queued: "Queued for processing",
+    processing: "Processing document",
+    completed: "Ready for retrieval",
+    failed: "Processing failed"
+  };
+  return steps[status];
+}
+
+function getSafeFailureMessage(message?: string): string {
+  const fallback = "Processing failed. Review the document and try again.";
+  if (!message?.trim()) return fallback;
+  if (
+    /storageKey|privateUrl|filePath|absolutePath|queuePayload|workerPayload|runtimeInternals|rawEmbedding|rawVector|vectorRef|providerPayload|stackTrace|secret|token|credential/i.test(
+      message
+    )
+  ) {
+    return fallback;
+  }
+  return message.trim().slice(0, 240);
+}
+
+function inferDocumentType(
+  document?: KnowledgeDocumentDto
+): ProcessingJob["fileType"] {
+  if (!document) return "page";
+  const mediaType = document.mediaType.toLowerCase();
+  const name = document.name.toLowerCase();
+  if (mediaType.includes("pdf") || name.endsWith(".pdf")) return "pdf";
+  if (
+    mediaType.includes("word") ||
+    mediaType.includes("officedocument") ||
+    name.endsWith(".docx")
+  ) {
+    return "docx";
+  }
+  if (mediaType.includes("csv") || name.endsWith(".csv")) return "csv";
+  if (mediaType.includes("text") || name.endsWith(".txt")) return "txt";
+  return "page";
+}
+
+function formatSourceName(source: KnowledgeDocumentDto["source"]): string {
+  const sources: Record<KnowledgeDocumentDto["source"], string> = {
+    upload: "Upload",
+    google_drive: "Google Drive",
+    notion: "Notion",
+    confluence: "Confluence"
+  };
+  return sources[source];
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
 }
 
 type ProcessingJobCardProps = {
@@ -180,7 +376,7 @@ function ProcessingJobCard({ isSelected, job, onViewDetails }: ProcessingJobCard
         <button type="button" onClick={onViewDetails}>
           View details
         </button>
-        <button type="button" disabled={job.status !== "failed"}>
+        <button type="button" disabled>
           Retry failed job
         </button>
       </div>

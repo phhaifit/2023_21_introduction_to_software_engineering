@@ -134,6 +134,13 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
   private readonly now: () => string;
   private readonly mirror: OpenClawAgentArtifactMirror;
   private readonly materialized = new Map<string, OpenClawMaterializedAgent>();
+  private readonly inFlight = new Map<
+    string,
+    {
+      profileUpdatedAt: string;
+      promise: Promise<OpenClawMaterializedAgent>;
+    }
+  >();
 
   constructor(
     baseDir: string,
@@ -146,6 +153,37 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
   }
 
   async materializeAgent(profile: AgentRuntimeProfile): Promise<OpenClawMaterializedAgent> {
+    const key = this.key(profile.workspaceId, profile.agentId);
+    const current = this.materialized.get(key);
+    if (current?.profileUpdatedAt === profile.updatedAt) {
+      return current;
+    }
+
+    const inFlight = this.inFlight.get(key);
+    if (inFlight) {
+      if (inFlight.profileUpdatedAt === profile.updatedAt) {
+        return inFlight.promise;
+      }
+      await inFlight.promise.catch(() => null);
+      const refreshed = this.materialized.get(key);
+      if (refreshed?.profileUpdatedAt === profile.updatedAt) {
+        return refreshed;
+      }
+    }
+
+    let promise!: Promise<OpenClawMaterializedAgent>;
+    promise = this.materializeAgentUncached(profile).finally(() => {
+      if (this.inFlight.get(key)?.promise === promise) {
+        this.inFlight.delete(key);
+      }
+    });
+    this.inFlight.set(key, { profileUpdatedAt: profile.updatedAt, promise });
+    return promise;
+  }
+
+  private async materializeAgentUncached(profile: AgentRuntimeProfile): Promise<OpenClawMaterializedAgent> {
+    const key = this.key(profile.workspaceId, profile.agentId);
+    const previous = this.materialized.get(key);
     const openClawAgentId = profile.materializationHints.agentDirectoryName;
     const workspaceDir = join(this.baseDir, profile.workspaceId);
     const agentDir = join(workspaceDir, openClawAgentId);
@@ -183,19 +221,27 @@ export class FileSystemOpenClawAgentMaterializer implements OpenClawAgentMateria
       "utf-8"
     );
 
-    this.materialized.set(this.key(profile.workspaceId, profile.agentId), materialized);
-    await this.writeAgentsList(workspaceDir, profile.workspaceId);
-    const registered = await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId, profile);
-    if (registered) {
-      materialized = {
-        ...materialized,
-        openClawAgentId: registered.openClawAgentId,
-        providerAgentMapping: registered.providerAgentMapping,
-        artifactDirectoryName: profile.materializationHints.agentDirectoryName
-      };
-      this.materialized.set(this.key(profile.workspaceId, profile.agentId), materialized);
+    try {
+      this.materialized.set(key, materialized);
       await this.writeAgentsList(workspaceDir, profile.workspaceId);
-      await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId, profile);
+      const registered = await this.mirror.mirrorWorkspace(workspaceDir, profile.workspaceId, profile);
+      if (registered) {
+        materialized = {
+          ...materialized,
+          openClawAgentId: registered.openClawAgentId,
+          providerAgentMapping: registered.providerAgentMapping,
+          artifactDirectoryName: profile.materializationHints.agentDirectoryName
+        };
+        this.materialized.set(key, materialized);
+        await this.writeAgentsList(workspaceDir, profile.workspaceId);
+      }
+    } catch (err) {
+      if (previous) {
+        this.materialized.set(key, previous);
+      } else {
+        this.materialized.delete(key);
+      }
+      throw err;
     }
     return materialized;
   }

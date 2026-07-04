@@ -37,3 +37,31 @@ The system SHALL prevent downstream modules from accessing private Knowledge Bas
 #### Scenario: Downstream module cannot access private internals
 - **WHEN** a downstream module consumes Knowledge Base / RAG capabilities
 - **THEN** it cannot access storage, vector, queue, provider, credential, secret, or runtime internals
+
+### Requirement: Internal Agent Retrieval Tool
+The system SHALL expose a JSON-friendly internal tool that retrieves evidence
+only from documents actively granted to the target workspace agent.
+
+#### Scenario: Assigned evidence returned safely
+- **WHEN** an existing workspace agent invokes the tool with a valid query
+- **THEN** the tool delegates to the approved KB/RAG retrieval boundary and returns bounded citation-style evidence from active document grants
+
+#### Scenario: No eligible documents short-circuits retrieval
+- **WHEN** no active document grant remains after workspace and optional-filter intersection
+- **THEN** the tool returns an empty safe response without calling embedding or vector adapters
+
+#### Scenario: References cannot expand access
+- **WHEN** skill/config references or source filters mention knowledge outside the agent's active document grants
+- **THEN** the tool does not return that knowledge
+
+### Requirement: Local Agent Ask Integration
+The system SHALL provide a local-demo orchestration boundary that consumes the
+internal agent retrieval tool and returns a grounded answer or safe fallback.
+
+#### Scenario: Evidence grounds the local answer
+- **WHEN** the retrieval tool returns active assigned evidence
+- **THEN** the local agent ask boundary returns an evidence-only answer with bounded citations
+
+#### Scenario: Missing evidence returns fallback
+- **WHEN** the retrieval tool returns no eligible evidence
+- **THEN** the local agent ask boundary returns an insufficient-evidence response without invoking its answer composer

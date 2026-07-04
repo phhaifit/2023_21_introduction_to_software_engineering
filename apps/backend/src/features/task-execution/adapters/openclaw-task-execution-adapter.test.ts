@@ -5,7 +5,8 @@ import type {
   WorkspaceExecutionRuntimeResolver,
   WorkspaceExecutionRuntime,
   NormalizedRuntimeEvent,
-  SubActivityEvent
+  SubActivityEvent,
+  ConversationRepository
 } from "@vcp/shared";
 import { validateObservabilityProjectionRule, sanitizeObservabilityPayload } from "@vcp/shared";
 import {
@@ -282,6 +283,61 @@ describe("Task & Orchestration — Integrate OpenClaw Task Execution", () => {
       const exposed = await orchestrator.getExposedState("task-401" as EntityId<"taskId">);
       expect(exposed.status).toBe("in-progress");
       expect(exposed.events.length).toBeGreaterThan(0);
+    });
+
+    it("4.1b: should persist an assistant failure message when execution fails", async () => {
+      const appendMessage = vi.fn().mockResolvedValue(undefined);
+      const conversationRepository: ConversationRepository = {
+        saveConversation: vi.fn(),
+        getConversation: vi.fn().mockResolvedValue({
+          conversationId: "conv-failed" as any,
+          workspaceId: "ws-1" as any,
+          title: "Failed conversation",
+          messages: [],
+          createdAt: "2026-07-01T00:00:00.000Z",
+          updatedAt: "2026-07-01T00:00:00.000Z"
+        }),
+        listConversationsByWorkspace: vi.fn(),
+        appendMessage,
+        deleteConversation: vi.fn(),
+        deleteMessages: vi.fn(),
+        updateAssociatedTarget: vi.fn()
+      };
+      const orchestratorWithConversations = new OpenClawExecutionOrchestrator(
+        authService,
+        workspaceMgmt,
+        agentCatalog,
+        workflowCatalog,
+        adapter,
+        toolCatalog,
+        conversationRepository
+      );
+      const cmd: StartExecutionCommand = {
+        taskId: "task-failed-conversation" as EntityId<"taskId">,
+        workId: "work-failed-conversation" as EntityId<"workId">,
+        workspaceId: "ws-1" as EntityId<"workspaceId">,
+        conversationId: "conv-failed" as EntityId<"conversationId">,
+        prompt: "Trigger a failed execution",
+        routing: { mode: "auto" }
+      };
+
+      await orchestratorWithConversations.execute10StepStartFlow({ authHeader: "valid" }, cmd);
+      const failedAt = new Date(Date.now() + 2000).toISOString();
+      adapter.simulateIncomingProviderEvent("task-failed-conversation" as EntityId<"taskId">, {
+        type: "execution-failed",
+        taskId: "task-failed-conversation" as EntityId<"taskId">,
+        error: {
+          code: "provider-authentication-rejected",
+          message: "Provider authentication rejected"
+        },
+        timestamp: failedAt
+      }, Date.parse(failedAt), "event-failed-conversation");
+
+      expect(appendMessage).toHaveBeenCalledWith("conv-failed", expect.objectContaining({
+        messageId: "task-failed-conversation-assistant",
+        role: "assistant",
+        content: "[Task failed] Provider authentication rejected"
+      }));
     });
 
     it("4.2 & 4.3 & 4.4: should implement cancellation forwarding owning task cancellability validation, loading execution association, forwarding cancellation, applying canonical cancellation after defined confirmation, suppressing late updates, without terminating containers or deleting Gateways", async () => {

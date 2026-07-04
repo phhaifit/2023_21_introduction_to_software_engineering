@@ -1,5 +1,9 @@
 # Knowledge Base / RAG Context
 
+For the current TypeScript/Node local setup, deterministic verification, sample
+document, and honest runtime limitations, see
+[`knowledge-base-rag-local-demo.md`](knowledge-base-rag-local-demo.md).
+
 ## Overview
 
 Knowledge Base / RAG Management owns workspace knowledge sources before they

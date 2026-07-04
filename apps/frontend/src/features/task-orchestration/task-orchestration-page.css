@@ -540,9 +540,9 @@
 }
 
 .task-processing-detail-modal {
-  padding: 1.5rem;
+  padding: 0;
   border: 1px solid #d8dee8;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
   color: #0f172a;
   max-width: 600px;
@@ -550,7 +550,12 @@
 }
 
 .task-processing-detail-modal::backdrop {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.task-processing-detail-modal__inner {
+  padding: 1.5rem;
 }
 
 .task-processing-detail-modal__header {
@@ -562,17 +567,33 @@
 
 .task-processing-detail-modal__header h2 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 
-.task-processing-detail-modal__header button {
+.task-processing-detail-modal__close-btn {
+  align-items: center;
   background: transparent;
-  border: 1px solid #cbd5e1;
+  border: 1px solid transparent;
   border-radius: 6px;
+  color: #94a3b8;
   cursor: pointer;
-  padding: 6px 12px;
-  font-weight: 600;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  padding: 5px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.task-processing-detail-modal__close-btn:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.task-processing-detail-modal__close-btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
 }
 
 .task-processing-detail-modal__meta {
@@ -617,9 +638,9 @@
 }
 
 .task-cancel-confirmation-dialog {
-  padding: 1.5rem;
+  padding: 0;
   border: 1px solid #d8dee8;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
   color: #0f172a;
   max-width: 500px;
@@ -627,7 +648,12 @@
 }
 
 .task-cancel-confirmation-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.task-cancel-confirmation-dialog__inner {
+  padding: 1.5rem;
 }
 
 .task-cancel-confirmation-dialog__header {
@@ -639,17 +665,33 @@
 
 .task-cancel-confirmation-dialog__header h2 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.15rem;
+  font-weight: 700;
 }
 
-.task-cancel-confirmation-dialog__header button {
+.task-cancel-confirmation-dialog__close-btn {
+  align-items: center;
   background: transparent;
-  border: 1px solid #cbd5e1;
+  border: 1px solid transparent;
   border-radius: 6px;
+  color: #94a3b8;
   cursor: pointer;
-  padding: 6px 12px;
-  font-weight: 600;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  padding: 5px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.task-cancel-confirmation-dialog__close-btn:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.task-cancel-confirmation-dialog__close-btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
 }
 
 .task-cancel-confirmation-dialog__warning {
@@ -815,6 +857,39 @@
   line-height: 1.55;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.task-failed-state__actions {
+  border-block-start: 1px solid #fecdd3;
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: 10px;
+}
+
+.task-failed-state__retry-btn {
+  align-items: center;
+  background: #fff1f2;
+  border: 1px solid #fda4af;
+  border-radius: 8px;
+  color: #be123c;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  gap: 5px;
+  padding: 7px 14px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.task-failed-state__retry-btn:hover {
+  background: #ffe4e6;
+  border-color: #fb7185;
+}
+
+.task-failed-state__retry-btn:focus-visible {
+  outline: 3px solid #fecdd3;
+  outline-offset: 2px;
 }
 
 .task-error-details {
@@ -1013,6 +1088,30 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.task-assistant-progress__cancel-btn {
+  background: transparent;
+  border: 1px solid #fda4af;
+  border-radius: 6px;
+  color: #be123c;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: auto;
+  padding: 3px 10px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.task-assistant-progress__cancel-btn:hover {
+  background: #fff1f2;
+  border-color: #f43f5e;
+}
+
+.task-assistant-progress__cancel-btn:focus-visible {
+  outline: 3px solid #fecdd3;
+  outline-offset: 2px;
 }
 
 .task-assistant-progress__steps {
@@ -1372,6 +1471,60 @@
   z-index: 5;
 }
 
+/* Copy wrapper — holds the button + tooltip together */
+.task-turn-actions__copy-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Copied state: button turns green */
+.task-turn-actions__copy-btn--copied {
+  color: #16a34a !important;
+  background: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+}
+
+/* Tooltip that floats above the copy button */
+.task-turn-actions__copy-toast {
+  animation: copy-toast-in 0.15s ease-out forwards;
+  background: #1e293b;
+  border-radius: 6px;
+  bottom: calc(100% + 6px);
+  color: #f1f5f9;
+  font-size: 0.72rem;
+  font-weight: 700;
+  left: 50%;
+  letter-spacing: 0.02em;
+  padding: 4px 8px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 30;
+}
+
+.task-turn-actions__copy-toast::after {
+  border: 4px solid transparent;
+  border-top-color: #1e293b;
+  bottom: -8px;
+  content: "";
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+@keyframes copy-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 .task-turn-actions__icon-button,
 .task-conversation-navigation__item-menu-btn {
   align-items: center;
@@ -1471,15 +1624,20 @@
 .task-confirm-dialog {
   background: #ffffff;
   border: 1px solid #d8dee8;
-  border-radius: 8px;
+  border-radius: 12px;
   color: #0f172a;
   max-width: 480px;
-  padding: 1.25rem;
+  padding: 0;
   width: 100%;
 }
 
 .task-confirm-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.task-confirm-dialog__inner {
+  padding: 1.25rem;
 }
 
 .task-confirm-dialog__header {
@@ -1492,6 +1650,31 @@
 .task-confirm-dialog__header h2 {
   font-size: 1.1rem;
   margin: 0;
+}
+
+.task-confirm-dialog__close-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  padding: 5px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.task-confirm-dialog__close-btn:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.task-confirm-dialog__close-btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
 }
 
 .task-confirm-dialog__description {
@@ -1512,7 +1695,8 @@
   cursor: pointer;
   font: inherit;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: 8px 16px;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .task-confirm-dialog__cancel-btn {
@@ -1521,10 +1705,20 @@
   color: #475569;
 }
 
+.task-confirm-dialog__cancel-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
 .task-confirm-dialog__confirm-btn {
   background: #fff1f2;
   border: 1px solid #fecdd3;
   color: #be123c;
+}
+
+.task-confirm-dialog__confirm-btn:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
 }
 
 .task-conversation-navigation__item-row {
@@ -1604,9 +1798,12 @@
 }
 
 button.task-conversation-navigation__new-btn--compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 36px;
   min-width: 36px;
-  padding: 8px;
+  padding: 0;
   width: 36px;
 }
 

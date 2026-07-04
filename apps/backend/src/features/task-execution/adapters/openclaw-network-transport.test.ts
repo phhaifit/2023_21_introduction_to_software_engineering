@@ -139,6 +139,45 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
       });
     });
 
+    it("should map OpenClaw extension activity metadata without converting it to a fixed step", () => {
+      const rawPayload = {
+        object: "chat.completion.chunk",
+        executionId: "exec-1",
+        timestamp: 1672531199000,
+        openclaw_extension: {
+          stepId: "web-search-search-1",
+          stepName: "Searching web",
+          status: "running",
+          activityType: "web-search",
+          details: "Looking up API docs with apiKey secret-value",
+          displayLabel: "Searching web",
+          summary: "Looking up API docs",
+          queryPreview: "OpenClaw Gateway sessions.subscribe",
+          providerEventName: "session.search.query"
+        }
+      };
+
+      const mapped = OpenClawRawEventMapper.mapRawEvent(taskId, rawPayload);
+      expect(mapped).toEqual({
+        type: "sub-activity",
+        taskId,
+        activityType: "web-search",
+        details: "Looking up API docs with apiKey [REDACTED]",
+        displayLabel: "Searching web",
+        summary: "Looking up API docs",
+        status: "in-progress",
+        stepId: "web-search-search-1",
+        toolName: undefined,
+        queryPreview: "OpenClaw Gateway sessions.subscribe",
+        resourceLabel: undefined,
+        inputPreview: undefined,
+        outputPreview: undefined,
+        providerEventName: "session.search.query",
+        timestamp: new Date(1672531199000).toISOString(),
+        providerExecutionReference: "exec-1"
+      });
+    });
+
     it("should return null for malformed or unknown payloads", () => {
       expect(OpenClawRawEventMapper.mapRawEvent(taskId, null)).toBeNull();
       expect(OpenClawRawEventMapper.mapRawEvent(taskId, "not-an-object")).toBeNull();
@@ -350,16 +389,143 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
           object: "chat.completion.chunk",
           executionId: start.providerExecutionReference,
           openclaw_extension: expect.objectContaining({
-            stepId: "route-1",
-            stepName: "Routing",
-            status: "started",
-            activityType: "workflow",
-            details: "Selecting workspace agent"
+            stepId: "routing-route-1",
+            stepName: "Routing request",
+            status: "in-progress",
+            activityType: "routing",
+            details: "Selecting workspace agent",
+            displayLabel: "Routing request",
+            providerEventName: "session.operation"
           })
         }));
 
         sub.unsubscribe();
         expect(instances[0].closed).toBe(true);
+      } finally {
+        (globalThis as any).WebSocket = originalWebSocket;
+      }
+    });
+
+    it("should map rich Gateway progress frames into sanitized provider-neutral activities", async () => {
+      const originalWebSocket = (globalThis as any).WebSocket;
+      const instances: FakeGatewayWebSocket[] = [];
+      class FakeGatewayWebSocket {
+        onopen: ((event: unknown) => void) | null = null;
+        onmessage: ((event: { data: unknown }) => void) | null = null;
+        onerror: ((event: unknown) => void) | null = null;
+        onclose: ((event: unknown) => void) | null = null;
+        sent: any[] = [];
+        closed = false;
+        constructor(readonly url: string) {
+          instances.push(this);
+        }
+        send(data: string) {
+          this.sent.push(JSON.parse(data));
+        }
+        close() {
+          this.closed = true;
+        }
+      }
+      (globalThis as any).WebSocket = FakeGatewayWebSocket;
+
+      try {
+        const mockFetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          body: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            }
+          })
+        });
+
+        const transport = new OpenClawHttpSSETransport(mockFetch as any);
+        const start = await transport.startExecution("https://openclaw.internal", "cred-123", {
+          taskId: "task-123",
+          prompt: "Use tools",
+          target: "openclaw/default",
+          mode: "auto",
+          conversationId: "conv-activity"
+        });
+        const onEvent = vi.fn();
+        const sub = transport.subscribeEventStream(
+          "https://openclaw.internal",
+          "cred-123",
+          start.providerExecutionReference,
+          onEvent,
+          vi.fn()
+        );
+
+        instances[0].onopen?.({});
+        instances[0].onmessage?.({ data: JSON.stringify({ type: "connected", status: "ok" }) });
+        onEvent.mockClear();
+
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            event: "session.search.query",
+            payload: {
+              sessionKey: "conv-activity",
+              id: "search-1",
+              query: "OpenClaw Gateway progress",
+              summary: "Searching public web"
+            }
+          })
+        });
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            event: "session.document.read",
+            payload: {
+              sessionKey: "conv-activity",
+              documentId: "doc-1",
+              documentName: "Roadmap.pdf",
+              details: "Reading from C:\\Users\\admin\\Roadmap.pdf"
+            }
+          })
+        });
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            event: "session.shell.command",
+            payload: {
+              sessionKey: "conv-activity",
+              id: "shell-1",
+              status: "error",
+              command: "npm test",
+              details: "Command failed with token abc123"
+            }
+          })
+        });
+        instances[0].onmessage?.({
+          data: JSON.stringify({
+            event: "session.api.request",
+            payload: {
+              sessionKey: "other-conv",
+              id: "api-ignored",
+              summary: "This belongs elsewhere"
+            }
+          })
+        });
+
+        expect(onEvent).toHaveBeenCalledTimes(3);
+        expect(onEvent.mock.calls[0][0].openclaw_extension).toMatchObject({
+          activityType: "web-search",
+          displayLabel: "Searching web",
+          queryPreview: "OpenClaw Gateway progress",
+          providerEventName: "session.search.query"
+        });
+        expect(onEvent.mock.calls[1][0].openclaw_extension).toMatchObject({
+          activityType: "document-read",
+          displayLabel: "Reading Roadmap.pdf",
+          resourceLabel: "Roadmap.pdf",
+          details: "Reading from [REDACTED_PATH]"
+        });
+        expect(onEvent.mock.calls[2][0].openclaw_extension).toMatchObject({
+          activityType: "shell",
+          displayLabel: "Running command",
+          status: "failed",
+          details: "Command failed with token [REDACTED]"
+        });
+
+        sub.unsubscribe();
       } finally {
         (globalThis as any).WebSocket = originalWebSocket;
       }

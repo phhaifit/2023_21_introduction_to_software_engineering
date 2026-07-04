@@ -75,6 +75,7 @@ export type TaskCreationAction =
       request: CreateTaskRequest;
       response: CreateTaskResponse;
       conversationId?: string;
+      replaceTaskId?: string;
     }
   | {
       type: "conversation-created";
@@ -313,10 +314,23 @@ export function taskCreationReducer(
       }
 
       const isFirstTask = existingConv.taskIds.length === 0;
+      
+      let newTaskIds = [...existingConv.taskIds];
+      if (action.replaceTaskId) {
+        const index = newTaskIds.indexOf(action.replaceTaskId as any);
+        if (index !== -1) {
+          newTaskIds[index] = task.taskId;
+        } else {
+          newTaskIds.push(task.taskId);
+        }
+      } else {
+        newTaskIds = [...newTaskIds.filter((id) => id !== task.taskId), task.taskId];
+      }
+
       const updatedConv: TaskConversationSession = {
         ...existingConv,
         title: isFirstTask ? deriveConversationTitle(task.prompt) : existingConv.title,
-        taskIds: [...existingConv.taskIds.filter((id) => id !== task.taskId), task.taskId],
+        taskIds: newTaskIds,
         updatedAt: task.createdAt
       };
 
@@ -717,7 +731,7 @@ export function taskCreationReducer(
       const newConversations: TaskConversationSession[] = [...state.conversations];
       let sequence = state.conversationSequence ?? 1;
 
-      for (const conv of action.conversations) {
+      for (const conv of [...action.conversations].sort(compareConversationsByCreatedAtAsc)) {
         let existing = newConversations.find((c) => c.conversationId === conv.conversationId);
         const taskIds: EntityId<"taskId">[] = [];
         sequence = Math.max(sequence, getNextConversationSequence(conv.conversationId as string));
@@ -758,7 +772,7 @@ export function taskCreationReducer(
         }
       }
 
-      const activeConvId = state.activeConversationId || (newConversations.length > 0 ? newConversations[0].conversationId : undefined);
+      const activeConvId = state.activeConversationId || (newConversations.length > 0 ? newConversations[newConversations.length - 1].conversationId : undefined);
       const activeConv = newConversations.find((c) => c.conversationId === activeConvId);
       const activeTaskId = activeConv && activeConv.taskIds.length > 0 ? activeConv.taskIds[activeConv.taskIds.length - 1] : state.activeTaskId;
 
@@ -962,6 +976,22 @@ function createRestoredTaskRecord({
     };
   }
 
+  const restoredFailure = parseRestoredFailureMessage(assistantMessage.content);
+  if (restoredFailure) {
+    return {
+      ...base,
+      status: "failed",
+      processingSnapshot: createRestoredRuntimeSnapshot(),
+      error: {
+        code: "runtime-error",
+        stepId: "unknown",
+        title: "Execution failed",
+        message: restoredFailure,
+        occurredAt: assistantMessage.timestamp || updatedAt
+      }
+    };
+  }
+
   return {
     ...base,
     status: "succeeded",
@@ -973,6 +1003,27 @@ function createRestoredTaskRecord({
       followUpPromptSuggestions: []
     }
   };
+}
+
+function parseRestoredFailureMessage(content: string): string | null {
+  const trimmed = content.trim();
+  const match = /^\[Task failed\]\s*(.*)$/i.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+  return match[1]?.trim() || "Execution failed";
+}
+
+function compareConversationsByCreatedAtAsc(
+  left: import("@vcp/shared").Conversation,
+  right: import("@vcp/shared").Conversation
+): number {
+  const leftTime = Date.parse(left.createdAt);
+  const rightTime = Date.parse(right.createdAt);
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
+    return leftTime - rightTime;
+  }
+  return String(left.conversationId).localeCompare(String(right.conversationId));
 }
 
 function createRestoredRuntimeSnapshot(): import("./task-processing").ProcessingSnapshot {

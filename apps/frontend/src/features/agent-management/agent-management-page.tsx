@@ -37,6 +37,11 @@ import { useToast } from "../../components/shared/Toast.tsx";
 import { Pagination } from "../../components/shared/Pagination.tsx";
 import { RenameDialog } from "./components/RenameDialog.tsx";
 import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog.tsx";
+import { AgentKnowledgeAssignmentPanel } from "./agent-knowledge-assignment-panel.tsx";
+import {
+  createKnowledgeBaseRagApiClient,
+  type KnowledgeBaseRagApiClient,
+} from "../knowledge-base-rag/knowledge-base-rag-api-client.ts";
 
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
@@ -67,10 +72,12 @@ type AgentManagementAccessMode = "manager" | "viewer";
 type AgentManagementPageProps = {
   workspaceId: EntityId<"workspaceId">;
   apiClient?: AgentManagementApiClient;
+  knowledgeApiClient?: KnowledgeBaseRagApiClient;
   accessMode?: AgentManagementAccessMode;
 };
 
 const defaultApiClient = createAgentManagementApiClient();
+const defaultKnowledgeApiClient = createKnowledgeBaseRagApiClient();
 
 const createFormValues: AgentFormState["values"] = {
   name: "",
@@ -120,6 +127,7 @@ const templateDraftValues: TemplateDraftState = {
 export function AgentManagementPage({
   workspaceId,
   apiClient = defaultApiClient,
+  knowledgeApiClient = defaultKnowledgeApiClient,
   accessMode = "manager",
 }: AgentManagementPageProps) {
   const [agents, setAgents] = useState<AgentListItem[]>([]);
@@ -1013,6 +1021,8 @@ export function AgentManagementPage({
             isConfigurationLoading={isInfoConfigurationLoading}
             canManageAgents={canManageAgents}
             disabled={isBusy}
+            workspaceId={workspaceId}
+            knowledgeApiClient={knowledgeApiClient}
             onClose={closeAgentInfo}
             onRetry={() =>
               void loadInfoConfiguration(
@@ -2298,6 +2308,8 @@ type AgentInfoDialogProps = {
   isConfigurationLoading: boolean;
   canManageAgents: boolean;
   disabled: boolean;
+  workspaceId: EntityId<"workspaceId">;
+  knowledgeApiClient: KnowledgeBaseRagApiClient;
   onClose: () => void;
   onRetry: () => void;
   onConfigure: (row: AgentRowViewModel) => void;
@@ -2313,6 +2325,8 @@ function AgentInfoDialog({
   isConfigurationLoading,
   canManageAgents,
   disabled,
+  workspaceId,
+  knowledgeApiClient,
   onClose,
   onRetry,
   onConfigure,
@@ -2419,6 +2433,13 @@ function AgentInfoDialog({
             </p>
           ) : null}
         </section>
+
+        <AgentKnowledgeAssignmentPanel
+          workspaceId={workspaceId}
+          agentId={row.agentId as EntityId<"agentId">}
+          apiClient={knowledgeApiClient}
+          canManage={canManageAgents}
+        />
 
         {canManageAgents ? (
           <footer className="agent-info-dialog__actions">

@@ -1,5 +1,8 @@
 import type {
+  AgentKnowledgeAskRequest,
   ConnectKnowledgeDataSourceRequest,
+  KnowledgeRagAnswerRequest,
+  KnowledgeRetrievalSearchRequest,
   PrepareUploadRequest,
   RequestKnowledgeSyncJobRequest,
   UpdateSyncScopeRequest,
@@ -149,6 +152,127 @@ export function parseRequestKnowledgeSyncJobRequest(
   };
 }
 
+export function parseKnowledgeRetrievalSearchRequest(
+  body: unknown
+): KnowledgeRetrievalSearchRequest {
+  const payload = requirePlainObject(body, "knowledge retrieval request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(payload, ["query", "topK", "filters"], "knowledge retrieval request");
+
+  const filtersValue = payload["filters"];
+  let filters: KnowledgeRetrievalSearchRequest["filters"];
+  if (filtersValue !== undefined) {
+    const filterPayload = requirePlainObject(filtersValue, "filters");
+    assertOnlyKeys(
+      filterPayload,
+      ["documentIds", "sourceTypes", "sourceLocators", "statuses"],
+      "filters"
+    );
+    filters = {
+      documentIds:
+        filterPayload["documentIds"] === undefined
+          ? undefined
+          : requireStringArray(filterPayload["documentIds"], "filters.documentIds") as any,
+      sourceTypes:
+        filterPayload["sourceTypes"] === undefined
+          ? undefined
+          : requireStringArray(filterPayload["sourceTypes"], "filters.sourceTypes") as any,
+      sourceLocators:
+        filterPayload["sourceLocators"] === undefined
+          ? undefined
+          : requireStringArray(
+              filterPayload["sourceLocators"],
+              "filters.sourceLocators"
+            ),
+      statuses:
+        filterPayload["statuses"] === undefined
+          ? undefined
+          : requireStringArray(filterPayload["statuses"], "filters.statuses") as any
+    };
+  }
+
+  return {
+    query: requireString(payload["query"], "query"),
+    topK:
+      payload["topK"] === undefined
+        ? undefined
+        : requireFiniteNumber(payload["topK"], "topK"),
+    filters
+  };
+}
+
+export function parseKnowledgeRagAnswerRequest(
+  body: unknown
+): KnowledgeRagAnswerRequest {
+  const payload = requirePlainObject(body, "knowledge RAG answer request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["query", "topK", "filters", "answerOptions"],
+    "knowledge RAG answer request"
+  );
+
+  const retrieval = parseKnowledgeRetrievalSearchRequest({
+    query: payload["query"],
+    topK: payload["topK"],
+    filters: payload["filters"]
+  });
+  const answerOptionsValue = payload["answerOptions"];
+  let answerOptions: KnowledgeRagAnswerRequest["answerOptions"];
+  if (answerOptionsValue !== undefined) {
+    const options = requirePlainObject(answerOptionsValue, "answerOptions");
+    assertOnlyKeys(
+      options,
+      ["maxAnswerLength", "includeCitations"],
+      "answerOptions"
+    );
+    answerOptions = {
+      maxAnswerLength:
+        options["maxAnswerLength"] === undefined
+          ? undefined
+          : requireFiniteNumber(
+              options["maxAnswerLength"],
+              "answerOptions.maxAnswerLength"
+            ),
+      includeCitations:
+        options["includeCitations"] === undefined
+          ? undefined
+          : requireBoolean(
+              options["includeCitations"],
+              "answerOptions.includeCitations"
+            )
+    };
+  }
+
+  return {
+    ...retrieval,
+    answerOptions
+  };
+}
+
+export function parseAgentKnowledgeAskRequest(
+  body: unknown
+): AgentKnowledgeAskRequest {
+  const payload = requirePlainObject(body, "agent knowledge ask request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["message", "topK", "filters"],
+    "agent knowledge ask request"
+  );
+  const retrieval = parseKnowledgeRetrievalSearchRequest({
+    query: payload["message"],
+    topK: payload["topK"],
+    filters: payload["filters"]
+  });
+
+  return {
+    message: retrieval.query,
+    topK: retrieval.topK,
+    filters: retrieval.filters
+  };
+}
+
 export function assertNoForbiddenRequestKeys(
   value: unknown,
   allowedForbiddenKeys: readonly string[] = []
@@ -189,6 +313,20 @@ function requirePlainObject(value: unknown, label: string): Record<string, unkno
   return value as Record<string, unknown>;
 }
 
+function assertOnlyKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  label: string
+): void {
+  const allowed = new Set(allowedKeys);
+  const unknownKeys = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknownKeys.length > 0) {
+    throw new KnowledgeBaseRagValidationError(
+      unknownKeys.sort().map((key) => `${label}.${key} is not supported`)
+    );
+  }
+}
+
 function requireString(value: unknown, path: string): string {
   if (typeof value !== "string") {
     throw new KnowledgeBaseRagValidationError([`${path} must be a string`]);
@@ -202,6 +340,13 @@ function requireFiniteNumber(value: unknown, path: string): number {
     throw new KnowledgeBaseRagValidationError([`${path} must be a finite number`]);
   }
 
+  return value;
+}
+
+function requireBoolean(value: unknown, path: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new KnowledgeBaseRagValidationError([`${path} must be a boolean`]);
+  }
   return value;
 }
 

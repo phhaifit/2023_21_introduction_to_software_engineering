@@ -346,6 +346,7 @@ describe("Workspace Core Flow & Safety Guardrails", () => {
 
     unmount();
     cleanup();
+    sessionStorage.clear();
     resetTaskIdentitySequence();
 
     render(<TaskOrchestrationPage taskCreationClient={client} processingRuntime={pRuntime} />);

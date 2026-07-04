@@ -23,6 +23,18 @@ The system SHALL enforce user and agent access rules for all Knowledge Base / RA
 - **WHEN** an agent requests a document, chunk, source, retrieval result, or answer without an explicit grant
 - **THEN** the system denies access to that knowledge source
 
+#### Scenario: Knowledge grant mutation requires management permission
+- **WHEN** a caller assigns or revokes an agent document grant
+- **THEN** the system requires `knowledge:manage`
+
+#### Scenario: Active agent grants can be listed by workspace readers
+- **WHEN** an authenticated workspace member lists an agent's document grants
+- **THEN** the system requires `workspace:read` and returns active safe document metadata only
+
+#### Scenario: Revoked agent grant no longer authorizes retrieval
+- **WHEN** an active document grant is revoked
+- **THEN** later agent-scoped retrieval excludes that document
+
 ### Requirement: Workspace Isolation
 The system SHALL strictly isolate all Knowledge Base / RAG data by workspace.
 

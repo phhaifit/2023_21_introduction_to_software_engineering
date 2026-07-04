@@ -20,6 +20,17 @@ export class PrismaKnowledgeIngestionJobRepository
     this.prisma = prisma;
   }
 
+  async findNextQueuedJob(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<KnowledgeIngestionJob | null> {
+    const record = await this.prisma.knowledgeIngestionJob.findFirst({
+      where: { workspaceId, status: "pending" },
+      orderBy: [{ queuedAt: "asc" }, { jobId: "asc" }]
+    });
+
+    return record ? toKnowledgeIngestionJobDomain(record) : null;
+  }
+
   async listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeIngestionJobListFilters = {}

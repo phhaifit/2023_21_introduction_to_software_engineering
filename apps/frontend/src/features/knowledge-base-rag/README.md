@@ -1,5 +1,10 @@
 # Knowledge Base / RAG Feature
 
+See
+[`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
+for the local browser flow, Processing Status verification, sample document,
+and current end-to-end limitations.
+
 Owner: Member 9
 
 This folder owns the React frontend implementation for Knowledge Base / RAG
@@ -9,8 +14,9 @@ UI.
 
 ## Current Status
 
-The feature currently has API-backed Documents, Upload, Data Sources, and
-Synchronization Scope views, plus remaining local mock support:
+The feature currently has API-backed Documents, Upload, Data Sources,
+Synchronization Scope, and Processing Status views, plus local mock fixtures
+for isolated tests:
 
 - `knowledge-base-rag-page.tsx`: base shell and local navigation.
 - `knowledge-base-rag-data-sources.tsx`: Data Sources screen wired to
@@ -28,17 +34,21 @@ Synchronization Scope views, plus remaining local mock support:
 - `knowledge-base-rag-upload.tsx`: Upload Documents screen wired to
   metadata validation and real file upload through the typed KB/RAG API client.
 - `knowledge-base-rag-processing-status.tsx`: Processing Status screen backed
-  by deterministic local mock jobs for queued, processing, completed, and
-  failed ingestion/indexing states.
+  by workspace-scoped ingestion jobs and document metadata from the typed API
+  client.
 - `knowledge-base-rag-api-client.ts`: typed frontend API client for the
-  workspace-scoped KB/RAG backend route family.
+  workspace-scoped KB/RAG backend route family, including
+  `listAgentKnowledgeDocuments`, `assignAgentKnowledgeDocument`, and
+  `revokeAgentKnowledgeDocument` for Agent Management.
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
-Documents, Upload, Data Sources, and Synchronization Scope screens use the API
-client as their runtime source of truth. Processing Status is currently a
-frontend-only mock status view. Current local view types are presentation types
-used to render shared DTOs and isolated local views, not public contracts.
+Documents, Upload, Data Sources, Synchronization Scope, and Processing Status
+use the API client as their runtime source of truth. Processing Status fetches
+on mount and workspace change, supports manual refresh, and renders safe
+loading, empty, and unavailable states. Current local view types are
+presentation types used to render shared DTOs and isolated test fixtures, not
+public contracts.
 
 ## Frontend Scope
 
@@ -49,7 +59,7 @@ used to render shared DTOs and isolated local views, not public contracts.
 - API-backed data source connections.
 - API-backed synchronization scope selections.
 - API-backed manual sync status in Synchronization Scope.
-- Future agent knowledge permission controls after contracts exist.
+- Agent document-grant API client methods consumed by Agent Management.
 
 ## Architecture Alignment
 
@@ -84,9 +94,8 @@ Runtime UI integration aligns with shared DTOs such as:
 - `SyncJobDto`
 
 Keep mock/view types module-local and avoid exporting them as cross-module
-contracts. Documents, Upload, Data Sources, and Synchronization Scope map
-shared DTOs through `knowledge-base-rag-api-client.ts`; future integration
-should follow the same pattern for Processing Status.
+contracts. Runtime screens map shared DTOs through
+`knowledge-base-rag-api-client.ts`.
 
 ## Implementation Rules
 
@@ -128,10 +137,10 @@ should follow the same pattern for Processing Status.
 | KB-RAG-FT-013 | Data Sources | Confirm the screen does not overclaim provider runtime. | Data Sources tab is loaded. | Review copy around source connection and sync state. | Copy describes safe source connection and sync status without claiming real provider sync execution when runtime is unavailable. | Pending manual verification | Runtime availability is environment-dependent. |
 | KB-RAG-FT-014 | Synchronization Scope | Confirm Synchronization Scope tab renders. | Backend API may be available or unavailable. | Open Synchronization Scope. | Metrics, scope tree or loading/error/empty state, Save selection, and Request manual sync actions render when applicable. | Pending manual verification | Automated coverage exists for Sync Scope API integration. |
 | KB-RAG-FT-015 | Synchronization Scope | Confirm sync job list is safe. | Sync jobs are available. | Inspect sync job list. | Job rows show safe status and counts without queue/runtime internals. | Pending manual verification | Duplicate key warning is expected to remain fixed by the jobId-requestedAt-index key. |
-| KB-RAG-FT-016 | Processing Status | Confirm Processing Status tab renders job summary. | Module page is open. | Open Processing Status. | Total, queued, processing, completed, and failed metrics are visible. | Pending manual verification | Screen uses local mock processing jobs. |
-| KB-RAG-FT-017 | Processing Status | Confirm all job states are represented. | Processing Status tab is open. | Inspect processing job cards. | Queued, Processing, Completed, and Failed states are visible with product-facing labels. | Pending manual verification | No backend/API/worker call is introduced by this screen. |
+| KB-RAG-FT-016 | Processing Status | Confirm Processing Status tab renders job summary. | Module page is open and the backend is available. | Open Processing Status. | Total, queued, processing, completed, and failed metrics reflect workspace ingestion jobs. | Pending manual verification | Screen reads ingestion jobs and document metadata through the typed API client. |
+| KB-RAG-FT-017 | Processing Status | Confirm all job states are represented. | Processing Status tab is open. | Inspect processing job cards. | Pending, ingesting, ready, and failed backend states render as Queued, Processing, Completed, and Failed. | Pending manual verification | Backend lifecycle mapping is covered by component tests. |
 | KB-RAG-FT-018 | Processing Status | Confirm progress bars are readable and status-aware. | Processing Status tab is open. | Inspect each job progress bar. | Bars use a standard track/fill layout; queued is neutral gray, processing is primary purple/blue, completed is green, and failed is red/orange. | Pending manual verification | Visual QA check. |
-| KB-RAG-FT-019 | Processing Status | Confirm safe failure and detail behavior. | Processing Status tab is open. | Select View details on different jobs and inspect failed job text. | Detail panel updates locally, failed jobs show safe user-facing error messages, and Retry failed job / Refresh status / Clear completed remain presentational. | Pending manual verification | No runtime side effects expected. |
+| KB-RAG-FT-019 | Processing Status | Confirm safe failure, detail, and refresh behavior. | Processing Status tab is open. | Select View details, inspect failed job text, and select Refresh status. | Detail panel updates locally, failed jobs show bounded safe messages, and refresh reloads workspace job state. | Pending manual verification | Retry failed job remains disabled/presentational because retry runtime is out of scope. |
 
 ## Defect Report
 
@@ -156,7 +165,10 @@ Priority definitions:
 Environment/runtime limitations recorded as non-defect notes:
 
 - Documents, Upload validation, Data Sources, and Synchronization Scope may show API loading/error states when the backend API is not running. This is an environment/runtime availability condition, not necessarily a UI defect.
-- Production storage, document parsing/OCR, provider sync, embedding provider integration, vector database integration, retrieval, RAG answer generation, live processing status, and agent knowledge access checks remain future production runtime scope.
+- OCR and live external-provider synchronization execution remain outside this
+  frontend status integration. Synchronization status continues through the
+  separate Synchronization Scope API flow and is not merged into Processing
+  Status.
 
 Resolved / previously addressed:
 
@@ -169,7 +181,7 @@ Resolved / previously addressed:
 
 Scope:
 
-- Knowledge Base / RAG Management frontend UI, local navigation, API-backed runtime screens, and mock Processing Status screen.
+- Knowledge Base / RAG Management frontend UI, local navigation, and API-backed runtime screens including Processing Status.
 
 Screens covered:
 
@@ -210,7 +222,10 @@ Manual verification checklist:
 
 Known limitations:
 
-- Processing Status uses local mock processing jobs.
+- Processing Status uses workspace-scoped ingestion jobs and document metadata;
+  deterministic mock jobs remain test fixtures only.
+- Processing Status refresh is manual. Polling, WebSocket, and event-stream
+  updates are deferred.
 - Data-source connection and manual sync screens display safe API-backed intent/status; production provider/runtime execution is outside this frontend UI scope.
 - API-backed screens may display loading or error states when the backend API is unavailable.
 - Upload Documents sends selected supported files to the KB/RAG upload runtime,
