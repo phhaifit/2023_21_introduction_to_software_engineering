@@ -447,19 +447,28 @@ indexing pipeline, batches requests deterministically, restores provider results
 to input order, and validates result count, numeric values, and configured
 dimensions before handing vectors to `KnowledgeVectorIndexAdapter`.
 
-Required runtime configuration:
+OpenRouter embedding configuration for the local web demo:
 
 ```text
-KNOWLEDGE_EMBEDDING_PROVIDER=openai-compatible
-KNOWLEDGE_EMBEDDING_BASE_URL=https://provider.example/v1
-KNOWLEDGE_EMBEDDING_API_KEY=<secret>
-KNOWLEDGE_EMBEDDING_MODEL=<provider-model>
-KNOWLEDGE_EMBEDDING_DIMENSIONS=<positive integer>
+KNOWLEDGE_EMBEDDING_PROVIDER=openrouter
+KNOWLEDGE_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1
+KNOWLEDGE_EMBEDDING_MODEL=openai/text-embedding-3-small
+KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+OPENROUTER_API_KEY=
 ```
 
+For provider `openrouter`, `KNOWLEDGE_EMBEDDING_BASE_URL` defaults to
+`https://openrouter.ai/api/v1`, `KNOWLEDGE_EMBEDDING_MODEL` defaults to
+`openai/text-embedding-3-small`, and the adapter reads `OPENROUTER_API_KEY`
+with `KNOWLEDGE_EMBEDDING_API_KEY` as a compatibility fallback. Keep
+`KNOWLEDGE_VECTOR_DIMENSIONS=1536` for this model; `3` is only for the opt-in
+pgvector smoke test.
+
+The existing `openai-compatible` provider remains supported with
+`KNOWLEDGE_EMBEDDING_API_KEY`, explicit base URL, model, and dimensions.
 `KNOWLEDGE_EMBEDDING_BATCH_SIZE` defaults to `32`, and
-`KNOWLEDGE_EMBEDDING_TIMEOUT_MS` defaults to `30000`. Configuration and
-provider failures use fixed safe errors; API keys, authorization headers, raw
+`KNOWLEDGE_EMBEDDING_TIMEOUT_MS` defaults to `30000`. Configuration and provider
+failures use fixed safe errors; API keys, authorization headers, raw
 requests/responses, and raw embeddings are not persisted or mapped publicly.
 Tests retain deterministic inline adapters and use injected mock fetch
 implementations, never real provider calls.
