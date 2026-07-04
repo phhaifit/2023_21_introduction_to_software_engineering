@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@vcp/database";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
-import type { WorkspaceRepository, WorkspaceStatusUpdate } from "../application/workspace-repository.ts";
+import type { WorkspaceRepository, WorkspaceStatusUpdate, MembershipRecord } from "../application/workspace-repository.ts";
 import type { Workspace } from "../domain/workspace.ts";
 import { toDomain, toPrismaCreate } from "./prisma-workspace-mapper.ts";
 
@@ -54,6 +54,22 @@ export class PrismaWorkspaceRepository implements WorkspaceRepository {
         : [];
 
     return [...owned, ...memberWorkspaces].map(toDomain);
+  }
+
+  async findActiveMembershipByUser(userId: EntityId<"userId">): Promise<MembershipRecord | null> {
+    const row = await this.prisma.workspaceMember.findFirst({
+      where: { userId, status: "active" },
+      orderBy: { createdAt: "desc" },
+      select: { workspaceId: true, memberId: true, role: true }
+    });
+
+    if (!row) return null;
+
+    return {
+      workspaceId: row.workspaceId as EntityId<"workspaceId">,
+      memberId: row.memberId as EntityId<"memberId">,
+      role: row.role
+    };
   }
 
   async updateStatus(
