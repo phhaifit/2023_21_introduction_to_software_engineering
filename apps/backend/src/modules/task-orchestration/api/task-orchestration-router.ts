@@ -8,6 +8,7 @@ import type {
 import type { OpenClawExecutionOrchestrator, OpenClawTaskExecutionAdapter } from "../../../features/task-execution/adapters/openclaw-task-execution-adapter.ts";
 import type { RequestContext } from "../../../shared/auth/request-context.ts";
 import type { CreateTaskUseCase } from "../application/create-task-use-case.ts";
+import type { AgentKnowledgeAskPort } from "../application/agent-knowledge-ask-port.ts";
 import { CreateTaskError } from "../application/create-task-error.ts";
 import { TaskValidationError } from "../domain/task.ts";
 import { TaskRoutingValidationError } from "../domain/routing-validation.ts";
@@ -17,6 +18,7 @@ export type TaskOrchestrationRouterDependencies = {
   adapter: OpenClawTaskExecutionAdapter;
   conversationRepository: ConversationRepository;
   createTaskUseCase: CreateTaskUseCase;
+  agentKnowledgeAskPort?: AgentKnowledgeAskPort;
 };
 
 function getRequestContext(request: Request): RequestContext {
@@ -92,6 +94,90 @@ export function createTaskOrchestrationRouter(
         error: {
           code: "system.unexpected_error",
           message: error?.message || "Failed to create task."
+        },
+        meta: createMeta(request)
+      });
+    }
+  });
+
+  router.post("/tasks/agent-knowledge/ask", async (request, response) => {
+    const context = getRequestContext(request) as any;
+    const workspaceId = request.params.workspaceId;
+    if (!context.user?.userId) {
+      response.status(401).json({
+        ok: false,
+        error: { code: "auth.unauthorized", message: "Authentication required." },
+        meta: createMeta(request)
+      });
+      return;
+    }
+    if (
+      !context.workspace?.workspaceId ||
+      context.workspace.workspaceId !== workspaceId
+    ) {
+      response.status(403).json({
+        ok: false,
+        error: {
+          code: "auth.forbidden",
+          message: "Workspace route does not match authenticated workspace context."
+        },
+        meta: createMeta(request)
+      });
+      return;
+    }
+
+    const agentId =
+      typeof request.body?.agentId === "string"
+        ? request.body.agentId.trim()
+        : "";
+    const message =
+      typeof request.body?.message === "string"
+        ? request.body.message.trim()
+        : "";
+    if (!agentId || !message) {
+      response.status(422).json({
+        ok: false,
+        error: {
+          code: "validation.invalid_input",
+          message: "Agent and message are required."
+        },
+        meta: createMeta(request)
+      });
+      return;
+    }
+    if (!dependencies.agentKnowledgeAskPort) {
+      response.status(503).json({
+        ok: false,
+        error: {
+          code: "system.unavailable",
+          message: "Assigned knowledge answering is unavailable."
+        },
+        meta: createMeta(request)
+      });
+      return;
+    }
+
+    try {
+      const result = await dependencies.agentKnowledgeAskPort.ask(
+        workspaceId as any,
+        agentId as any,
+        {
+          message,
+          topK: request.body?.topK,
+          filters: request.body?.filters
+        }
+      );
+      response.status(200).json({
+        ok: true,
+        data: result,
+        meta: createMeta(request)
+      });
+    } catch {
+      response.status(503).json({
+        ok: false,
+        error: {
+          code: "system.unavailable",
+          message: "Unable to answer from assigned knowledge right now."
         },
         meta: createMeta(request)
       });

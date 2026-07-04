@@ -65,3 +65,15 @@ internal agent retrieval tool and returns a grounded answer or safe fallback.
 #### Scenario: Missing evidence returns fallback
 - **WHEN** the retrieval tool returns no eligible evidence
 - **THEN** the local agent ask boundary returns an insufficient-evidence response without invoking its answer composer
+
+### Requirement: Task Chat Knowledge Consumption
+The system SHALL allow the existing Task chat Agent mode to consume assigned
+KB/RAG knowledge through an approved backend port.
+
+#### Scenario: Agent-mode task chat renders grounded evidence
+- **WHEN** a user selects an agent and sends a Task chat message with active assigned evidence
+- **THEN** Task Orchestration delegates to the KB/RAG agent ask boundary and returns the answer and bounded citations in the existing assistant turn
+
+#### Scenario: Task chat cannot expand agent access
+- **WHEN** the selected agent has no active assigned evidence
+- **THEN** Task chat returns the safe insufficient-evidence response and does not access private retrieval or vector internals

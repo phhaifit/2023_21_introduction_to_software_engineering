@@ -256,6 +256,23 @@ require a RAG/LLM provider.
 This is not a chatbot UI or production OpenClaw tool registration. Skill/config
 references still do not grant document access.
 
+## Task chat demo
+
+1. Upload and index a document in **Knowledge**.
+2. Open **Agents** and assign the document to an enabled agent.
+3. Open **Tasks**, choose **Agent**, and select that agent.
+4. Ask a question covered by the assigned document.
+5. Confirm the existing assistant turn shows the grounded answer and citations.
+6. Revoke the document assignment in **Agents**.
+7. Ask again and confirm the assistant returns the insufficient-evidence
+   fallback without citations.
+
+Task chat calls the Task backend bridge, which delegates to the KB/RAG
+`AgentKnowledgeOrchestrationUseCase`; it does not query pgvector from the
+browser. Deterministic tests use fake adapters/ports. A real local demo requires
+the document to be indexed and the existing embedding/pgvector retrieval
+configuration to be available.
+
 ## Troubleshooting
 
 - **Backend reports a missing `.env`:** copy `.env.example` to `.env`.
@@ -284,8 +301,8 @@ references still do not grant document access.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
 - Agent grants and the current assignment UI are document-level only.
-- The internal tool is invoked by the local-demo ask route but is not registered
-  as a production OpenClaw/Agent Orchestration tool.
+- The internal tool is invoked by the local-demo ask route and Agent-mode Task
+  chat, but is not registered as a production OpenClaw tool.
 - Processing Status refresh is manual.
 - Image-only PDFs require future OCR.
 - There is no chatbot UI or FastAPI implementation.

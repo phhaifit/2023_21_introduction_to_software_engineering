@@ -171,6 +171,11 @@ response composer. Missing/cross-workspace agents are denied safely. This path
 does not call a real LLM, change Task & Orchestration, register an OpenClaw
 tool, or provide a chatbot UI.
 
+The existing Task chat consumes this use case through Task Orchestration's
+injected `AgentKnowledgeAskPort`. This adapter preserves the KB/RAG-owned grant
+and retrieval boundary; Task Orchestration does not access repositories,
+embeddings, or vector storage directly.
+
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:
 
