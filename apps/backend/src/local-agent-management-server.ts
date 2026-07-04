@@ -54,6 +54,8 @@ import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/applica
 import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeRagAnswerUseCase } from "./modules/knowledge-base-rag/application/knowledge-rag-answer-use-case.ts";
 import { AgentKnowledgeAssignmentUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-assignment-use-case.ts";
+import { AgentKnowledgeRetrievalTool } from "./modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
+import { AgentKnowledgeOrchestrationUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
 import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
@@ -697,6 +699,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       accessPolicy: knowledgeAccessPolicy,
       now: () => new Date().toISOString(),
       generateGrantId: () => randomUUID()
+    }),
+    agentKnowledgeOrchestrationUseCase: new AgentKnowledgeOrchestrationUseCase({
+      knowledgeRetrievalTool: new AgentKnowledgeRetrievalTool({
+        retrievalSearchUseCase,
+        agentLookup: {
+          async existsInWorkspace(workspaceId, agentId) {
+            return Boolean(await repository.findById(workspaceId, agentId));
+          }
+        }
+      })
     }),
     accessPolicy: knowledgeAccessPolicy
   };

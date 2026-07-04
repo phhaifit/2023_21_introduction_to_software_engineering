@@ -17,7 +17,9 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   agentKnowledgeDocuments:
     "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents",
   agentKnowledgeDocument:
-    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId",
+  agentKnowledgeAsk:
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask"
 } as const;
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
@@ -36,7 +38,8 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.ragAnswer },
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocuments },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
-  { method: "DELETE", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument }
+  { method: "DELETE", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeAsk }
 ] as const;
 
 export type KnowledgeBaseRagApiRoute =
@@ -92,6 +95,8 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeRagAnswerCitationDto",
   "KnowledgeRagAnswerResponse",
   "AgentKnowledgeDocumentDto",
+  "AgentKnowledgeAskRequest",
+  "AgentKnowledgeAskResponse",
   "KnowledgeBaseApiError"
 ] as const;
 
@@ -127,6 +132,36 @@ export type AgentKnowledgeDocumentDto = {
   agentId: EntityId<"agentId">;
   document: KnowledgeDocumentDto;
   grantStatus: "active" | "revoked";
+};
+
+export type AgentKnowledgeAskRequest = {
+  message: string;
+  topK?: number;
+  filters?: Pick<
+    KnowledgeRetrievalFilters,
+    "documentIds" | "sourceTypes" | "sourceLocators"
+  >;
+};
+
+export type AgentKnowledgeAskCitationDto = {
+  citationId: string;
+  documentId: EntityId<"documentId">;
+  documentTitle: string;
+  snippet: string;
+  sourceType: KnowledgeDocumentSource;
+  sourceLocator?: string;
+};
+
+export type AgentKnowledgeAskResponse = {
+  status:
+    | "answered"
+    | "insufficient_evidence"
+    | "unauthorized"
+    | "invalid_request"
+    | "error";
+  answer: string;
+  citations: AgentKnowledgeAskCitationDto[];
+  warnings: string[];
 };
 
 export type KnowledgeDocumentChunkDto = {

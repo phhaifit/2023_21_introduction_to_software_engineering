@@ -116,6 +116,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: `AgentKnowledgeRetrievalTool` validates workspace-scoped agent identity through an injected lookup, delegates to `KnowledgeRetrievalSearchUseCase` with agent context, and maps safe results to bounded citation-style evidence under the internal name `knowledge.retrieve`.
    - Constraint: Active document grants remain the only access source. Optional filters only narrow grants; revoked grants and skill/config references do not grant access. No eligible documents returns empty before embedding/vector calls. This slice does not add a public route, tool-registry wiring, answer generation, UI, source/collection grants, task-orchestration changes, or new dependencies.
 
+22. Consume the agent retrieval tool through a minimal local-demo ask route.
+   - Rationale: The demo needs one end-to-end agent-facing proof that assigned evidence can ground a response without coupling KB/RAG to private Task & Orchestration or OpenClaw internals.
+   - Boundary: `POST /api/workspaces/:workspaceId/knowledge/agents/:agentId/ask` validates workspace permission, invokes `AgentKnowledgeRetrievalTool`, and uses a deterministic evidence-only composer to return an answer with bounded citations or a safe insufficient-evidence fallback.
+   - Constraint: No evidence skips the composer. Active document grants remain authoritative; filters only narrow access, revoked grants and skill/config references do not authorize retrieval, and cross-workspace agents are denied safely. This slice does not change Task & Orchestration, register an OpenClaw tool, call an external answer provider, add UI, or add dependencies.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

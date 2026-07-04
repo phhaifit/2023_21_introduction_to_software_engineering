@@ -36,6 +36,8 @@ const expectedDtoExports = [
   "KnowledgeRagAnswerCitationDto",
   "KnowledgeRagAnswerResponse",
   "AgentKnowledgeDocumentDto",
+  "AgentKnowledgeAskRequest",
+  "AgentKnowledgeAskResponse",
   "KnowledgeBaseApiError"
 ];
 
@@ -68,7 +70,8 @@ const expectedRoutes = [
   ["POST", "/api/workspaces/:workspaceId/knowledge/rag/answer"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"],
-  ["DELETE", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"]
+  ["DELETE", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask"]
 ];
 
 assert.deepEqual(

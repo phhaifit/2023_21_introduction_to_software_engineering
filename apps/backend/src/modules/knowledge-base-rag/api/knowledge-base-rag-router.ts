@@ -15,6 +15,7 @@ import type { KnowledgeSyncUseCases } from "../application/knowledge-sync-use-ca
 import type { KnowledgeRetrievalSearchUseCase } from "../application/knowledge-retrieval-search-use-case.ts";
 import type { KnowledgeRagAnswerUseCase } from "../application/knowledge-rag-answer-use-case.ts";
 import type { AgentKnowledgeAssignmentUseCase } from "../application/agent-knowledge-assignment-use-case.ts";
+import type { AgentKnowledgeOrchestrationUseCase } from "../application/agent-knowledge-orchestration-use-case.ts";
 import {
   KnowledgeBaseRagValidationError,
   KnowledgeAccessDeniedError,
@@ -33,6 +34,7 @@ import {
   sendKnowledgeBaseRagPaginatedApiSuccess
 } from "./api-response.ts";
 import {
+  parseAgentKnowledgeAskRequest,
   parseConnectDataSourceRequest,
   parseListQuery,
   parseKnowledgeRetrievalSearchRequest,
@@ -54,6 +56,7 @@ export type KnowledgeBaseRagRouterDependencies = {
   retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase;
   ragAnswerUseCase: KnowledgeRagAnswerUseCase;
   agentKnowledgeAssignmentUseCase?: AgentKnowledgeAssignmentUseCase;
+  agentKnowledgeOrchestrationUseCase?: AgentKnowledgeOrchestrationUseCase;
   accessPolicy?: KnowledgeBaseRagAccessPolicy;
   checkoutUseCases?: CheckoutUseCases;
 };
@@ -397,6 +400,25 @@ export function createKnowledgeBaseRagRouter(
     }
   );
 
+  router.post(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeAsk,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "rag:answer"
+        );
+        const payload = parseAgentKnowledgeAskRequest(request.body);
+        return requireAgentKnowledgeOrchestrationUseCase(dependencies).ask(
+          workspaceId,
+          requirePathParam(request, "agentId") as EntityId<"agentId">,
+          payload
+        );
+      });
+    }
+  );
+
   return router;
 }
 
@@ -580,6 +602,15 @@ function requireAgentKnowledgeAssignmentUseCase(
     throw new Error("Agent knowledge assignment use case is unavailable.");
   }
   return dependencies.agentKnowledgeAssignmentUseCase;
+}
+
+function requireAgentKnowledgeOrchestrationUseCase(
+  dependencies: KnowledgeBaseRagRouterDependencies
+): AgentKnowledgeOrchestrationUseCase {
+  if (!dependencies.agentKnowledgeOrchestrationUseCase) {
+    throw new Error("Agent knowledge orchestration is unavailable.");
+  }
+  return dependencies.agentKnowledgeOrchestrationUseCase;
 }
 
 function isPaginatedResult<T>(

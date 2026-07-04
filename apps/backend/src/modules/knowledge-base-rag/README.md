@@ -134,8 +134,8 @@ grant. Revoke is idempotent, and list returns active document grants only.
 
 Responses contain safe document DTOs and never expose grant IDs, storage
 details, content, chunks, embeddings, vectors, provider payloads, credentials,
-or runtime internals. This API remains document-level. Source/collection grants,
-an assignment UI, and Agent Orchestration consumption are deferred.
+or runtime internals. This API remains document-level. Source/collection grants
+and production Agent Orchestration/OpenClaw tool registration are deferred.
 
 ### Internal agent retrieval tool
 
@@ -155,8 +155,21 @@ search.
 Agent identity is checked through an injected workspace-scoped lookup port.
 The output contains safe document metadata and bounded snippets only; it does
 not expose chunks, storage/vector references, provider payloads, credentials,
-or raw errors. Registration in an Agent Orchestration tool registry and a full
-agent answer flow are deferred.
+or raw errors.
+
+### Agent orchestration demo integration
+
+`POST /api/workspaces/:workspaceId/knowledge/agents/:agentId/ask` provides the
+smallest local-demo orchestration path. It requires the existing `rag:answer`
+workspace permission, accepts `message`, optional `topK`, and optional
+document/source filters, then invokes `AgentKnowledgeRetrievalTool`.
+
+When assigned evidence is found, `AgentKnowledgeOrchestrationUseCase` creates a
+deterministic evidence-only answer and returns safe citations. When no active
+grant/evidence remains, it returns `insufficient_evidence` without calling a
+response composer. Missing/cross-workspace agents are denied safely. This path
+does not call a real LLM, change Task & Orchestration, register an OpenClaw
+tool, or provide a chatbot UI.
 
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:

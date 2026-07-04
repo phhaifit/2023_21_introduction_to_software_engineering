@@ -53,3 +53,15 @@ only from documents actively granted to the target workspace agent.
 #### Scenario: References cannot expand access
 - **WHEN** skill/config references or source filters mention knowledge outside the agent's active document grants
 - **THEN** the tool does not return that knowledge
+
+### Requirement: Local Agent Ask Integration
+The system SHALL provide a local-demo orchestration boundary that consumes the
+internal agent retrieval tool and returns a grounded answer or safe fallback.
+
+#### Scenario: Evidence grounds the local answer
+- **WHEN** the retrieval tool returns active assigned evidence
+- **THEN** the local agent ask boundary returns an evidence-only answer with bounded citations
+
+#### Scenario: Missing evidence returns fallback
+- **WHEN** the retrieval tool returns no eligible evidence
+- **THEN** the local agent ask boundary returns an insufficient-evidence response without invoking its answer composer

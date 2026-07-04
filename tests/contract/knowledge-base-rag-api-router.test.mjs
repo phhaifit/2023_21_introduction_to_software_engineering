@@ -338,6 +338,33 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   assert.equal(syncJobs.body.data.length, 1);
   assert.equal(syncJobs.body.meta.pagination.totalItems, 1);
 
+  const agentAnswer = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/agents/agent-a/ask",
+    {
+      method: "POST",
+      body: {
+        message: "What is the equipment approval policy?",
+        topK: 3
+      }
+    }
+  );
+  assert.equal(agentAnswer.status, 200);
+  assert.equal(agentAnswer.body.data.status, "answered");
+  assert.equal(agentAnswer.body.data.citations[0].documentId, "document-policy");
+  assertNoForbiddenPublicKeys(agentAnswer.body);
+
+  const invalidAgentAsk = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/agents/agent-a/ask",
+    {
+      method: "POST",
+      body: { message: "   " }
+    }
+  );
+  assert.equal(invalidAgentAsk.status, 200);
+  assert.equal(invalidAgentAsk.body.data.status, "invalid_request");
+
   const viewerMutation = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/uploads/validate",
@@ -412,7 +439,35 @@ function createKnowledgeBaseRagRuntime() {
         syncJobRepository,
         now,
         generateJobId: () => `sync-job-${++syncJobSequence}`
-      })
+      }),
+      agentKnowledgeOrchestrationUseCase: {
+        async ask(workspaceId, agentId, request) {
+          if (!request.message.trim()) {
+            return {
+              status: "invalid_request",
+              answer: "",
+              citations: [],
+              warnings: ["Agent knowledge retrieval input is invalid."]
+            };
+          }
+          return {
+            status: "answered",
+            answer: "Equipment requests are reviewed within three business days.",
+            citations: [
+              {
+                citationId: "E1",
+                documentId: "document-policy",
+                documentTitle: "sample-company-policy.txt",
+                snippet:
+                  "Equipment requests are reviewed within three business days.",
+                sourceType: "upload",
+                sourceLocator: "text:0"
+              }
+            ],
+            warnings: []
+          };
+        }
+      }
     }
   };
 }

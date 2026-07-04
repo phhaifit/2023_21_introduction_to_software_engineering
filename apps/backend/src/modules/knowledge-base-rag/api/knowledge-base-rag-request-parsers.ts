@@ -1,4 +1,5 @@
 import type {
+  AgentKnowledgeAskRequest,
   ConnectKnowledgeDataSourceRequest,
   KnowledgeRagAnswerRequest,
   KnowledgeRetrievalSearchRequest,
@@ -246,6 +247,29 @@ export function parseKnowledgeRagAnswerRequest(
   return {
     ...retrieval,
     answerOptions
+  };
+}
+
+export function parseAgentKnowledgeAskRequest(
+  body: unknown
+): AgentKnowledgeAskRequest {
+  const payload = requirePlainObject(body, "agent knowledge ask request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["message", "topK", "filters"],
+    "agent knowledge ask request"
+  );
+  const retrieval = parseKnowledgeRetrievalSearchRequest({
+    query: payload["message"],
+    topK: payload["topK"],
+    filters: payload["filters"]
+  });
+
+  return {
+    message: retrieval.query,
+    topK: retrieval.topK,
+    filters: retrieval.filters
   };
 }
 
