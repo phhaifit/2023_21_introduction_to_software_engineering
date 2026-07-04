@@ -18,20 +18,23 @@ interface ActivityLabel {
 
 export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSummaryProps) {
   const presentationStatus = toTaskPresentationStatus(task.status);
-  if (!presentationStatus || (task.status !== "queued" && task.status !== "running")) {
-    return null;
-  }
-
   const activeStep = task.processingSnapshot.steps.find((step) => step.status === "active");
   const completedSteps = task.processingSnapshot.steps.filter((step) => step.status === "completed");
   const totalSteps = task.processingSnapshot.steps.length;
   const visibleSteps = task.processingSnapshot.steps.filter(
     (step) => step.status === "active" || step.status === "completed" || step.status === "failed"
   );
+  const isLive = task.status === "queued" || task.status === "running";
+  const hasCapturedRuntimeProgress = visibleSteps.length > 0 || task.processingSnapshot.logs.length > 0;
+  if (!presentationStatus || (!isLive && !hasCapturedRuntimeProgress)) {
+    return null;
+  }
+
   const recentSteps = visibleSteps.slice(-4);
   const currentActivity = resolveActivityLabel(
     activeStep?.label ||
       task.processingSnapshot.logs.at(-1)?.message ||
+      recentSteps.at(-1)?.label ||
       (task.status === "queued" ? "Queued" : "Processing")
   );
 
@@ -114,6 +117,14 @@ export function resolveActivityLabel(rawLabel: string): ActivityLabel {
       kind: "message",
       label,
       hint: "OpenClaw response activity"
+    };
+  }
+
+  if (lower === "thinking" || /\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(lower)) {
+    return {
+      kind: "message",
+      label: "Thinking",
+      hint: label
     };
   }
 
