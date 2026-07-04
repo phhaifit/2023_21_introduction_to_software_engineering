@@ -122,11 +122,12 @@ export function TaskAssistantMessage({
   const isCanceled = task.status === "cancelled";
   const isSucceeded = task.status === "succeeded";
   const isNonTerminal = task.status === "queued" || task.status === "running";
+  const hasCapturedRuntimeProgress = hasProviderRuntimeProgress(task);
   const presentationStatus = toTaskPresentationStatus(task.status);
   const presentationStatusLabel = presentationStatus
     ? TASK_STATUS_LABELS[presentationStatus]
     : null;
-  const toolbarStatusLabel = isNonTerminal ? null : presentationStatusLabel;
+  const toolbarStatusLabel = isNonTerminal || hasCapturedRuntimeProgress ? null : presentationStatusLabel;
 
   return (
     <div
@@ -152,7 +153,7 @@ export function TaskAssistantMessage({
           </div>
         </div>
 
-        {isNonTerminal ? (
+        {isNonTerminal || hasCapturedRuntimeProgress ? (
           <TaskAssistantProgressSummary task={task} onCancelTask={onCancelTask} />
         ) : null}
 
@@ -190,5 +191,27 @@ export function TaskAssistantMessage({
         />
       </div>
     </div>
+  );
+}
+
+function hasProviderRuntimeProgress(task: CreatedTaskRecord): boolean {
+  return (
+    task.processingSnapshot.steps.some((step) => {
+      const label = step.label.toLowerCase();
+      return (
+        step.id.startsWith("openclaw-") ||
+        step.id.includes("vcp-run") ||
+        label.includes("openclaw") ||
+        label === "agent activity" ||
+        label === "thinking" ||
+        label === "searching web" ||
+        label === "calling tool" ||
+        label === "composing response"
+      );
+    }) ||
+    task.processingSnapshot.logs.some((log) => {
+      const message = log.message.toLowerCase();
+      return log.stepId.startsWith("openclaw-") || log.stepId.includes("vcp-run") || message.includes("openclaw");
+    })
   );
 }

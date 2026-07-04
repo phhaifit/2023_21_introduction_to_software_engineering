@@ -467,14 +467,14 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     const client = this.gatewayControlClientFactory(endpoint, credentialReference);
     try {
       await client.connect();
+      const runId = `vcp-run-${Date.now()}`;
       const session = await client.request("sessions.create", {
-        label: request.targetLabel || `Task ${request.taskId}`
+        label: buildControlSessionLabel(request)
       });
       const sessionKey = typeof session?.key === "string" && session.key.trim()
         ? session.key.trim()
         : request.conversationId || `vcp-session-${Date.now()}`;
-      const runId = `vcp-run-${Date.now()}`;
-      await client.request("sessions.subscribe", {});
+      await client.request("sessions.subscribe", { key: sessionKey });
       await client.request("sessions.messages.subscribe", { key: sessionKey });
       const providerExecutionReference = `openclaw-control:${sessionKey}:${runId}`;
       const state: OpenClawControlExecutionState = {
@@ -835,6 +835,18 @@ function buildControlProtocolMessage(request: OpenClawExecutionRequest): string 
     request.prompt || "Start execution"
   ].filter(Boolean);
   return parts.join("\n\n");
+}
+
+function buildControlSessionLabel(request: OpenClawExecutionRequest): string {
+  const taskSuffix = request.taskId.replace(/[^a-zA-Z0-9_-]/g, "").slice(-8) || "task";
+  const entropy = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  const base = request.targetLabel?.trim() || "Task";
+  const safeBase = sanitizeObservabilityPayload(base)
+    .replace(/\s+/g, " ")
+    .replace(/[^\w .:-]/g, "")
+    .trim()
+    .slice(0, 36) || "Task";
+  return `VCP ${safeBase} ${taskSuffix} ${entropy}`;
 }
 
 function normalizeControlProtocolError(err: any): Error {

@@ -442,6 +442,12 @@ describe("OpenClawNetworkTransport & OpenClawRawEventMapper", () => {
         "sessions.messages.subscribe",
         "chat.send"
       ]);
+      expect(fakeControl.requests[0].params).toMatchObject({
+        label: expect.stringMatching(/^VCP Task task-123 [a-f0-9]{8}$/)
+      });
+      expect(fakeControl.requests[1].params).toEqual({
+        key: "control-session-1"
+      });
       expect(fakeControl.requests[3].params).toMatchObject({
         sessionKey: "control-session-1",
         deliver: false,
