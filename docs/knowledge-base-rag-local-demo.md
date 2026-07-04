@@ -192,9 +192,14 @@ indexing command. For a reliable demo today, use the deterministic production
 test for the complete upload-to-answer proof and the browser for upload,
 document listing, and queued Processing Status.
 
-## Agent document assignment API
+## Agent document assignment
 
-The backend exposes document-level assignment without adding an assignment UI:
+In the local app, open **Agents**, open an agent profile, and use **Assigned
+Knowledge** to review active grants, assign an available KB/RAG document, or
+remove an assigned document. The panel reads both document lists and active
+assignments from the backend; it does not use runtime mock documents.
+
+The same document-level flow is available through the API:
 
 ```bash
 curl -sS -X POST \
@@ -209,8 +214,9 @@ curl -sS -X DELETE \
 
 Replace the example IDs with existing workspace-scoped agent and document IDs.
 Assign/revoke require `knowledge:manage`; listing requires `workspace:read`.
-Assignments are document-level only. Source/collection grants, UI assignment,
-and Agent Orchestration integration remain follow-ups.
+Assignments are document-level only. Source/collection grants, Agent Retrieval
+Tool consumption, and Agent Orchestration integration remain follow-ups. This
+UI assigns access but does not make the agent answer from the documents yet.
 
 ## Troubleshooting
 
@@ -239,7 +245,7 @@ and Agent Orchestration integration remain follow-ups.
   credential storage are not implemented.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
-- Agent grants are document-level and have no new public administration API.
+- Agent grants and the current assignment UI are document-level only.
 - Processing Status refresh is manual.
 - Image-only PDFs require future OCR.
 - There is no chatbot UI or FastAPI implementation.
