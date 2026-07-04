@@ -34,4 +34,5 @@
 
 - [x] 3.1 Add production-runtime tests for real storage/parser/provider/vector adapters when those integrations are implemented
 - [x] 3.2 Add retrieval/search and agent-access tests when those features are implemented
-- [ ] 3.3 Run OpenSpec validation once the `openspec` CLI is available in the environment
+- [x] 3.3 Add final local RAG demo script and readiness checklist
+- [ ] 3.4 Run OpenSpec validation once the `openspec` CLI is available in the environment

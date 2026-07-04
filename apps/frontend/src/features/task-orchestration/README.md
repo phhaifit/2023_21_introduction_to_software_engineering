@@ -2,6 +2,9 @@
 
 Owner: Member 8
 
+For the final local KB/RAG Agent-mode Task chat walkthrough, see
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](../../../../../docs/demo/kb-rag/final-local-rag-demo-script.md).
+
 ## Current Frontend Scope
 
 - Prompt/task submission.

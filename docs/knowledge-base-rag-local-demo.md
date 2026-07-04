@@ -3,17 +3,17 @@
 ## Purpose and scope
 
 This guide describes the Knowledge Base / RAG behavior that can be run and
-verified locally in the current TypeScript/Node NPM Workspaces repository. It
-provides a repeatable foundation for later Agent Management and Agent
-Orchestration integration without adding either integration here.
+verified locally in the current TypeScript/Node NPM Workspaces repository. For
+the final presentation walkthrough, use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](demo/kb-rag/final-local-rag-demo-script.md).
 
 The implementation covers file upload/storage, TXT/DOCX/text-PDF extraction,
 ingestion and indexing boundaries, pgvector retrieval, grounded answer
 generation, access control, and the API-backed Processing Status screen.
 
-It does not provide a one-click deployment, a continuously running ingestion
-worker, external connectors/OAuth, a public grant-management API, a chatbot, or
-Agent/Orchestration integration.
+It does not provide a one-click deployment, a continuously running production
+ingestion worker, external connectors/OAuth, source-level grants, a standalone
+Agent Knowledge Ask UI, or production OpenClaw/tool runtime registration.
 
 ## Prerequisites
 
@@ -205,7 +205,10 @@ production queue check, or production readiness claim.
 ## Sample document
 
 Use [the fictional company policy](demo/kb-rag/sample-company-policy.txt) for
-TXT upload. Useful questions include:
+general TXT upload. Use
+[the equipment policy sample](demo/kb-rag/sample-equipment-policy.txt) with
+[the final local RAG demo script](demo/kb-rag/final-local-rag-demo-script.md)
+for the upload-to-Task-chat walkthrough. Useful questions include:
 
 - How many business days does equipment approval take?
 - Who reviews reimbursement requests?
