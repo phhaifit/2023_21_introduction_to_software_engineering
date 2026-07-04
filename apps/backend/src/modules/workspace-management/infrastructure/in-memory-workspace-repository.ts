@@ -1,5 +1,5 @@
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
-import type { WorkspaceRepository, WorkspaceStatusUpdate } from "../application/workspace-repository.ts";
+import type { WorkspaceRepository, WorkspaceStatusUpdate, MembershipRecord } from "../application/workspace-repository.ts";
 import type { Workspace } from "../domain/workspace.ts";
 
 export class InMemoryWorkspaceRepository implements WorkspaceRepository {
@@ -18,6 +18,12 @@ export class InMemoryWorkspaceRepository implements WorkspaceRepository {
     return [...this.store.values()]
       .filter((ws) => ws.userId === userId && ws.status !== "deleted")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  // In-memory store holds no WorkspaceMember records; membership resolution
+  // is not supported in this stub and always returns null.
+  async findActiveMembershipByUser(_userId: EntityId<"userId">): Promise<MembershipRecord | null> {
+    return null;
   }
 
   async updateStatus(
