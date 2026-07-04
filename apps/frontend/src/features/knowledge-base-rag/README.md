@@ -1,5 +1,10 @@
 # Knowledge Base / RAG Feature
 
+See
+[`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
+for the local browser flow, Processing Status verification, sample document,
+and current end-to-end limitations.
+
 Owner: Member 9
 
 This folder owns the React frontend implementation for Knowledge Base / RAG

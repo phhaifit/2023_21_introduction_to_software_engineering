@@ -1,0 +1,29 @@
+Northstar Workshop - Internal Support Policy
+
+This fictional policy is provided only for the local Knowledge Base / RAG demo.
+
+Equipment requests
+
+Employees submit equipment requests through the internal support form. The
+Workplace Operations team approves or rejects a complete request within three
+business days. Requests above 1,500 demo credits also require Finance review.
+
+Reimbursement requests
+
+The employee's direct manager reviews reimbursement requests first. Finance
+reviews a request only after manager approval. Employees must submit receipts
+within ten calendar days of the purchase.
+
+Rejected requests
+
+If a request is rejected, the employee should read the rejection reason,
+correct any missing information, and submit a new request. Urgent safety-related
+equipment issues should be escalated to Workplace Operations instead of waiting
+for a resubmission.
+
+Leave requests
+
+Planned leave of three or more working days should be submitted at least seven
+calendar days before the first day of leave. The direct manager records the
+decision in the internal leave system.
+
