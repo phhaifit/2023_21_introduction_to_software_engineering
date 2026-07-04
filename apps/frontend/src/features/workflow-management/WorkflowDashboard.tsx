@@ -6,6 +6,7 @@ import { LayoutDashboard, Activity, Layers, PenTool, TrendingUp, Calendar } from
 
 export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?: WorkflowManagementApiClient }) {
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
+  const [executions, setExecutions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const apiClient = useMemo(() => providedApiClient ?? createWorkflowManagementApiClient(), [providedApiClient]);
@@ -15,9 +16,13 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
     const loadData = async () => {
       try {
         setLoading(true);
-        const data = await apiClient.listWorkflows(DEMO_WORKSPACE_ID);
+        const [workflowsData, executionsData] = await Promise.all([
+          apiClient.listWorkflows(DEMO_WORKSPACE_ID),
+          apiClient.listExecutions(DEMO_WORKSPACE_ID)
+        ]);
         if (mounted) {
-          setWorkflows(data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+          setWorkflows(workflowsData.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+          setExecutions(executionsData);
         }
       } catch (err) {
         console.error("Failed to load dashboard data", err);
@@ -29,9 +34,13 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
     return () => { mounted = false; };
   }, [apiClient]);
 
-  const activeCount = workflows.filter(w => w.status === "active").length;
+  const activeCount = workflows.filter(w => w.status === "active" || w.status === "published").length;
   const draftCount = workflows.filter(w => w.status === "draft").length;
-  const totalSteps = workflows.reduce((sum, w) => sum + (w.stepCount ?? 0), 0);
+  
+  const totalExecutions = executions.length;
+  const successExecutions = executions.filter(e => e.status.toLowerCase() === "success" || e.status.toLowerCase() === "completed").length;
+  const failedExecutions = executions.filter(e => e.status.toLowerCase() === "failed" || e.status.toLowerCase() === "error").length;
+  const successRate = totalExecutions > 0 ? Math.round((successExecutions / totalExecutions) * 100) : 0;
   
   const activePercentage = workflows.length > 0 ? Math.round((activeCount / workflows.length) * 100) : 0;
   const draftPercentage = workflows.length > 0 ? Math.round((draftCount / workflows.length) * 100) : 0;
@@ -108,19 +117,23 @@ export function WorkflowDashboard({ apiClient: providedApiClient }: { apiClient?
           </div>
         </div>
 
-        {/* Total Steps */}
+        {/* Run Executions Performance */}
         <div className="elevated-card" style={{ padding: '24px', borderTop: '4px solid #8b5cf6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Total Steps</div>
-              <div style={{ fontSize: '36px', fontWeight: '800', color: '#8b5cf6', lineHeight: 1 }}>{totalSteps}</div>
+              <div style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', marginBottom: '8px', fontWeight: 700 }}>Executions</div>
+              <div style={{ fontSize: '36px', fontWeight: '800', color: '#8b5cf6', lineHeight: 1 }}>
+                {successRate}% <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--muted)' }}>success</span>
+              </div>
             </div>
             <div style={{ background: '#ede9fe', padding: '12px', borderRadius: '12px', color: '#7c3aed' }}>
               <Layers size={24} strokeWidth={2} />
             </div>
           </div>
-          <div style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)' }}>
-            Average {workflows.length ? Math.round(totalSteps / workflows.length) : 0} steps / workflow
+          <div style={{ marginTop: '20px', fontSize: '13px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Success: <strong style={{ color: '#10b981' }}>{successExecutions}</strong></span>
+            <span>Failed: <strong style={{ color: '#ef4444' }}>{failedExecutions}</strong></span>
+            <span>Total: <strong>{totalExecutions}</strong></span>
           </div>
         </div>
 
