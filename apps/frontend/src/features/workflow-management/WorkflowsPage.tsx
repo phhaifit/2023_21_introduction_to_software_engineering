@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { PageHeader } from "../../components/layout/PageHeader.tsx";
+import { useToast } from "../../components/shared/Toast.tsx";
 import { EmptyState } from "../../components/shared/EmptyState.tsx";
 import { WorkflowDashboard } from "./WorkflowDashboard.tsx";
 import { WorkflowEditorPage } from "./WorkflowEditorPage.tsx";
@@ -290,6 +291,7 @@ function WorkflowsList({
   apiClient?: WorkflowManagementApiClient;
   onImportWorkflow?: (data: any) => void;
 }) {
+  const { showSuccess, showError } = useToast();
   const [search, setSearch] = useState("");
   const [workflows, setWorkflows] = useState<WorkflowPublicSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -395,7 +397,7 @@ function WorkflowsList({
       } else {
         errorMsg += ` Details: ${err.message || "Unknown error"}`;
       }
-      alert(errorMsg);
+      showError(errorMsg);
       setExecutingId(null);
     }
   };
@@ -438,7 +440,7 @@ function WorkflowsList({
         // Already gone on server — just remove from UI
         setWorkflows(prev => prev.filter(w => w.workflowId !== workflowId));
       } else {
-        alert("Error deleting Workflow: " + (err.message || "Unknown error"));
+        showError("Error deleting Workflow: " + (err.message || "Unknown error"));
       }
     }
   };
@@ -473,8 +475,9 @@ function WorkflowsList({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      showSuccess("Workflow exported successfully!");
     } catch (err) {
-      alert("Failed to export workflow");
+      showError("Failed to export workflow");
     }
   };
 
@@ -489,10 +492,11 @@ function WorkflowsList({
         const parsed = JSON.parse(content);
         if (onImportWorkflow) {
           onImportWorkflow(parsed);
+          showSuccess("Workflow imported successfully!");
         }
       } catch (err: any) {
         console.error("Import error:", err);
-        alert("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
+        showError("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
       }
     };
     reader.readAsText(file);
