@@ -37,7 +37,9 @@ for isolated tests:
   by workspace-scoped ingestion jobs and document metadata from the typed API
   client.
 - `knowledge-base-rag-api-client.ts`: typed frontend API client for the
-  workspace-scoped KB/RAG backend route family.
+  workspace-scoped KB/RAG backend route family, including
+  `listAgentKnowledgeDocuments`, `assignAgentKnowledgeDocument`, and
+  `revokeAgentKnowledgeDocument` for Agent Management.
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
@@ -57,7 +59,7 @@ public contracts.
 - API-backed data source connections.
 - API-backed synchronization scope selections.
 - API-backed manual sync status in Synchronization Scope.
-- Future agent knowledge permission controls after contracts exist.
+- Agent document-grant API client methods consumed by Agent Management.
 
 ## Architecture Alignment
 
