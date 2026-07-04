@@ -38,13 +38,13 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | `DATABASE_URL` | Persistent API data and pgvector | Use local PostgreSQL. |
 | `KNOWLEDGE_FILE_STORAGE_DIR` | Optional upload location | Defaults to `.data/knowledge-base-rag/uploads`; keep it private. |
 | `KNOWLEDGE_INGESTION_MODE` | Optional local upload processing | Set to `inline` to parse, chunk, embed, and index before upload returns. Requires PostgreSQL and provider/vector config. |
-| `KNOWLEDGE_EMBEDDING_PROVIDER` | Live embedding/retrieval | Currently `openai-compatible`. |
-| `KNOWLEDGE_EMBEDDING_BASE_URL` | Live embedding/retrieval | Provider base URL. |
-| `KNOWLEDGE_EMBEDDING_API_KEY` | Live embedding/retrieval | Never commit this local secret. |
-| `KNOWLEDGE_EMBEDDING_MODEL` | Live embedding/retrieval | Provider model name. |
-| `KNOWLEDGE_EMBEDDING_DIMENSIONS` | Live embedding/pgvector | Must match provider output. |
+| `KNOWLEDGE_EMBEDDING_PROVIDER` | Live embedding/retrieval | Use `openrouter` for the local web demo. |
+| `KNOWLEDGE_EMBEDDING_BASE_URL` | Live embedding/retrieval | For OpenRouter use `https://openrouter.ai/api/v1`; this is also the default for provider `openrouter`. |
+| `KNOWLEDGE_EMBEDDING_MODEL` | Live embedding/retrieval | For OpenRouter use `openai/text-embedding-3-small`; this is also the default for provider `openrouter`. |
+| `KNOWLEDGE_EMBEDDING_DIMENSIONS` | Live embedding/pgvector | Use `1536` for `openai/text-embedding-3-small`. |
+| `OPENROUTER_API_KEY` | OpenRouter embedding and prompt assistant | Never commit this local secret. |
 | `KNOWLEDGE_VECTOR_PROVIDER` | Live vector operations | Currently `pgvector`. |
-| `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Must match embedding dimensions. |
+| `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Use `1536` for the OpenRouter web demo. Do not use `3` here. |
 | `KNOWLEDGE_VECTOR_DISTANCE` | Live retrieval | See `.env.example`. |
 | `KNOWLEDGE_PGVECTOR_SMOKE` | Local pgvector smoke test | Set to `1` only when explicitly running the opt-in smoke test. |
 | `KNOWLEDGE_RAG_PROVIDER` | Live answers | Currently `openai-compatible`. |
@@ -56,6 +56,24 @@ Optional batch-size, timeout, and output-limit variables have safe defaults in
 `.env.example`. There is no environment switch that turns the development
 server into deterministic mode. Tests inject deterministic adapters, require no
 API keys, and make no provider calls.
+
+For local web demo uploads with OpenRouter embeddings:
+
+```env
+KNOWLEDGE_INGESTION_MODE="inline"
+KNOWLEDGE_EMBEDDING_PROVIDER="openrouter"
+KNOWLEDGE_EMBEDDING_BASE_URL="https://openrouter.ai/api/v1"
+KNOWLEDGE_EMBEDDING_MODEL="openai/text-embedding-3-small"
+KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+OPENROUTER_API_KEY=
+
+KNOWLEDGE_VECTOR_PROVIDER="pgvector"
+KNOWLEDGE_VECTOR_DIMENSIONS=1536
+KNOWLEDGE_VECTOR_DISTANCE="cosine"
+```
+
+Do not use `KNOWLEDGE_VECTOR_DIMENSIONS=3` for the real web demo. The
+3-dimensional vector config is only for the opt-in pgvector smoke test.
 
 ## Install and database setup
 

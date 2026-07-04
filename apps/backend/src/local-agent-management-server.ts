@@ -130,12 +130,17 @@ function createKnowledgeRetrievalSearchUseCase(
   documentRepository: KnowledgeDocumentRepository,
   accessPolicy: KnowledgeBaseRagAccessPolicy
 ): KnowledgeRetrievalSearchUseCase {
+  const embeddingProvider = process.env.KNOWLEDGE_EMBEDDING_PROVIDER?.trim();
   const hasEmbeddingConfig = Boolean(
-    process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
-      process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
-      process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
-      process.env.KNOWLEDGE_EMBEDDING_MODEL &&
-      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+    embeddingProvider === "openrouter"
+      ? (process.env.OPENROUTER_API_KEY ||
+          process.env.KNOWLEDGE_EMBEDDING_API_KEY) &&
+          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+      : process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
+          process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
+          process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
+          process.env.KNOWLEDGE_EMBEDDING_MODEL &&
+          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
   );
   const hasVectorConfig = Boolean(
     process.env.KNOWLEDGE_VECTOR_PROVIDER &&

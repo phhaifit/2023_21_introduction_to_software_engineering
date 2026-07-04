@@ -53,16 +53,21 @@ Required for the live browser demo:
 DATABASE_URL=postgresql://user:password@localhost:5432/virtual_company_dev
 KNOWLEDGE_INGESTION_MODE=inline
 
-KNOWLEDGE_EMBEDDING_PROVIDER=openai-compatible
-KNOWLEDGE_EMBEDDING_BASE_URL=https://example-embedding-provider.local/v1
-KNOWLEDGE_EMBEDDING_API_KEY=
-KNOWLEDGE_EMBEDDING_MODEL=text-embedding-3-small
+KNOWLEDGE_EMBEDDING_PROVIDER=openrouter
+KNOWLEDGE_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1
+KNOWLEDGE_EMBEDDING_MODEL=openai/text-embedding-3-small
 KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+KNOWLEDGE_EMBEDDING_BATCH_SIZE=32
+KNOWLEDGE_EMBEDDING_TIMEOUT_MS=30000
+OPENROUTER_API_KEY=
 
 KNOWLEDGE_VECTOR_PROVIDER=pgvector
 KNOWLEDGE_VECTOR_DIMENSIONS=1536
 KNOWLEDGE_VECTOR_DISTANCE=cosine
 ```
+
+Keep `KNOWLEDGE_VECTOR_DIMENSIONS=1536` for the real web demo. The
+3-dimensional vector setting is only for the opt-in pgvector smoke test.
 
 Optional for provider-backed RAG answer generation outside the deterministic
 Task chat bridge:
