@@ -190,6 +190,14 @@ The system SHALL process documents into searchable vector chunks asynchronously.
 - **AND** content reader failures, empty or unsupported content, embedding failures, vector index failures, and unknown indexing failures produce safe failure code/message fields without leaking raw document content, raw embeddings, storage keys, vector DB config, provider payloads, credentials, secrets, tokens, or queue payloads
 - **AND** the local flow runner does not add production scheduling, real file storage, real embedding provider calls, real vector DB calls, retrieval, RAG answer generation, frontend UI/API client changes, backend HTTP routes, Prisma schema/migration/generated client changes, shared status changes, SDK dependencies, or external sync
 
+#### Scenario: Opt-in local upload processes through indexing
+- **WHEN** the local server enables inline ingestion and an authorized user uploads a supported document
+- **THEN** the upload use case persists the file, document, and job, invokes the existing local flow runner, persists chunks, calls the configured embedding/vector adapters, and returns ready document/job state only after indexing succeeds
+
+#### Scenario: Inline indexing failure remains consistent
+- **WHEN** parsing, embedding, or vector indexing fails during inline local processing
+- **THEN** the system persists safe failed document/job state, does not present the document as ready for retrieval, and does not expose storage, provider, vector, or stack internals
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata

@@ -31,6 +31,12 @@ It still does not contain OCR or external queue/worker daemon infrastructure.
 Live retrieval uses the existing PostgreSQL/pgvector and embedding adapters;
 deterministic tests use injected adapters.
 
+For local demos, `KNOWLEDGE_INGESTION_MODE=inline` wires real multipart uploads
+to the existing local flow runner. The upload response waits for stored-file
+text extraction, chunk persistence, embedding, vector upsert, and final
+document/job state. This mode requires PostgreSQL plus configured embedding and
+pgvector adapters; it is not enabled by default and is not a production queue.
+
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
 screen. Backend implementation must not assume those local mock types are the

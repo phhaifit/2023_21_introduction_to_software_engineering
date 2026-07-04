@@ -11,6 +11,8 @@ import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { KnowledgeDocumentRepository } from "./knowledge-document-repository.ts";
 import type { KnowledgeIngestionJobRepository } from "./knowledge-ingestion-job-repository.ts";
 import type { KnowledgeFileStorage } from "./knowledge-file-storage.ts";
+import type { KnowledgeDocument } from "../domain/knowledge-document.ts";
+import type { KnowledgeIngestionJob } from "../domain/knowledge-ingestion-job.ts";
 import { toIngestionJobDto, toKnowledgeDocumentDto } from "./dto-mappers.ts";
 import {
   KnowledgeBaseRagValidationError,
@@ -32,6 +34,15 @@ export type KnowledgeUploadUseCaseDependencies = {
   now: () => string;
   generateDocumentId: () => EntityId<"documentId">;
   generateJobId: () => EntityId<"jobId">;
+  postUploadProcessor?: {
+    process(input: {
+      workspaceId: EntityId<"workspaceId">;
+      jobId: EntityId<"jobId">;
+    }): Promise<{
+      document: KnowledgeDocument;
+      job: KnowledgeIngestionJob;
+    }>;
+  };
 };
 
 export type UploadedKnowledgeFile = {
@@ -241,8 +252,17 @@ export class KnowledgeUploadUseCases {
           updatedAt: timestamp
         });
 
-        documents.push(toKnowledgeDocumentDto(document));
-        jobs.push(toIngestionJobDto(ingestionJob));
+        if (this.dependencies.postUploadProcessor) {
+          const processed = await this.dependencies.postUploadProcessor.process({
+            workspaceId,
+            jobId: ingestionJob.jobId
+          });
+          documents.push(toKnowledgeDocumentDto(processed.document));
+          jobs.push(toIngestionJobDto(processed.job));
+        } else {
+          documents.push(toKnowledgeDocumentDto(document));
+          jobs.push(toIngestionJobDto(ingestionJob));
+        }
       } catch (error) {
         await this.cleanupStoredFile(storedFile.storageKey);
         throw error;

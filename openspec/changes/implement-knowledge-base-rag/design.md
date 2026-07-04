@@ -121,6 +121,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: `POST /api/workspaces/:workspaceId/knowledge/agents/:agentId/ask` validates workspace permission, invokes `AgentKnowledgeRetrievalTool`, and uses a deterministic evidence-only composer to return an answer with bounded citations or a safe insufficient-evidence fallback.
    - Constraint: No evidence skips the composer. Active document grants remain authoritative; filters only narrow access, revoked grants and skill/config references do not authorize retrieval, and cross-workspace agents are denied safely. This slice does not change Task & Orchestration, register an OpenClaw tool, call an external answer provider, add UI, or add dependencies.
 
+23. Add opt-in inline upload-to-index composition for the local server.
+   - Rationale: A local demo needs uploaded documents to become retrievable without introducing a production queue daemon.
+   - Boundary: When `KNOWLEDGE_INGESTION_MODE=inline`, the local composition injects the existing `KnowledgeBaseRagLocalFlowRunner` into the upload use case after file/document/job persistence. It reuses stored-file extraction, chunk persistence, embedding, and vector adapters and returns the final safe document/job state.
+   - Constraint: Inline mode is disabled by default, requires PostgreSQL plus configured embedding/pgvector adapters, processes workspace-scoped jobs once, and marks both document and job failed when indexing fails. It does not add a queue, daemon, scheduler, public process endpoint, fake production adapter, OpenClaw registration, or new dependency.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
