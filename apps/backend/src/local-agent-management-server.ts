@@ -37,6 +37,7 @@ import { InMemoryWorkflowRepository } from "./modules/workflow-management/infras
 import { WorkflowExecutionService } from "./modules/task-orchestration/application/workflow-execution-service.ts";
 
 import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
+import { createAuthUserContextMiddleware } from "./modules/authentication/api/authentication-user-context-middleware.ts";
 import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
 import { LoginUseCase } from "./modules/authentication/application/login-use-case.ts";
 import { LogoutUseCase } from "./modules/authentication/application/logout-use-case.ts";
@@ -818,29 +819,77 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateEventId: () => randomUUID() as any
   });
 
-  // Fake Auth Middleware for local development
+  // (A) Real auth: populate context.user from Bearer token (never blocks)
+  app.use(createAuthUserContextMiddleware({ authenticateSessionUseCase }));
+
+  // (B) Real workspace resolver: only runs when real user is present AND URL has no
+  // workspaceId segment. When URL contains /:workspaceId, the workspace context is
+  // left to fake auth (C) — setting an incomplete {workspaceId, memberId:null} shape
+  // would break requireWorkspaceContext() callers, so we defer that to a later PR.
+  app.use(async (req, _res, next) => {
+    const ctx = (req as any).context;
+    const user = ctx?.user;
+    if (!user) {
+      next();
+      return;
+    }
+    const urlMatch = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    if (urlMatch) {
+      // URL already has a workspaceId: leave workspace context to fake auth (C).
+      next();
+      return;
+    }
+    try {
+      const membership = await workspaceUseCases.resolveActiveMembership(user.userId);
+      if (membership) {
+        (req as any).context = { ...ctx, workspace: membership };
+      }
+    } catch {
+      // Resolve failed — leave workspace undefined; never block.
+    }
+    next();
+  });
+
+  // (C) Fake Auth Middleware for local development (conditional — yields to real auth)
   app.use((req, res, next) => {
     const role = (req.headers["x-mock-role"] as any) || "admin";
     const anonymous = req.headers["x-mock-user"] === "anonymous";
     const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
     const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
 
+    // Always ensure requestId exists
+    const existing = (req as any).context ?? {};
+    if (!existing.requestId) {
+      (req as any).context = { ...existing, requestId: req.headers["x-request-id"] || randomUUID() };
+    }
+
     if (anonymous) {
-      (req as any).context = { requestId: req.headers["x-request-id"] || randomUUID() };
+      // anonymous header: clear user + workspace (legacy behaviour)
+      (req as any).context = { ...(req as any).context, user: undefined, workspace: undefined };
     } else {
-      (req as any).context = {
-        requestId: req.headers["x-request-id"] || randomUUID(),
-        user: {
-          userId: "local-dev-user",
-          email: "dev@local.test",
-          displayName: "Local Developer"
-        },
-        workspace: {
-          workspaceId,
-          memberId: "local-member",
-          role
-        }
-      };
+      const ctx2 = (req as any).context;
+      // Only set demo user if real auth did NOT populate one
+      if (!ctx2.user) {
+        (req as any).context = {
+          ...ctx2,
+          user: {
+            userId: "local-dev-user",
+            email: "dev@local.test",
+            displayName: "Local Developer"
+          }
+        };
+      }
+      // Only set demo workspace if real auth did NOT populate one
+      if (!(req as any).context.workspace) {
+        (req as any).context = {
+          ...(req as any).context,
+          workspace: {
+            workspaceId,
+            memberId: "local-member",
+            role
+          }
+        };
+      }
     }
     next();
   });
