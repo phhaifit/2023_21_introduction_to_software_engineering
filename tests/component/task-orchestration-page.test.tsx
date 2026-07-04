@@ -21,6 +21,12 @@ vi.mock("@vcp/frontend/features/workflow-management/WorkflowsPage.tsx", () => ({
   WorkflowsPage: () => <section>Workflows placeholder</section>
 }));
 
+vi.mock("@vcp/frontend/features/authentication/authentication-api-client.ts", () => ({
+  createAuthenticationApiClient: () => ({
+    getMe: vi.fn().mockResolvedValue({ userId: "test-user", email: "test@vcp.local", displayName: "Test User" })
+  })
+}));
+
 import { App } from "@vcp/frontend/App.tsx";
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -38,7 +44,11 @@ import type { CreatedTaskRecord } from
   "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 import type { Conversation, EntityId } from "@vcp/shared";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = vi.fn(function() {
     (this as HTMLDialogElement).open = true;
@@ -136,10 +146,11 @@ describe("TaskOrchestrationPage base workspace", () => {
   });
 
   it("opens the workspace through the executions navigation entry", async () => {
+    localStorage.setItem("vcp.auth.token", "test-token");
     const user = userEvent.setup();
     render(<MemoryRouter><App /></MemoryRouter>);
 
-    const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
+    const navigation = await screen.findByRole("complementary", { name: "Primary navigation" });
     await user.click(within(navigation).getByRole("link", { name: "Công việc" }));
 
     expect(screen.getByRole("region", { name: "Main conversation region" })).toBeVisible();
