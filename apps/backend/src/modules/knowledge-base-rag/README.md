@@ -37,6 +37,24 @@ text extraction, chunk persistence, embedding, vector upsert, and final
 document/job state. This mode requires PostgreSQL plus configured embedding and
 pgvector adapters; it is not enabled by default and is not a production queue.
 
+For local pgvector verification, run the opt-in smoke test:
+
+```bash
+KNOWLEDGE_PGVECTOR_SMOKE=1 \
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_company_dev" \
+KNOWLEDGE_VECTOR_PROVIDER=pgvector \
+KNOWLEDGE_VECTOR_DIMENSIONS=3 \
+KNOWLEDGE_VECTOR_DISTANCE=cosine \
+npm run smoke:kb-rag:pgvector
+```
+
+The smoke test seeds namespaced KB/RAG document/chunk records, uses
+deterministic vectors, upserts through `PgvectorKnowledgeVectorIndexAdapter`,
+retrieves evidence through `KnowledgeRetrievalSearchUseCase`, verifies
+workspace isolation, and cleans up its records. Without
+`KNOWLEDGE_PGVECTOR_SMOKE=1`, it exits successfully as skipped. This is not a
+benchmark, load test, queue runtime, or production readiness gate.
+
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
 screen. Backend implementation must not assume those local mock types are the

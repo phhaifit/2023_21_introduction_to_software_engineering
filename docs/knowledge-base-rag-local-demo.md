@@ -46,6 +46,7 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | `KNOWLEDGE_VECTOR_PROVIDER` | Live vector operations | Currently `pgvector`. |
 | `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Must match embedding dimensions. |
 | `KNOWLEDGE_VECTOR_DISTANCE` | Live retrieval | See `.env.example`. |
+| `KNOWLEDGE_PGVECTOR_SMOKE` | Local pgvector smoke test | Set to `1` only when explicitly running the opt-in smoke test. |
 | `KNOWLEDGE_RAG_PROVIDER` | Live answers | Currently `openai-compatible`. |
 | `KNOWLEDGE_RAG_BASE_URL` | Live answers | Provider base URL. |
 | `KNOWLEDGE_RAG_API_KEY` | Live answers | Never commit this local secret. |
@@ -143,6 +144,63 @@ node tests/contract/knowledge-base-rag-end-to-end-local-flow.test.mjs
 ```
 
 Run all repository tests with `npm test`.
+
+## Local pgvector smoke test
+
+The normal contract tests use deterministic in-memory or mocked adapters so CI
+does not need PostgreSQL or pgvector. To prove the real local pgvector path,
+run the opt-in smoke test against a local PostgreSQL database after migrations:
+
+```bash
+npm run prisma -- migrate deploy
+
+KNOWLEDGE_PGVECTOR_SMOKE=1 \
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_company_dev" \
+KNOWLEDGE_VECTOR_PROVIDER=pgvector \
+KNOWLEDGE_VECTOR_DIMENSIONS=3 \
+KNOWLEDGE_VECTOR_DISTANCE=cosine \
+npm run smoke:kb-rag:pgvector
+```
+
+Expected success output:
+
+```txt
+knowledge-base-rag pgvector smoke checks passed
+```
+
+Without `KNOWLEDGE_PGVECTOR_SMOKE=1`, the same command exits successfully with:
+
+```txt
+KNOWLEDGE_PGVECTOR_SMOKE not set — skipping KB/RAG pgvector smoke test
+```
+
+The smoke test verifies this path:
+
+```txt
+PostgreSQL + pgvector
+→ KB/RAG schema with vector column
+→ chunk/vector persistence through PgvectorKnowledgeVectorIndexAdapter
+→ pgvector-backed retrieval through KnowledgeRetrievalSearchUseCase
+→ safe evidence returned from indexed chunks
+```
+
+It seeds records whose IDs start with `kb-rag-pgvector-smoke-`, uses
+deterministic 3-dimensional vectors, verifies workspace isolation, asserts the
+public evidence does not expose raw vectors or vector refs, and deletes its
+records in cleanup. It does not call a real embedding provider or RAG provider.
+
+Common failures:
+
+- `knowledge.vector_schema_unavailable`: run migrations and confirm the
+  database user can execute `CREATE EXTENSION IF NOT EXISTS vector`.
+- `Knowledge vector database is unavailable`: check `DATABASE_URL`, PostgreSQL
+  availability, and network access.
+- `KB/RAG pgvector smoke test expects KNOWLEDGE_VECTOR_DIMENSIONS=3`: use the
+  smoke-test dimensions above. Live provider demos can use a different
+  dimension, but the deterministic smoke test uses `3`.
+
+This smoke test is not a benchmark, load test, ANN/HNSW/IVFFlat tuning task,
+production queue check, or production readiness claim.
 
 ## Sample document
 

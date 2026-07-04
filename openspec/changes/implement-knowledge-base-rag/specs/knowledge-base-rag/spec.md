@@ -213,6 +213,12 @@ The system SHALL retrieve relevant knowledge through a vector database adapter.
 - **WHEN** an authorized runtime request searches workspace knowledge
 - **THEN** the system queries the vector adapter and returns relevant document chunks through a public contract
 
+#### Scenario: Local pgvector smoke verifies real vector retrieval
+- **WHEN** a developer explicitly enables the local pgvector smoke test with `KNOWLEDGE_PGVECTOR_SMOKE=1` and provides PostgreSQL/pgvector configuration
+- **THEN** the smoke test seeds namespaced KB/RAG document and chunk records, upserts deterministic vectors through the pgvector adapter, retrieves evidence through the existing retrieval boundary, verifies workspace isolation, and cleans up inserted records
+- **AND** without the explicit smoke flag the smoke test exits successfully as skipped
+- **AND** the smoke path does not call real embedding or RAG providers, require pgvector in CI, expose raw vectors or vector references in public evidence, run benchmarks, tune indexes, or add production queue/runtime behavior
+
 ### Requirement: Agent Knowledge Access
 The system SHALL allow authorized users to assign documents to specific agents
 through a workspace-scoped public API.

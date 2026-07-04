@@ -126,6 +126,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: When `KNOWLEDGE_INGESTION_MODE=inline`, the local composition injects the existing `KnowledgeBaseRagLocalFlowRunner` into the upload use case after file/document/job persistence. It reuses stored-file extraction, chunk persistence, embedding, and vector adapters and returns the final safe document/job state.
    - Constraint: Inline mode is disabled by default, requires PostgreSQL plus configured embedding/pgvector adapters, processes workspace-scoped jobs once, and marks both document and job failed when indexing fails. It does not add a queue, daemon, scheduler, public process endpoint, fake production adapter, OpenClaw registration, or new dependency.
 
+24. Add an opt-in local pgvector smoke test.
+   - Rationale: Local demos need a runnable proof that the real PostgreSQL pgvector adapter can persist/query chunk vectors without requiring CI to provide PostgreSQL.
+   - Boundary: `npm run smoke:kb-rag:pgvector` runs only when `KNOWLEDGE_PGVECTOR_SMOKE=1`, seeds namespaced KB/RAG document/chunk records through repository boundaries, upserts deterministic vectors through `PgvectorKnowledgeVectorIndexAdapter`, queries through the retrieval use case, verifies workspace isolation, asserts safe evidence, and cleans up its records.
+   - Constraint: The smoke test is skipped by default, uses deterministic vectors, does not call real embedding/RAG providers, does not add production queue/daemon behavior, does not tune indexes or benchmark, does not change shared contracts or Prisma schema, and does not require pgvector in CI.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
