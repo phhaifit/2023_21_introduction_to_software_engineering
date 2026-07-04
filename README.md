@@ -90,6 +90,7 @@ npm run test:e2e
 - [OpenSpec team guide](docs/openspec-team-guide.md)
 - [API route matrix](docs/api/module-api-contracts.md)
 - [Pull request checklist](docs/pr-checklist.md)
+- [Knowledge Base / RAG local demo](docs/knowledge-base-rag-local-demo.md)
 
 ## OpenSpec
 

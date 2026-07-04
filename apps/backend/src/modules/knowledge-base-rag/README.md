@@ -1,5 +1,10 @@
 # Knowledge Base / RAG Module
 
+See
+[`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
+for local setup, runnable commands, deterministic verification, and current
+worker/indexing limitations.
+
 Owner: Member 9
 
 Active OpenSpec change: `implement-knowledge-base-rag`.
