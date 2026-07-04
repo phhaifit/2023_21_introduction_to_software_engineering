@@ -111,6 +111,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: `GET`, `POST`, and `DELETE` routes under `/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents` call a KB/RAG application use case, reuse the existing grant repository and access policy, and validate agent existence through an injected workspace-scoped lookup port.
    - Constraint: Listing requires `workspace:read`; mutations require `knowledge:manage`. Responses expose safe document metadata only. This slice does not add source/collection grants, UI, orchestration/tool integration, schema changes, worker behavior, connectors, OAuth, or new dependencies.
 
+21. Expose assigned knowledge retrieval through an internal agent tool boundary.
+   - Rationale: Agent consumers need a stable, JSON-friendly boundary that reuses KB/RAG retrieval and its document-grant enforcement without duplicating vector search logic.
+   - Boundary: `AgentKnowledgeRetrievalTool` validates workspace-scoped agent identity through an injected lookup, delegates to `KnowledgeRetrievalSearchUseCase` with agent context, and maps safe results to bounded citation-style evidence under the internal name `knowledge.retrieve`.
+   - Constraint: Active document grants remain the only access source. Optional filters only narrow grants; revoked grants and skill/config references do not grant access. No eligible documents returns empty before embedding/vector calls. This slice does not add a public route, tool-registry wiring, answer generation, UI, source/collection grants, task-orchestration changes, or new dependencies.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

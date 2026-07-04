@@ -27,8 +27,9 @@ indexing adapter boundary for persisted chunks. It also has a local end-to-end
 flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
-It still does not contain OCR, real vector database calls, external
-queue/worker daemon infrastructure, or retrieval implementation.
+It still does not contain OCR or external queue/worker daemon infrastructure.
+Live retrieval uses the existing PostgreSQL/pgvector and embedding adapters;
+deterministic tests use injected adapters.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -135,6 +136,27 @@ Responses contain safe document DTOs and never expose grant IDs, storage
 details, content, chunks, embeddings, vectors, provider payloads, credentials,
 or runtime internals. This API remains document-level. Source/collection grants,
 an assignment UI, and Agent Orchestration consumption are deferred.
+
+### Internal agent retrieval tool
+
+`AgentKnowledgeRetrievalTool` exposes the internal tool name
+`knowledge.retrieve`. It accepts a workspace ID, agent ID, query, optional
+`topK`, and optional document/source filters. It delegates to the existing
+`KnowledgeRetrievalSearchUseCase` with agent context; it does not call
+embedding or vector adapters directly.
+
+The tool returns `found`, `empty`, `unauthorized`, `invalid_request`, or
+`error` plus bounded citation-style evidence. Only active document grants are
+eligible. Requested filters are intersected with those grants, revoked grants
+are ignored, and skill/config references do not grant access. An agent with no
+eligible documents receives an empty response before embedding or vector
+search.
+
+Agent identity is checked through an injected workspace-scoped lookup port.
+The output contains safe document metadata and bounded snippets only; it does
+not expose chunks, storage/vector references, provider payloads, credentials,
+or raw errors. Registration in an Agent Orchestration tool registry and a full
+agent answer flow are deferred.
 
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:

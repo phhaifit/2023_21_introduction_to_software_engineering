@@ -215,8 +215,31 @@ curl -sS -X DELETE \
 Replace the example IDs with existing workspace-scoped agent and document IDs.
 Assign/revoke require `knowledge:manage`; listing requires `workspace:read`.
 Assignments are document-level only. Source/collection grants, Agent Retrieval
-Tool consumption, and Agent Orchestration integration remain follow-ups. This
-UI assigns access but does not make the agent answer from the documents yet.
+Tool registry wiring, and Agent Orchestration answer integration remain
+follow-ups. This UI assigns access but does not make the agent answer from the
+documents yet.
+
+## Internal agent retrieval tool
+
+The backend module exposes `AgentKnowledgeRetrievalTool` under the internal tool
+name `knowledge.retrieve`. Its JSON-friendly input contains `workspaceId`,
+`agentId`, `query`, optional `topK`, and optional document/source filters. Its
+output contains a safe status, warnings, and bounded citation-style evidence.
+
+The tool delegates to the existing KB/RAG retrieval use case. Active
+document-level grants constrain every request; optional filters can narrow but
+cannot expand access. Revoked grants and skill/config references provide no
+access. When the agent has no eligible documents, the tool returns `empty`
+before embedding or vector adapters are called.
+
+Run its deterministic local proof without provider credentials or PostgreSQL:
+
+```bash
+node tests/contract/agent-knowledge-retrieval-tool.test.mjs
+```
+
+The tool is currently an application boundary, not a public HTTP endpoint or a
+registered Agent Orchestration tool. A full agent answer flow remains deferred.
 
 ## Troubleshooting
 
@@ -246,6 +269,8 @@ UI assigns access but does not make the agent answer from the documents yet.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
 - Agent grants and the current assignment UI are document-level only.
+- The internal agent retrieval tool is not yet registered or invoked by Agent
+  Orchestration.
 - Processing Status refresh is manual.
 - Image-only PDFs require future OCR.
 - There is no chatbot UI or FastAPI implementation.
@@ -255,7 +280,6 @@ UI assigns access but does not make the agent answer from the documents yet.
 Later, separately reviewed changes can add:
 
 1. a safe worker entrypoint/queue integration and indexing composition;
-2. a public knowledge-grant administration boundary;
-3. Agent Management consumption of explicit grants and safe evidence;
-4. Agent Orchestration retrieval/answer consumption through public contracts;
-5. live provider/database smoke tests and browser acceptance coverage.
+2. Agent Orchestration registration and invocation of `knowledge.retrieve`;
+3. Agent Orchestration answer generation from returned evidence;
+4. live provider/database smoke tests and browser acceptance coverage.
