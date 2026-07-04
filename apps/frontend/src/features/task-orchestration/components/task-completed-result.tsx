@@ -12,10 +12,23 @@ export function TaskCompletedResult({
   clipboardWriter: _clipboardWriter
 }: TaskCompletedResultProps) {
   return (
-    <TaskMarkdown
-      className="task-completed-result task-markdown"
-      aria-label="Assistant final response"
-      text={result.text}
-    />
+    <div className="task-completed-result" aria-label="Assistant final response">
+      <TaskMarkdown className="task-markdown" text={result.text} />
+      {result.citations?.length ? (
+        <ul className="task-knowledge-citations" aria-label="Knowledge citations">
+          {result.citations.map((citation) => (
+            <li key={citation.citationId}>
+              <strong>
+                {citation.citationId}: {citation.documentTitle}
+              </strong>
+              <p>{citation.snippet}</p>
+              {citation.sourceLocator ? (
+                <small>{citation.sourceLocator}</small>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

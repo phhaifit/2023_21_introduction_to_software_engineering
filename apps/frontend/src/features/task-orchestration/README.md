@@ -45,3 +45,15 @@ The local test catalog still provides deterministic agent/workflow options for c
 ## Persistence Boundary
 
 `POST /api/workspaces/:workspaceId/tasks` uses the backend `CreateTaskService` and Task/TaskRun repository implementations to create the task intent and first work attempt. `/executions/*` still owns live OpenClaw execution state and SSE event projection in memory.
+# Task & Orchestration Frontend
+
+The existing Task chat supports Auto, Agent, and Workflow routing. In Agent
+mode, selecting an agent and sending a prompt uses the backend Task
+`/tasks/agent-knowledge/ask` bridge. The response is rendered in the existing
+assistant turn, with bounded KB/RAG citations when evidence is available and a
+safe insufficient-evidence answer otherwise.
+
+The frontend never calls vector search directly and rejects responses
+containing private storage, vector, provider, prompt, or runtime markers. Auto
+and Workflow modes retain the existing OpenClaw execution behavior. There is no
+separate Agent Management ask UI.

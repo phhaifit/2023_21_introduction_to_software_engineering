@@ -908,7 +908,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       orchestrator: openclawOrchestrator,
       adapter: openclawAdapter,
       conversationRepository,
-      createTaskUseCase
+      createTaskUseCase,
+      agentKnowledgeAskPort: {
+        ask(workspaceId, agentId, request) {
+          return knowledgeBaseRagUseCases.agentKnowledgeOrchestrationUseCase.ask(
+            workspaceId,
+            agentId,
+            request
+          );
+        }
+      }
     })
   );
 

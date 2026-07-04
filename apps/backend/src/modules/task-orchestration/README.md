@@ -136,3 +136,23 @@ To maintain resilience against network disconnects and unstable transport layers
 - The local server mounts `createTaskOrchestrationRouter` under `/api/workspaces/:workspaceId`.
 - The current frontend provider calls `/tasks` first, then `/executions/start`, `/executions/:taskId/stream`, `/executions/:taskId/state`, and `/executions/:taskId/cancel`.
 - `POST /api/workspaces/:workspaceId/tasks` is the backend identity source for Task ID and Work ID.
+
+### Local-demo KB/RAG chat path
+
+When Task chat uses `specific-agent` routing, the HTTP frontend provider creates
+the task normally and calls
+`POST /api/workspaces/:workspaceId/tasks/agent-knowledge/ask` instead of
+starting OpenClaw execution. The Task router delegates through the
+`AgentKnowledgeAskPort`; the local composition connects that port to the
+KB/RAG-owned `AgentKnowledgeOrchestrationUseCase`, which invokes
+`knowledge.retrieve`.
+
+Active document-level grants constrain retrieval. An answered response is
+projected into the existing completed assistant turn and includes bounded safe
+citations. No assigned evidence produces the existing
+`insufficient_evidence` answer. Auto and Workflow modes continue through the
+current OpenClaw execution path.
+
+This is a local-demo bridge, not production OpenClaw tool registration.
+Runtime retrieval still uses the configured KB/RAG embedding and pgvector
+adapters; deterministic tests inject fake adapters or ports.
