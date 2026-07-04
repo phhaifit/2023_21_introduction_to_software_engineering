@@ -28,6 +28,7 @@
 - [x] 2.10 Implement agent knowledge assignment and access checks
 - [x] 2.11 Wire Processing Status UI to live API/runtime state in its own scoped frontend issue
 - [x] 2.12 Add opt-in local pgvector retrieval smoke test and docs
+- [x] 2.13 Add upload-to-Task-chat local-demo RAG integration evidence
 
 ## 3. Remaining Verification and Handoff
 

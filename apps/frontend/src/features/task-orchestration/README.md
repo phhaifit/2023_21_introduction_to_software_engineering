@@ -57,3 +57,11 @@ The frontend never calls vector search directly and rejects responses
 containing private storage, vector, provider, prompt, or runtime markers. Auto
 and Workflow modes retain the existing OpenClaw execution behavior. There is no
 separate Agent Management ask UI.
+
+The verified local-demo flow is covered by
+`node tests/contract/upload-to-task-chat-rag-integration.test.mjs`: upload a TXT
+document, process it through local inline upload-to-index, assign it to an
+agent, ask through `/tasks/agent-knowledge/ask`, render answer/citation payloads,
+then revoke the assignment and receive the safe insufficient-evidence fallback.
+The automated test uses deterministic adapters; real pgvector verification stays
+behind the opt-in KB/RAG smoke script.

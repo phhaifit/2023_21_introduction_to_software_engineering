@@ -270,3 +270,11 @@ through a workspace-scoped public API.
 #### Scenario: Agent ask preserves module boundaries
 - **WHEN** the local-demo agent ask integration runs
 - **THEN** it does not import private Task & Orchestration code, register an OpenClaw tool, require an external LLM, or expose private retrieval/runtime fields
+
+#### Scenario: Uploaded assigned document grounds Task chat answer
+- **WHEN** a supported uploaded document is processed through local inline upload-to-index, assigned to an agent, and the user asks through Agent-mode Task chat
+- **THEN** the Task chat bridge delegates through KB/RAG retrieval and returns an answered response with bounded safe citations from the uploaded document
+
+#### Scenario: Revoked or unassigned uploaded document does not ground Task chat
+- **WHEN** the indexed uploaded document is unassigned from the selected agent or its grant is revoked
+- **THEN** the Task chat bridge returns `insufficient_evidence` without exposing private storage, vector, provider, prompt, or runtime fields

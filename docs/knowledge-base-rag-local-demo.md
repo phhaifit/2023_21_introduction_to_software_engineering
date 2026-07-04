@@ -288,10 +288,10 @@ curl -sS -X DELETE \
 
 Replace the example IDs with existing workspace-scoped agent and document IDs.
 Assign/revoke require `knowledge:manage`; listing requires `workspace:read`.
-Assignments are document-level only. Source/collection grants, Agent Retrieval
-Tool registry wiring, and Agent Orchestration answer integration remain
-follow-ups. This UI assigns access but does not make the agent answer from the
-documents yet.
+Assignments are document-level only. Source/collection grants and production
+OpenClaw tool registry wiring remain follow-ups. Assigned documents can ground
+the local-demo agent ask route and Agent-mode Task chat path after the document
+has been indexed.
 
 ## Internal agent retrieval tool
 
@@ -332,13 +332,22 @@ references still do not grant document access.
 
 ## Task chat demo
 
-1. Upload and index a document in **Knowledge**.
-2. Open **Agents** and assign the document to an enabled agent.
-3. Open **Tasks**, choose **Agent**, and select that agent.
-4. Ask a question covered by the assigned document.
-5. Confirm the existing assistant turn shows the grounded answer and citations.
-6. Revoke the document assignment in **Agents**.
-7. Ask again and confirm the assistant returns the insufficient-evidence
+1. Start the backend/frontend with local inline ingestion enabled when using
+   live uploads:
+
+   ```bash
+   KNOWLEDGE_INGESTION_MODE=inline
+   ```
+
+2. Upload a supported TXT document in **Knowledge**.
+3. Refresh **Processing Status** and confirm the document/job is
+   completed/ready.
+4. Open **Agents** and assign the document to an enabled agent.
+5. Open **Tasks**, choose **Agent**, and select that agent.
+6. Ask a question covered by the assigned document.
+7. Confirm the existing assistant turn shows the grounded answer and citations.
+8. Revoke the document assignment in **Agents**.
+9. Ask again and confirm the assistant returns the insufficient-evidence
    fallback without citations.
 
 Task chat calls the Task backend bridge, which delegates to the KB/RAG
@@ -346,6 +355,19 @@ Task chat calls the Task backend bridge, which delegates to the KB/RAG
 browser. Deterministic tests use fake adapters/ports. A real local demo requires
 the document to be indexed and the existing embedding/pgvector retrieval
 configuration to be available.
+
+The cross-feature automated evidence is deterministic and local:
+
+```bash
+node tests/contract/upload-to-task-chat-rag-integration.test.mjs
+```
+
+It uploads TXT content through the local upload-to-index flow, verifies persisted
+chunks and vector-boundary upserts, assigns the indexed document to an agent,
+asks through `POST /api/workspaces/:workspaceId/tasks/agent-knowledge/ask`, and
+checks that the answer includes bounded citations. The same test revokes the
+assignment, verifies `insufficient_evidence`, checks an unassigned agent, and
+checks workspace isolation. It does not call real embedding/RAG providers.
 
 ## Troubleshooting
 
@@ -390,4 +412,3 @@ Later, separately reviewed changes can add:
 2. production OpenClaw/Agent Orchestration registration of `knowledge.retrieve`;
 3. optional provider-backed answer composition behind the safe evidence port;
 4. an Ask UI and live provider/database browser acceptance coverage.
-5. an upload-to-Task-chat cross-feature acceptance test.
