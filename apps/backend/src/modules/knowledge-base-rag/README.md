@@ -200,6 +200,21 @@ injected `AgentKnowledgeAskPort`. This adapter preserves the KB/RAG-owned grant
 and retrieval boundary; Task Orchestration does not access repositories,
 embeddings, or vector storage directly.
 
+Cross-feature local-demo evidence is covered by:
+
+```bash
+node tests/contract/upload-to-task-chat-rag-integration.test.mjs
+```
+
+The test uploads TXT content through the local upload-to-index flow, verifies
+persisted chunks and vector-boundary upserts, assigns the indexed document to an
+agent, asks through the Task chat bridge route, verifies answer citations,
+revokes the assignment, and confirms the same prompt falls back to
+`insufficient_evidence`. It also checks an unassigned agent, workspace
+isolation, and safe public response fields. The test uses deterministic
+embedding/vector/composer adapters; real local retrieval through pgvector is
+covered separately by the opt-in smoke script.
+
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:
 

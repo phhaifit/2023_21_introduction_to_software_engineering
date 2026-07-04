@@ -131,6 +131,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: `npm run smoke:kb-rag:pgvector` runs only when `KNOWLEDGE_PGVECTOR_SMOKE=1`, seeds namespaced KB/RAG document/chunk records through repository boundaries, upserts deterministic vectors through `PgvectorKnowledgeVectorIndexAdapter`, queries through the retrieval use case, verifies workspace isolation, asserts safe evidence, and cleans up its records.
    - Constraint: The smoke test is skipped by default, uses deterministic vectors, does not call real embedding/RAG providers, does not add production queue/daemon behavior, does not tune indexes or benchmark, does not change shared contracts or Prisma schema, and does not require pgvector in CI.
 
+25. Add upload-to-Task-chat local-demo integration evidence.
+   - Rationale: The demo needs focused proof that uploaded and locally indexed documents can ground Agent-mode Task chat answers only after explicit agent assignment.
+   - Boundary: A deterministic contract test composes the existing local upload-to-index runner, assignment use case, retrieval/orchestration use cases, and Task Orchestration bridge route. It verifies persisted chunks, vector-boundary upserts, answered citations, revoked assignment fallback, unassigned fallback, workspace isolation, and safe public fields.
+   - Constraint: The evidence test uses fake deterministic embedding/vector/composer adapters, does not call real providers or pgvector, does not add UI, does not register `knowledge.retrieve` with the production OpenClaw/tool runtime, and does not add queue, daemon, connector, source-grant, or scheduler behavior.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
