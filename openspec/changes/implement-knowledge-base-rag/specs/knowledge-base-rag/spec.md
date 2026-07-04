@@ -232,3 +232,15 @@ through a workspace-scoped public API.
 #### Scenario: Unassigned knowledge blocked
 - **WHEN** an agent requests knowledge that has not been assigned to it
 - **THEN** the system denies access to that knowledge
+
+#### Scenario: Internal agent tool retrieves assigned evidence
+- **WHEN** an existing workspace agent invokes the internal knowledge retrieval tool with a valid query
+- **THEN** the tool delegates to the existing retrieval use case with agent context and returns only bounded citation-style evidence from active document grants
+
+#### Scenario: Agent tool short-circuits without eligible grants
+- **WHEN** an agent has no active grants after workspace and optional-filter intersection
+- **THEN** the tool returns an empty safe result before calling embedding or vector adapters
+
+#### Scenario: Non-grant references do not authorize retrieval
+- **WHEN** an agent skill or configuration references a knowledge document without an active document grant
+- **THEN** the internal retrieval tool returns no evidence from that document
