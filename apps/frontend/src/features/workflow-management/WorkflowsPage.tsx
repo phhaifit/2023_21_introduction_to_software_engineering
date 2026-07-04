@@ -490,13 +490,33 @@ function WorkflowsList({
       try {
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
+        
+        // Validate basic schema to prevent UI render crashes
+        if (!parsed || typeof parsed !== "object") {
+          throw new Error("Invalid workflow file structure.");
+        }
+        if (typeof parsed.name !== "string" || !parsed.name.trim()) {
+          throw new Error("Workflow name is missing or invalid.");
+        }
+        if (!Array.isArray(parsed.steps)) {
+          throw new Error("Workflow steps must be a valid array.");
+        }
+        
+        // Ensure steps have correct properties
+        for (let i = 0; i < parsed.steps.length; i++) {
+          const step = parsed.steps[i];
+          if (!step || typeof step !== "object") {
+            throw new Error(`Step at index ${i} is malformed.`);
+          }
+        }
+
         if (onImportWorkflow) {
           onImportWorkflow(parsed);
           showSuccess("Workflow imported successfully!");
         }
       } catch (err: any) {
         console.error("Import error:", err);
-        showError("Failed to parse the imported JSON file. Please ensure it's a valid workflow format.");
+        showError("Failed to import workflow: " + (err.message || "Invalid workflow format."));
       }
     };
     reader.readAsText(file);
