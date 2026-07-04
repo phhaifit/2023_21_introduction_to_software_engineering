@@ -4,6 +4,8 @@ See
 [`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
 for local setup, runnable commands, deterministic verification, and current
 worker/indexing limitations.
+For the final upload-to-Task-chat presentation flow, use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](../../../../../docs/demo/kb-rag/final-local-rag-demo-script.md).
 
 Owner: Member 9
 

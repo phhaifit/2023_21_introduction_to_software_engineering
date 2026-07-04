@@ -4,6 +4,9 @@ See
 [`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
 for the local browser flow, Processing Status verification, sample document,
 and current end-to-end limitations.
+Use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](../../../../../docs/demo/kb-rag/final-local-rag-demo-script.md)
+for the final upload-to-Task-chat demo checklist.
 
 Owner: Member 9
 
