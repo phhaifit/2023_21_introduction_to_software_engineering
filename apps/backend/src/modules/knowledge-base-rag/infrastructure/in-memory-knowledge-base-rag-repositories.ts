@@ -118,6 +118,20 @@ export class InMemoryKnowledgeAccessGrantRepository
 {
   private readonly grants = new Map<string, KnowledgeAccessGrant>();
 
+  async findAccessGrant(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    documentId: EntityId<"documentId">
+  ): Promise<KnowledgeAccessGrant | null> {
+    const grant = [...this.grants.values()].find(
+      (candidate) =>
+        candidate.workspaceId === workspaceId &&
+        candidate.agentId === agentId &&
+        candidate.documentId === documentId
+    );
+    return grant ? copyAccessGrant(grant) : null;
+  }
+
   async listActiveDocumentIds(
     workspaceId: EntityId<"workspaceId">,
     agentId: EntityId<"agentId">

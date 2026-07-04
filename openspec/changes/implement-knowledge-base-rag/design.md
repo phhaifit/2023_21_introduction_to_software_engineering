@@ -106,6 +106,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: The local runner composes existing `KnowledgeIngestionHandoff`, `KnowledgeDocumentProcessingPipeline`, and `KnowledgeDocumentIndexingPipeline` with injected repositories, content reader, embedding adapter, vector index adapter, clock, ID generators, and optional event publisher.
    - Constraint: The runner is local/test orchestration only. It does not add HTTP routes, queue scheduling, real file storage, real embedding providers, real vector database clients, retrieval, RAG answer generation, Prisma changes, shared status changes, or new dependencies.
 
+20. Expose document-level agent knowledge grants through the KB/RAG API namespace.
+   - Rationale: Demo and later integration work need a minimal public boundary to assign, list, and revoke the document grants already enforced by retrieval.
+   - Boundary: `GET`, `POST`, and `DELETE` routes under `/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents` call a KB/RAG application use case, reuse the existing grant repository and access policy, and validate agent existence through an injected workspace-scoped lookup port.
+   - Constraint: Listing requires `workspace:read`; mutations require `knowledge:manage`. Responses expose safe document metadata only. This slice does not add source/collection grants, UI, orchestration/tool integration, schema changes, worker behavior, connectors, OAuth, or new dependencies.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

@@ -115,6 +115,27 @@ Rules:
 
 ## HTTP API Contract
 
+### Agent knowledge assignment
+
+The KB/RAG-owned document grant API uses one workspace-scoped route family:
+
+```text
+GET    /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents
+POST   /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId
+DELETE /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId
+```
+
+List requires `workspace:read`; assign and revoke require `knowledge:manage`.
+The application use case verifies both agent and document through
+workspace-scoped ports and returns the same safe denial for cross-workspace or
+missing resources. Assign is idempotent and reactivates a revoked composite
+grant. Revoke is idempotent, and list returns active document grants only.
+
+Responses contain safe document DTOs and never expose grant IDs, storage
+details, content, chunks, embeddings, vectors, provider payloads, credentials,
+or runtime internals. This API remains document-level. Source/collection grants,
+an assignment UI, and Agent Orchestration consumption are deferred.
+
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:
 

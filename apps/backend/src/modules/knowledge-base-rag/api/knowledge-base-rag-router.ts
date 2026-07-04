@@ -14,6 +14,7 @@ import type { KnowledgeDataSourceUseCases } from "../application/knowledge-data-
 import type { KnowledgeSyncUseCases } from "../application/knowledge-sync-use-cases.ts";
 import type { KnowledgeRetrievalSearchUseCase } from "../application/knowledge-retrieval-search-use-case.ts";
 import type { KnowledgeRagAnswerUseCase } from "../application/knowledge-rag-answer-use-case.ts";
+import type { AgentKnowledgeAssignmentUseCase } from "../application/agent-knowledge-assignment-use-case.ts";
 import {
   KnowledgeBaseRagValidationError,
   KnowledgeAccessDeniedError,
@@ -52,6 +53,7 @@ export type KnowledgeBaseRagRouterDependencies = {
   syncUseCases: KnowledgeSyncUseCases;
   retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase;
   ragAnswerUseCase: KnowledgeRagAnswerUseCase;
+  agentKnowledgeAssignmentUseCase?: AgentKnowledgeAssignmentUseCase;
   accessPolicy?: KnowledgeBaseRagAccessPolicy;
   checkoutUseCases?: CheckoutUseCases;
 };
@@ -351,6 +353,50 @@ export function createKnowledgeBaseRagRouter(
     }
   );
 
+  router.get(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocuments,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId, context } = enforceWorkspaceContext(request);
+        return requireAgentKnowledgeAssignmentUseCase(dependencies).listAssignedDocuments(
+          workspaceId,
+          requirePathParam(request, "agentId") as EntityId<"agentId">,
+          context.workspace!.role
+        );
+      });
+    }
+  );
+
+  router.post(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId, context } = enforceWorkspaceContext(request);
+        return requireAgentKnowledgeAssignmentUseCase(dependencies).assignDocument(
+          workspaceId,
+          requirePathParam(request, "agentId") as EntityId<"agentId">,
+          requirePathParam(request, "documentId") as EntityId<"documentId">,
+          context.workspace!.role
+        );
+      });
+    }
+  );
+
+  router.delete(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId, context } = enforceWorkspaceContext(request);
+        return requireAgentKnowledgeAssignmentUseCase(dependencies).revokeDocument(
+          workspaceId,
+          requirePathParam(request, "agentId") as EntityId<"agentId">,
+          requirePathParam(request, "documentId") as EntityId<"documentId">,
+          context.workspace!.role
+        );
+      });
+    }
+  );
+
   return router;
 }
 
@@ -525,6 +571,15 @@ function requirePathParam(request: Request, name: string): string {
 
 function getRequestContext(request: Request): RequestContext {
   return ((request as any).context ?? { requestId: "knowledge-base-rag-request" }) as RequestContext;
+}
+
+function requireAgentKnowledgeAssignmentUseCase(
+  dependencies: KnowledgeBaseRagRouterDependencies
+): AgentKnowledgeAssignmentUseCase {
+  if (!dependencies.agentKnowledgeAssignmentUseCase) {
+    throw new Error("Agent knowledge assignment use case is unavailable.");
+  }
+  return dependencies.agentKnowledgeAssignmentUseCase;
 }
 
 function isPaginatedResult<T>(

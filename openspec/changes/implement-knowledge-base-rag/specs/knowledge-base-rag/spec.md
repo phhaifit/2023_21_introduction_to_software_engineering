@@ -206,11 +206,28 @@ The system SHALL retrieve relevant knowledge through a vector database adapter.
 - **THEN** the system queries the vector adapter and returns relevant document chunks through a public contract
 
 ### Requirement: Agent Knowledge Access
-The system SHALL allow authorized users to assign knowledge collections or documents to specific agents.
+The system SHALL allow authorized users to assign documents to specific agents
+through a workspace-scoped public API.
 
 #### Scenario: Knowledge assigned to agent
-- **WHEN** an authorized user grants an agent access to a document or collection
+- **WHEN** an authorized user grants an agent access to a document
 - **THEN** the system allows that agent to retrieve the assigned knowledge during future tasks
+
+#### Scenario: Active assignments listed safely
+- **WHEN** an authorized workspace member lists an agent's assigned documents
+- **THEN** the system returns only active grants with safe document metadata
+
+#### Scenario: Assignment is idempotent
+- **WHEN** an authorized user assigns an already active or previously revoked document grant
+- **THEN** the system preserves one composite grant and leaves it active
+
+#### Scenario: Assignment revoked
+- **WHEN** an authorized user revokes a document grant
+- **THEN** the system marks the grant revoked and excludes the document from later assignment lists and agent retrieval
+
+#### Scenario: Assignment workspace isolation enforced
+- **WHEN** a caller targets an agent or document outside the route workspace
+- **THEN** the system safely denies the operation without disclosing cross-workspace resource existence
 
 #### Scenario: Unassigned knowledge blocked
 - **WHEN** an agent requests knowledge that has not been assigned to it
