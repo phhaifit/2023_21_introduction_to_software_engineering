@@ -790,6 +790,34 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   app.use(express.json());
 
+  // ── Auth repositories & use cases (hoisted for early middleware access) ───
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
+  const authPasswordHasher = new BcryptPasswordHasher();
+  const authTokenHasher = new Sha256TokenHasher();
+  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
+    authSessionRepository,
+    authUserRepository,
+    authTokenHasher
+  );
+
+  // ── Workspace repository & use cases (hoisted for early middleware access) ─
+  const workspaceRepository = await createWorkspaceRepository();
+  const nullSafePrisma = prisma ?? {
+    agent:           { count: async () => 0 },
+    workflow:        { count: async () => 0 },
+    toolConnection:  { count: async () => 0 },
+    workspaceMember: { findFirst: async () => null }
+  };
+  const workspaceUseCases = new WorkspaceUseCases({
+    repository: workspaceRepository,
+    prisma: nullSafePrisma as any,
+    eventBus,
+    now: () => new Date().toISOString(),
+    generateWorkspaceId: () => randomUUID() as any,
+    generateEventId: () => randomUUID() as any
+  });
+
   // Fake Auth Middleware for local development
   app.use((req, res, next) => {
     const role = (req.headers["x-mock-role"] as any) || "admin";
@@ -818,23 +846,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
 
   // ── Workspace Management ───────────────────────────────────────────────────
-  // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
-  const nullSafePrisma = prisma ?? {
-    agent:           { count: async () => 0 },
-    workflow:        { count: async () => 0 },
-    toolConnection:  { count: async () => 0 },
-    workspaceMember: { findFirst: async () => null }
-  };
-
-  const workspaceRepository = await createWorkspaceRepository();
-  const workspaceUseCases = new WorkspaceUseCases({
-    repository: workspaceRepository,
-    prisma: nullSafePrisma as any,
-    eventBus,
-    now: () => new Date().toISOString(),
-    generateWorkspaceId: () => randomUUID() as any,
-    generateEventId: () => randomUUID() as any
-  });
 
   // Bridge: EventBus → in-process provisioning (local dev; prod uses @vcp/workers)
   const runtimeAdapter = new MockOpenClawRuntimeAdapter();
@@ -988,10 +999,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     checkoutUseCases
   }));
 
-  const authUserRepository = await createAuthUserRepository();
-  const authSessionRepository = await createAuthSessionRepository();
-  const authPasswordHasher = new BcryptPasswordHasher();
-  const authTokenHasher = new Sha256TokenHasher();
   app.use(
     "/api/auth",
     createAuthenticationRouter({
@@ -1003,11 +1010,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         authTokenHasher
       ),
       logoutUseCase: new LogoutUseCase(authSessionRepository, authTokenHasher),
-      authenticateSessionUseCase: new AuthenticateSessionUseCase(
-        authSessionRepository,
-        authUserRepository,
-        authTokenHasher
-      ),
+      authenticateSessionUseCase,
     })
   );
 
