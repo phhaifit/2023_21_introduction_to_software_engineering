@@ -331,7 +331,10 @@ async function handleWorkflowApiRequest(
       sendWorkflowApiFailure(request, response, {
         code: "validation.invalid_input",
         message: error.message,
-        details: { issues: error.issues },
+        details: { 
+          missingAgents: error.missingAgents, 
+          disabledAgents: error.disabledAgents 
+        },
         statusCode: 400
       });
       return;

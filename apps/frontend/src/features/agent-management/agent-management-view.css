@@ -1454,6 +1454,103 @@
   padding: 14px;
 }
 
+.agent-knowledge-panel {
+  display: grid;
+  gap: 12px;
+  margin: 0 28px 18px;
+  border: 1px solid #d8ded8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.agent-knowledge-panel .agent-info-dialog__section-title > div {
+  display: grid;
+  gap: 3px;
+}
+
+.agent-knowledge-panel .agent-info-dialog__section-title p,
+.agent-knowledge-panel__list h4,
+.agent-knowledge-panel__list ul,
+.agent-knowledge-panel__success {
+  margin: 0;
+}
+
+.agent-knowledge-panel .agent-info-dialog__section-title p {
+  color: #6a7172;
+  font-size: 12px;
+}
+
+.agent-knowledge-panel__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.agent-knowledge-panel__list {
+  min-width: 0;
+  border-radius: 8px;
+  background: #fbfaf7;
+  padding: 12px;
+}
+
+.agent-knowledge-panel__list h4 {
+  font-size: 13px;
+}
+
+.agent-knowledge-panel__list ul {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 0;
+  list-style: none;
+}
+
+.agent-knowledge-panel__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #e4e8e4;
+  padding-top: 8px;
+}
+
+.agent-knowledge-panel__document {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  color: #25636f;
+}
+
+.agent-knowledge-panel__document > span {
+  display: grid;
+  min-width: 0;
+}
+
+.agent-knowledge-panel__document strong,
+.agent-knowledge-panel__document small {
+  overflow-wrap: anywhere;
+}
+
+.agent-knowledge-panel__document strong {
+  color: #151c27;
+  font-size: 13px;
+}
+
+.agent-knowledge-panel__document small {
+  color: #6a7172;
+  font-size: 11px;
+}
+
+.agent-knowledge-panel__success {
+  border-radius: 8px;
+  background: #e4f4ea;
+  color: #1b5e37;
+  padding: 9px 11px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .agent-info-dialog__section-title {
   display: flex;
   align-items: center;
@@ -1671,6 +1768,14 @@
 
   .agent-info-dialog__configuration {
     margin: 0 20px 16px;
+  }
+
+  .agent-knowledge-panel {
+    margin: 0 20px 16px;
+  }
+
+  .agent-knowledge-panel__columns {
+    grid-template-columns: 1fr;
   }
 
   .agent-info-dialog__actions,

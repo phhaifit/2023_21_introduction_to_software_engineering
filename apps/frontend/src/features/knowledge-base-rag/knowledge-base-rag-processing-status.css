@@ -23,6 +23,9 @@
 
 .knowledge-base-rag-processing-status-actions button,
 .knowledge-base-rag-processing-job__actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   border: 0;
   border-radius: 0.5rem;
   background: #4f46e5;
@@ -33,6 +36,47 @@
   font-weight: 700;
   padding: 0.625rem 0.875rem;
   white-space: nowrap;
+}
+
+.knowledge-base-rag-processing-status-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #475569;
+  padding: 1rem;
+}
+
+.knowledge-base-rag-processing-status-feedback h3,
+.knowledge-base-rag-processing-status-feedback p {
+  margin: 0;
+}
+
+.knowledge-base-rag-processing-status-feedback h3 {
+  color: #0f172a;
+  font-size: 0.9375rem;
+}
+
+.knowledge-base-rag-processing-status-feedback p {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.knowledge-base-rag-processing-status-feedback button {
+  flex: 0 0 auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.625rem 0.875rem;
 }
 
 .knowledge-base-rag-processing-status-actions button:nth-child(2),
@@ -206,6 +250,7 @@
   }
 
   .knowledge-base-rag-processing-status-actions,
+  .knowledge-base-rag-processing-status-feedback,
   .knowledge-base-rag-processing-job__header,
   .knowledge-base-rag-processing-status-details__header {
     align-items: flex-start;

@@ -315,7 +315,13 @@
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
       { "method": "PUT", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
-      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" }
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/retrieval/search" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/rag/answer" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask" }
     ],
     "dtoExports": [
       "KnowledgeDocumentDto",
@@ -329,6 +335,15 @@
       "KnowledgeDataSourceDto",
       "SyncScopeNodeDto",
       "SyncJobDto",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeEvidenceDto",
+      "KnowledgeRetrievalSearchResponse",
+      "KnowledgeRagAnswerRequest",
+      "KnowledgeRagAnswerCitationDto",
+      "KnowledgeRagAnswerResponse",
+      "AgentKnowledgeDocumentDto",
+      "AgentKnowledgeAskRequest",
+      "AgentKnowledgeAskResponse",
       "KnowledgeBaseApiError"
     ],
     "requestDtoExports": [
@@ -336,7 +351,10 @@
       "PrepareUploadRequest",
       "ConnectKnowledgeDataSourceRequest",
       "UpdateSyncScopeRequest",
-      "RequestKnowledgeSyncJobRequest"
+      "RequestKnowledgeSyncJobRequest",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeRagAnswerRequest",
+      "AgentKnowledgeAskRequest"
     ],
     "domainEvents": [
       "knowledge.document.uploadValidated",

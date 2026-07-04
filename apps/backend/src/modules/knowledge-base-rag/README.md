@@ -1,5 +1,12 @@
 # Knowledge Base / RAG Module
 
+See
+[`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
+for local setup, runnable commands, deterministic verification, and current
+worker/indexing limitations.
+For the final upload-to-Task-chat presentation flow, use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](../../../../../docs/demo/kb-rag/final-local-rag-demo-script.md).
+
 Owner: Member 9
 
 Active OpenSpec change: `implement-knowledge-base-rag`.
@@ -22,9 +29,33 @@ indexing adapter boundary for persisted chunks. It also has a local end-to-end
 flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
-It still does not contain OCR, real embedding provider calls, real vector
-database calls, external queue/worker daemon infrastructure, or retrieval
-implementation.
+It still does not contain OCR or external queue/worker daemon infrastructure.
+Live retrieval uses the existing PostgreSQL/pgvector and embedding adapters;
+deterministic tests use injected adapters.
+
+For local demos, `KNOWLEDGE_INGESTION_MODE=inline` wires real multipart uploads
+to the existing local flow runner. The upload response waits for stored-file
+text extraction, chunk persistence, embedding, vector upsert, and final
+document/job state. This mode requires PostgreSQL plus configured embedding and
+pgvector adapters; it is not enabled by default and is not a production queue.
+
+For local pgvector verification, run the opt-in smoke test:
+
+```bash
+KNOWLEDGE_PGVECTOR_SMOKE=1 \
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_company_dev" \
+KNOWLEDGE_VECTOR_PROVIDER=pgvector \
+KNOWLEDGE_VECTOR_DIMENSIONS=3 \
+KNOWLEDGE_VECTOR_DISTANCE=cosine \
+npm run smoke:kb-rag:pgvector
+```
+
+The smoke test seeds namespaced KB/RAG document/chunk records, uses
+deterministic vectors, upserts through `PgvectorKnowledgeVectorIndexAdapter`,
+retrieves evidence through `KnowledgeRetrievalSearchUseCase`, verifies
+workspace isolation, and cleans up its records. Without
+`KNOWLEDGE_PGVECTOR_SMOKE=1`, it exits successfully as skipped. This is not a
+benchmark, load test, queue runtime, or production readiness gate.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -110,6 +141,81 @@ Rules:
   shared platform conventions.
 
 ## HTTP API Contract
+
+### Agent knowledge assignment
+
+The KB/RAG-owned document grant API uses one workspace-scoped route family:
+
+```text
+GET    /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents
+POST   /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId
+DELETE /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId
+```
+
+List requires `workspace:read`; assign and revoke require `knowledge:manage`.
+The application use case verifies both agent and document through
+workspace-scoped ports and returns the same safe denial for cross-workspace or
+missing resources. Assign is idempotent and reactivates a revoked composite
+grant. Revoke is idempotent, and list returns active document grants only.
+
+Responses contain safe document DTOs and never expose grant IDs, storage
+details, content, chunks, embeddings, vectors, provider payloads, credentials,
+or runtime internals. This API remains document-level. Source/collection grants
+and production Agent Orchestration/OpenClaw tool registration are deferred.
+
+### Internal agent retrieval tool
+
+`AgentKnowledgeRetrievalTool` exposes the internal tool name
+`knowledge.retrieve`. It accepts a workspace ID, agent ID, query, optional
+`topK`, and optional document/source filters. It delegates to the existing
+`KnowledgeRetrievalSearchUseCase` with agent context; it does not call
+embedding or vector adapters directly.
+
+The tool returns `found`, `empty`, `unauthorized`, `invalid_request`, or
+`error` plus bounded citation-style evidence. Only active document grants are
+eligible. Requested filters are intersected with those grants, revoked grants
+are ignored, and skill/config references do not grant access. An agent with no
+eligible documents receives an empty response before embedding or vector
+search.
+
+Agent identity is checked through an injected workspace-scoped lookup port.
+The output contains safe document metadata and bounded snippets only; it does
+not expose chunks, storage/vector references, provider payloads, credentials,
+or raw errors.
+
+### Agent orchestration demo integration
+
+`POST /api/workspaces/:workspaceId/knowledge/agents/:agentId/ask` provides the
+smallest local-demo orchestration path. It requires the existing `rag:answer`
+workspace permission, accepts `message`, optional `topK`, and optional
+document/source filters, then invokes `AgentKnowledgeRetrievalTool`.
+
+When assigned evidence is found, `AgentKnowledgeOrchestrationUseCase` creates a
+deterministic evidence-only answer and returns safe citations. When no active
+grant/evidence remains, it returns `insufficient_evidence` without calling a
+response composer. Missing/cross-workspace agents are denied safely. This path
+does not call a real LLM, change Task & Orchestration, register an OpenClaw
+tool, or provide a chatbot UI.
+
+The existing Task chat consumes this use case through Task Orchestration's
+injected `AgentKnowledgeAskPort`. This adapter preserves the KB/RAG-owned grant
+and retrieval boundary; Task Orchestration does not access repositories,
+embeddings, or vector storage directly.
+
+Cross-feature local-demo evidence is covered by:
+
+```bash
+node tests/contract/upload-to-task-chat-rag-integration.test.mjs
+```
+
+The test uploads TXT content through the local upload-to-index flow, verifies
+persisted chunks and vector-boundary upserts, assigns the indexed document to an
+agent, asks through the Task chat bridge route, verifies answer citations,
+revokes the assignment, and confirms the same prompt falls back to
+`insufficient_evidence`. It also checks an unassigned agent, workspace
+isolation, and safe public response fields. The test uses deterministic
+embedding/vector/composer adapters; real local retrieval through pgvector is
+covered separately by the opt-in smoke script.
 
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:
@@ -329,23 +435,183 @@ document indexing as `ingesting`, generates embeddings through an injected
 `KnowledgeEmbeddingAdapter`, upserts vectors through an injected
 `KnowledgeVectorIndexAdapter`, marks chunks ready with opaque internal
 `vectorRef` values, and marks the document indexing state `ready` or `failed`.
-It does not call OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, or any
-other real provider/client, and it does not expose embeddings or vector internals
-through public DTOs or events. It is intentionally not wired into the ingestion
-handoff automatically in this slice so the existing text-processing lifecycle
-remains narrow and predictable.
+It does not expose embeddings or vector internals through public DTOs or
+events. It is intentionally not wired into the ingestion handoff automatically
+so the existing text-processing lifecycle remains narrow and predictable.
 
-Legacy DOC parsing, OCR, object storage integration, provider-backed embeddings,
-provider-backed vector writes, retrieval, and queue/runtime orchestration remain
-future adapter/runtime scope.
+## Real Embedding Provider
+
+`OpenAICompatibleKnowledgeEmbeddingAdapter` implements the existing backend
+embedding port using built-in `fetch`. It accepts persisted chunk text from the
+indexing pipeline, batches requests deterministically, restores provider results
+to input order, and validates result count, numeric values, and configured
+dimensions before handing vectors to `KnowledgeVectorIndexAdapter`.
+
+Required runtime configuration:
+
+```text
+KNOWLEDGE_EMBEDDING_PROVIDER=openai-compatible
+KNOWLEDGE_EMBEDDING_BASE_URL=https://provider.example/v1
+KNOWLEDGE_EMBEDDING_API_KEY=<secret>
+KNOWLEDGE_EMBEDDING_MODEL=<provider-model>
+KNOWLEDGE_EMBEDDING_DIMENSIONS=<positive integer>
+```
+
+`KNOWLEDGE_EMBEDDING_BATCH_SIZE` defaults to `32`, and
+`KNOWLEDGE_EMBEDDING_TIMEOUT_MS` defaults to `30000`. Configuration and
+provider failures use fixed safe errors; API keys, authorization headers, raw
+requests/responses, and raw embeddings are not persisted or mapped publicly.
+Tests retain deterministic inline adapters and use injected mock fetch
+implementations, never real provider calls.
+
+## PostgreSQL pgvector Index
+
+`PgvectorKnowledgeVectorIndexAdapter` implements the backend vector index port
+through the existing Prisma/PostgreSQL connection. Embeddings are stored on
+the existing workspace-scoped chunk rows using the pgvector `vector` type. No
+separate vector database service or connection is used.
+
+Required runtime configuration:
+
+```text
+DATABASE_URL=<primary PostgreSQL connection>
+KNOWLEDGE_VECTOR_PROVIDER=pgvector
+KNOWLEDGE_VECTOR_DIMENSIONS=<embedding dimension>
+KNOWLEDGE_VECTOR_DISTANCE=cosine
+```
+
+`KNOWLEDGE_VECTOR_BATCH_SIZE` defaults to `64`. Supported distance modes are
+`cosine`, `euclidean`, and `inner-product`. The configured dimension is checked
+before every write and query and persisted beside each vector.
+
+The pgvector schema is installed through the repository migration, not at
+runtime. `ensureIndex()` performs a non-destructive readiness check for the
+extension and vector column. Upserts update the existing chunk row using its
+workspace/document/chunk identity, so reindexing replaces the prior vector.
+
+Internal vector queries require `workspaceId` and add that condition directly
+to parameterized SQL. Optional exact document and source-locator filters are
+supported. Query rows select safe attribution and distance only; raw vectors,
+SQL details, database configuration, and internal vector references are not
+returned.
+
+The indexing pipeline uses batch embedding/vector methods when both adapters
+support them and retains the single-item path for deterministic fakes. Tests
+inject a mocked Prisma-compatible raw-query boundary and do not require a
+running PostgreSQL service.
+
+The vector column is dimension-flexible, so this slice uses exact pgvector
+distance ordering rather than creating an ANN index tied to one dimension.
+Adding a production ANN index requires selecting and fixing a model dimension
+in a later migration.
+
+Legacy DOC parsing, OCR, and external synchronization remain outside this
+runtime slice.
+
+## Retrieval/Search API
+
+`POST /api/workspaces/:workspaceId/knowledge/retrieval/search` accepts:
+
+```json
+{
+  "query": "escalation policy",
+  "topK": 5,
+  "filters": {
+    "documentIds": ["document-id"],
+    "sourceTypes": ["upload"],
+    "sourceLocators": ["text:0"],
+    "statuses": ["ready"]
+  }
+}
+```
+
+`KnowledgeRetrievalSearchUseCase` validates and normalizes the request,
+generates a query embedding through the configured embedding adapter, queries
+the pgvector adapter with mandatory workspace scope, and hydrates matches from
+the document repository. Only ready documents and ready indexed chunks are
+eligible.
+
+The response contains ranked evidence with safe document/chunk IDs, document
+title, bounded snippet, source type/locator, score, and chunk index. It does not
+contain embeddings, vectors, vector references, storage paths, SQL, provider
+payloads, credentials, secrets, or tokens. Empty searches return
+`{ "results": [], "total": 0 }`.
+
+Application validation and DTOs are independent of Express. The request,
+response, error codes, and use-case method can be mirrored directly with
+FastAPI/Pydantic if the backend stack is migrated later. This endpoint returns
+evidence only and does not generate a RAG answer.
+
+### Grounded RAG answer runtime
+
+`POST /api/workspaces/:workspaceId/knowledge/rag/answer` accepts the retrieval
+query, bounded `topK`, the existing safe retrieval filters, and optional
+`maxAnswerLength` / `includeCitations` answer options. The application use case
+reuses retrieval/search and passes only ranked, bounded evidence snippets to an
+injected answer provider.
+
+The runtime calls an OpenAI-compatible `chat/completions` endpoint only when at
+least one evidence item has usable text and meets the conservative score gate.
+No or weak evidence returns `insufficient_evidence` without a provider call.
+Provider failures return a safe `provider_error` fallback. Answers cite only
+evidence included in the same response; unknown provider citation IDs are
+discarded.
+
+Real provider mode uses:
+
+- `KNOWLEDGE_RAG_PROVIDER=openai-compatible`
+- `KNOWLEDGE_RAG_BASE_URL`
+- `KNOWLEDGE_RAG_API_KEY`
+- `KNOWLEDGE_RAG_MODEL`
+- optional `KNOWLEDGE_RAG_TIMEOUT_MS` (default `30000`)
+- optional `KNOWLEDGE_RAG_MAX_OUTPUT_TOKENS` (default `800`)
+
+Raw prompts, provider payloads, credentials, embeddings, vectors, storage
+details, and chain-of-thought are backend-internal and are never public DTO
+fields. Tests use injected deterministic providers or mocked `fetch`; they do
+not call external services. This framework-neutral request/use-case/response
+boundary can be mirrored with FastAPI/Pydantic later. It is an optional
+downstream capability over the indexing-focused KB/RAG core, not a chatbot UI.
+
+## Permission and Access Control
+
+`KnowledgeBaseRagAccessPolicy` is the framework-neutral authorization boundary.
+Authenticated workspace members use the existing role permissions:
+
+- `workspace:read` permits document/source/status reads, retrieval, and RAG
+  answers.
+- `knowledge:manage` permits upload/delete policy checks, source changes,
+  synchronization-scope changes, and manual synchronization requests.
+
+The HTTP router derives user, role, and workspace from trusted request context.
+Route/body filters cannot replace workspace scope. Repositories, pgvector
+queries, evidence hydration, and stored-content reads all re-check workspace
+ownership.
+
+Agent access is narrower than user workspace access. Internal agent retrieval
+requires an active `KnowledgeAccessGrant` for each document. Granted document
+IDs are applied before embedding/vector calls and re-checked during evidence
+hydration. RAG answer generation forwards the same internal agent context to
+retrieval, so only authorized evidence can reach the answer provider.
+Changing the unique workspace/document/agent grant to `revoked` immediately
+removes that document from agent retrieval and RAG evidence.
+
+Agent instructions, requested-knowledge configuration, and `skill.md`
+references are intent only. They are not policy inputs and never create grants.
+The repository/policy boundary supports active and revoked grants, but this
+slice does not add a public grant-management API; an explicit administration
+workflow remains a follow-up. Grants are document-level only. Source-level
+grants are deferred; source filters are still intersected with the agent's
+granted document IDs. No frontend or grant-administration UI is added here.
+The action, subject, and repository boundaries are independent of Express and
+can be mirrored by a future FastAPI dependency/policy layer.
 
 The local flow runner is test-only orchestration for prepared documents and
 ingestion jobs. It wires the existing ingestion handoff to the text processing
 pipeline, then runs the indexing pipeline over persisted chunks. Tests inject a
 fake content reader, deterministic embedding adapter, fake in-memory vector
 index adapter, clocks, and ID generators. It does not schedule background jobs,
-read real storage, call real providers, expose an HTTP route, or implement
-retrieval/RAG answer generation.
+read real storage, call real providers, or implement RAG answer generation.
 
 ## Worker Handoff
 

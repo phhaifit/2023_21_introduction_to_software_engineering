@@ -1,8 +1,17 @@
 import type { CreatedTaskRecord } from "./task-types";
+import type { AgentKnowledgeAskCitationDto } from "@vcp/shared";
 
 export interface TaskFinalizedResult {
   readonly text: string;
   readonly finalizedAt: string;
+  readonly knowledgeStatus?:
+    | "answered"
+    | "insufficient_evidence"
+    | "unauthorized"
+    | "invalid_request"
+    | "error";
+  readonly citations?: readonly AgentKnowledgeAskCitationDto[];
+  readonly warnings?: readonly string[];
 }
 
 export function isValidFinalizedResult(

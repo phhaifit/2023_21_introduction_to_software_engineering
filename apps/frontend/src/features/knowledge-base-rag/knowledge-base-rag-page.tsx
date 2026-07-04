@@ -162,7 +162,12 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
         {activeView.id === "synchronization-scope" && (
           <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
         )}
-        {activeView.id === "processing-status" && <KnowledgeBaseProcessingStatusScreen />}
+        {activeView.id === "processing-status" && (
+          <KnowledgeBaseProcessingStatusScreen
+            apiClient={apiClient}
+            workspaceId={workspaceId}
+          />
+        )}
       </main>
     </section>
   );

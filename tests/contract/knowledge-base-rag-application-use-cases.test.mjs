@@ -88,6 +88,9 @@ for (const expectedFile of [
   "knowledge-ingestion-use-cases.ts",
   "knowledge-data-source-use-cases.ts",
   "knowledge-sync-use-cases.ts",
+  "knowledge-retrieval-search-use-case.ts",
+  "knowledge-rag-answer-provider.ts",
+  "knowledge-rag-answer-use-case.ts",
   "knowledge-base-rag-events.ts",
   "knowledge-base-rag-errors.ts"
 ]) {

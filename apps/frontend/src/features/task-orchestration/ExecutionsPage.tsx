@@ -23,9 +23,18 @@ function LogsModal({
     const fetchLogs = async () => {
       try {
         setLoading(true);
-        const data = await apiClient.getExecutionLogs(DEMO_WORKSPACE_ID, execution.executionId);
+        const [data, workflowData] = await Promise.all([
+          apiClient.getExecutionLogs(DEMO_WORKSPACE_ID, execution.executionId),
+          apiClient.getWorkflow(DEMO_WORKSPACE_ID, execution.workflowId)
+        ]);
         
         if (!mounted) return;
+        
+        const stepsMap = new Map<string, number>();
+        const workflowSteps = workflowData?.steps || [];
+        workflowSteps.forEach((s: any) => {
+          stepsMap.set(s.workflowStepId, s.stepOrder);
+        });
         
         const formattedLogs: string[] = [
           `> Initializing Workflow: [${execution.workflowName}]`,
@@ -35,13 +44,16 @@ function LogsModal({
 
         let stepIndex = 1;
         for (const step of data) {
-          const stepOrder = step.stepOrder || stepIndex++;
+          const stepOrder = stepsMap.get(step.workflowStepId) || step.stepOrder || stepIndex++;
           const stepPrefix = `Step ${stepOrder}`;
           formattedLogs.push(`> [Running] ${stepPrefix} - Agent step ${step.workflowStepId} started...`);
           if (step.status === "Success") {
             formattedLogs.push(`> [Completed] ${stepPrefix} completed successfully.`);
             if (step.outputData) {
-              formattedLogs.push(`> Output: ${typeof step.outputData === 'object' ? JSON.stringify(step.outputData) : step.outputData}`);
+              const outputText = typeof step.outputData === 'object' 
+                ? (step.outputData.text || JSON.stringify(step.outputData)) 
+                : step.outputData;
+              formattedLogs.push(`> Output: ${outputText}`);
             }
           } else if (step.status === "Failed") {
             formattedLogs.push(`> [Error] ${stepPrefix} failed: ${step.errorMsg || "Unknown error"}`);

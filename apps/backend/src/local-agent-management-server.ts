@@ -37,6 +37,7 @@ import { InMemoryWorkflowRepository } from "./modules/workflow-management/infras
 import { WorkflowExecutionService } from "./modules/task-orchestration/application/workflow-execution-service.ts";
 
 import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
+import { createAuthUserContextMiddleware } from "./modules/authentication/api/authentication-user-context-middleware.ts";
 import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
 import { LoginUseCase } from "./modules/authentication/application/login-use-case.ts";
 import { LogoutUseCase } from "./modules/authentication/application/logout-use-case.ts";
@@ -51,23 +52,41 @@ import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/k
 import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/application/knowledge-data-source-use-cases.ts";
 import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
 import { KnowledgeIngestionUseCases } from "./modules/knowledge-base-rag/application/knowledge-ingestion-use-cases.ts";
+import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
+import { KnowledgeRagAnswerUseCase } from "./modules/knowledge-base-rag/application/knowledge-rag-answer-use-case.ts";
+import { AgentKnowledgeAssignmentUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-assignment-use-case.ts";
+import { AgentKnowledgeRetrievalTool } from "./modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
+import { AgentKnowledgeOrchestrationUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
+import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
-import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import {
+  KnowledgeUploadUseCases,
+  type KnowledgeUploadUseCaseDependencies
+} from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import type { KnowledgeDocumentRepository } from "./modules/knowledge-base-rag/application/knowledge-document-repository.ts";
 import { LocalKnowledgeFileStorage } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
+import { RuntimeKnowledgeDocumentTextExtractor } from "./modules/knowledge-base-rag/infrastructure/knowledge-document-text-extractor.ts";
+import { StoredKnowledgeDocumentContentReader } from "./modules/knowledge-base-rag/infrastructure/stored-knowledge-document-content-reader.ts";
+import { createKnowledgeEmbeddingAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-embedding-adapter.ts";
+import { createKnowledgeRagAnswerProviderFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-rag-answer-provider.ts";
+import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/pgvector-knowledge-vector-index-adapter.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
+  InMemoryKnowledgeAccessGrantRepository,
   InMemoryKnowledgeDocumentRepository,
   InMemoryKnowledgeIngestionJobRepository,
   InMemoryKnowledgeSyncJobRepository,
   InMemoryKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
 import { PrismaKnowledgeDataSourceRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-data-source-repository.ts";
+import { PrismaKnowledgeAccessGrantRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-access-grant-repository.ts";
 import { PrismaKnowledgeDocumentRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-document-repository.ts";
 import { PrismaKnowledgeIngestionJobRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-ingestion-job-repository.ts";
 import {
   PrismaKnowledgeSyncJobRepository,
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
+import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -89,13 +108,91 @@ import {
   type OpenClawAgentMaterializer,
   type OpenClawMaterializedAgent
 } from "./features/task-execution/adapters/openclaw-agent-materializer.ts";
+import {
+  DockerOpenClawWorkflowArtifactMirror,
+  FileSystemOpenClawWorkflowMaterializer,
+  NoOpOpenClawWorkflowArtifactMirror,
+  NoOpOpenClawWorkflowMaterializer,
+  type OpenClawWorkflowArtifactMirror,
+  type OpenClawWorkflowMaterializer
+} from "./features/task-execution/adapters/openclaw-workflow-materializer.ts";
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
+import { FileSystemTaskLogRepository } from "./features/task-execution/adapters/task-log-repository.ts";
 import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
 import { InMemoryTaskRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-repository.ts";
 import { InMemoryTaskWorkRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-work-repository.ts";
 import { InMemoryTaskEventPublisher } from "./modules/task-orchestration/infrastructure/in-memory-task-event-publisher.ts";
 import type { EntityId, WorkspaceExecutionRuntimeResolver, WorkspaceExecutionRuntime } from "@vcp/shared";
 import type { WorkflowRepository } from "./modules/workflow-management/infrastructure/workflow-repository.ts";
+
+function createKnowledgeRetrievalSearchUseCase(
+  prisma: any,
+  documentRepository: KnowledgeDocumentRepository,
+  accessPolicy: KnowledgeBaseRagAccessPolicy
+): KnowledgeRetrievalSearchUseCase {
+  const hasEmbeddingConfig = Boolean(
+    process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
+      process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
+      process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
+      process.env.KNOWLEDGE_EMBEDDING_MODEL &&
+      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+  );
+  const hasVectorConfig = Boolean(
+    process.env.KNOWLEDGE_VECTOR_PROVIDER &&
+      process.env.KNOWLEDGE_VECTOR_DIMENSIONS &&
+      process.env.KNOWLEDGE_VECTOR_DISTANCE
+  );
+
+  if (prisma && hasEmbeddingConfig && hasVectorConfig) {
+    const embeddingAdapter = createKnowledgeEmbeddingAdapterFromEnvironment();
+    const vectorAdapter = createKnowledgeVectorIndexAdapterFromEnvironment(prisma);
+    return new KnowledgeRetrievalSearchUseCase({
+      documentRepository,
+      queryEmbeddingAdapter: embeddingAdapter,
+      vectorQueryAdapter: vectorAdapter,
+      accessPolicy
+    });
+  }
+
+  return new KnowledgeRetrievalSearchUseCase({
+    documentRepository,
+    queryEmbeddingAdapter: {
+      async generateQueryEmbedding() {
+        throw new Error("Knowledge retrieval embedding is not configured.");
+      }
+    },
+    vectorQueryAdapter: {
+      async query() {
+        throw new Error("Knowledge retrieval vector index is not configured.");
+      }
+    },
+    accessPolicy
+  });
+}
+
+function createKnowledgeRagAnswerUseCase(
+  retrievalSearchUseCase: KnowledgeRetrievalSearchUseCase
+): KnowledgeRagAnswerUseCase {
+  const hasRagConfig = Boolean(
+    process.env.KNOWLEDGE_RAG_PROVIDER &&
+      process.env.KNOWLEDGE_RAG_BASE_URL &&
+      process.env.KNOWLEDGE_RAG_API_KEY &&
+      process.env.KNOWLEDGE_RAG_MODEL
+  );
+  const answerProvider = hasRagConfig
+    ? createKnowledgeRagAnswerProviderFromEnvironment()
+    : {
+        async generateAnswer() {
+          throw new Error("Knowledge answer provider is not configured.");
+        }
+      };
+
+  return new KnowledgeRagAnswerUseCase({
+    retrievalSearchUseCase,
+    answerProvider,
+    generateAnswerId: () => randomUUID()
+  });
+}
 
 class ServerAgentCatalog implements ExternalAgentCatalog {
   private readonly repository: AgentRepository;
@@ -211,9 +308,11 @@ function compactLogValue(value: string): string {
 
 class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
   private readonly repository: WorkflowRepository;
+  private readonly materializer: OpenClawWorkflowMaterializer;
 
-  constructor(repository: WorkflowRepository) {
+  constructor(repository: WorkflowRepository, materializer: OpenClawWorkflowMaterializer = new NoOpOpenClawWorkflowMaterializer()) {
     this.repository = repository;
+    this.materializer = materializer;
   }
 
   async validateAndGetWorkflow(workspaceId: EntityId<"workspaceId">, workflowId: string) {
@@ -228,10 +327,12 @@ class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
       };
     }
 
+    const materialized = await this.materializer.getMaterializedWorkflow(workspaceId, workflowId);
+
     return {
       workflowId,
       workspaceId: workspaceId as string,
-      providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
+      providerWorkflowMapping: materialized?.providerWorkflowMapping ?? `openclaw/workflow/${workflow.workflowId}`,
       status: "active" as const,
       name: workflow.name,
       description: workflow.description
@@ -241,16 +342,25 @@ class ServerWorkflowCatalog implements ExternalWorkflowCatalog {
   async listAvailableWorkflows(workspaceId: EntityId<"workspaceId">) {
     const result = await this.repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 });
 
-    return result.items
-      .filter((workflow) => workflow.status === "published")
-      .map((workflow) => ({
-        workflowId: workflow.workflowId as string,
-        workspaceId: workspaceId as string,
-        providerWorkflowMapping: `openclaw/workflow/${workflow.workflowId}`,
-        status: "active" as const,
-        name: workflow.name,
-        description: workflow.description
-      }));
+    return Promise.all(
+      result.items
+        .filter((workflow) => workflow.status === "published")
+        .map(async (workflow) => {
+          const materialized = await this.materializer.getMaterializedWorkflow(
+            workspaceId,
+            workflow.workflowId as string
+          );
+
+          return {
+            workflowId: workflow.workflowId as string,
+            workspaceId: workspaceId as string,
+            providerWorkflowMapping: materialized?.providerWorkflowMapping ?? `openclaw/workflow/${workflow.workflowId}`,
+            status: "active" as const,
+            name: workflow.name,
+            description: workflow.description
+          };
+        })
+    );
   }
 }
 
@@ -425,6 +535,44 @@ function createSkillWriter(): AgentSkillWriter {
   return new NoOpAgentSkillWriter();
 }
 
+function createOpenClawWorkflowMaterializer(): OpenClawWorkflowMaterializer {
+  const baseDir = resolveOpenClawWorkflowWorkspaceDir();
+  if (baseDir) {
+    return new FileSystemOpenClawWorkflowMaterializer(baseDir, undefined, createOpenClawWorkflowArtifactMirror());
+  }
+  return new NoOpOpenClawWorkflowMaterializer();
+}
+
+function resolveOpenClawWorkflowWorkspaceDir(): string | null {
+  if (process.env.OPENCLAW_WORKFLOW_WORKSPACE_DIR) {
+    return process.env.OPENCLAW_WORKFLOW_WORKSPACE_DIR;
+  }
+
+  const agentDir = process.env.OPENCLAW_AGENT_WORKSPACE_DIR || process.env.AGENT_SKILLS_DIR;
+  if (!agentDir) {
+    return null;
+  }
+
+  return agentDir.endsWith("openclaw-agents")
+    ? agentDir.replace(/openclaw-agents$/, "openclaw-workflows")
+    : `${agentDir}-workflows`;
+}
+
+function createOpenClawWorkflowArtifactMirror(): OpenClawWorkflowArtifactMirror {
+  const containerName = process.env.OPENCLAW_WORKFLOW_MIRROR_CONTAINER || process.env.OPENCLAW_AGENT_MIRROR_CONTAINER;
+  const destinationDir =
+    process.env.OPENCLAW_WORKFLOW_MIRROR_DIR ||
+    (process.env.OPENCLAW_AGENT_MIRROR_DIR
+      ? process.env.OPENCLAW_AGENT_MIRROR_DIR.replace(/openclaw-agents$/, "openclaw-workflows")
+      : undefined);
+
+  if (containerName && destinationDir) {
+    return new DockerOpenClawWorkflowArtifactMirror(containerName, destinationDir);
+  }
+
+  return new NoOpOpenClawWorkflowArtifactMirror();
+}
+
 function createOpenClawAgentMaterializer(): OpenClawAgentMaterializer {
   const baseDir = process.env.OPENCLAW_AGENT_WORKSPACE_DIR || process.env.AGENT_SKILLS_DIR;
   if (baseDir) {
@@ -449,6 +597,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
   const openclawAgentMaterializer = createOpenClawAgentMaterializer();
+  const openclawWorkflowMaterializer = createOpenClawWorkflowMaterializer();
   
   const eventBus = new InMemoryEventBus();
 
@@ -500,13 +649,59 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const knowledgeSyncJobRepository = prisma
     ? new PrismaKnowledgeSyncJobRepository(prisma)
     : new InMemoryKnowledgeSyncJobRepository();
+  const knowledgeAccessGrantRepository = prisma
+    ? new PrismaKnowledgeAccessGrantRepository(prisma)
+    : new InMemoryKnowledgeAccessGrantRepository();
+  const knowledgeAccessPolicy = new KnowledgeBaseRagAccessPolicy(
+    knowledgeAccessGrantRepository
+  );
   const knowledgeBaseRagRepositories = {
     documentRepository: knowledgeDocumentRepository,
     ingestionJobRepository: knowledgeIngestionJobRepository,
     dataSourceRepository: knowledgeDataSourceRepository,
     syncScopeRepository: knowledgeSyncScopeRepository,
-    syncJobRepository: knowledgeSyncJobRepository
+    syncJobRepository: knowledgeSyncJobRepository,
+    accessGrantRepository: knowledgeAccessGrantRepository
   };
+  const retrievalSearchUseCase = createKnowledgeRetrievalSearchUseCase(
+    prisma,
+    knowledgeDocumentRepository,
+    knowledgeAccessPolicy
+  );
+  const knowledgeFileStorage = new LocalKnowledgeFileStorage();
+  const inlineIngestionEnabled =
+    process.env.KNOWLEDGE_INGESTION_MODE?.trim().toLowerCase() === "inline";
+  let postUploadProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
+  if (inlineIngestionEnabled) {
+    if (!prisma) {
+      throw new Error(
+        "KNOWLEDGE_INGESTION_MODE=inline requires DATABASE_URL and PostgreSQL."
+      );
+    }
+    const embeddingAdapter = createKnowledgeEmbeddingAdapterFromEnvironment();
+    const vectorIndexAdapter =
+      createKnowledgeVectorIndexAdapterFromEnvironment(prisma);
+    const inlineRunner = createKnowledgeBaseRagLocalFlowRunner({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      contentReader: new StoredKnowledgeDocumentContentReader(
+        knowledgeFileStorage,
+        new RuntimeKnowledgeDocumentTextExtractor()
+      ),
+      embeddingAdapter,
+      vectorIndexAdapter,
+      now: () => new Date().toISOString(),
+      generateChunkId: ({ documentId, chunkIndex }) =>
+        `${documentId}:chunk:${chunkIndex}`,
+      generateEventId: () => randomUUID() as any
+    });
+    postUploadProcessor = {
+      async process(input) {
+        const result = await inlineRunner.run(input);
+        return { document: result.document, job: result.job };
+      }
+    };
+  }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
@@ -514,7 +709,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     uploadUseCases: new KnowledgeUploadUseCases({
       documentRepository: knowledgeDocumentRepository,
       ingestionJobRepository: knowledgeIngestionJobRepository,
-      fileStorage: new LocalKnowledgeFileStorage(),
+      fileStorage: knowledgeFileStorage,
+      postUploadProcessor,
       now: () => new Date().toISOString(),
       generateDocumentId: () => randomUUID() as any,
       generateJobId: () => randomUUID() as any
@@ -531,7 +727,32 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       syncJobRepository: knowledgeSyncJobRepository,
       now: () => new Date().toISOString(),
       generateJobId: () => randomUUID() as any
-    })
+    }),
+    retrievalSearchUseCase,
+    ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
+    agentKnowledgeAssignmentUseCase: new AgentKnowledgeAssignmentUseCase({
+      accessGrantRepository: knowledgeAccessGrantRepository,
+      documentRepository: knowledgeDocumentRepository,
+      agentLookup: {
+        async existsInWorkspace(workspaceId, agentId) {
+          return Boolean(await repository.findById(workspaceId, agentId));
+        }
+      },
+      accessPolicy: knowledgeAccessPolicy,
+      now: () => new Date().toISOString(),
+      generateGrantId: () => randomUUID()
+    }),
+    agentKnowledgeOrchestrationUseCase: new AgentKnowledgeOrchestrationUseCase({
+      knowledgeRetrievalTool: new AgentKnowledgeRetrievalTool({
+        retrievalSearchUseCase,
+        agentLookup: {
+          async existsInWorkspace(workspaceId, agentId) {
+            return Boolean(await repository.findById(workspaceId, agentId));
+          }
+        }
+      })
+    }),
+    accessPolicy: knowledgeAccessPolicy
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
@@ -570,43 +791,25 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   app.use(express.json());
 
-  // Fake Auth Middleware for local development
-  app.use((req, res, next) => {
-    const role = (req.headers["x-mock-role"] as any) || "admin";
-    const anonymous = req.headers["x-mock-user"] === "anonymous";
-    const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
-    const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
+  // ── Auth repositories & use cases (hoisted for early middleware access) ───
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
+  const authPasswordHasher = new BcryptPasswordHasher();
+  const authTokenHasher = new Sha256TokenHasher();
+  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
+    authSessionRepository,
+    authUserRepository,
+    authTokenHasher
+  );
 
-    if (anonymous) {
-      (req as any).context = { requestId: req.headers["x-request-id"] || randomUUID() };
-    } else {
-      (req as any).context = {
-        requestId: req.headers["x-request-id"] || randomUUID(),
-        user: {
-          userId: "local-dev-user",
-          email: "dev@local.test",
-          displayName: "Local Developer"
-        },
-        workspace: {
-          workspaceId,
-          memberId: "local-member",
-          role
-        }
-      };
-    }
-    next();
-  });
-
-  // ── Workspace Management ───────────────────────────────────────────────────
-  // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
+  // ── Workspace repository & use cases (hoisted for early middleware access) ─
+  const workspaceRepository = await createWorkspaceRepository();
   const nullSafePrisma = prisma ?? {
     agent:           { count: async () => 0 },
     workflow:        { count: async () => 0 },
     toolConnection:  { count: async () => 0 },
     workspaceMember: { findFirst: async () => null }
   };
-
-  const workspaceRepository = await createWorkspaceRepository();
   const workspaceUseCases = new WorkspaceUseCases({
     repository: workspaceRepository,
     prisma: nullSafePrisma as any,
@@ -615,6 +818,83 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateWorkspaceId: () => randomUUID() as any,
     generateEventId: () => randomUUID() as any
   });
+
+  // (A) Real auth: populate context.user from Bearer token (never blocks)
+  app.use(createAuthUserContextMiddleware({ authenticateSessionUseCase }));
+
+  // (B) Real workspace resolver: only runs when real user is present AND URL has no
+  // workspaceId segment. When URL contains /:workspaceId, the workspace context is
+  // left to fake auth (C) — setting an incomplete {workspaceId, memberId:null} shape
+  // would break requireWorkspaceContext() callers, so we defer that to a later PR.
+  app.use(async (req, _res, next) => {
+    const ctx = (req as any).context;
+    const user = ctx?.user;
+    if (!user) {
+      next();
+      return;
+    }
+    const urlMatch = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    if (urlMatch) {
+      // URL already has a workspaceId: leave workspace context to fake auth (C).
+      next();
+      return;
+    }
+    try {
+      const membership = await workspaceUseCases.resolveActiveMembership(user.userId);
+      if (membership) {
+        (req as any).context = { ...ctx, workspace: membership };
+      }
+    } catch {
+      // Resolve failed — leave workspace undefined; never block.
+    }
+    next();
+  });
+
+  // (C) Fake Auth Middleware for local development (conditional — yields to real auth)
+  app.use((req, res, next) => {
+    const role = (req.headers["x-mock-role"] as any) || "admin";
+    const anonymous = req.headers["x-mock-user"] === "anonymous";
+    const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
+
+    // Always ensure requestId exists
+    const existing = (req as any).context ?? {};
+    if (!existing.requestId) {
+      (req as any).context = { ...existing, requestId: req.headers["x-request-id"] || randomUUID() };
+    }
+
+    if (anonymous) {
+      // anonymous header: clear user + workspace (legacy behaviour)
+      (req as any).context = { ...(req as any).context, user: undefined, workspace: undefined };
+    } else {
+      const ctx2 = (req as any).context;
+      // Only set demo user if real auth did NOT populate one
+      if (!ctx2.user) {
+        (req as any).context = {
+          ...ctx2,
+          user: {
+            userId: "local-dev-user",
+            email: "dev@local.test",
+            displayName: "Local Developer"
+          }
+        };
+      }
+      // Only set demo workspace if real auth did NOT populate one
+      if (!(req as any).context.workspace) {
+        (req as any).context = {
+          ...(req as any).context,
+          workspace: {
+            workspaceId,
+            memberId: "local-member",
+            role
+          }
+        };
+      }
+    }
+    next();
+  });
+
+  // ── Workspace Management ───────────────────────────────────────────────────
 
   // Bridge: EventBus → in-process provisioning (local dev; prod uses @vcp/workers)
   const runtimeAdapter = new MockOpenClawRuntimeAdapter();
@@ -671,7 +951,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   const serverWorkspaceMgmt = new ServerWorkspaceManagement();
   const serverAgentCatalog = new ServerAgentCatalog(repository, useCases, openclawAgentMaterializer);
-  const serverWorkflowCatalog = new ServerWorkflowCatalog(workflowRepository);
+  const serverWorkflowCatalog = new ServerWorkflowCatalog(workflowRepository, openclawWorkflowMaterializer);
   const serverAuthService = new ServerAuthenticationService();
 
   const conversationRepository = await createConversationRepository();
@@ -684,6 +964,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     serverWorkflowCatalog,
     openclawTransport
   );
+  const taskLogRepository = new FileSystemTaskLogRepository();
   const openclawOrchestrator = new OpenClawExecutionOrchestrator(
     serverAuthService,
     serverWorkspaceMgmt,
@@ -691,7 +972,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     serverWorkflowCatalog,
     openclawAdapter,
     undefined,
-    conversationRepository
+    conversationRepository,
+    taskLogRepository
   );
   const createTaskUseCase = new CreateTaskService(
     {
@@ -727,19 +1009,32 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       orchestrator: openclawOrchestrator,
       adapter: openclawAdapter,
       conversationRepository,
-      createTaskUseCase
+      createTaskUseCase,
+      agentKnowledgeAskPort: {
+        ask(workspaceId, agentId, request) {
+          return knowledgeBaseRagUseCases.agentKnowledgeOrchestrationUseCase.ask(
+            workspaceId,
+            agentId,
+            request
+          );
+        }
+      }
     })
   );
 
   const executionService = new WorkflowExecutionService(
     workflowRepository,
     openclawOrchestrator,
-    eventBus
+    eventBus,
+    openclawWorkflowMaterializer
   );
+
+  openclawOrchestrator.setWorkflowExecutionService(executionService);
 
   const workflowUseCases = new WorkflowUseCases(
     workflowRepository,
     agentProvider,
+    executionService,
     executionService
   );
 
@@ -753,10 +1048,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     checkoutUseCases
   }));
 
-  const authUserRepository = await createAuthUserRepository();
-  const authSessionRepository = await createAuthSessionRepository();
-  const authPasswordHasher = new BcryptPasswordHasher();
-  const authTokenHasher = new Sha256TokenHasher();
   app.use(
     "/api/auth",
     createAuthenticationRouter({
@@ -768,11 +1059,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         authTokenHasher
       ),
       logoutUseCase: new LogoutUseCase(authSessionRepository, authTokenHasher),
-      authenticateSessionUseCase: new AuthenticateSessionUseCase(
-        authSessionRepository,
-        authUserRepository,
-        authTokenHasher
-      ),
+      authenticateSessionUseCase,
     })
   );
 

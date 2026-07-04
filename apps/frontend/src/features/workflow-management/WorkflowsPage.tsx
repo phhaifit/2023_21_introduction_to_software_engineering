@@ -384,7 +384,20 @@ function WorkflowsList({
       setStreamingWorkflowName(workflowName);
     } catch (err: any) {
       console.error(err);
-      showError("Failed to execute workflow: " + (err.message || "Unknown error"));
+      let errorMsg = "Failed to execute workflow.";
+      if (err.details?.missingAgents?.length > 0 || err.details?.disabledAgents?.length > 0) {
+        const missing = err.details.missingAgents || [];
+        const disabled = err.details.disabledAgents || [];
+        errorMsg = "Cannot execute workflow because one or more agents assigned to the steps are missing or disabled:\n" +
+          [
+            missing.length > 0 ? `- Missing Agent IDs: ${missing.join(", ")}` : null,
+            disabled.length > 0 ? `- Disabled Agent IDs: ${disabled.join(", ")}` : null
+          ].filter(Boolean).join("\n") +
+          "\n\nPlease edit the workflow config (Edit button) to re-assign valid active agents.";
+      } else {
+        errorMsg += ` Details: ${err.message || "Unknown error"}`;
+      }
+      showError(errorMsg);
       setExecutingId(null);
     }
   };

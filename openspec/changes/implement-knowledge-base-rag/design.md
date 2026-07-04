@@ -1,6 +1,6 @@
 ## Context
 
-Knowledge Base / RAG gives agents access to workspace-specific documents and internal data. The foundation selected a vector database behind an adapter, with Qdrant as the expected V1 target and an embedding adapter that can be mocked locally.
+Knowledge Base / RAG gives agents access to workspace-specific documents and internal data. The foundation stores chunk vectors in the primary PostgreSQL database through pgvector behind an adapter, with an embedding adapter that can be mocked locally.
 
 ## Goals / Non-Goals
 
@@ -23,8 +23,8 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Alternative considered: Do all processing inside upload requests. Rejected due to timeout and retry risk.
 
 2. Use vector and embedding adapters.
-   - Rationale: The team can demo with mocks or local services while preserving the Qdrant-oriented architecture.
-   - Alternative considered: Direct Qdrant calls throughout the module. Rejected because it would make tests and future replacement harder.
+   - Rationale: The team can test with mocks while production vector persistence remains in the primary PostgreSQL database through pgvector.
+   - Alternative considered: A separate external vector database. Rejected because the SAD architecture selects PostgreSQL pgvector and separate infrastructure would add operational and tenant-boundary complexity.
 
 3. Keep knowledge access assignment agent-specific.
    - Rationale: Requirements need precise control over which agent can access which documents.
@@ -99,12 +99,42 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 18. Add an embedding/vector indexing adapter boundary after persisted chunks exist.
    - Rationale: The worker needs a safe boundary that can index persisted chunks with deterministic fakes now and real providers later without exposing provider or vector database internals to public contracts.
    - Boundary: The indexing pipeline loads workspace-scoped persisted chunks through the KB/RAG document repository, marks document indexing as `ingesting`, generates embeddings through an injected `KnowledgeEmbeddingAdapter`, upserts chunk embeddings through an injected `KnowledgeVectorIndexAdapter`, updates chunk embedding status/vector references internally, and marks document indexing `ready` or `failed`.
-   - Constraint: This slice does not call real OpenAI, BGE, HuggingFace, Qdrant, Pinecone, Weaviate, FAISS, Elasticsearch, or other provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
+   - Constraint: This slice does not call real embedding or external vector database provider/client SDKs; does not add dependencies; does not expose raw embeddings, vector DB config, provider payloads, storage keys, or opaque vector refs in public DTOs/events; does not implement retrieval; and does not automatically wire indexing into the ingestion handoff.
 
 19. Add a local end-to-end flow runner for deterministic integration tests.
    - Rationale: The team needs one local proof that prepared document state can move through handoff, text processing, chunk persistence, embedding, vector upsert, and final indexing status without creating production scheduling/runtime coupling.
    - Boundary: The local runner composes existing `KnowledgeIngestionHandoff`, `KnowledgeDocumentProcessingPipeline`, and `KnowledgeDocumentIndexingPipeline` with injected repositories, content reader, embedding adapter, vector index adapter, clock, ID generators, and optional event publisher.
    - Constraint: The runner is local/test orchestration only. It does not add HTTP routes, queue scheduling, real file storage, real embedding providers, real vector database clients, retrieval, RAG answer generation, Prisma changes, shared status changes, or new dependencies.
+
+20. Expose document-level agent knowledge grants through the KB/RAG API namespace.
+   - Rationale: Demo and later integration work need a minimal public boundary to assign, list, and revoke the document grants already enforced by retrieval.
+   - Boundary: `GET`, `POST`, and `DELETE` routes under `/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents` call a KB/RAG application use case, reuse the existing grant repository and access policy, and validate agent existence through an injected workspace-scoped lookup port.
+   - Constraint: Listing requires `workspace:read`; mutations require `knowledge:manage`. Responses expose safe document metadata only. This slice does not add source/collection grants, UI, orchestration/tool integration, schema changes, worker behavior, connectors, OAuth, or new dependencies.
+
+21. Expose assigned knowledge retrieval through an internal agent tool boundary.
+   - Rationale: Agent consumers need a stable, JSON-friendly boundary that reuses KB/RAG retrieval and its document-grant enforcement without duplicating vector search logic.
+   - Boundary: `AgentKnowledgeRetrievalTool` validates workspace-scoped agent identity through an injected lookup, delegates to `KnowledgeRetrievalSearchUseCase` with agent context, and maps safe results to bounded citation-style evidence under the internal name `knowledge.retrieve`.
+   - Constraint: Active document grants remain the only access source. Optional filters only narrow grants; revoked grants and skill/config references do not grant access. No eligible documents returns empty before embedding/vector calls. This slice does not add a public route, tool-registry wiring, answer generation, UI, source/collection grants, task-orchestration changes, or new dependencies.
+
+22. Consume the agent retrieval tool through a minimal local-demo ask route.
+   - Rationale: The demo needs one end-to-end agent-facing proof that assigned evidence can ground a response without coupling KB/RAG to private Task & Orchestration or OpenClaw internals.
+   - Boundary: `POST /api/workspaces/:workspaceId/knowledge/agents/:agentId/ask` validates workspace permission, invokes `AgentKnowledgeRetrievalTool`, and uses a deterministic evidence-only composer to return an answer with bounded citations or a safe insufficient-evidence fallback.
+   - Constraint: No evidence skips the composer. Active document grants remain authoritative; filters only narrow access, revoked grants and skill/config references do not authorize retrieval, and cross-workspace agents are denied safely. This slice does not change Task & Orchestration, register an OpenClaw tool, call an external answer provider, add UI, or add dependencies.
+
+23. Add opt-in inline upload-to-index composition for the local server.
+   - Rationale: A local demo needs uploaded documents to become retrievable without introducing a production queue daemon.
+   - Boundary: When `KNOWLEDGE_INGESTION_MODE=inline`, the local composition injects the existing `KnowledgeBaseRagLocalFlowRunner` into the upload use case after file/document/job persistence. It reuses stored-file extraction, chunk persistence, embedding, and vector adapters and returns the final safe document/job state.
+   - Constraint: Inline mode is disabled by default, requires PostgreSQL plus configured embedding/pgvector adapters, processes workspace-scoped jobs once, and marks both document and job failed when indexing fails. It does not add a queue, daemon, scheduler, public process endpoint, fake production adapter, OpenClaw registration, or new dependency.
+
+24. Add an opt-in local pgvector smoke test.
+   - Rationale: Local demos need a runnable proof that the real PostgreSQL pgvector adapter can persist/query chunk vectors without requiring CI to provide PostgreSQL.
+   - Boundary: `npm run smoke:kb-rag:pgvector` runs only when `KNOWLEDGE_PGVECTOR_SMOKE=1`, seeds namespaced KB/RAG document/chunk records through repository boundaries, upserts deterministic vectors through `PgvectorKnowledgeVectorIndexAdapter`, queries through the retrieval use case, verifies workspace isolation, asserts safe evidence, and cleans up its records.
+   - Constraint: The smoke test is skipped by default, uses deterministic vectors, does not call real embedding/RAG providers, does not add production queue/daemon behavior, does not tune indexes or benchmark, does not change shared contracts or Prisma schema, and does not require pgvector in CI.
+
+25. Add upload-to-Task-chat local-demo integration evidence.
+   - Rationale: The demo needs focused proof that uploaded and locally indexed documents can ground Agent-mode Task chat answers only after explicit agent assignment.
+   - Boundary: A deterministic contract test composes the existing local upload-to-index runner, assignment use case, retrieval/orchestration use cases, and Task Orchestration bridge route. It verifies persisted chunks, vector-boundary upserts, answered citations, revoked assignment fallback, unassigned fallback, workspace isolation, and safe public fields.
+   - Constraint: The evidence test uses fake deterministic embedding/vector/composer adapters, does not call real providers or pgvector, does not add UI, does not register `knowledge.retrieve` with the production OpenClaw/tool runtime, and does not add queue, daemon, connector, source-grant, or scheduler behavior.
 
 ## Risks / Trade-offs
 

@@ -3,6 +3,8 @@ import type {
   WorkspaceDetailDto,
   WorkspaceDeleteAckDto
 } from "@vcp/shared/contracts/workspace-management.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import { authorizedFetch } from "../../shared/api/authorized-fetch.ts";
 import type { SubscriptionPlan } from "@vcp/shared/contracts/plans.ts";
 import type { WorkspaceStatus } from "@vcp/shared/contracts/statuses.ts";
 
@@ -120,7 +122,7 @@ async function parseOkResponse<T>(res: Response): Promise<T> {
 // ---------------------------------------------------------------------------
 
 export async function listWorkspaces(): Promise<WorkspaceSummaryDto[]> {
-  const res = await fetch(BASE, { credentials: "include" });
+  const res = await authorizedFetch(BASE, { credentials: "include" });
   // Original returns cursor-paginated: { ok, data: [], meta: { cursor } }
   let json: unknown;
   try {
@@ -144,7 +146,7 @@ export async function createWorkspace(
   const requestedProfile: OriginalProfile =
     body.plan === "premium" ? "premium" : "standard";
 
-  const res = await fetch(BASE, {
+  const res = await authorizedFetch(BASE, {
     method: "POST",
     credentials: "include",
     headers: {
@@ -161,7 +163,7 @@ export async function createWorkspace(
 export async function getWorkspaceDetail(
   workspaceId: string
 ): Promise<WorkspaceDetailDto> {
-  const res = await fetch(`${BASE}/${workspaceId}`, { credentials: "include" });
+  const res = await authorizedFetch(`${BASE}/${workspaceId}`, { credentials: "include" });
   const ws = await parseOkResponse<OriginalWorkspaceSummary>(res);
   return mapDetail(ws);
 }
@@ -169,7 +171,7 @@ export async function getWorkspaceDetail(
 export async function deleteWorkspace(
   workspaceId: string
 ): Promise<WorkspaceDeleteAckDto> {
-  const res = await fetch(`${BASE}/${workspaceId}`, {
+  const res = await authorizedFetch(`${BASE}/${workspaceId}`, {
     method: "DELETE",
     credentials: "include",
     headers: {

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import type { PageKey } from "../../types/navigation";
+import { useAuth } from "../../features/authentication/authentication-context.tsx";
 
 type NavigationItem = {
   key: PageKey;
@@ -39,22 +40,26 @@ const buildItems: NavigationItem[] = [
 const footerItems: NavigationItem[] = [
   { key: "billing", label: "Subscriptions & Billing", icon: CreditCard },
   { key: "settings", label: "Settings", icon: Settings },
-  { key: "authentication", label: "Account", icon: User }
+  { key: "account", label: "Account", icon: User }
 ];
 
 export function Sidebar() {
+  const { currentUser } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const sidebarClass = `sidebar${isCollapsed ? " sidebar--collapsed" : ""}`;
   const toggleLabel = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
   const ToggleIcon = isCollapsed ? ChevronRight : ChevronLeft;
 
+  const displayName = currentUser?.displayName || currentUser?.email || "User";
+  const brandMark = displayName.charAt(0).toUpperCase();
+
   return (
     <aside className={sidebarClass} aria-label="Primary navigation" data-collapsed={isCollapsed}>
       <div className="sidebar__workspace">
-        <button className="workspace-switcher" type="button" aria-label="Current workspace Tunha">
-          <span className="brand-mark" aria-hidden="true">T</span>
+        <button className="workspace-switcher" type="button" aria-label={`Current workspace ${displayName}`}>
+          <span className="brand-mark" aria-hidden="true">{brandMark}</span>
           <span className="workspace-switcher__text">
-            <span className="brand-name">Tunha</span>
+            <span className="brand-name">{displayName}</span>
             <span className="workspace-switcher__subtitle">VCP Platform</span>
           </span>
         </button>

@@ -207,12 +207,14 @@ describe("Task 9B streaming UI integration", () => {
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
     cleanup();
+    sessionStorage.clear();
     const terminal = renderPage({ client: new SpyClient("succeeded") });
     await submitPrompt("Already terminal.");
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
     expect(terminal.scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
     cleanup();
+    sessionStorage.clear();
     const loading = makeRuntimes();
     render(
       <TaskOrchestrationPage
@@ -339,6 +341,7 @@ describe("Task 9B streaming UI integration", () => {
     expect(first.scheduler.pendingCount(FRAGMENT_MS)).toBe(0);
 
     cleanup();
+    sessionStorage.clear();
     const strict = renderPage({ strict: true });
     await submitPrompt("Strict streaming.");
     await reachExecuteStep(strict.scheduler);
