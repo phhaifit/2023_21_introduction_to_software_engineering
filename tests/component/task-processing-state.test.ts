@@ -34,6 +34,7 @@ import {
 } from "@vcp/frontend/features/task-orchestration/model/task-creation-state.ts";
 import {
   activateNextStep,
+  activateProviderStep,
   appendProcessingLog,
   completeActiveStep,
   createInitialProcessingSnapshot,
@@ -137,6 +138,54 @@ describe("3. startProcessing initialises startedAt", () => {
 
     expect(first?.status).toBe("active");
     expect(snap.steps.filter((s) => s.status === "active")).toHaveLength(1);
+  });
+});
+
+describe("3b. provider processing uses runtime-supplied steps", () => {
+  it("starts with an empty timeline and renders OpenClaw step events as real steps", () => {
+    const started = taskCreationReducer(makeQueuedState(), {
+      type: "provider-processing-started",
+      taskId: TASK_ID,
+      startedAt: FIXED_TS
+    });
+
+    const afterStepStarted = taskCreationReducer(started, {
+      type: "provider-step-started",
+      taskId: TASK_ID,
+      stepId: "openclaw-routing",
+      stepName: "OpenClaw routing",
+      startedAt: FIXED_TS
+    });
+
+    const afterStepCompleted = taskCreationReducer(afterStepStarted, {
+      type: "provider-step-completed",
+      taskId: TASK_ID,
+      stepId: "openclaw-routing",
+      stepName: "OpenClaw routing",
+      completedAt: FIXED_TS2
+    });
+
+    const startedTask = started.tasks.find((t) => t.taskId === TASK_ID);
+    const runningTask = afterStepStarted.tasks.find((t) => t.taskId === TASK_ID);
+    const completedTask = afterStepCompleted.tasks.find((t) => t.taskId === TASK_ID);
+
+    expect(startedTask?.status).toBe("running");
+    expect(startedTask?.processingSnapshot.steps).toEqual([]);
+    expect(runningTask?.processingSnapshot.steps).toEqual([
+      {
+        id: "openclaw-routing",
+        label: "OpenClaw routing",
+        status: "active",
+        startedAt: FIXED_TS
+      }
+    ]);
+    expect(completedTask?.processingSnapshot.steps[0]).toEqual({
+      id: "openclaw-routing",
+      label: "OpenClaw routing",
+      status: "completed",
+      startedAt: FIXED_TS,
+      completedAt: FIXED_TS2
+    });
   });
 });
 
@@ -401,6 +450,34 @@ describe("12. logs append immutably", () => {
     if (!r2.ok) throw new Error("Expected ok");
 
     expect(r2.snapshot.logs.map((l) => l.id)).toEqual(["log-001", "log-002"]);
+  });
+
+  it("appends a log for an existing provider-supplied step", () => {
+    const providerStarted = activateProviderStep(
+      { startedAt: FIXED_TS, steps: [], logs: [] },
+      {
+        id: "api-call-status",
+        label: "Calling API",
+        startedAt: FIXED_TS
+      }
+    );
+    if (!providerStarted.ok) throw new Error("Expected provider step");
+
+    const result = appendProcessingLog(providerStarted.snapshot, {
+      id: "log-provider",
+      timestamp: FIXED_TS2,
+      level: "info",
+      stepId: "api-call-status",
+      message: "Fetching provider status"
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.snapshot.logs[0]).toMatchObject({
+        stepId: "api-call-status",
+        message: "Fetching provider status"
+      });
+    }
   });
 });
 

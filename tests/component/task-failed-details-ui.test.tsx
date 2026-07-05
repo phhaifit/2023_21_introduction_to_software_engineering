@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openProcessingDetailsFromAssistantMenu } from "./task-ui-test-helpers.ts";
 import { TaskOrchestrationPage } from "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
 import { resetTaskIdentitySequence } from "@vcp/frontend/features/task-orchestration/model/task-id.ts";
 import { formatOccurredAt } from "@vcp/frontend/features/task-orchestration/components/task-error-details.tsx";
@@ -149,7 +150,7 @@ describe("1. Failed Summary Visibility", () => {
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
     expect(screen.getByText("Task Failed")).toBeVisible();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 });
 
@@ -167,8 +168,8 @@ describe("2. TaskError Details UI", () => {
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
 
     // Verify 5 fields
-    expect(screen.getByText("Không thể tổng hợp kết quả")).toBeVisible(); // title
-    expect(screen.getByText("Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.")).toBeVisible(); // message
+    expect(screen.getByText("Unable to aggregate result")).toBeVisible(); // title
+    expect(screen.getByText("The simulated aggregation step failed.")).toBeVisible(); // message
     expect(screen.getByText("MOCK_AGGREGATION_FAILED")).toBeVisible(); // code
     expect(screen.getAllByText("aggregate-result")[0]).toBeVisible(); // stepId
     expect(screen.getByText(`Occurred at: ${FIXED_TS}`)).toBeVisible(); // occurredAt
@@ -224,8 +225,8 @@ describe("4. Completed Result Restriction", () => {
     }
 
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /copy finalized result/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
   });
 });
 
@@ -241,8 +242,7 @@ describe("5. Failed Processing Details Modal", () => {
       act(() => { pRuntime.scheduler.advance(); });
     }
 
-    const detailBtn = screen.getByRole("button", { name: "View processing details" });
-    await user.click(detailBtn);
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const dialog = screen.getByRole("dialog", { name: "Processing details" });
     expect(dialog).toBeVisible();
@@ -256,7 +256,7 @@ describe("5. Failed Processing Details Modal", () => {
 
     // Verify Error Details inside modal
     expect(within(dialog).getByRole("heading", { name: "Error Details" })).toBeVisible();
-    expect(within(dialog).getByText("Không thể tổng hợp kết quả")).toBeVisible();
+    expect(within(dialog).getByText("Unable to aggregate result")).toBeVisible();
 
     // Open Advanced details to see internal error code
     const advancedToggle = within(dialog).getByRole("button", { name: /Show Advanced details/i });
@@ -284,7 +284,7 @@ describe("6. Failed Timeline & Logs", () => {
     expect(await screen.findByLabelText("Task status: Failed")).toBeVisible();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "View processing details" }));
+    await openProcessingDetailsFromAssistantMenu(user);
     await user.click(screen.getAllByRole("button", { name: /Show Advanced details/i })[0]);
 
     const timeline = screen.getAllByLabelText(/processing timeline/i)[0]!;
@@ -358,6 +358,7 @@ describe("8. Demo Reset & Isolation", () => {
     // Simulate Demo Reset by unmounting, cleaning up, resetting ID sequence, and remounting
     unmount();
     cleanup();
+    sessionStorage.clear();
     resetTaskIdentitySequence();
 
     const pRuntimeB = new FakeProcessingRuntime();
@@ -402,11 +403,12 @@ describe("9. Accessibility", () => {
     expect(within(alertDiv).getByLabelText("Error metadata")).toBeVisible();
 
     // Modal accessibility
-    const detailBtn = screen.getByRole("button", { name: "View processing details" });
-    await user.click(detailBtn);
+    await openProcessingDetailsFromAssistantMenu(user);
 
     const modal = screen.getByRole("dialog", { name: "Processing details" });
     expect(modal).toHaveAttribute("aria-labelledby", "processing-detail-title");
+    expect(within(modal).getByLabelText("Processing identifiers")).not.toBeVisible();
+    await user.click(within(modal).getByRole("button", { name: "Show Advanced details" }));
     expect(within(modal).getByLabelText("Processing identifiers")).toBeVisible();
   });
 });

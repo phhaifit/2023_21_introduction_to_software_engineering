@@ -236,7 +236,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         {loadState === "loaded" && tree.length === 0 ? (
           <KnowledgeBaseEmptyState
             title="No synchronization scope available"
-            description="Connect a source placeholder before selecting sync scope."
+            description="Connect a source before selecting sync scope."
           />
         ) : null}
       </KnowledgeBaseSectionCard>
@@ -249,8 +249,11 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         >
           {syncJobs.length > 0 ? (
             <div className="knowledge-base-rag-sync-job-list" role="list">
-              {syncJobs.map((job) => (
-                <SyncJobListItem job={job} key={job.jobId} />
+              {syncJobs.map((job, index) => (
+                <SyncJobListItem
+                  job={job}
+                  key={`${job.jobId}-${job.requestedAt}-${index}`}
+                />
               ))}
             </div>
           ) : (

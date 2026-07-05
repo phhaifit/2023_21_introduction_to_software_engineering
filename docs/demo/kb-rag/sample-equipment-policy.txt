@@ -1,0 +1,5 @@
+Equipment Approval Policy
+
+All equipment purchases over 500 USD require manager approval.
+Emergency replacement requests must include the incident ticket ID.
+Approved equipment requests should be recorded in the procurement tracker.

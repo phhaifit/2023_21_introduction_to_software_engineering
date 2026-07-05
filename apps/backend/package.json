@@ -10,7 +10,7 @@
     "./shared/*": "./src/shared/*"
   },
   "scripts": {
-    "dev": "node --env-file=../../.env src/local-agent-management-server.ts",
+    "dev": "tsx --env-file=../../.env src/local-agent-management-server.ts",
     "test": "cd ../.. && vitest run --config vitest.config.ts apps/backend/src/modules/authentication/**/*.test.ts",
     "build": "..\\..\\node_modules\\.bin\\tsc.cmd --noEmit --module ESNext --moduleResolution bundler --target ES2022 --strict --skipLibCheck --allowImportingTsExtensions src/modules/authentication/application/password-hasher.ts src/modules/authentication/application/session-repository.ts src/modules/authentication/application/user-repository.ts src/modules/authentication/domain/session.ts src/modules/authentication/domain/user.ts src/modules/authentication/infrastructure/bcrypt-password-hasher.ts src/modules/authentication/infrastructure/bcrypt-password-hasher.test.ts src/modules/authentication/infrastructure/in-memory-session-repository.ts src/modules/authentication/infrastructure/in-memory-session-repository.test.ts src/modules/authentication/infrastructure/in-memory-user-repository.ts src/modules/authentication/infrastructure/in-memory-user-repository.test.ts"
   },
@@ -19,7 +19,9 @@
     "@vcp/shared": "0.1.0",
     "bcryptjs": "^3.0.3",
     "express": "^5.2.1",
+    "mammoth": "^1.12.0",
     "nodemailer": "^6.9.13",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.22.0"
   },
   "devDependencies": {

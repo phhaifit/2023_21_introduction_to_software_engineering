@@ -221,12 +221,50 @@
       "specific-agent",
       "predefined-workflow"
     ],
+    "runtimeActivityKinds": [
+      "routing",
+      "workflow",
+      "tool",
+      "tool-call",
+      "web-search",
+      "document-read",
+      "file-read",
+      "browser",
+      "shell",
+      "api-call",
+      "sub-agent",
+      "handoff",
+      "review",
+      "aggregation",
+      "completion",
+      "message",
+      "provider-diagnostic"
+    ],
     "createTaskRequestFields": ["prompt", "routing"],
     "createTaskResponseFields": [
       "taskId",
       "workId",
       "status",
       "createdAt"
+    ]
+  },
+  "workspaceManagement": {
+    "dtoExports": [
+      "WorkspaceSummaryDto",
+      "WorkspaceDetailDto",
+      "CreateWorkspaceRequest",
+      "WorkspaceDeleteAckDto"
+    ],
+    "routes": [
+      { "method": "GET",    "path": "/api/workspaces",                "auth": "authenticated" },
+      { "method": "POST",   "path": "/api/workspaces",                "auth": "authenticated" },
+      { "method": "GET",    "path": "/api/workspaces/:workspaceId",   "auth": "workspace-member" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId",   "auth": "workspace:delete" }
+    ],
+    "domainEvents": [
+      "workspace.provisioning_requested",
+      "workspace.running",
+      "workspace.deleted"
     ]
   },
   "agentManagement": {
@@ -268,6 +306,7 @@
   "knowledgeBaseRag": {
     "routes": [
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/validate" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/prepare" },
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/ingestion-jobs" },
@@ -276,7 +315,13 @@
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
       { "method": "PUT", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
-      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" }
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/retrieval/search" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/rag/answer" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask" }
     ],
     "dtoExports": [
       "KnowledgeDocumentDto",
@@ -290,6 +335,15 @@
       "KnowledgeDataSourceDto",
       "SyncScopeNodeDto",
       "SyncJobDto",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeEvidenceDto",
+      "KnowledgeRetrievalSearchResponse",
+      "KnowledgeRagAnswerRequest",
+      "KnowledgeRagAnswerCitationDto",
+      "KnowledgeRagAnswerResponse",
+      "AgentKnowledgeDocumentDto",
+      "AgentKnowledgeAskRequest",
+      "AgentKnowledgeAskResponse",
       "KnowledgeBaseApiError"
     ],
     "requestDtoExports": [
@@ -297,7 +351,10 @@
       "PrepareUploadRequest",
       "ConnectKnowledgeDataSourceRequest",
       "UpdateSyncScopeRequest",
-      "RequestKnowledgeSyncJobRequest"
+      "RequestKnowledgeSyncJobRequest",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeRagAnswerRequest",
+      "AgentKnowledgeAskRequest"
     ],
     "domainEvents": [
       "knowledge.document.uploadValidated",

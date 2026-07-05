@@ -4,44 +4,88 @@ Owner: Member 1
 
 ## Overview
 
-Module này quản lý danh tính người dùng, cung cấp các tính năng cốt lõi như đăng ký, đăng nhập, và quản lý phiên bản xác thực (session).
+This module manages user identity, providing core features including Register, Login, Logout, and retrieving the current session (GET me).
 
 ## Boundary
 
-- Own user registration, login, logout, password hashing, and current-user context.
-- Expose authenticated user identity to downstream modules through shared request context.
-- Do not own workspace-level authorization; use the RBAC shared module for that.
+- *This module owns:* user registration, login, logout, session authentication, the `users` table (specifically managing the `passwordHash` column), and the `sessions` table.
+- *This module does NOT own / references:* RBAC/authorization, workspace management, global fake auth (`x-mock-user`/`x-mock-role`), OAuth, password reset, email verification, and refresh tokens.
+
+## Domain Concepts
+
+- `User { userId, email, displayName?, passwordHash, status, createdAt, updatedAt }`
+- `Session { sessionId, userId, tokenHash, createdAt, expiresAt, revokedAt? }`
+
+**Invariants:**
+- Session TTL (Time To Live) is 7 days.
+- The logout operation is idempotent.
+- Expiration time comparison uses the `<=` operator.
 
 ## Endpoints
 
-- `POST /api/auth/register` — public — tạo tài khoản, trả user summary (không bao giờ chứa password/passwordHash).
-- `POST /api/auth/login` — public — xác thực, trả user + session token (raw token chỉ trả lần này).
-- `POST /api/auth/logout` — đọc Authorization Bearer — invalidate session, idempotent.
-- `GET /api/auth/me` — authenticated — trả current user từ session.
+```text
+POST /api/auth/register
+- Description: Create a new account.
+- Request shape: { email, password, displayName? }
+- Response shape: { userId, email, displayName, status, createdAt }
+- Status code: 201 / 422
 
-## Architecture decisions
+POST /api/auth/login
+- Description: Authenticate and issue a session token.
+- Request shape: { email, password }
+- Response shape: { user: {...}, session: { token, expiresAt } }
+- Status code: 200 / 401
 
-- Dùng server-side session lưu trên Postgres (không JWT/Redis).
-- Thuật toán bcryptjs với salt 12 cho password hashing.
-- SHA-256 cho session token; raw token trả một lần duy nhất, DB chỉ lưu tokenHash.
-- InvalidCredentials sử dụng chung một thông báo message để chống user enumeration.
-- Session TTL cấu hình là 7 ngày; thao tác logout là idempotent.
-- Persistence bằng Prisma khi có `DATABASE_URL`, fallback sang in-memory (mất dữ liệu khi restart) nếu thiếu cấu hình.
+POST /api/auth/logout
+- Description: Invalidate the current session via Authorization header.
+- Request shape: Header Authorization: Bearer <token>
+- Response shape: { success: true }
+- Status code: 200 (idempotent)
 
-## Local development
+GET /api/auth/me
+- Description: Return current user information from the session.
+- Request shape: Header Authorization: Bearer <token>
+- Response shape: { userId, email, displayName }
+- Status code: 200 / 401
+```
 
-Cần set biến môi trường `DATABASE_URL` (ví dụ: `postgresql://vcp:dev@localhost:5432/virtual_company_dev`) để persist.
-Vui lòng chạy lệnh `docker start vcp-pg` và set biến môi trường.
-Nếu thiếu `DATABASE_URL`, ứng dụng chạy với in-memory repository (mất dữ liệu khi restart server).
+## Architecture Decisions
 
-## Assumptions and limitations
+- Sessions are stored server-side in Postgres (no JWT, no Redis).
+- Passwords are hashed using the bcryptjs algorithm with a salt of 12.
+- Session tokens are hashed using SHA-256; the raw token is returned exactly once during login, and the DB only stores the `tokenHash`.
+- The `InvalidCredentialsError` uses a single generic message to prevent user enumeration attacks.
+- The auth session middleware runs at the router-level on the `/me` endpoint. It runs in parallel with fake auth and does not gate other modules.
 
-- Auth là feature độc lập, KHÔNG gate toàn app: truy cập thông qua mục Account trên sidebar; các module khác vẫn dùng fake auth local. Đường hướng nâng cấp gate toàn app cần Workspace Management và sự đồng thuận của nhóm.
-- Mặc dù `displayName` có trong domain nhưng schema Prisma chưa có cột này; giá trị sẽ rỗng khi đọc qua Prisma.
-- Out of scope: OAuth, quên mật khẩu, xác minh email, refresh token.
-- E2E login/logout test (task 4.2) chưa hoàn thành; chờ xác nhận về lựa chọn công cụ (Selenium/Katalon vs Playwright) với giảng viên.
+## Auth Session Middleware Flow
 
-## OpenSpec validation (Final Check)
+1. Receive request with `Authorization: Bearer <token>` header.
+2. Hash the token using SHA-256.
+3. Look up the `sessions` table using the `tokenHash`.
+4. Check if the session is revoked or expired.
+5. Load the corresponding user.
+6. Merge user information into the request context (preserving `requestId` and current fake auth info).
 
-Change `implement-authentication` pass `openspec validate --strict`. 
-Ghi nhận `spec/client-side-routing` có warning (Purpose là TBD) và mô tả URL-based routing chưa khớp implementation state-based hiện tại; spec đó nằm ngoài scope của module Authentication.
+## DB Ownership
+
+- Authentication owns the `users` table (adding the `passwordHash` column) and the `sessions` table.
+- Entities are imported via `@vcp/database`; relative imports across packages are strictly prohibited.
+- Do not access or mutate tables owned by other modules.
+
+## Local Development
+
+- The `DATABASE_URL` environment variable must be set (pointing to the `vcp-pg` Postgres container).
+- If this variable is missing, the application falls back to an in-memory repository (data will be lost upon server restart).
+- Note: Setting `$env:DATABASE_URL` in PowerShell is not persistent across different terminal sessions.
+
+## Assumptions & Limitations
+
+- (a) Authentication does not gate the entire app (Direction B, feature operates independently via the Account section, and other modules continue using fake auth).
+- (b) `displayName` exists in the domain, but the Prisma schema DOES NOT currently have this column -> the value will be empty when queried via Prisma.
+- (c) The frontend uses **react-router** (with the `/authentication` route), NOT state-based routing.
+- (d) Out of scope: OAuth, password reset, email verification, and refresh tokens.
+
+## OpenSpec Validation
+
+Validation result:
+`openspec validate implement-authentication --strict` -> valid.

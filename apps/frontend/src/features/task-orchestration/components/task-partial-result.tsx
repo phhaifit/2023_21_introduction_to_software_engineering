@@ -1,4 +1,5 @@
 import type { TaskStreamingPhase } from "../model/task-streaming";
+import { TaskMarkdown } from "./task-markdown";
 
 interface TaskPartialResultProps {
   partialText: string;
@@ -28,13 +29,12 @@ export function TaskPartialResult({
         ) : null}
       </div>
 
-      <p
-        className="task-partial-result__body"
+      <TaskMarkdown
+        className="task-partial-result__body task-markdown"
         aria-label="Accumulated partial result"
         aria-live="polite"
-      >
-        {partialText || "Partial output is starting."}
-      </p>
+        text={partialText || "Partial output is starting."}
+      />
     </section>
   );
 }

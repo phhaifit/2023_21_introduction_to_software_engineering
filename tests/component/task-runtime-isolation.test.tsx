@@ -184,7 +184,12 @@ function IsolationTestHarness({
       </div>
       <div data-testid="active-view">
         {activeTask ? (
-          <TaskConversation task={activeTask} clipboardWriter={cRuntime.clipboard} />
+          <TaskConversation
+            task={activeTask}
+            routingSummary="Auto-routing"
+            clipboardWriter={cRuntime.clipboard}
+            onOpenDetails={() => undefined}
+          />
         ) : (
           <p>No active task</p>
         )}

@@ -109,3 +109,23 @@ The system SHALL treat `skill.md` tool and knowledge sections as agent intent ra
 - **WHEN** an imported or generated `skill.md` references a tool or knowledge document
 - **THEN** the system does not grant tool access or knowledge access based on that reference alone
 
+### Requirement: Agent Knowledge Assignment UI
+The system SHALL let authorized users manage document-level KB/RAG grants from
+the existing Agent profile surface.
+
+#### Scenario: Assigned and available documents loaded
+- **WHEN** a user opens an agent profile
+- **THEN** the UI loads workspace KB/RAG documents and active grants through the typed KB/RAG API client
+- **AND** it derives assigned and available lists without runtime mock data
+
+#### Scenario: Knowledge document assigned
+- **WHEN** an authorized manager assigns an available document
+- **THEN** the UI calls the document grant API and updates the assigned and available lists
+
+#### Scenario: Knowledge document removed
+- **WHEN** an authorized manager removes an assigned document
+- **THEN** the UI revokes the document grant and updates the assigned and available lists
+
+#### Scenario: Knowledge assignment UI remains safe
+- **WHEN** loading or mutation fails
+- **THEN** the UI displays a bounded safe error without storage, vector, provider, queue, credential, secret, or stack-trace details
