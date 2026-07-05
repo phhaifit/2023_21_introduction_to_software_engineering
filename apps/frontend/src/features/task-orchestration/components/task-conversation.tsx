@@ -21,6 +21,7 @@ const TASK_STATUS_LABELS: Readonly<Record<TaskPresentationStatus, string>> = {
 export interface TaskConversationProps {
   task: CreatedTaskRecord;
   routingSummary: string;
+  routingDebugLabel?: string;
   clipboardWriter: TaskClipboardWriter;
   onOpenDetails: () => void;
   onCancelTask?: () => void;
@@ -30,6 +31,7 @@ export interface TaskConversationProps {
 export function TaskConversation({
   task,
   routingSummary,
+  routingDebugLabel,
   clipboardWriter,
   onOpenDetails,
   onCancelTask,
@@ -52,6 +54,7 @@ export function TaskConversation({
       <TaskAssistantMessage
         task={task}
         routingSummary={routingSummary}
+        routingDebugLabel={routingDebugLabel}
         partialText={partialText}
         isStreaming={isStreaming}
         shouldShowPartialResult={shouldShowPartialResult}
@@ -100,6 +103,7 @@ export function TaskUserMessage({
 export function TaskAssistantMessage({
   task,
   routingSummary,
+  routingDebugLabel,
   partialText,
   isStreaming,
   shouldShowPartialResult,
@@ -110,6 +114,7 @@ export function TaskAssistantMessage({
 }: {
   task: CreatedTaskRecord;
   routingSummary: string;
+  routingDebugLabel?: string;
   partialText: string;
   isStreaming: boolean;
   shouldShowPartialResult: boolean;
@@ -144,7 +149,12 @@ export function TaskAssistantMessage({
         <div className="task-conversation__turn-toolbar">
           <div className="task-conversation__turn-toolbar-labels">
             <span className="task-conversation__assistant-label">Assistant</span>
-            <span className="task-conversation__routing-summary">{routingSummary}</span>
+            <span
+              className="task-conversation__routing-summary"
+              title={routingDebugLabel}
+            >
+              {routingSummary}
+            </span>
             {toolbarStatusLabel ? (
               <span className="sr-only" aria-label={`Task status: ${toolbarStatusLabel}`}>
                 {toolbarStatusLabel}
@@ -158,7 +168,11 @@ export function TaskAssistantMessage({
         ) : null}
 
         {isSucceeded && task.finalizedResult ? (
-          <TaskCompletedResult result={task.finalizedResult} clipboardWriter={clipboardWriter} />
+          <TaskCompletedResult
+            result={task.finalizedResult}
+            clipboardWriter={clipboardWriter}
+            isWorkflow={task.requestedRouting.mode === "predefined-workflow"}
+          />
         ) : isFailed ? (
           <TaskFailedState task={task} onRetry={onRetryTask} />
         ) : isCanceled ? (

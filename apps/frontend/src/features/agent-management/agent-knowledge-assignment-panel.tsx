@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertCircle, BookOpen, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, BookOpen, Plus, Trash2, X } from "lucide-react";
 
 import type { AgentKnowledgeDocumentDto, KnowledgeDocumentDto } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -57,6 +57,12 @@ export function AgentKnowledgeAssignmentPanel({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!success) return;
+    const timeoutId = window.setTimeout(() => setSuccess(null), 4_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [success]);
+
   const assignedDocumentIds = useMemo(
     () => new Set(assignments.map((assignment) => assignment.document.documentId)),
     [assignments]
@@ -111,7 +117,7 @@ export function AgentKnowledgeAssignmentPanel({
           (item) => item.document.documentId !== document.documentId
         )
       );
-      setSuccess(`${document.name} removed.`);
+      setSuccess(`${document.name} access revoked.`);
     } catch {
       setError("Unable to remove document.");
     } finally {
@@ -128,7 +134,7 @@ export function AgentKnowledgeAssignmentPanel({
       <div className="agent-info-dialog__section-title">
         <div>
           <h3 id="agent-knowledge-title">Assigned Knowledge</h3>
-          <p>Document-level access used by future agent retrieval.</p>
+          <p>Assign one or more documents this agent may retrieve from.</p>
         </div>
         {isLoading ? <span role="status">Loading knowledge...</span> : null}
       </div>
@@ -154,16 +160,23 @@ export function AgentKnowledgeAssignmentPanel({
       ) : null}
 
       {success ? (
-        <p className="agent-knowledge-panel__success" role="status">
-          {success}
-        </p>
+        <div className="agent-knowledge-panel__success" role="status">
+          <span>{success}</span>
+          <button
+            type="button"
+            aria-label="Dismiss knowledge assignment status"
+            onClick={() => setSuccess(null)}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
       ) : null}
 
       {!isLoading && !error ? (
         <div className="agent-knowledge-panel__columns">
           <KnowledgeList
             title="Assigned documents"
-            emptyMessage="No knowledge documents are assigned."
+            emptyMessage="No documents assigned. This agent will not retrieve from workspace knowledge until at least one document is assigned."
             documents={assignments.map((assignment) => assignment.document)}
             action={(document) => {
               const assignment = assignments.find(
@@ -175,10 +188,10 @@ export function AgentKnowledgeAssignmentPanel({
                   className="agent-secondary-button agent-secondary-button--danger"
                   onClick={() => void revoke(assignment)}
                   disabled={Boolean(pendingDocumentId)}
-                  aria-label={`Remove ${document.name}`}
+                  aria-label={`Revoke ${document.name}`}
                 >
                   <Trash2 size={14} aria-hidden="true" />
-                  {pendingDocumentId === document.documentId ? "Removing..." : "Remove"}
+                  {pendingDocumentId === document.documentId ? "Revoking..." : "Revoke"}
                 </button>
               ) : null;
             }}
@@ -187,7 +200,7 @@ export function AgentKnowledgeAssignmentPanel({
             title="Available documents"
             emptyMessage={
               documents.length === 0
-                ? "No KB/RAG documents are available."
+                ? "No knowledge documents are available."
                 : "All available documents are assigned."
             }
             documents={availableDocuments}
@@ -236,7 +249,9 @@ function KnowledgeList({
                 <BookOpen size={16} aria-hidden="true" />
                 <span>
                   <strong>{document.name}</strong>
-                  <small>{document.mediaType}</small>
+                  <small>
+                    {document.mediaType} · {formatDocumentStatus(document.status)}
+                  </small>
                 </span>
               </span>
               {action(document)}
@@ -246,4 +261,8 @@ function KnowledgeList({
       )}
     </section>
   );
+}
+
+function formatDocumentStatus(status: KnowledgeDocumentDto["status"]): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }

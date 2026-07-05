@@ -16,7 +16,14 @@ export interface TaskTurnActionsMenuProps {
 
 function getCopyableResponse(task: CreatedTaskRecord): string | null {
   if (task.status === "succeeded" && task.finalizedResult?.text) {
-    return task.finalizedResult.text;
+    const citations = task.finalizedResult.citations;
+    if (!citations?.length) {
+      return task.finalizedResult.text;
+    }
+    const sources = citations
+      .map((citation) => `[${citation.citationId}] ${citation.documentTitle}`)
+      .join("\n");
+    return `${task.finalizedResult.text}\n\nSources:\n${sources}`;
   }
   if (task.status === "running") {
     const partial = selectAccumulatedPartialText(task.streamingSnapshot);
