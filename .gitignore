@@ -29,7 +29,9 @@ pnpm-debug.log*
 .vscode/
 
 # Local data
+.data/
 agent-skills/
+openclaw-agents/
 
 # Postman Local Sync
 /postman/

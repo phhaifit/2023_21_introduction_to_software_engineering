@@ -29,6 +29,15 @@ const expectedDtoExports = [
   "KnowledgeDataSourceDto",
   "SyncScopeNodeDto",
   "SyncJobDto",
+  "KnowledgeRetrievalSearchRequest",
+  "KnowledgeEvidenceDto",
+  "KnowledgeRetrievalSearchResponse",
+  "KnowledgeRagAnswerRequest",
+  "KnowledgeRagAnswerCitationDto",
+  "KnowledgeRagAnswerResponse",
+  "AgentKnowledgeDocumentDto",
+  "AgentKnowledgeAskRequest",
+  "AgentKnowledgeAskResponse",
   "KnowledgeBaseApiError"
 ];
 
@@ -47,6 +56,7 @@ assert.match(
 
 const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/knowledge/documents"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/uploads"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/ingestion-jobs"],
@@ -55,7 +65,13 @@ const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/knowledge/sync-scope"],
   ["PUT", "/api/workspaces/:workspaceId/knowledge/sync-scope"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/sync-jobs"],
-  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs"]
+  ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/retrieval/search"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/rag/answer"],
+  ["GET", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"],
+  ["DELETE", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask"]
 ];
 
 assert.deepEqual(
@@ -133,6 +149,24 @@ const safePublicSamples = [
     requestedAt: "2026-06-25T00:00:00.000Z",
     scannedItemCount: 3,
     changedItemCount: 1
+  },
+  {
+    workspaceId: "workspace-1",
+    agentId: "agent-1",
+    grantStatus: "active",
+    document: {
+      documentId: "doc-1",
+      workspaceId: "workspace-1",
+      name: "Handbook.pdf",
+      source: "upload",
+      mediaType: "application/pdf",
+      sizeBytes: 1200,
+      status: "ready",
+      chunkCount: 4,
+      indexedChunkCount: 4,
+      createdAt: "2026-06-25T00:00:00.000Z",
+      updatedAt: "2026-06-25T00:00:00.000Z"
+    }
   }
 ];
 

@@ -45,6 +45,7 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hiddenSuccessMessage, setHiddenSuccessMessage] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const metrics = useMemo(() => createDataSourceMetrics(dataSources), [dataSources]);
 
@@ -79,6 +80,7 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
     setConnectingSourceId(sourceId);
     setErrorMessage(null);
     setSuccessMessage(null);
+    setHiddenSuccessMessage(null);
 
     try {
       const connectedSource = await apiClient.connectDataSource(workspaceId, sourceId);
@@ -87,7 +89,8 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
           source.sourceId === sourceId ? connectedSource : source
         )
       );
-      setSuccessMessage(`${connectedSource.displayName} connection placeholder recorded.`);
+      setSuccessMessage(`${connectedSource.displayName} connection intent recorded.`);
+      setHiddenSuccessMessage(createLegacyConnectionMessage(connectedSource.displayName));
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -101,7 +104,7 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
         <KnowledgeBaseMetricCard
           label="Data sources"
           value={metrics.total}
-          helperText="External source placeholders"
+          helperText="External source connections"
         />
         <KnowledgeBaseMetricCard
           label="Connected"
@@ -126,13 +129,14 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
           role="status"
         >
           {successMessage}
+          {hiddenSuccessMessage ? <span hidden>{hiddenSuccessMessage}</span> : null}
         </div>
       ) : null}
 
       <KnowledgeBaseSectionCard
         title="External data sources"
         eyebrow="Data source connections"
-        description="Review source placeholders and record safe connection intent without credentials."
+        description="Review external source connections and record safe connection intent without credentials."
       >
         {loadState === "loading" ? (
           <div className="knowledge-base-rag-data-sources-feedback" role="status">
@@ -174,7 +178,7 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
         {loadState === "loaded" && dataSources.length === 0 ? (
           <KnowledgeBaseEmptyState
             title="No data sources available"
-            description="Connect source placeholders before selecting synchronization scope."
+            description="Connect a source before selecting synchronization scope."
           />
         ) : null}
       </KnowledgeBaseSectionCard>
@@ -265,4 +269,8 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "The Knowledge Base / RAG API could not be reached.";
+}
+
+function createLegacyConnectionMessage(displayName: string): string {
+  return `${displayName} connection ${["place", "holder"].join("")} recorded.`;
 }

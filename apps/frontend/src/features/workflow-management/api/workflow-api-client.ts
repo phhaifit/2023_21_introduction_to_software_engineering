@@ -50,6 +50,13 @@ export type WorkflowManagementApiClient = {
     workspaceId: EntityId<"workspaceId">,
     workflowId: EntityId<"workflowId">
   ): string;
+  listExecutions(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<(import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto & { workflowName: string })[]>;
+  getExecutionLogs(
+    workspaceId: EntityId<"workspaceId">,
+    executionId: string
+  ): Promise<import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto[]>;
 };
 
 export type WorkflowApiClientErrorKind = "api" | "network" | "malformed-response";
@@ -181,7 +188,11 @@ export function createWorkflowManagementApiClient(input: {
         method: "DELETE"
       }),
     getExecutionStreamUrl: (workspaceId, workflowId) =>
-      `${baseUrl}${workflowPath(workspaceId, workflowId)}/execute/stream`
+      `${baseUrl}${workflowPath(workspaceId, workflowId)}/execute/stream`,
+    listExecutions: (workspaceId) =>
+      request<(import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto & { workflowName: string })[]>(`${collectionPath(workspaceId)}/executions`),
+    getExecutionLogs: (workspaceId, executionId) =>
+      request<import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto[]>(`${collectionPath(workspaceId)}/executions/${encodeURIComponent(executionId)}/logs`)
   };
 }
 

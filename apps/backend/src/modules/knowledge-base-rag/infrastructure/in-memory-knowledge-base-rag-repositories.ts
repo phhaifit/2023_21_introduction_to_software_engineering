@@ -3,6 +3,7 @@ import type {
   KnowledgeDataSourceListFilters,
   KnowledgeDataSourceRepository
 } from "../application/knowledge-data-source-repository.ts";
+import type { KnowledgeAccessGrantRepository } from "../application/knowledge-access-grant-repository.ts";
 import type {
   KnowledgeDocumentListFilters,
   KnowledgeDocumentListResult,
@@ -20,6 +21,7 @@ import type {
   KnowledgeSyncScopeRepository
 } from "../application/knowledge-sync-repositories.ts";
 import type { KnowledgeDataSource } from "../domain/knowledge-data-source.ts";
+import type { KnowledgeAccessGrant } from "../domain/knowledge-access-grant.ts";
 import type {
   KnowledgeDocument,
   KnowledgeDocumentChunk
@@ -111,10 +113,84 @@ export class InMemoryKnowledgeDocumentRepository
   }
 }
 
+export class InMemoryKnowledgeAccessGrantRepository
+  implements KnowledgeAccessGrantRepository
+{
+  private readonly grants = new Map<string, KnowledgeAccessGrant>();
+
+  async findAccessGrant(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    documentId: EntityId<"documentId">
+  ): Promise<KnowledgeAccessGrant | null> {
+    const grant = [...this.grants.values()].find(
+      (candidate) =>
+        candidate.workspaceId === workspaceId &&
+        candidate.agentId === agentId &&
+        candidate.documentId === documentId
+    );
+    return grant ? copyAccessGrant(grant) : null;
+  }
+
+  async listActiveDocumentIds(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<EntityId<"documentId">[]> {
+    return [...this.grants.values()]
+      .filter((grant) => grant.workspaceId === workspaceId)
+      .filter((grant) => grant.agentId === agentId)
+      .filter((grant) => grant.status === "active")
+      .map((grant) => grant.documentId)
+      .sort();
+  }
+
+  async hasActiveDocumentGrant(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    documentId: EntityId<"documentId">
+  ): Promise<boolean> {
+    return [...this.grants.values()].some(
+      (grant) =>
+        grant.workspaceId === workspaceId &&
+        grant.agentId === agentId &&
+        grant.documentId === documentId &&
+        grant.status === "active"
+    );
+  }
+
+  async saveAccessGrant(grant: KnowledgeAccessGrant): Promise<KnowledgeAccessGrant> {
+    for (const [grantId, existing] of this.grants) {
+      if (
+        existing.workspaceId === grant.workspaceId &&
+        existing.documentId === grant.documentId &&
+        existing.agentId === grant.agentId
+      ) {
+        this.grants.delete(grantId);
+      }
+    }
+    this.grants.set(grant.knowledgeAccessGrantId, copyAccessGrant(grant));
+    return copyAccessGrant(grant);
+  }
+}
+
 export class InMemoryKnowledgeIngestionJobRepository
   implements KnowledgeIngestionJobRepository
 {
   private readonly jobs = new Map<string, KnowledgeIngestionJob>();
+
+  async findNextQueuedJob(
+    workspaceId: EntityId<"workspaceId">
+  ): Promise<KnowledgeIngestionJob | null> {
+    const job = [...this.jobs.values()]
+      .filter((candidate) => candidate.workspaceId === workspaceId)
+      .filter((candidate) => candidate.status === "pending")
+      .sort((left, right) => {
+        const byQueuedAt = left.queuedAt.localeCompare(right.queuedAt);
+        return byQueuedAt === 0 ? left.jobId.localeCompare(right.jobId) : byQueuedAt;
+      })[0];
+
+    return job ? copyIngestionJob(job) : null;
+  }
 
   async listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
@@ -300,6 +376,10 @@ function copyDocument(document: KnowledgeDocument): KnowledgeDocument {
   return { ...document };
 }
 
+function copyAccessGrant(grant: KnowledgeAccessGrant): KnowledgeAccessGrant {
+  return { ...grant };
+}
+
 function copyChunk(chunk: KnowledgeDocumentChunk): KnowledgeDocumentChunk {
   return { ...chunk };
 }
@@ -323,4 +403,3 @@ function copySyncJob(job: KnowledgeSyncJob): KnowledgeSyncJob {
 function copySyncJobEvent(event: KnowledgeSyncJobEvent): KnowledgeSyncJobEvent {
   return { ...event };
 }
-

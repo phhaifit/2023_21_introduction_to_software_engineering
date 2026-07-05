@@ -25,7 +25,7 @@ class DemoAgentCatalog implements ExternalAgentCatalog {
     return {
       agentId,
       workspaceId: workspaceId as string,
-      providerAgentMapping: "openclaw-agent-super-coder",
+      providerAgentMapping: "openclaw/agent-devops-assistant",
       status: "active" as const
     };
   }

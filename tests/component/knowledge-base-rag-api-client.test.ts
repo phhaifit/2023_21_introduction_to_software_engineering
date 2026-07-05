@@ -7,6 +7,7 @@ import {
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
 const workspaceId = "workspace/a b" as EntityId<"workspaceId">;
+const agentId = "agent/a b" as EntityId<"agentId">;
 const encodedWorkspacePath = "/api/workspaces/workspace%2Fa%20b/knowledge";
 
 const pagination = {
@@ -114,6 +115,50 @@ function apiFailure(code = "validation.invalid_input", status = 422): Response {
 }
 
 describe("Knowledge Base / RAG API client", () => {
+  it("lists, assigns, and revokes agent knowledge documents with encoded routes", async () => {
+    const assignment = {
+      workspaceId,
+      agentId,
+      document,
+      grantStatus: "active" as const
+    };
+    const fetchImplementation = vi
+      .fn()
+      .mockResolvedValueOnce(success([assignment]))
+      .mockResolvedValueOnce(success(assignment))
+      .mockResolvedValueOnce(success({ ...assignment, grantStatus: "revoked" }));
+    const client = createKnowledgeBaseRagApiClient({ fetchImplementation });
+
+    expect(await client.listAgentKnowledgeDocuments(workspaceId, agentId)).toEqual([
+      assignment
+    ]);
+    await client.assignAgentKnowledgeDocument(
+      workspaceId,
+      agentId,
+      document.documentId
+    );
+    await client.revokeAgentKnowledgeDocument(
+      workspaceId,
+      agentId,
+      document.documentId
+    );
+
+    expect(fetchImplementation.mock.calls.map(([path, init]) => [
+      path,
+      init.method
+    ])).toEqual([
+      [`${encodedWorkspacePath}/agents/agent%2Fa%20b/documents`, undefined],
+      [
+        `${encodedWorkspacePath}/agents/agent%2Fa%20b/documents/document-a`,
+        "POST"
+      ],
+      [
+        `${encodedWorkspacePath}/agents/agent%2Fa%20b/documents/document-a`,
+        "DELETE"
+      ]
+    ]);
+  });
+
   it("lists documents with encoded workspace and safe query parameters", async () => {
     const fetchImplementation = vi.fn(async () => paginatedSuccess([document]));
     const client = createKnowledgeBaseRagApiClient({ fetchImplementation });
@@ -198,6 +243,28 @@ describe("Knowledge Base / RAG API client", () => {
     expect(fetchImplementation.mock.calls[0][0]).toBe(`${encodedWorkspacePath}/uploads/prepare`);
     expect(fetchImplementation.mock.calls[1][0]).toBe(
       `${encodedWorkspacePath}/ingestion-jobs?documentId=document-a&status=pending&page=2&pageSize=10`
+    );
+  });
+
+  it("uploads selected files with multipart form data", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      success({ documents: [document], ingestionJobs: [ingestionJob] })
+    );
+    const client = createKnowledgeBaseRagApiClient({ fetchImplementation });
+    const file = new File(["content"], "Guide.txt", { type: "text/plain" });
+
+    const uploaded = await client.uploadDocuments(workspaceId, [file]);
+
+    expect(uploaded.documents[0].documentId).toBe("document-a");
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `${encodedWorkspacePath}/uploads`,
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData),
+        headers: expect.not.objectContaining({
+          "content-type": "application/json"
+        })
+      })
     );
   });
 

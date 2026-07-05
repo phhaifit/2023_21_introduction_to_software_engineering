@@ -1,5 +1,6 @@
 export type PageKey =
   | "dashboard"
+  | "workspaces"
   | "workflows"
   | "workflow-editor"
   | "executions"
@@ -8,5 +9,5 @@ export type PageKey =
   | "billing"
   | "settings"
   | "authentication"
-  | "workspace";
-
+  | "workspace"
+  | "account";

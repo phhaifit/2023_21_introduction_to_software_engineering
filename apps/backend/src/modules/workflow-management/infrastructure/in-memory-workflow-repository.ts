@@ -72,4 +72,40 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       if (completedAt) log.completedAt = completedAt;
     }
   }
+
+  async listExecutions(
+    workspaceId: EntityId<"workspaceId">,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ items: (import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto & { workflowName: string })[]; total: number }> {
+    const items = Array.from(this.executions.values())
+      .filter(e => e.workspaceId === workspaceId)
+      .map(e => {
+        const wf = this.workflows.get(e.workflowId);
+        return {
+          ...e,
+          workflowName: wf ? wf.name : "Unknown Workflow"
+        };
+      });
+
+    items.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+    
+    return {
+      items: items.slice(offset, offset + limit),
+      total: items.length
+    };
+  }
+
+  async getExecutionLogs(
+    workspaceId: EntityId<"workspaceId">,
+    executionId: EntityId<"executionId">
+  ): Promise<import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto[]> {
+    const logs = Array.from(this.stepLogs.values()).filter(
+      l => l.workspaceId === workspaceId && l.executionId === executionId
+    );
+    logs.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    return logs;
+  }
 }

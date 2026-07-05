@@ -119,6 +119,10 @@ The platform SHALL maintain a reviewed API contract matrix that lists each plann
 - **AND** it SHALL include `PUT /api/workspaces/:workspaceId/knowledge/sync-scope` owned by Knowledge Base / RAG
 - **AND** it SHALL include `POST /api/workspaces/:workspaceId/knowledge/sync-jobs` owned by Knowledge Base / RAG
 - **AND** it SHALL include `GET /api/workspaces/:workspaceId/knowledge/sync-jobs` owned by Knowledge Base / RAG
+- **AND** it SHALL include `POST /api/workspaces/:workspaceId/knowledge/retrieval/search` owned by Knowledge Base / RAG
+- **AND** it SHALL include `GET /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents` owned by Knowledge Base / RAG
+- **AND** it SHALL include `POST /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId` owned by Knowledge Base / RAG
+- **AND** it SHALL include `DELETE /api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId` owned by Knowledge Base / RAG
 - **AND** document ingestion and sync routes SHALL document worker handoff expectations
 - **AND** KB/RAG request bodies SHALL NOT accept trusted workspace, actor/user, generated ID, lifecycle status, timestamp, private storage, raw credential, vector database, embedding payload, or queue fields
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 
 import {
   AuthAlert,
@@ -30,14 +31,7 @@ export function AuthenticationPage() {
 
   // Separate the authenticated and unauthenticated views.
   if (isAuthenticated) {
-    return (
-      <AccountPanel
-        email={currentUser?.email ?? ""}
-        displayName={currentUser?.displayName}
-        isSigningOut={status === "submitting"}
-        onSignOut={() => void signOut()}
-      />
-    );
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (
@@ -53,14 +47,14 @@ export function AuthenticationPage() {
 // AccountPanel — shown when user is signed in
 // -----------------------------------------------------------------------------
 
-type AccountPanelProps = {
+export type AccountPanelProps = {
   email: string;
   displayName?: string;
   isSigningOut: boolean;
   onSignOut: () => void;
 };
 
-function AccountPanel({
+export function AccountPanel({
   email,
   displayName,
   isSigningOut,

@@ -15,6 +15,11 @@ Implementation:
 - `agent-management-view.css` defines the responsive list, form, status, and action control presentation.
 - `agent-management-page.tsx` mounts the Agent Management page inside the React app shell.
 - `agent-management-api-client.ts` owns typed workspace API calls and response-envelope errors.
+- `agent-knowledge-assignment-panel.tsx` mounts inside the existing Agent
+  profile dialog and combines live KB/RAG documents with active document grants.
+- The panel lists assigned and available documents, calls the KB/RAG client to
+  assign/revoke document-level grants, and renders safe loading, empty, success,
+  retry, and error states.
 - `agent-management-mock-data.ts` provides enabled and disabled fixtures for isolated tests only.
 - Browser data comes from the local Agent Management API through the Vite `/api` proxy.
 - Deleted agents should not appear in the active list returned by the backend lifecycle use case.
@@ -27,3 +32,5 @@ Manual browser verification:
 - The API runs on port `3001`; the Vite URL is usually port `5173`.
 - Without `DATABASE_URL`, restarting the API resets the in-memory seed data.
 - With `DATABASE_URL`, the list reflects persisted records in PostgreSQL.
+- Open an agent profile to manage **Assigned Knowledge**. This configures
+  document access only; it does not make the agent answer questions yet.

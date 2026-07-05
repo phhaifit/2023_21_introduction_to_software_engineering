@@ -554,7 +554,7 @@ describe("17. Cleanup-error policy tests", () => {
     expect(failAction).toBeDefined();
     // TaskError does not contain cleanup error, no raw stack
     expect((failAction.error as any).stack).toBeUndefined();
-    expect(failAction.error.message).toBe("Quá trình tổng hợp kết quả đã được mô phỏng là thất bại.");
+    expect(failAction.error.message).toBe("The simulated aggregation step failed.");
   });
 
   it("Completion stopper throw: processing dừng, streaming stopper đã gọi, task-failed dispatch, AggregateError phát ra", () => {

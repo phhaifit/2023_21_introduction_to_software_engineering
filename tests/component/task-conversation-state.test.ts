@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { EntityId } from "@vcp/shared";
+import type { Conversation, EntityId } from "@vcp/shared";
 
 import {
   taskCreationReducer,
@@ -17,6 +17,7 @@ import {
   getConversationTasks,
   getLatestConversationTask,
   getActiveTask,
+  conversationHasNonTerminalTasks,
   type TaskCreationState
 } from "../../apps/frontend/src/features/task-orchestration/model/task-creation-state";
 
@@ -506,6 +507,141 @@ describe("In-Memory Conversation State Architecture (Review Unit 2B)", () => {
         response: mockResponse1
       });
       expect(initialTaskCreationState).toEqual(copy);
+    });
+  });
+
+  describe("Restored conversations", () => {
+    const restoredConversation: Conversation = {
+      conversationId: "CONV-000001" as any,
+      workspaceId: "workspace-demo" as any,
+      title: "Restored running conversation",
+      createdAt: "2026-06-26T10:00:00.000Z",
+      updatedAt: "2026-06-26T10:02:00.000Z",
+      messages: [
+        {
+          messageId: "TASK-RESTORED-001" as any,
+          conversationId: "CONV-000001" as any,
+          role: "user",
+          content: "Still waiting for answer",
+          timestamp: "2026-06-26T10:00:00.000Z"
+        }
+      ]
+    };
+
+    it("55. Restoring a conversation without an assistant answer keeps the task non-terminal", () => {
+      const state = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [restoredConversation]
+      });
+
+      expect(state.tasks).toHaveLength(1);
+      expect(state.tasks[0].status).toBe("queued");
+      expect(state.tasks[0].finalizedResult).toBeUndefined();
+      expect(state.conversations[0].taskIds).toEqual(["TASK-RESTORED-001"]);
+    });
+
+    it("56. Restoring a conversation with an assistant answer keeps the completed result", () => {
+      const state = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [
+          {
+            ...restoredConversation,
+            messages: [
+              ...restoredConversation.messages,
+              {
+                messageId: "TASK-RESTORED-001-assistant" as any,
+                conversationId: "CONV-000001" as any,
+                role: "assistant",
+                content: "Restored final answer",
+                timestamp: "2026-06-26T10:03:00.000Z"
+              }
+            ]
+          }
+        ]
+      });
+
+      expect(state.tasks[0].status).toBe("succeeded");
+      expect(state.tasks[0].finalizedResult?.text).toBe("Restored final answer");
+      expect(state.tasks[0].processingSnapshot.startedAt).toBeUndefined();
+      expect(state.tasks[0].processingSnapshot.steps).toEqual([]);
+    });
+
+    it("57. Restoring conversations advances the New chat sequence past restored IDs", () => {
+      const restoredState = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [restoredConversation]
+      });
+
+      const newChatState = taskCreationReducer(restoredState, {
+        type: "conversation-created",
+        createdAt: "2026-06-26T10:05:00.000Z"
+      });
+
+      expect(newChatState.conversations.map((c) => c.conversationId)).toEqual([
+        "CONV-000001",
+        "CONV-000002"
+      ]);
+      expect(newChatState.activeConversationId).toBe("CONV-000002");
+    });
+
+    it("58. Restoring a failed conversation keeps it terminal and deletable", () => {
+      const state = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [
+          {
+            ...restoredConversation,
+            messages: [
+              ...restoredConversation.messages,
+              {
+                messageId: "TASK-RESTORED-001-assistant" as any,
+                conversationId: "CONV-000001" as any,
+                role: "assistant",
+                content: "[Task failed] Provider authentication rejected",
+                timestamp: "2026-06-26T10:03:00.000Z"
+              }
+            ]
+          }
+        ]
+      });
+
+      expect(state.tasks[0].status).toBe("failed");
+      expect(state.tasks[0].error?.message).toBe("Provider authentication rejected");
+      expect(conversationHasNonTerminalTasks(state, "CONV-000001")).toBe(false);
+    });
+
+    it("59. Restored newest-first conversations are displayed oldest-first before New chat", () => {
+      const restoredState = taskCreationReducer(initialTaskCreationState, {
+        type: "conversations-restored",
+        conversations: [
+          {
+            ...restoredConversation,
+            conversationId: "CONV-000002" as any,
+            title: "Second",
+            createdAt: "2026-06-26T10:05:00.000Z",
+            updatedAt: "2026-06-26T10:05:00.000Z",
+            messages: []
+          },
+          {
+            ...restoredConversation,
+            conversationId: "CONV-000001" as any,
+            title: "First",
+            createdAt: "2026-06-26T10:00:00.000Z",
+            updatedAt: "2026-06-26T10:00:00.000Z",
+            messages: []
+          }
+        ]
+      });
+
+      const newChatState = taskCreationReducer(restoredState, {
+        type: "conversation-created",
+        createdAt: "2026-06-26T10:10:00.000Z"
+      });
+
+      expect(newChatState.conversations.map((c) => c.conversationId)).toEqual([
+        "CONV-000001",
+        "CONV-000002",
+        "CONV-000003"
+      ]);
     });
   });
 });
