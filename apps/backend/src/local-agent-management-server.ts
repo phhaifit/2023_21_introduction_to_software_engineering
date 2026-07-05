@@ -117,7 +117,7 @@ import {
   type OpenClawWorkflowMaterializer
 } from "./features/task-execution/adapters/openclaw-workflow-materializer.ts";
 import { OpenClawHttpSSETransport } from "./features/task-execution/adapters/openclaw-network-transport.ts";
-import { FileSystemTaskLogRepository } from "./features/task-execution/adapters/task-log-repository.ts";
+import { InMemoryTaskLogRepository } from "./features/task-execution/adapters/task-log-repository.ts";
 import { InMemoryConversationRepository } from "./modules/task-orchestration/infrastructure/in-memory-conversation-repository.ts";
 import { InMemoryTaskRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-repository.ts";
 import { InMemoryTaskWorkRepository } from "./modules/task-orchestration/infrastructure/in-memory-task-work-repository.ts";
@@ -969,7 +969,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     serverWorkflowCatalog,
     openclawTransport
   );
-  const taskLogRepository = new FileSystemTaskLogRepository();
+  const taskLogRepository = new InMemoryTaskLogRepository();
   const openclawOrchestrator = new OpenClawExecutionOrchestrator(
     serverAuthService,
     serverWorkspaceMgmt,

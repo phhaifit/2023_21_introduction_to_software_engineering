@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { FileSystemTaskLogRepository } from "./task-log-repository.ts";
+import { FileSystemTaskLogRepository, InMemoryTaskLogRepository } from "./task-log-repository.ts";
 
 describe("FileSystemTaskLogRepository", () => {
   const testDir = "./test-task-logs";
@@ -36,5 +36,21 @@ describe("FileSystemTaskLogRepository", () => {
   it("returns null for non-existent task log", async () => {
     const result = await repository.readTaskLog("non-existent-task");
     expect(result).toBeNull();
+  });
+});
+
+describe("InMemoryTaskLogRepository", () => {
+  it("saves and reads task logs without requiring filesystem persistence", async () => {
+    const repository = new InMemoryTaskLogRepository();
+    const taskId = "task-memory-123";
+    const events = [
+      { type: "execution-started", taskId },
+      { type: "execution-completed", taskId, finalOutput: "done" }
+    ];
+
+    await repository.saveTaskLog(taskId, events);
+
+    expect(await repository.readTaskLog(taskId)).toEqual(events);
+    expect(await repository.readTaskLog("missing")).toBeNull();
   });
 });

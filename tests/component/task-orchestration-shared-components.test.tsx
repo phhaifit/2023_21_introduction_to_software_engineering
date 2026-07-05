@@ -179,7 +179,7 @@ describe("TaskAssistantProgressSummary", () => {
     expect(resolveActivityLabel(label).label).toBe(expected);
   });
 
-  it("renders runtime activity as plain markdown text without chips or status tags", () => {
+  it("renders only the latest runtime activity as plain response text", () => {
     render(
       <TaskAssistantProgressSummary
         task={createRunningTask(
@@ -207,22 +207,23 @@ describe("TaskAssistantProgressSummary", () => {
       />
     );
 
-    const activity = screen.getByLabelText("OpenClaw runtime activity");
-    expect(activity).toBeVisible();
-    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    const status = screen.getByLabelText("Assistant runtime status");
+    expect(status).toBeVisible();
     expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
-    expect(screen.getByText(/1\/2 steps/)).toBeVisible();
-    expect(within(activity).getAllByText("Calling browser")).toHaveLength(1);
-    expect(within(activity).getByText("Open product docs")).toBeVisible();
-    expect(within(activity).getByText("Capture the current release note")).toBeVisible();
-    expect(within(activity).queryByText("Live")).not.toBeInTheDocument();
-    expect(within(activity).queryByText("Done")).not.toBeInTheDocument();
-    expect(within(activity).queryByText("Composing response")).not.toBeInTheDocument();
-    expect(within(activity).queryByText("OpenClaw tool activity")).not.toBeInTheDocument();
-    expect(within(activity).queryByText(/assistant response fragment/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenClaw runtime activity")).not.toBeInTheDocument();
+    expect(screen.queryByText(/steps/)).not.toBeInTheDocument();
+    expect(status).toHaveTextContent("Calling browser");
+    expect(status).toHaveTextContent("Open product docs");
+    expect(status).toHaveTextContent("Capture the current release note");
+    expect(status).not.toHaveTextContent("Searching web");
+    expect(status).not.toHaveTextContent("Live");
+    expect(status).not.toHaveTextContent("Done");
+    expect(status).not.toHaveTextContent("Composing response");
+    expect(status).not.toHaveTextContent("OpenClaw tool activity");
+    expect(status).not.toHaveTextContent(/assistant response fragment/);
   });
 
-  it("keeps captured provider activity visible after fast completion", () => {
+  it("keeps the latest captured provider activity visible only when no final output is rendered", () => {
     render(
       <TaskAssistantProgressSummary
         task={createTaskWithRuntimeProgress(
@@ -234,12 +235,12 @@ describe("TaskAssistantProgressSummary", () => {
       />
     );
 
-    expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
+    expect(screen.getByLabelText("Assistant runtime status")).toBeVisible();
     expect(screen.getByText("Searching web")).toBeVisible();
-    expect(screen.getByText(/1\/1 steps/)).toBeVisible();
+    expect(screen.queryByText(/steps/)).not.toBeInTheDocument();
   });
 
-  it("shows real fallback provider steps while hiding generic lifecycle noise", () => {
+  it("replaces older fallback provider steps with the latest visible event", () => {
     render(
       <TaskAssistantProgressSummary
         task={createRunningTask([
@@ -251,14 +252,14 @@ describe("TaskAssistantProgressSummary", () => {
       />
     );
 
-    const activity = screen.getByLabelText("OpenClaw runtime activity");
-    expect(within(activity).getByText("Agent activity")).toBeVisible();
-    expect(within(activity).getByText("Agent Execution")).toBeVisible();
-    expect(within(activity).queryByText("start")).not.toBeInTheDocument();
-    expect(within(activity).queryByText("OpenClaw activity")).not.toBeInTheDocument();
+    const status = screen.getByLabelText("Assistant runtime status");
+    expect(status).toHaveTextContent("Agent Execution");
+    expect(status).not.toHaveTextContent("Agent activity");
+    expect(status).not.toHaveTextContent("start");
+    expect(status).not.toHaveTextContent("OpenClaw activity");
   });
 
-  it("keeps fallback provider progress visible in a completed assistant response", () => {
+  it("hides runtime activity once the completed assistant response is available", () => {
     render(
       <TaskAssistantMessage
         task={{
@@ -280,9 +281,27 @@ describe("TaskAssistantProgressSummary", () => {
       />
     );
 
-    expect(screen.getByLabelText("OpenClaw runtime activity")).toBeVisible();
-    expect(screen.getByText("Agent Execution")).toBeVisible();
+    expect(screen.queryByLabelText("Assistant runtime status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agent Execution")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Assistant final response")).toHaveTextContent("Final answer");
+  });
+
+  it("hides runtime activity once partial output starts streaming", () => {
+    render(
+      <TaskAssistantMessage
+        task={createRunningTask([{ id: "step-1", label: "Searching web", status: "active" }])}
+        routingSummary="Auto-routing"
+        partialText="Streaming answer"
+        isStreaming={true}
+        shouldShowPartialResult={true}
+        clipboardWriter={{ writeText: async () => {} }}
+        onOpenDetails={() => {}}
+      />
+    );
+
+    expect(screen.queryByLabelText("Assistant runtime status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Searching web")).not.toBeInTheDocument();
+    expect(screen.getByText("Streaming answer")).toBeVisible();
   });
 });
 

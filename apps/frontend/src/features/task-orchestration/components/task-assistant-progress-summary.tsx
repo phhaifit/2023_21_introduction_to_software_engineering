@@ -33,9 +33,6 @@ interface RuntimeActivityItem {
 
 export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSummaryProps) {
   const presentationStatus = toTaskPresentationStatus(task.status);
-  const activeStep = task.processingSnapshot.steps.find((step) => step.status === "active");
-  const completedSteps = task.processingSnapshot.steps.filter((step) => step.status === "completed");
-  const totalSteps = task.processingSnapshot.steps.length;
   const visibleSteps = task.processingSnapshot.steps.filter(
     (step) => step.status === "active" || step.status === "completed" || step.status === "failed"
   );
@@ -47,44 +44,19 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
     return null;
   }
 
-  const traceItems = runtimeActivity.slice(-10);
-  const currentActivity = activeStep ? resolveActivityLabel(activeStep.label) : null;
-  const latestRuntimeActivity = traceItems.at(-1);
-  const currentLabel =
-    currentActivity && isDisplayableActivity(currentActivity, activeStep?.label)
-      ? currentActivity.label
-      : latestRuntimeActivity?.summary;
-  const stepCount = totalSteps > 0 ? `${completedSteps.length}/${totalSteps} steps` : "0/0 steps";
-  const stepSummary =
-    task.status === "queued"
-      ? "Waiting for runtime"
-      : currentLabel && isLive
-        ? `${currentLabel} - ${stepCount}`
-        : stepCount;
+  const latestRuntimeActivity = runtimeActivity.at(-1);
+  const statusText = latestRuntimeActivity?.text || (task.status === "queued" ? "Waiting for runtime..." : "Working on it");
 
   return (
     <div className="task-assistant-progress" aria-live="polite">
-      <p className="task-assistant-progress__summary">{stepSummary}</p>
       <span className="sr-only" aria-label={`Task status: ${TASK_STATUS_LABELS[presentationStatus]}`}>
         {TASK_STATUS_LABELS[presentationStatus]}
       </span>
-
-      {traceItems.length > 0 ? (
-        <ol className="task-assistant-progress__activity-feed" aria-label="OpenClaw runtime activity">
-          {traceItems.map((item) => (
-            <li
-              key={item.id}
-              className={`task-assistant-progress__activity-item task-assistant-progress__activity-item--${item.kind}`}
-            >
-              <span className="task-assistant-progress__activity-dot" aria-hidden="true" />
-              <TaskMarkdown
-                className="task-assistant-progress__activity-markdown task-markdown"
-                text={item.text}
-              />
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      <TaskMarkdown
+        className="task-assistant-progress__text task-markdown"
+        aria-label="Assistant runtime status"
+        text={statusText}
+      />
     </div>
   );
 }

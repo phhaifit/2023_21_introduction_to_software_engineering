@@ -170,6 +170,16 @@ The workspace UI SHALL derive all rendering from `TaskRuntimeEvent` payloads and
 * **THEN** the execution feed SHALL append the chunk to the partial result
 * **AND** the streaming update logic SHALL NOT inspect the active provider type
 
+#### Scenario: Runtime activity status is replaced by streaming output
+
+* **GIVEN** an In-Progress task has provider runtime activity but no assistant output text yet
+* **WHEN** the active assistant response is rendered
+* **THEN** the UI SHALL display only the latest displayable runtime activity as plain assistant message text
+* **AND** newer displayable runtime activity SHALL replace the previous runtime activity text
+* **AND** the assistant message SHALL NOT show visible runtime logs, progress feeds, chips, tags, boxes, or step counters
+* **WHEN** provider partial output text becomes available
+* **THEN** the UI SHALL hide the transient runtime activity text and display the streaming assistant output
+
 #### Scenario: Cancellation initiates via client contract regardless of provider
 
 * **GIVEN** a task is Pending or In-Progress

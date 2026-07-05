@@ -127,7 +127,11 @@ export function TaskAssistantMessage({
   const presentationStatusLabel = presentationStatus
     ? TASK_STATUS_LABELS[presentationStatus]
     : null;
-  const toolbarStatusLabel = isNonTerminal || hasCapturedRuntimeProgress ? null : presentationStatusLabel;
+  const shouldShowRuntimeStatus =
+    isNonTerminal &&
+    !shouldShowPartialResult &&
+    (hasCapturedRuntimeProgress || task.status === "queued");
+  const toolbarStatusLabel = shouldShowRuntimeStatus ? null : presentationStatusLabel;
 
   return (
     <div
@@ -153,7 +157,7 @@ export function TaskAssistantMessage({
           </div>
         </div>
 
-        {isNonTerminal || hasCapturedRuntimeProgress ? (
+        {shouldShowRuntimeStatus ? (
           <TaskAssistantProgressSummary task={task} onCancelTask={onCancelTask} />
         ) : null}
 
