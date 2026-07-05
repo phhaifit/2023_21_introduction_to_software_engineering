@@ -37,6 +37,7 @@ import { InMemoryWorkflowRepository } from "./modules/workflow-management/infras
 import { WorkflowExecutionService } from "./modules/task-orchestration/application/workflow-execution-service.ts";
 
 import { createAuthenticationRouter } from "./modules/authentication/api/authentication-router.ts";
+import { createAuthUserContextMiddleware } from "./modules/authentication/api/authentication-user-context-middleware.ts";
 import { RegisterUseCase } from "./modules/authentication/application/register-use-case.ts";
 import { LoginUseCase } from "./modules/authentication/application/login-use-case.ts";
 import { LogoutUseCase } from "./modules/authentication/application/logout-use-case.ts";
@@ -59,9 +60,14 @@ import { AgentKnowledgeRetrievalTool } from "./modules/knowledge-base-rag/applic
 import { AgentKnowledgeOrchestrationUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
 import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
-import { KnowledgeUploadUseCases } from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
+import {
+  KnowledgeUploadUseCases,
+  type KnowledgeUploadUseCaseDependencies
+} from "./modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
 import type { KnowledgeDocumentRepository } from "./modules/knowledge-base-rag/application/knowledge-document-repository.ts";
 import { LocalKnowledgeFileStorage } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-file-storage.ts";
+import { RuntimeKnowledgeDocumentTextExtractor } from "./modules/knowledge-base-rag/infrastructure/knowledge-document-text-extractor.ts";
+import { StoredKnowledgeDocumentContentReader } from "./modules/knowledge-base-rag/infrastructure/stored-knowledge-document-content-reader.ts";
 import { createKnowledgeEmbeddingAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-embedding-adapter.ts";
 import { createKnowledgeRagAnswerProviderFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/openai-compatible-knowledge-rag-answer-provider.ts";
 import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/knowledge-base-rag/infrastructure/pgvector-knowledge-vector-index-adapter.ts";
@@ -90,7 +96,7 @@ import {
 } from "./modules/workspace-user-management/index.ts";
 import { NodemailerEmailService } from "./shared/email/email-service.ts";
 import { loadBackendEnvironment } from "./shared/config/backend-environment.ts";
-
+import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -134,12 +140,17 @@ function createKnowledgeRetrievalSearchUseCase(
   documentRepository: KnowledgeDocumentRepository,
   accessPolicy: KnowledgeBaseRagAccessPolicy
 ): KnowledgeRetrievalSearchUseCase {
+  const embeddingProvider = process.env.KNOWLEDGE_EMBEDDING_PROVIDER?.trim();
   const hasEmbeddingConfig = Boolean(
-    process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
-      process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
-      process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
-      process.env.KNOWLEDGE_EMBEDDING_MODEL &&
-      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+    embeddingProvider === "openrouter"
+      ? (process.env.OPENROUTER_API_KEY ||
+          process.env.KNOWLEDGE_EMBEDDING_API_KEY) &&
+          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+      : process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
+          process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
+          process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
+          process.env.KNOWLEDGE_EMBEDDING_MODEL &&
+          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
   );
   const hasVectorConfig = Boolean(
     process.env.KNOWLEDGE_VECTOR_PROVIDER &&
@@ -674,6 +685,40 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     knowledgeDocumentRepository,
     knowledgeAccessPolicy
   );
+  const knowledgeFileStorage = new LocalKnowledgeFileStorage();
+  const inlineIngestionEnabled =
+    process.env.KNOWLEDGE_INGESTION_MODE?.trim().toLowerCase() === "inline";
+  let postUploadProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
+  if (inlineIngestionEnabled) {
+    if (!prisma) {
+      throw new Error(
+        "KNOWLEDGE_INGESTION_MODE=inline requires DATABASE_URL and PostgreSQL."
+      );
+    }
+    const embeddingAdapter = createKnowledgeEmbeddingAdapterFromEnvironment();
+    const vectorIndexAdapter =
+      createKnowledgeVectorIndexAdapterFromEnvironment(prisma);
+    const inlineRunner = createKnowledgeBaseRagLocalFlowRunner({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      contentReader: new StoredKnowledgeDocumentContentReader(
+        knowledgeFileStorage,
+        new RuntimeKnowledgeDocumentTextExtractor()
+      ),
+      embeddingAdapter,
+      vectorIndexAdapter,
+      now: () => new Date().toISOString(),
+      generateChunkId: ({ documentId, chunkIndex }) =>
+        `${documentId}:chunk:${chunkIndex}`,
+      generateEventId: () => randomUUID() as any
+    });
+    postUploadProcessor = {
+      async process(input) {
+        const result = await inlineRunner.run(input);
+        return { document: result.document, job: result.job };
+      }
+    };
+  }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
@@ -681,7 +726,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     uploadUseCases: new KnowledgeUploadUseCases({
       documentRepository: knowledgeDocumentRepository,
       ingestionJobRepository: knowledgeIngestionJobRepository,
-      fileStorage: new LocalKnowledgeFileStorage(),
+      fileStorage: knowledgeFileStorage,
+      postUploadProcessor,
       now: () => new Date().toISOString(),
       generateDocumentId: () => randomUUID() as any,
       generateJobId: () => randomUUID() as any
@@ -838,70 +884,19 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   app.use(express.json());
 
-  // Real Auth Session Middleware
-  app.use(async (req, res, next) => {
-    const authHeader = req.header("Authorization") ?? "";
-    if (authHeader.startsWith("Bearer ")) {
-      const rawToken = authHeader.slice("Bearer ".length);
-      try {
-        const user = await authenticateSessionUseCase.execute({ rawToken });
-        (req as any).context = {
-          ...((req as any).context ?? {}),
-          user: {
-            userId: user.userId,
-            email: user.email,
-            displayName: user.displayName
-          }
-        };
-      } catch (err) {
-        // Token invalid or expired: request.context.user remains empty, fallback to fake auth
-      }
-    }
-    next();
-  });
-
-
-  // Fake Auth Middleware for local development (only runs if real user is not resolved)
-  app.use((req, res, next) => {
-    if ((req as any).context?.user) {
-      next();
-      return;
-    }
-
-    const mockUser = req.headers["x-mock-user"] as string | undefined;
-    const role = (req.headers["x-mock-role"] as any) || "host";
-    const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
-    const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
-
-    if (mockUser === "anonymous" || !mockUser) {
-      // No mock header or anonymous: leave unauthenticated (real auth or 401)
-      if (!(req as any).context) {
-        (req as any).context = { requestId: req.headers["x-request-id"] || randomUUID() };
-      }
-    } else {
-      // Explicit mock user requested (e.g. x-mock-user: local-dev-user)
-      (req as any).context = {
-        requestId: req.headers["x-request-id"] || randomUUID(),
-        user: {
-          userId: mockUser,
-          email: "dev@local.test",
-          displayName: "Local Developer"
-        },
-        workspace: {
-          workspaceId,
-          memberId: "local-member",
-          role
-        }
-      };
-    }
-    next();
-  });
-
-  // Apply workspace context middleware globally to all routes under /api/workspaces/:workspaceId
-  app.use(
-    "/api/workspaces/:workspaceId",
-    createWorkspaceContextMiddleware(workspaceUserManagementRepo)
-  );
+  const workspaceRepository = await createWorkspaceRepository();
+  if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
+    const now = new Date().toISOString();
+    await workspaceRepository.save({
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-dev-user" as any,
+      name: "Demo Workspace",
+      status: "running",
+      plan: "premium",
+      createdAt: now,
+      updatedAt: now
+    });
+  }
 
   // ── Workspace Management ───────────────────────────────────────────────────
   // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
@@ -925,20 +920,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       }
     }
   };
-
-  const workspaceRepository = await createWorkspaceRepository();
-  if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
-    const now = new Date().toISOString();
-    await workspaceRepository.save({
-      workspaceId: DEMO_WORKSPACE_ID,
-      userId: "local-dev-user" as any,
-      name: "Demo Workspace",
-      status: "running",
-      plan: "premium",
-      createdAt: now,
-      updatedAt: now
-    });
-  }
   const workspaceUseCases = new WorkspaceUseCases({
     repository: workspaceRepository,
     prisma: nullSafePrisma as any,
@@ -947,6 +928,87 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateWorkspaceId: () => randomUUID() as any,
     generateEventId: () => randomUUID() as any
   });
+
+  // (A) Real auth: populate context.user from Bearer token (never blocks)
+  app.use(createAuthUserContextMiddleware({ authenticateSessionUseCase }));
+
+  // (B) Real workspace resolver: only runs when real user is present AND URL has no
+  // workspaceId segment. When URL contains /:workspaceId, the workspace context is
+  // left to fake auth (C) — setting an incomplete {workspaceId, memberId:null} shape
+  // would break requireWorkspaceContext() callers, so we defer that to a later PR.
+  app.use(async (req, _res, next) => {
+    const ctx = (req as any).context;
+    const user = ctx?.user;
+    if (!user) {
+      next();
+      return;
+    }
+    const urlMatch = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    if (urlMatch) {
+      // URL already has a workspaceId: leave workspace context to fake auth (C).
+      next();
+      return;
+    }
+    try {
+      const membership = await workspaceUseCases.resolveActiveMembership(user.userId);
+      if (membership) {
+        (req as any).context = { ...ctx, workspace: membership };
+      }
+    } catch {
+      // Resolve failed — leave workspace undefined; never block.
+    }
+    next();
+  });
+
+  // (C) Fake Auth Middleware for local development.
+  // It only activates when tests/tools explicitly provide x-mock-user so
+  // browser requests without a real session still exercise the auth flow.
+  app.use((req, _res, next) => {
+    const mockUser = req.headers["x-mock-user"] as string | undefined;
+    const role = (req.headers["x-mock-role"] as any) || "admin";
+    const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
+    const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
+
+    // Always ensure requestId exists
+    const existing = (req as any).context ?? {};
+    if (!existing.requestId) {
+      (req as any).context = { ...existing, requestId: req.headers["x-request-id"] || randomUUID() };
+    }
+
+    if (mockUser === "anonymous") {
+      // anonymous header: clear user + workspace (legacy behaviour)
+      (req as any).context = { ...(req as any).context, user: undefined, workspace: undefined };
+      next();
+      return;
+    }
+
+    if (!mockUser || (req as any).context.user) {
+      next();
+      return;
+    }
+
+    (req as any).context = {
+      ...(req as any).context,
+      user: {
+        userId: mockUser,
+        email: mockUser === "local-email-user" ? localEmailUserEmail ?? "dev@local.test" : "dev@local.test",
+        displayName: "Local Developer"
+      },
+      workspace: {
+        workspaceId,
+        memberId: "local-member",
+        role
+      }
+    };
+    next();
+  });
+
+  app.use(
+    "/api/workspaces/:workspaceId",
+    createWorkspaceContextMiddleware(workspaceUserManagementRepo)
+  );
+
+  // ── Workspace Management ───────────────────────────────────────────────────
 
   // Bridge: EventBus → in-process provisioning (local dev; prod uses @vcp/workers)
   const runtimeAdapter = new MockOpenClawRuntimeAdapter();
@@ -1090,7 +1152,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       orchestrator: openclawOrchestrator,
       adapter: openclawAdapter,
       conversationRepository,
-      createTaskUseCase
+      createTaskUseCase,
+      agentKnowledgeAskPort: {
+        ask(workspaceId, agentId, request) {
+          return knowledgeBaseRagUseCases.agentKnowledgeOrchestrationUseCase.ask(
+            workspaceId,
+            agentId,
+            request
+          );
+        }
+      }
     })
   );
 
@@ -1119,7 +1190,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     ...knowledgeBaseRagUseCases,
     checkoutUseCases
   }));
-
 
   app.use(
     "/api/auth",

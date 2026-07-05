@@ -39,14 +39,7 @@ export function TaskConversation({
   const isStreaming = task.streamingSnapshot.phase === "streaming";
   const shouldShowPartialResult =
     task.status === "running" &&
-    partialText.trim().length > 0 &&
-    task.processingSnapshot.steps.some(
-      (s) =>
-        (s.id === "execute-task" ||
-          s.id === "aggregate-result" ||
-          s.id === "finalize") &&
-        (s.status === "active" || s.status === "completed")
-    );
+    partialText.trim().length > 0;
 
   return (
     <div className="task-conversation" aria-label="Task chat conversation">
@@ -129,11 +122,12 @@ export function TaskAssistantMessage({
   const isCanceled = task.status === "cancelled";
   const isSucceeded = task.status === "succeeded";
   const isNonTerminal = task.status === "queued" || task.status === "running";
+  const hasCapturedRuntimeProgress = hasProviderRuntimeProgress(task);
   const presentationStatus = toTaskPresentationStatus(task.status);
   const presentationStatusLabel = presentationStatus
     ? TASK_STATUS_LABELS[presentationStatus]
     : null;
-  const toolbarStatusLabel = isNonTerminal ? null : presentationStatusLabel;
+  const toolbarStatusLabel = isNonTerminal || hasCapturedRuntimeProgress ? null : presentationStatusLabel;
 
   return (
     <div
@@ -159,7 +153,7 @@ export function TaskAssistantMessage({
           </div>
         </div>
 
-        {isNonTerminal ? (
+        {isNonTerminal || hasCapturedRuntimeProgress ? (
           <TaskAssistantProgressSummary task={task} onCancelTask={onCancelTask} />
         ) : null}
 
@@ -197,5 +191,27 @@ export function TaskAssistantMessage({
         />
       </div>
     </div>
+  );
+}
+
+function hasProviderRuntimeProgress(task: CreatedTaskRecord): boolean {
+  return (
+    task.processingSnapshot.steps.some((step) => {
+      const label = step.label.toLowerCase();
+      return (
+        step.id.startsWith("openclaw-") ||
+        step.id.includes("vcp-run") ||
+        label.includes("openclaw") ||
+        label === "agent activity" ||
+        label === "thinking" ||
+        label === "searching web" ||
+        label === "calling tool" ||
+        label === "composing response"
+      );
+    }) ||
+    task.processingSnapshot.logs.some((log) => {
+      const message = log.message.toLowerCase();
+      return log.stepId.startsWith("openclaw-") || log.stepId.includes("vcp-run") || message.includes("openclaw");
+    })
   );
 }

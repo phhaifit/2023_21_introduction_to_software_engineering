@@ -7,7 +7,7 @@ import type {
 } from "../worker/knowledge-embedding-adapter.ts";
 
 export type OpenAICompatibleKnowledgeEmbeddingConfig = {
-  provider: "openai-compatible";
+  provider: "openai-compatible" | "openrouter";
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -15,6 +15,9 @@ export type OpenAICompatibleKnowledgeEmbeddingConfig = {
   batchSize: number;
   timeoutMs: number;
 };
+
+const OPENROUTER_EMBEDDING_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 
 export type KnowledgeEmbeddingEnvironment = Partial<
   Record<
@@ -24,7 +27,8 @@ export type KnowledgeEmbeddingEnvironment = Partial<
     | "KNOWLEDGE_EMBEDDING_MODEL"
     | "KNOWLEDGE_EMBEDDING_DIMENSIONS"
     | "KNOWLEDGE_EMBEDDING_BATCH_SIZE"
-    | "KNOWLEDGE_EMBEDDING_TIMEOUT_MS",
+    | "KNOWLEDGE_EMBEDDING_TIMEOUT_MS"
+    | "OPENROUTER_API_KEY",
     string
   >
 >;
@@ -128,11 +132,7 @@ export class OpenAICompatibleKnowledgeEmbeddingAdapter
           authorization: `Bearer ${this.config.apiKey}`,
           "content-type": "application/json"
         },
-        body: JSON.stringify({
-          model: this.config.model,
-          input: texts,
-          dimensions: this.config.dimensions
-        }),
+        body: JSON.stringify(createEmbeddingRequestBody(this.config, texts)),
         signal: controller.signal
       });
       if (!response.ok) {
@@ -167,11 +167,20 @@ export function readKnowledgeEmbeddingConfig(
   environment: KnowledgeEmbeddingEnvironment
 ): OpenAICompatibleKnowledgeEmbeddingConfig {
   const provider = environment.KNOWLEDGE_EMBEDDING_PROVIDER?.trim();
+  const isOpenRouter = provider === "openrouter";
   const config = {
     provider,
-    baseUrl: environment.KNOWLEDGE_EMBEDDING_BASE_URL?.trim() ?? "",
-    apiKey: environment.KNOWLEDGE_EMBEDDING_API_KEY?.trim() ?? "",
-    model: environment.KNOWLEDGE_EMBEDDING_MODEL?.trim() ?? "",
+    baseUrl:
+      environment.KNOWLEDGE_EMBEDDING_BASE_URL?.trim() ||
+      (isOpenRouter ? OPENROUTER_EMBEDDING_BASE_URL : ""),
+    apiKey:
+      (isOpenRouter
+        ? environment.OPENROUTER_API_KEY?.trim() ||
+          environment.KNOWLEDGE_EMBEDDING_API_KEY?.trim()
+        : environment.KNOWLEDGE_EMBEDDING_API_KEY?.trim()) ?? "",
+    model:
+      environment.KNOWLEDGE_EMBEDDING_MODEL?.trim() ||
+      (isOpenRouter ? OPENROUTER_EMBEDDING_MODEL : ""),
     dimensions: parsePositiveInteger(
       environment.KNOWLEDGE_EMBEDDING_DIMENSIONS,
       "KNOWLEDGE_EMBEDDING_DIMENSIONS"
@@ -186,12 +195,12 @@ export function readKnowledgeEmbeddingConfig(
     )
   };
 
-  if (provider !== "openai-compatible") {
+  if (provider !== "openai-compatible" && provider !== "openrouter") {
     throw invalidConfiguration();
   }
   const typedConfig: OpenAICompatibleKnowledgeEmbeddingConfig = {
     ...config,
-    provider
+    provider: provider as OpenAICompatibleKnowledgeEmbeddingConfig["provider"]
   };
   validateKnowledgeEmbeddingConfig(typedConfig);
   return typedConfig;
@@ -211,7 +220,8 @@ function validateKnowledgeEmbeddingConfig(
   config: OpenAICompatibleKnowledgeEmbeddingConfig
 ): void {
   if (
-    config.provider !== "openai-compatible" ||
+    (config.provider !== "openai-compatible" &&
+      config.provider !== "openrouter") ||
     !config.apiKey ||
     !config.model ||
     !Number.isSafeInteger(config.dimensions) ||
@@ -232,6 +242,17 @@ function validateKnowledgeEmbeddingConfig(
   } catch {
     throw invalidConfiguration();
   }
+}
+
+function createEmbeddingRequestBody(
+  config: OpenAICompatibleKnowledgeEmbeddingConfig,
+  texts: readonly string[]
+) {
+  return {
+    model: config.model,
+    input: texts,
+    ...(config.provider === "openrouter" ? {} : { dimensions: config.dimensions })
+  };
 }
 
 function parsePositiveInteger(value: string | undefined, field: string): number {

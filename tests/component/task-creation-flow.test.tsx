@@ -333,6 +333,29 @@ describe("Task 6B task creation UI flow", () => {
       stepId: "api-call-status",
       message: "Fetching provider status"
     });
+
+    eventSources[0].emit({
+      type: "sub-activity",
+      taskId: "TASK-ACTIVITY",
+      workId: "WORK-ACTIVITY",
+      activityType: "provider-diagnostic",
+      stepId: "provider-diagnostic-thinking",
+      displayLabel: "Thinking",
+      summary: "Planning next action",
+      status: "in-progress",
+      providerEventName: "session.reasoning.delta",
+      timestamp: "2026-06-24T12:00:04.000Z"
+    });
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "step-started",
+      stepName: "Thinking"
+    }));
+    const thinkingSnapshot = handler.mock.calls.at(-1)?.[0]?.taskSnapshot;
+    expect(thinkingSnapshot?.processingSnapshot.logs.at(-1)).toMatchObject({
+      stepId: "provider-diagnostic-thinking",
+      message: "Planning next action"
+    });
   });
 
   it("creates one pending auto-routed task through the public client boundary", async () => {

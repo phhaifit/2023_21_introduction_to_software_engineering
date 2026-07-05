@@ -42,6 +42,19 @@ function stubLocalStorage(): Storage {
   return storage;
 }
 
+function headerValue(headers: HeadersInit | undefined, name: string): string | null {
+  if (!headers) return null;
+  if (headers instanceof Headers) {
+    return headers.get(name);
+  }
+  if (Array.isArray(headers)) {
+    const entry = headers.find(([key]) => key.toLowerCase() === name.toLowerCase());
+    return entry?.[1] ?? null;
+  }
+  const record = headers as Record<string, string>;
+  return record[name] ?? record[name.toLowerCase()] ?? null;
+}
+
 describe("Workspace Management API client", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -95,9 +108,7 @@ describe("Workspace Management API client", () => {
     await listWorkspaces();
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(init.headers).toMatchObject({
-      Authorization: "Bearer session-token"
-    });
+    expect(headerValue(init.headers, "Authorization")).toBe("Bearer session-token");
   });
 
   it("sends the persisted auth token when creating a workspace", async () => {
@@ -115,8 +126,6 @@ describe("Workspace Management API client", () => {
     await createWorkspace({ name: "Workspace 1", plan: "standard" });
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(init.headers).toMatchObject({
-      Authorization: "Bearer session-token"
-    });
+    expect(headerValue(init.headers, "Authorization")).toBe("Bearer session-token");
   });
 });

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ConfirmButton } from "../../components/shared/ConfirmButton";
+import { useToast } from "../../components/shared/Toast";
 import { SectionCard } from "../../components/shared/SectionCard";
 import { WorkflowStepsTable } from "./components/WorkflowStepsTable";
 import type { WorkflowStepDto } from "@vcp/shared/contracts/workflow.ts";
@@ -12,6 +13,7 @@ import { mockExecutions } from "../../data/executions.ts";
 import { Trash2 } from "lucide-react";
 
 export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, importedData, onExecutionSuccess, onCancel }: { apiClient?: WorkflowManagementApiClient; workflowId?: string | null; importedData?: any; onExecutionSuccess?: () => void; onCancel?: () => void }) {
+  const { showSuccess } = useToast();
   const [formData, setFormData] = useState<{
     workflowId: string;
     workspaceId: string;
@@ -275,7 +277,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
         completedAt: null,
       });
 
-      alert("Workflow execution requested successfully! (Handoff to Task Orchestration)");
+      showSuccess("Workflow execution requested successfully! (Handoff to Task Orchestration)");
       if (onExecutionSuccess) {
         onExecutionSuccess();
       }
@@ -345,7 +347,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
         await apiClient.updateWorkflow(DEMO_WORKSPACE_ID, formData.workflowId as EntityId<"workflowId">, { ...payload, status: formData.status as any });
       }
       
-      alert("Workflow saved successfully! You can now Run the workflow.");
+      showSuccess("Workflow saved successfully! You can now Run the workflow.");
     } catch (err: any) {
       console.error("Failed to save workflow:", err);
       if (err.message?.includes("agents are missing or disabled")) {
@@ -493,7 +495,7 @@ export function WorkflowEditorPage({ apiClient: providedApiClient, workflowId, i
                 />
                 <button
                   className="secondary-action"
-                  onClick={() => alert('Webhook URL copied!')}
+                  onClick={() => showSuccess('Webhook URL copied!')}
                   style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}
                 >
                   Copy

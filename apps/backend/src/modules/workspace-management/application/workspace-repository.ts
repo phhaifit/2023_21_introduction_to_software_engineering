@@ -10,11 +10,18 @@ export type WorkspaceStatusUpdate = Partial<
   Pick<Workspace, "status" | "runtimeUrl" | "containerId" | "failureReason">
 >;
 
+export type MembershipRecord = {
+  workspaceId: EntityId<"workspaceId">;
+  memberId: EntityId<"memberId">;
+  role: string;
+};
+
 export interface WorkspaceRepository {
   save(workspace: Workspace): Promise<Workspace>;
   findById(workspaceId: EntityId<"workspaceId">): Promise<Workspace | null>;
   listAccessibleByUser(userId: EntityId<"userId">): Promise<Workspace[]>;
   listAllActive(): Promise<Workspace[]>;
+  findActiveMembershipByUser(userId: EntityId<"userId">): Promise<MembershipRecord | null>;
   updateStatus(
     workspaceId: EntityId<"workspaceId">,
     update: WorkspaceStatusUpdate,

@@ -42,8 +42,9 @@ function LogsModal({
           `> Allocating resources... OK`
         ];
 
+        let stepIndex = 1;
         for (const step of data) {
-          const stepOrder = stepsMap.get(step.workflowStepId) || step.stepOrder || "?";
+          const stepOrder = stepsMap.get(step.workflowStepId) || step.stepOrder || stepIndex++;
           const stepPrefix = `Step ${stepOrder}`;
           formattedLogs.push(`> [Running] ${stepPrefix} - Agent step ${step.workflowStepId} started...`);
           if (step.status === "Success") {

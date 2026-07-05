@@ -170,6 +170,8 @@ describe("TaskAssistantProgressSummary", () => {
     ["Calling API", "Calling API"],
     ["Reading Roadmap.pdf", "Reading Roadmap.pdf"],
     ["Read workspace file", "Reading workspace"],
+    ["reasoning about next action", "Thinking"],
+    ["Thinking", "Thinking"],
     ["final output", "Composing response"]
   ])("summarizes provider activity %s", (label, expected) => {
     expect(resolveActivityLabel(label).label).toBe(expected);
@@ -191,15 +193,39 @@ describe("TaskAssistantProgressSummary", () => {
     expect(screen.getAllByText("Calling browser").length).toBeGreaterThan(0);
     expect(screen.getByText("Searching web")).toBeVisible();
   });
+
+  it("keeps captured provider activity visible after fast completion", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createTaskWithRuntimeProgress(
+          [
+            { id: "openclaw-agent", label: "Agent activity", status: "completed" }
+          ],
+          "succeeded"
+        )}
+      />
+    );
+
+    expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
+    expect(screen.getAllByText("Agent activity").length).toBeGreaterThan(0);
+    expect(screen.getByText(/1\/1 steps/)).toBeVisible();
+  });
 });
 
 function createRunningTask(steps: ProcessingStep[]): CreatedTaskRecord {
+  return createTaskWithRuntimeProgress(steps, "running");
+}
+
+function createTaskWithRuntimeProgress(
+  steps: ProcessingStep[],
+  status: CreatedTaskRecord["status"]
+): CreatedTaskRecord {
   return {
     taskId: "TASK-001" as import("@vcp/shared").EntityId<"taskId">,
     workId: "WORK-001" as import("@vcp/shared").EntityId<"workId">,
     prompt: "Run provider activity",
     requestedRouting: { mode: "auto" },
-    status: "running",
+    status,
     createdAt: "2026-06-30T00:00:00.000Z",
     processingSnapshot: {
       startedAt: "2026-06-30T00:00:00.000Z",

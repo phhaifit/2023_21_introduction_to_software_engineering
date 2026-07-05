@@ -131,6 +131,7 @@ Note: the full `npm test` suite may fail in the task-orchestration contract runn
 - [API route matrix](docs/api/module-api-contracts.md)
 - [Pull request checklist](docs/pr-checklist.md)
 - [Knowledge Base / RAG local demo](docs/knowledge-base-rag-local-demo.md)
+- [Final local KB/RAG demo script](docs/demo/kb-rag/final-local-rag-demo-script.md)
 
 ## OpenSpec
 
