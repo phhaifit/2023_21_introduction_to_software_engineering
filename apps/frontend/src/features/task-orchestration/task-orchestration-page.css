@@ -1643,6 +1643,8 @@
   pointer-events: none;
   transition: opacity 0.15s ease;
   width: 28px;
+  position: relative;
+  z-index: 5;
 }
 
 .task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,
