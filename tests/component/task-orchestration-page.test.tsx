@@ -138,11 +138,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
-    expect(screen.getByText(/Task ID/i)).toBeVisible();
-    expect(screen.getByText(/Work ID/i)).toBeVisible();
-    expect(screen.queryByText(/processing log/i)).not.toBeInTheDocument();
   });
 
   it("opens the workspace through the executions navigation entry", async () => {

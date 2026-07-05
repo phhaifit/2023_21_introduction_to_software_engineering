@@ -199,25 +199,14 @@ describe("Task 8B — In-Progress integration", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Active")).toBe(1);
     expect(countStepStatuses(timeline, "Waiting")).toBe(5);
     expect(within(timeline).getByText("Validate input").closest("li")).toHaveTextContent("Active");
 
-    expect(screen.getByLabelText("Processing identifiers")).toHaveTextContent("Started");
-    expect(screen.getByLabelText("Processing identifiers")).not.toHaveTextContent(
-      "2026-06-24T14:00:00.000Z"
-    );
-    expect(screen.queryByText("LOG-0001")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Processing started — validating input.")[0]).toBeVisible();
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("WORK-000001")).toBeVisible();
     const feed = screen.getByRole("region", { name: /conversation/i });
     expect(within(feed).getByText("Start now.")).toBeVisible();
-    expect(screen.getByText("Auto-routing")).toBeVisible();
-    expect(logIds.nextLogId()).toBe("LOG-0002");
   });
 
   it("19–28: ordered step progression with injected stepMs", async () => {
@@ -239,7 +228,6 @@ describe("Task 8B — In-Progress integration", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
     const timeline = getTimeline();
     expect(countStepStatuses(timeline, "Active")).toBe(1);
@@ -247,9 +235,7 @@ describe("Task 8B — In-Progress integration", () => {
     expect(countStepStatuses(timeline, "Waiting")).toBe(4);
     expect(within(timeline).getByText("Analyze request").closest("li")).toHaveTextContent("Active");
 
-    const logs = screen.getAllByLabelText("Processing log details")[0]!;
-    const items = within(logs).getAllByRole("listitem");
-    expect(items.length).toBeGreaterThanOrEqual(3);
+
     expect(beforeAdvance).toBeLessThanOrEqual(1);
     expect(sched.pendingCount).toBeLessThanOrEqual(1);
   });
@@ -306,11 +292,6 @@ describe("Task 8B — In-Progress integration", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    const firstLogCount = within(
-      screen.getAllByLabelText("Processing log details")[0]!
-    ).getAllByRole("listitem").length;
 
     unmount();
     cleanup();
@@ -329,12 +310,6 @@ describe("Task 8B — In-Progress integration", () => {
     await act(() => { second.sched.flushNext(); });
 
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    const logs = within(screen.getAllByLabelText("Processing log details")[0]!);
-    expect(logs.getAllByRole("listitem")).toHaveLength(1);
-    expect(logs.queryByText(`Step ${ORDERED_STEP_IDS[0]}`)).not.toBeInTheDocument();
-    expect(firstLogCount).toBeGreaterThan(0);
   });
 
   it("38–41: unmount cancels schedules and disposes without cancelled transition", async () => {

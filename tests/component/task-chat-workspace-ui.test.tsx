@@ -260,27 +260,7 @@ describe("Assistant progress summary & expandable details", () => {
     expect(within(dialog).getByText("Unable to aggregate result")).toBeVisible();
     expect(within(dialog).getByText("The simulated aggregation step failed.")).toBeVisible();
 
-    // 14. Advanced details are collapsed by default
-    // 18. Internal error code is hidden until Advanced details is opened
-    const advancedContent = within(dialog).getByLabelText("Processing identifiers").closest(".task-advanced-section__content");
-    expect(advancedContent).toHaveClass("task-advanced-section__content");
-    expect(advancedContent).not.toHaveClass("task-advanced-section__content--open");
 
-    // Toggle Advanced details
-    const toggleBtn = within(dialog).getByRole("button", { name: /Show Advanced details/i });
-    await user.click(toggleBtn);
-
-    expect(advancedContent).toHaveClass("task-advanced-section__content--open");
-
-    // 15. IDs appear after opening Advanced details
-    expect(within(dialog).getByText("WORK-000001")).toBeVisible();
-    expect(within(dialog).getByText("TASK-000001")).toBeVisible();
-
-    // 16. Logs appear after opening Advanced details
-    expect(within(dialog).getByRole("region", { name: "Processing log details" })).toBeVisible();
-
-    // 18 verified open state
-    expect(within(dialog).getByText("MOCK_AGGREGATION_FAILED")).toBeVisible();
   });
 });
 

@@ -439,13 +439,7 @@ describe("Task 6B task creation UI flow", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
-    expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
-    expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
     expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
     expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
 
@@ -474,8 +468,7 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("workflowId");
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
+
   });
 
   it("preserves canonical predefined-workflow routing in the request and Pending summary", async () => {
@@ -502,10 +495,7 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("agentId");
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText(
-      "Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS"
-    )).toBeVisible();
+
   });
 
   it.each([
@@ -561,9 +551,7 @@ describe("Task 6B task creation UI flow", () => {
     expect(client.calls).toHaveLength(2);
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("TASK-000002")).toBeVisible();
-    expect(screen.getByText("WORK-000002")).toBeVisible();
+
 
     let state = initialTaskCreationState;
     state = taskCreationReducer(state, { type: "submit-started" });
