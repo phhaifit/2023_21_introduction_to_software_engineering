@@ -1080,20 +1080,25 @@
 .task-assistant-progress {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
 }
 
 .task-assistant-progress__icon {
   color: #6366f1;
   flex: none;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .task-assistant-progress__text {
-  color: #64748b;
-  font-size: 0.94rem;
-  line-height: 1.65;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
