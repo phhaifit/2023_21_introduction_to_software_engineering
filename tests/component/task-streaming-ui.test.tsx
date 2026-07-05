@@ -242,7 +242,6 @@ describe("Task 9B streaming UI integration", () => {
     expect(screen.getByRole("region", { name: /partial result/i })).toBeVisible();
     expect(screen.getByLabelText("Accumulated partial result")).toHaveTextContent("Alpha");
     expect(scheduler.pendingCount(FRAGMENT_MS)).toBe(1);
-    expect(screen.getAllByText("Partial Result")).toHaveLength(1);
   });
 
   it("renders progressive partial output in order without skipping or duplicating context", async () => {

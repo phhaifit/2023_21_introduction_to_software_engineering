@@ -3,7 +3,6 @@ import type { CreatedTaskRecord, TaskPresentationStatus } from "../model/task-ty
 import { selectAccumulatedPartialText } from "../model/task-streaming";
 import { toTaskPresentationStatus } from "../model/task-lifecycle";
 import { TaskCompletedResult } from "./task-completed-result";
-import { TaskPartialResult } from "./task-partial-result";
 import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
@@ -130,7 +129,6 @@ export function TaskAssistantMessage({
     : null;
   const shouldShowRuntimeStatus =
     isNonTerminal &&
-    !shouldShowPartialResult &&
     (hasCapturedRuntimeProgress || task.status === "queued");
   const toolbarStatusLabel = shouldShowRuntimeStatus ? null : presentationStatusLabel;
 
@@ -168,27 +166,37 @@ export function TaskAssistantMessage({
           <TaskFailedState task={task} onRetry={onRetryTask} />
         ) : isCanceled ? (
           <TaskCanceledState task={task} />
-        ) : shouldShowPartialResult ? (
-          <TaskPartialResult partialText={partialText} phase={task.streamingSnapshot.phase} />
-        ) : !shouldShowRuntimeStatus || isStreaming ? (
+        ) : (
           <div className="task-conversation__streaming-area task-conversation__streaming-area--compact">
-            {isStreaming ? (
-              <div className="task-conversation__indicator task-loading-pulse" role="status">
-                Generating response...
-              </div>
-            ) : null}
-            {!shouldShowRuntimeStatus ? (
-              <TaskMarkdown
-                className="task-conversation__partial-text task-markdown"
-                aria-live="polite"
-                text={
-                  partialText ||
-                  (task.status === "queued" ? "Waiting for runtime..." : "Working on it")
-                }
-              />
-            ) : null}
+            {partialText ? (
+              <section aria-label="Partial Result">
+                <TaskMarkdown
+                  className="task-conversation__partial-text task-markdown"
+                  aria-label="Accumulated partial result"
+                  aria-live="polite"
+                  text={partialText}
+                />
+              </section>
+            ) : (
+              <>
+                {isStreaming ? (
+                  <div className="task-conversation__indicator task-loading-pulse" role="status">
+                    Generating response...
+                  </div>
+                ) : null}
+                {!shouldShowRuntimeStatus ? (
+                  <TaskMarkdown
+                    className="task-conversation__partial-text task-markdown"
+                    aria-live="polite"
+                    text={
+                      task.status === "queued" ? "Waiting for runtime..." : "Working on it"
+                    }
+                  />
+                ) : null}
+              </>
+            )}
           </div>
-        ) : null}
+        )}
         <TaskTurnActionsMenu
           task={task}
           prompt={task.prompt}
