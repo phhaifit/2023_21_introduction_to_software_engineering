@@ -129,6 +129,7 @@ export function TaskAssistantMessage({
     : null;
   const shouldShowRuntimeStatus =
     isNonTerminal &&
+    !partialText &&
     (hasCapturedRuntimeProgress || task.status === "queued");
   const toolbarStatusLabel = shouldShowRuntimeStatus ? null : presentationStatusLabel;
 
