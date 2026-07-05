@@ -511,17 +511,6 @@ export function WorkspaceMembersPage() {
                           Transfer Host
                         </button>
                       ) : null}
-                      {canRemoveMember(member) ? (
-                        <button
-                          type="button"
-                          className="wum-icon-danger"
-                          onClick={() => confirmRemove(member)}
-                          aria-label="Remove member"
-                          title="Remove member"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -613,15 +602,6 @@ export function WorkspaceMembersPage() {
                             title="Resend Invitation"
                           >
                             <Activity size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            className="wum-icon-danger"
-                            onClick={() => confirmCancelInvitation(invitation)}
-                            disabled={isResolved}
-                            title="Cancel Invitation"
-                          >
-                            <X size={16} />
                           </button>
                         </div>
                       </td>
