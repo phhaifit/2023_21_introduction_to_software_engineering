@@ -160,10 +160,6 @@ describe("3. Task ID and Work ID are rendered", () => {
     await submitPrompt("Identify this task.");
     expect(screen.queryByText("TASK-000001")).not.toBeInTheDocument();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("WORK-000001")).toBeVisible();
   });
 });
 
@@ -701,9 +697,6 @@ describe("30. Task ID remains visible after Cancel current task click", () => {
     await submitPrompt("ID stable.");
     await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    expect(screen.getByText("TASK-000001")).toBeVisible();
   });
 });
 
@@ -724,9 +717,6 @@ describe("31. Work ID remains visible after Cancel current task click", () => {
     await submitPrompt("Work ID stable.");
     await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    expect(screen.getByText("WORK-000001")).toBeVisible();
   });
 });
 

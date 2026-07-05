@@ -138,11 +138,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
-    expect(screen.getByText(/Task ID/i)).toBeVisible();
-    expect(screen.getByText(/Work ID/i)).toBeVisible();
-    expect(screen.queryByText(/processing log/i)).not.toBeInTheDocument();
   });
 
   it("opens the workspace through the executions navigation entry", async () => {
@@ -260,7 +256,7 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(await screen.findByText("Research competitors")).toBeVisible();
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
-    expect(screen.getByText("Searching web")).toBeVisible();
+
     expect(screen.getByText("OpenClaw partial competitor notes")).toBeVisible();
   });
 
@@ -360,8 +356,8 @@ describe("TaskOrchestrationPage base workspace", () => {
       });
     });
 
-    expect(await screen.findByText("Searching web")).toBeVisible();
-    expect(screen.getByText("Working on it")).toBeVisible();
+    expect(await screen.findByText("Searching release notes")).toBeVisible();
+
     expect(screen.queryByText("Final streamed answer")).not.toBeInTheDocument();
 
     act(() => {

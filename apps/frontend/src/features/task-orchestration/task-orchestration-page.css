@@ -1178,13 +1178,27 @@
 }
 
 .task-assistant-progress {
-  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.task-assistant-progress__icon {
+  color: #6366f1;
+  flex: none;
+  margin-top: 2px;
 }
 
 .task-assistant-progress__text {
-  color: #0f172a;
-  font-size: 0.94rem;
-  line-height: 1.65;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -1729,6 +1743,8 @@
   pointer-events: none;
   transition: opacity 0.15s ease;
   width: 28px;
+  position: relative;
+  z-index: 5;
 }
 
 .task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,

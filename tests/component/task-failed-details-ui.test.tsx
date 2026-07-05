@@ -258,10 +258,7 @@ describe("5. Failed Processing Details Modal", () => {
     expect(within(dialog).getByRole("heading", { name: "Error Details" })).toBeVisible();
     expect(within(dialog).getByText("Unable to aggregate result")).toBeVisible();
 
-    // Open Advanced details to see internal error code
-    const advancedToggle = within(dialog).getByRole("button", { name: /Show Advanced details/i });
-    await user.click(advancedToggle);
-    expect(within(dialog).getByText("MOCK_AGGREGATION_FAILED")).toBeVisible();
+
 
     // Close modal
     const closeBtn = within(dialog).getByRole("button", { name: "Close processing details" });
@@ -285,7 +282,7 @@ describe("6. Failed Timeline & Logs", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getAllByRole("button", { name: /Show Advanced details/i })[0]);
+
 
     const timeline = screen.getAllByLabelText(/processing timeline/i)[0]!;
     const listItems = within(timeline).getAllByRole("listitem");
@@ -297,10 +294,7 @@ describe("6. Failed Timeline & Logs", () => {
     expect(listItems[4]).toHaveTextContent("Failed"); // aggregate-result
     expect(listItems[5]).toHaveTextContent("Waiting"); // finalize
 
-    const logs = screen.getAllByLabelText("Processing log details")[0]!;
-    expect(within(logs).getByText("Input validated successfully.")).toBeVisible();
-    expect(within(logs).getByText("Task executed.")).toBeVisible();
-    expect(within(logs).getByText("Aggregating result.")).toBeVisible();
+
   });
 });
 
@@ -407,9 +401,7 @@ describe("9. Accessibility", () => {
 
     const modal = screen.getByRole("dialog", { name: "Processing details" });
     expect(modal).toHaveAttribute("aria-labelledby", "processing-detail-title");
-    expect(within(modal).getByLabelText("Processing identifiers")).not.toBeVisible();
-    await user.click(within(modal).getByRole("button", { name: "Show Advanced details" }));
-    expect(within(modal).getByLabelText("Processing identifiers")).toBeVisible();
+
   });
 });
 

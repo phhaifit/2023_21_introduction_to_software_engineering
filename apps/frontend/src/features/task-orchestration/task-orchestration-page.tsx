@@ -360,6 +360,7 @@ export function TaskOrchestrationPage({
   }
 
   function handleDeleteConversationRequest(conversationId: string): void {
+    console.log("Delete requested for conversation:", conversationId);
     // Always allow deletion — user can force-delete even stuck/running conversations
     setDeleteConversationTargetId(conversationId);
   }
@@ -392,13 +393,18 @@ export function TaskOrchestrationPage({
           DEMO_WORKSPACE_ID,
           deleteConversationTargetId
         );
-      } catch {
-        dispatchTaskAction({
-          type: "submission-failed",
-          message: "Conversation could not be deleted. Try again after sync completes."
-        });
-        setDeleteConversationTargetId(null);
-        return;
+      } catch (err: any) {
+        if (err.message && err.message.toLowerCase().includes("not found")) {
+          // If the server says it's not found, it's already deleted (e.g. after a memory reset), so we can proceed with local deletion.
+          console.warn("Conversation not found on backend, proceeding with local deletion.");
+        } else {
+          dispatchTaskAction({
+            type: "submission-failed",
+            message: "Conversation could not be deleted. Try again after sync completes."
+          });
+          setDeleteConversationTargetId(null);
+          return;
+        }
       }
     }
 

@@ -361,6 +361,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private subscriptionHandlers = new Map<string, { taskId: string; handler: (event: TaskRuntimeEvent) => void }>();
   private knowledgeTaskIds = new Set<string>();
   private subIdCounter = 1;
+  private replayedTasks = new Set<string>();
 
   constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
     if (!config.baseUrl) {
@@ -559,6 +560,11 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     taskId: string,
     handler: (event: TaskRuntimeEvent) => void
   ): Promise<void> {
+    if (this.replayedTasks.has(taskId)) {
+      return;
+    }
+    this.replayedTasks.add(taskId);
+
     try {
       const res = await fetch(
         `${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/state`
