@@ -1,0 +1,125 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.confirmation-modal-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-soft, #eaeaea);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 440px;
+  padding: 24px;
+  position: relative;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.confirmation-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.confirmation-modal-header h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-main, #111827);
+  margin: 0;
+}
+
+.warning-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.warning-icon-wrapper.danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.warning-icon-wrapper.warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.confirmation-modal-body p {
+  font-size: 0.95rem;
+  color: var(--text-muted, #4b5563);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.confirmation-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.confirmation-modal-footer button {
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-cancel {
+  background-color: var(--bg-soft, #f3f4f6);
+  color: var(--text-muted, #4b5563);
+}
+
+.btn-cancel:hover {
+  background-color: var(--border-soft, #e5e7eb);
+  color: var(--text-main, #111827);
+}
+
+.btn-danger-confirm {
+  background-color: #ef4444;
+  color: white;
+}
+
+.btn-danger-confirm:hover {
+  background-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+
+.btn-primary-confirm {
+  background-color: var(--accent, #007bff);
+  color: white;
+}
+
+.btn-primary-confirm:hover {
+  background-color: var(--accent-hover, #0056b3);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
