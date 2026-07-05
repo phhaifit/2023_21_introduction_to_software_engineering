@@ -12,8 +12,7 @@ import {
   Library,
   ListChecks,
   Settings,
-  User,
-  Users
+  User
 } from "lucide-react";
 
 import type { PageKey } from "../../types/navigation";
@@ -93,8 +92,6 @@ export function Sidebar() {
     </aside>
   );
 }
-
-import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
 type NavigationGroupProps = {
   items: readonly NavigationItem[];
