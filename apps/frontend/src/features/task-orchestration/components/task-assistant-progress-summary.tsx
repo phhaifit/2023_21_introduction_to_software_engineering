@@ -201,7 +201,7 @@ function isDisplayableActivity(activity: ActivityLabel, rawText?: string): boole
 }
 
 function isGenericRuntimeActivity(label: string): boolean {
-  return /^(start|started|finish|finishing|finished|end|ended|agent activity|openclaw activity|processing|queued)$/.test(label);
+  return /^(start|started|finish|finishing|finished|end|ended|openclaw activity|processing|queued)$/.test(label);
 }
 
 function isGenericActivityHint(hint: string): boolean {

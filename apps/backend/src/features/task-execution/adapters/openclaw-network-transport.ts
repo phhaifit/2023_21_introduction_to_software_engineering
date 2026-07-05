@@ -361,9 +361,12 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
       try {
         return await this.startControlProtocolExecution(endpoint, credentialReference, request);
       } catch (err: any) {
+        const deviceId = getPersistedGatewayDeviceId();
         console.warn(
           `[OpenClaw Transport] Gateway Control unavailable; using OpenAI-compatible SSE fallback. ` +
-          `Progress events may be limited. Reason: ${sanitizeObservabilityPayload(err?.message || String(err))}`
+          `Progress events may be limited. ` +
+          `${deviceId ? `Approve deviceId=${deviceId}. ` : ""}` +
+          `Reason: ${sanitizeObservabilityPayload(err?.message || String(err))}`
         );
       }
     }
@@ -879,9 +882,9 @@ function normalizeControlProtocolError(err: any): Error {
   }));
 }
 
-const GATEWAY_CONTROL_CLIENT_ID = "vcp-backend-task-orchestration";
-const GATEWAY_CONTROL_CLIENT_MODE = "node";
-const GATEWAY_CONTROL_CLIENT_PLATFORM = "node-host";
+const GATEWAY_CONTROL_CLIENT_ID = "openclaw-control-ui";
+const GATEWAY_CONTROL_CLIENT_MODE = "webchat";
+const GATEWAY_CONTROL_CLIENT_PLATFORM = "node";
 const GATEWAY_CONTROL_SCOPES = ["operator.read", "operator.write", "operator.approvals"];
 
 class NodeGatewayControlClient implements GatewayControlClient {
@@ -939,6 +942,7 @@ class NodeGatewayControlClient implements GatewayControlClient {
       const onConnect = () => {
         const key = crypto.randomBytes(16).toString("base64");
         const path = `${wsUrl.pathname || "/"}${wsUrl.search || ""}`;
+        const origin = getGatewayControlOrigin(this.endpoint);
         this.socket?.write([
           `GET ${path} HTTP/1.1`,
           `Host: ${wsUrl.host}`,
@@ -946,6 +950,7 @@ class NodeGatewayControlClient implements GatewayControlClient {
           "Connection: Upgrade",
           `Sec-WebSocket-Key: ${key}`,
           "Sec-WebSocket-Version: 13",
+          `Origin: ${origin}`,
           "User-Agent: vcp-backend-task-orchestration",
           "\r\n"
         ].join("\r\n"));
@@ -1164,11 +1169,65 @@ function loadGatewayDeviceIdentity(): {
         privateKey: crypto.createPrivateKey(raw.privateKeyPem)
       };
     }
+    if (raw.privateKeyPem) {
+      const privateKey = crypto.createPrivateKey(raw.privateKeyPem);
+      const publicKey = (crypto.createPublicKey as unknown as (key: crypto.KeyObject) => crypto.KeyObject)(privateKey);
+      const identity = toGatewayDeviceIdentity(privateKey, publicKey);
+      persistGatewayDeviceIdentity(identityPath, identity);
+      return identity;
+    }
   } catch {
     // Missing or malformed identity falls through to one-time creation.
   }
 
   const identity = createGatewayDeviceIdentity();
+  persistGatewayDeviceIdentity(identityPath, identity);
+  return identity;
+}
+
+function getPersistedGatewayDeviceId(): string | undefined {
+  try {
+    const identityPath = path.resolve(process.cwd(), ".data", "openclaw-gateway-device.json");
+    const raw = JSON.parse(fs.readFileSync(identityPath, "utf8")) as { id?: string };
+    return typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function createGatewayDeviceIdentity(): {
+  id: string;
+  publicKey: string;
+  privateKey: crypto.KeyObject;
+} {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  return toGatewayDeviceIdentity(privateKey, publicKey);
+}
+
+function toGatewayDeviceIdentity(
+  privateKey: crypto.KeyObject,
+  publicKey: crypto.KeyObject
+): {
+  id: string;
+  publicKey: string;
+  privateKey: crypto.KeyObject;
+} {
+  const rawPublicKey = rawEd25519PublicKey(publicKey);
+  return {
+    id: crypto.createHash("sha256").update(rawPublicKey).digest("hex"),
+    publicKey: base64Url(rawPublicKey),
+    privateKey
+  };
+}
+
+function persistGatewayDeviceIdentity(
+  identityPath: string,
+  identity: {
+    id: string;
+    publicKey: string;
+    privateKey: crypto.KeyObject;
+  }
+): void {
   try {
     fs.mkdirSync(path.dirname(identityPath), { recursive: true });
     fs.writeFileSync(
@@ -1187,21 +1246,6 @@ function loadGatewayDeviceIdentity(): {
   } catch {
     // Execution can continue with the in-memory identity; it just must be paired again after restart.
   }
-  return identity;
-}
-
-function createGatewayDeviceIdentity(): {
-  id: string;
-  publicKey: string;
-  privateKey: crypto.KeyObject;
-} {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
-  const rawPublicKey = rawEd25519PublicKey(publicKey);
-  return {
-    id: crypto.createHash("sha256").update(rawPublicKey).digest("hex"),
-    publicKey: base64Url(rawPublicKey),
-    privateKey
-  };
 }
 
 function rawEd25519PublicKey(publicKey: crypto.KeyObject): Buffer {
@@ -1285,6 +1329,20 @@ function toGatewayWebSocketUrl(endpoint: string): string {
   return url.toString();
 }
 
+function getGatewayControlOrigin(endpoint: string): string {
+  if (process.env.OPENCLAW_GATEWAY_CONTROL_ORIGIN) {
+    return process.env.OPENCLAW_GATEWAY_CONTROL_ORIGIN;
+  }
+  const url = new URL(endpoint);
+  if (url.hostname === "127.0.0.1") {
+    url.hostname = "localhost";
+  }
+  url.pathname = "";
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
 function mapGatewayFrameToChatChunk(
   frame: Record<string, any>,
   providerExecutionReference: string,
@@ -1299,6 +1357,83 @@ function mapGatewayFrameToChatChunk(
   }
 
   const timestamp = normalizeGatewayTimestamp(payload.timestamp || payload.createdAt || frame.timestamp);
+
+  if (eventName.includes("message")) {
+    const role = payload.role || payload.author?.role || payload.message?.role;
+    const text = extractGatewayText(payload);
+    if (role === "assistant" && typeof text === "string" && text.length > 0) {
+      return {
+        object: "chat.completion.chunk",
+        executionId: providerExecutionReference,
+        timestamp,
+        choices: [{ delta: { content: text } }]
+      };
+    }
+    const toolActivity = role === "assistant" ? extractGatewayMessageToolActivity(payload) : null;
+    if (toolActivity) {
+      const metadata = buildGatewayActivityMetadata(toolActivity.activityType, eventName, toolActivity.payload);
+      return {
+        object: "chat.completion.chunk",
+        executionId: providerExecutionReference,
+        timestamp,
+        openclaw_extension: {
+          stepId: metadata.stepId,
+          stepName: metadata.displayLabel,
+          status: normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event),
+          activityType: toolActivity.activityType,
+          details: metadata.summary,
+          displayLabel: metadata.displayLabel,
+          summary: metadata.summary,
+          toolName: metadata.toolName,
+          queryPreview: metadata.queryPreview,
+          resourceLabel: metadata.resourceLabel,
+          inputPreview: metadata.inputPreview,
+          outputPreview: metadata.outputPreview,
+          providerEventName: eventName
+        }
+      };
+    }
+    const explicitActivity = classifyGatewayActivity(eventName, payload);
+    if (explicitActivity) {
+      const metadata = buildGatewayActivityMetadata(explicitActivity, eventName, payload);
+      return {
+        object: "chat.completion.chunk",
+        executionId: providerExecutionReference,
+        timestamp,
+        openclaw_extension: {
+          stepId: metadata.stepId,
+          stepName: metadata.displayLabel,
+          status: normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event),
+          activityType: explicitActivity,
+          details: metadata.summary,
+          displayLabel: metadata.displayLabel,
+          summary: metadata.summary,
+          toolName: metadata.toolName,
+          queryPreview: metadata.queryPreview,
+          resourceLabel: metadata.resourceLabel,
+          inputPreview: metadata.inputPreview,
+          outputPreview: metadata.outputPreview,
+          providerEventName: eventName
+        }
+      };
+    }
+    return {
+      object: "chat.completion.chunk",
+      executionId: providerExecutionReference,
+      timestamp,
+      openclaw_extension: {
+        stepId: `message-${safeStepId(payload.messageId || payload.id || "activity")}`,
+        stepName: "Composing response",
+        status: normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event),
+        activityType: "message",
+        details: summarizeGatewayPayload(payload),
+        displayLabel: "Composing response",
+        summary: summarizeGatewayPayload(payload),
+        providerEventName: eventName
+      }
+    };
+  }
+
   const activity = classifyGatewayActivity(eventName, payload);
 
   if (activity) {
@@ -1344,34 +1479,6 @@ function mapGatewayFrameToChatChunk(
         choices: [{ delta: { content: text } }]
       };
     }
-  }
-
-  if (eventName.includes("message")) {
-    const role = payload.role || payload.author?.role;
-    const text = extractGatewayText(payload);
-    if (role === "assistant" && typeof text === "string" && text.length > 0) {
-      return {
-        object: "chat.completion.chunk",
-        executionId: providerExecutionReference,
-        timestamp,
-        choices: [{ delta: { content: text } }]
-      };
-    }
-    return {
-      object: "chat.completion.chunk",
-      executionId: providerExecutionReference,
-      timestamp,
-      openclaw_extension: {
-        stepId: `message-${safeStepId(payload.messageId || payload.id || "activity")}`,
-        stepName: "Composing response",
-        status: normalizeGatewayProgressStatus(payload.status || payload.state || payload.phase || payload.event),
-        activityType: "message",
-        details: summarizeGatewayPayload(payload),
-        displayLabel: "Composing response",
-        summary: summarizeGatewayPayload(payload),
-        providerEventName: eventName
-      }
-    };
   }
 
   return null;
@@ -1554,14 +1661,77 @@ function extractGatewayText(payload: Record<string, any>): string | undefined {
   const candidate = payload.delta ||
     payload.content ||
     payload.text ||
-    payload.message ||
+    payload.message?.content ||
     payload.output ||
     payload.result ||
     payload.response ||
     payload.finalOutput ||
     payload.assistantMessage?.content ||
-    payload.message?.content;
-  return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
+    payload.message;
+  return normalizeGatewayTextContent(candidate);
+}
+
+function normalizeGatewayTextContent(candidate: unknown): string | undefined {
+  if (typeof candidate === "string") {
+    return candidate.length > 0 ? candidate : undefined;
+  }
+  if (Array.isArray(candidate)) {
+    const text = candidate
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string") {
+          return (part as { text: string }).text;
+        }
+        return "";
+      })
+      .join("");
+    return text.length > 0 ? text : undefined;
+  }
+  if (candidate && typeof candidate === "object" && typeof (candidate as { text?: unknown }).text === "string") {
+    const text = (candidate as { text: string }).text;
+    return text.length > 0 ? text : undefined;
+  }
+  if (candidate && typeof candidate === "object") {
+    return normalizeGatewayTextContent((candidate as { content?: unknown }).content);
+  }
+  return undefined;
+}
+
+function extractGatewayMessageToolActivity(payload: Record<string, any>): {
+  activityType: RuntimeActivityType;
+  payload: Record<string, any>;
+} | null {
+  const content = payload.message?.content || payload.content;
+  const parts = Array.isArray(content) ? content : [content];
+  for (const part of parts) {
+    if (!part || typeof part !== "object") continue;
+    const record = part as Record<string, any>;
+    const toolName = toSafeShortText(record.name || record.toolName || record.tool || record.function?.name);
+    const kind = String(record.type || record.kind || "").toLowerCase();
+    if (!toolName && !kind.includes("tool")) continue;
+
+    const args = record.arguments || record.input || record.function?.arguments;
+    const query = args && typeof args === "object"
+      ? (args as Record<string, any>).query || (args as Record<string, any>).searchQuery
+      : undefined;
+    const haystack = `${kind} ${toolName || ""}`.toLowerCase();
+    const activityType: RuntimeActivityType = /\b(web_search|web-search|search)\b/.test(haystack)
+      ? "web-search"
+      : "tool-call";
+
+    return {
+      activityType,
+      payload: {
+        ...payload,
+        toolCallId: record.id || payload.messageId || payload.id,
+        toolName,
+        tool: toolName,
+        query,
+        input: typeof args === "string" ? args : query
+      }
+    };
+  }
+  return null;
 }
 
 function isTerminalGatewayChatPayload(payload: Record<string, any>): boolean {

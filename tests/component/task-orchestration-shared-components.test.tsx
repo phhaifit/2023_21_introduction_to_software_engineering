@@ -245,12 +245,14 @@ describe("TaskAssistantProgressSummary", () => {
         task={createRunningTask([
           { id: "openclaw-start", label: "start", status: "completed" },
           { id: "openclaw-activity", label: "OpenClaw activity", status: "completed" },
+          { id: "openclaw-agent", label: "Agent activity", status: "completed" },
           { id: "openclaw-agent-execution", label: "Agent Execution", status: "active" }
         ])}
       />
     );
 
     const activity = screen.getByLabelText("OpenClaw runtime activity");
+    expect(within(activity).getByText("Agent activity")).toBeVisible();
     expect(within(activity).getByText("Agent Execution")).toBeVisible();
     expect(within(activity).queryByText("start")).not.toBeInTheDocument();
     expect(within(activity).queryByText("OpenClaw activity")).not.toBeInTheDocument();
