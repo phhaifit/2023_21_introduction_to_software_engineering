@@ -361,7 +361,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     });
 
     expect(await screen.findByText("Searching release notes")).toBeVisible();
-    expect(screen.getByText("Working on it")).toBeVisible();
+
     expect(screen.queryByText("Final streamed answer")).not.toBeInTheDocument();
 
     act(() => {

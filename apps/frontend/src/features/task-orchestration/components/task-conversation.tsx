@@ -169,23 +169,25 @@ export function TaskAssistantMessage({
           <TaskCanceledState task={task} />
         ) : shouldShowPartialResult ? (
           <TaskPartialResult partialText={partialText} phase={task.streamingSnapshot.phase} />
-        ) : (
+        ) : !shouldShowRuntimeStatus || isStreaming ? (
           <div className="task-conversation__streaming-area task-conversation__streaming-area--compact">
             {isStreaming ? (
               <div className="task-conversation__indicator task-loading-pulse" role="status">
                 Generating response...
               </div>
             ) : null}
-            <TaskMarkdown
-              className="task-conversation__partial-text task-markdown"
-              aria-live="polite"
-              text={
-                partialText ||
-                (task.status === "queued" ? "Waiting for runtime..." : "Working on it")
-              }
-            />
+            {!shouldShowRuntimeStatus ? (
+              <TaskMarkdown
+                className="task-conversation__partial-text task-markdown"
+                aria-live="polite"
+                text={
+                  partialText ||
+                  (task.status === "queued" ? "Waiting for runtime..." : "Working on it")
+                }
+              />
+            ) : null}
           </div>
-        )}
+        ) : null}
         <TaskTurnActionsMenu
           task={task}
           prompt={task.prompt}

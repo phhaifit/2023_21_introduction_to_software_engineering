@@ -236,7 +236,7 @@ describe("Task 9B streaming UI integration", () => {
     expect(screen.queryByRole("region", { name: /partial result/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
 
-    expect(screen.getByText("Working on it")).toBeVisible();
+
 
     await act(() => { scheduler.flushNext(FRAGMENT_MS); });
     expect(screen.getByRole("region", { name: /partial result/i })).toBeVisible();
