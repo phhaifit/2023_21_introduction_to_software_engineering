@@ -1,0 +1,183 @@
+import assert from "node:assert/strict";
+
+import { GoogleDriveSyncRuntime } from "@vcp/backend/modules/knowledge-base-rag/application/google-drive-sync-runtime.ts";
+import { createGoogleDriveSyncJobHandler } from "@vcp/workers/jobs/document-ingestion/google-drive-sync-job.ts";
+import {
+  InMemoryKnowledgeDataSourceRepository,
+  InMemoryKnowledgeDocumentRepository,
+  InMemoryKnowledgeSyncJobRepository,
+  InMemoryKnowledgeSyncScopeRepository
+} from "@vcp/backend/modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
+
+const now = "2026-07-05T00:00:00.000Z";
+const dataSourceRepository = new InMemoryKnowledgeDataSourceRepository();
+const documentRepository = new InMemoryKnowledgeDocumentRepository();
+const syncScopeRepository = new InMemoryKnowledgeSyncScopeRepository();
+const syncJobRepository = new InMemoryKnowledgeSyncJobRepository();
+await dataSourceRepository.saveDataSource({
+  sourceId: "source-drive",
+  workspaceId: "workspace-a",
+  provider: "google_drive",
+  displayName: "Google Drive",
+  connectionStatus: "connected",
+  selectedScopeNodeCount: 1,
+  createdAt: now,
+  updatedAt: now
+});
+await syncScopeRepository.saveSyncScopeNodes("workspace-a", [
+  {
+    scopeNodeId: "scope-folder",
+    workspaceId: "workspace-a",
+    sourceId: "source-drive",
+    externalId: "folder-1",
+    nodeType: "folder",
+    displayName: "Folder folder-1",
+    selected: true,
+    selectable: true,
+    safeMetadata: { recursive: true, maxFiles: 10, allowedMimeTypes: [] },
+    createdAt: now,
+    updatedAt: now
+  }
+]);
+await documentRepository.saveDocument({
+  documentId: "document-unchanged",
+  workspaceId: "workspace-a",
+  uploadedByUserId: "user-a",
+  displayName: "unchanged.txt",
+  fileName: "unchanged.txt",
+  mimeType: "text/plain",
+  fileType: "txt",
+  sizeBytes: 10,
+  sourceType: "google_drive",
+  sourceId: "source-drive",
+  externalId: "file-unchanged",
+  sourceModifiedAt: now,
+  status: "ready",
+  ingestionStatus: "ready",
+  indexingStatus: "ready",
+  chunkCount: 1,
+  indexedChunkCount: 1,
+  createdAt: now,
+  updatedAt: now
+});
+await syncJobRepository.saveSyncJob({
+  jobId: "sync-job",
+  workspaceId: "workspace-a",
+  sourceId: "source-drive",
+  status: "pending",
+  requestedByUserId: "user-a",
+  queuedAt: now,
+  createdAt: now,
+  updatedAt: now
+});
+
+const imported = [];
+const runtime = new GoogleDriveSyncRuntime({
+  dataSourceRepository,
+  documentRepository,
+  syncScopeRepository,
+  syncJobRepository,
+  oauthService: { getAccessToken: async () => "access-value" },
+  provider: {
+    listFiles: async () => [
+      driveFile("file-new", "new.txt", "text/plain", now),
+      driveFile("file-unchanged", "unchanged.txt", "text/plain", now),
+      driveFile("file-slides", "slides", "application/vnd.google-apps.presentation", now)
+    ],
+    downloadFile: async (_token, file) => ({
+      fileName: file.name,
+      mediaType: file.mimeType,
+      content: Buffer.from("Imported Google Drive policy")
+    })
+  },
+  uploadUseCases: {
+    importExternalFile: async (_workspaceId, _actorId, file) => {
+      imported.push(file.externalId);
+      return {
+        document: {
+          documentId: "document-new",
+          workspaceId: "workspace-a",
+          uploadedByUserId: "user-a",
+          displayName: file.fileName,
+          fileName: file.fileName,
+          mimeType: file.mediaType,
+          fileType: "txt",
+          sizeBytes: file.content.byteLength,
+          sourceType: "google_drive",
+          sourceId: file.sourceId,
+          externalId: file.externalId,
+          sourceModifiedAt: file.sourceModifiedAt,
+          status: "ready",
+          ingestionStatus: "ready",
+          indexingStatus: "ready",
+          chunkCount: 2,
+          indexedChunkCount: 2,
+          createdAt: now,
+          updatedAt: now
+        },
+        job: {}
+      };
+    }
+  },
+  now: () => now,
+  generateEventId: () => `event-${Math.random()}`
+});
+
+await runtime.execute({ workspaceId: "workspace-a", jobId: "sync-job" });
+assert.deepEqual(imported, ["file-new"]);
+const completed = await syncJobRepository.getSyncJobById("workspace-a", "sync-job");
+assert.equal(completed.status, "completed");
+assert.equal(completed.totalItems, 3);
+assert.equal(completed.syncedItems, 1);
+assert.deepEqual(completed.safeSummary, {
+  importedItemCount: 1,
+  updatedItemCount: 0,
+  skippedUnchangedItemCount: 1,
+  skippedUnsupportedItemCount: 1,
+  failedItemCount: 0,
+  totalChunksCreated: 2,
+  totalVectorsIndexed: 2
+});
+const events = await syncJobRepository.listSyncJobEvents("workspace-a", "sync-job");
+assert.deepEqual(events.map((event) => event.status), ["syncing", "completed"]);
+assert.equal(JSON.stringify(completed).includes("access-value"), false);
+
+const workerCalls = [];
+const workerHandler = createGoogleDriveSyncJobHandler({
+  execute: async (input) => workerCalls.push(input)
+});
+await workerHandler({
+  jobId: "queue-job",
+  name: "knowledge.google_drive_sync",
+  queuedAt: now,
+  attempts: 0,
+  payload: { workspaceId: "workspace-a", jobId: "sync-job" }
+});
+assert.deepEqual(workerCalls, [
+  { workspaceId: "workspace-a", jobId: "sync-job" }
+]);
+await assert.rejects(
+  () =>
+    workerHandler({
+      jobId: "queue-job",
+      name: "knowledge.google_drive_sync",
+      queuedAt: now,
+      attempts: 0,
+      payload: { workspaceId: "workspace-a" }
+    }),
+  /requires jobId/
+);
+
+console.log("knowledge-base-rag Google Drive sync checks passed");
+
+function driveFile(fileId, name, mimeType, modifiedTime) {
+  return {
+    fileId,
+    name,
+    mimeType,
+    modifiedTime,
+    trashed: false,
+    canDownload: true,
+    parentIds: ["folder-1"]
+  };
+}

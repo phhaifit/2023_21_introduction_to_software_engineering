@@ -20,14 +20,13 @@ OpenSpec change: `implement-knowledge-base-rag`
 
 ## Current Knowledge Base / RAG State
 
-The frontend currently has a PA5 prototype under
+The frontend implementation lives under
 `apps/frontend/src/features/knowledge-base-rag`:
 
 - Base layout and local navigation for Documents, Upload Documents, Data
   Sources, Synchronization Scope, and Processing Status.
 - Shared KB/RAG UI components in `knowledge-base-rag-components.tsx`.
-- Mock data and shared local view types in `knowledge-base-rag-mock-data.ts`
-  and `knowledge-base-rag-view.ts`.
+- Shared local view types in `knowledge-base-rag-view.ts`.
 - Documents screen in `knowledge-base-rag-documents.tsx`.
 - Upload Documents screen in `knowledge-base-rag-upload.tsx`.
 - Typed frontend API client in `knowledge-base-rag-api-client.ts`.
@@ -56,6 +55,9 @@ The backend now has an internal module foundation under
 - Deterministic in-memory repositories for future use-case tests.
 - A thin workspace-scoped HTTP API router under `api/` that maps shared route
   contracts to application use cases and shared `ApiResponse` envelopes.
+- A Google Drive-only Data Sources flow with backend OAuth, encrypted local
+  credential storage, explicit folder/file ID scope, manual synchronization,
+  blob download, Google Docs/Sheets export, and safe sync summaries.
 - A worker handoff skeleton that transitions already-created document ingestion
   jobs through pending/ingesting/ready or pending/ingesting/failed lifecycle
   states using KB/RAG repository ports.
@@ -67,24 +69,22 @@ The backend now has an internal module foundation under
   that composes handoff, text processing, chunk persistence, fake embeddings,
   fake vector upserts, and final indexing status updates.
 
-Production runtime implementation still needs:
+Remaining production runtime gaps include:
 
-- Object storage integration, real PDF/DOC/DOCX parsing, OCR, provider-backed
-  embedding, provider-backed vector indexing, retrieval, and external source
-  adapters.
-- Full worker ingestion/sync runtime entrypoints for queue integration,
-  embedding, vector writes, and external sync.
-- Frontend API integration for Processing Status.
-- Production worker tests, frontend Processing Status integration tests, and
-  functional PA5 tests for production runtime behavior.
+- A durable production queue/daemon and scheduled Google Drive sync. The
+  current manual sync runtime uses a process-local asynchronous adapter.
+- OCR and legacy DOC parsing. PDF and DOCX text extraction are implemented;
+  scanned PDFs with no extractable text fail safely.
+- Google Picker. Current scope configuration accepts explicit folder/file IDs.
+- Other connectors, which are intentionally out of scope. Google Drive is the
+  only supported external source.
 
-The queue type already reserves `document.ingest`. The current worker handoff
-skeleton is module-local under the KB/RAG backend boundary and can be called by
-a later worker entrypoint. The current processing pipeline handles supported
-text/markdown content only. The local flow runner is contract-test integration
-only; it does not read object storage, parse PDF/DOC/DOCX, perform OCR, call
-real embedding providers, write to real vector stores, schedule background
-jobs, expose HTTP routes, or execute external sync.
+The queue boundary reserves document ingestion and Google Drive sync job
+kinds. The current local server can run Google Drive sync through a
+process-local asynchronous queue and the existing ingestion/indexing pipeline.
+PDF and DOCX text extraction are implemented; OCR is not. Durable queue
+delivery, a worker daemon, and scheduled synchronization remain separate
+production work.
 
 ## Modular Monolith Alignment
 

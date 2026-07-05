@@ -295,6 +295,26 @@ through a workspace-scoped public API.
 - **THEN** Data Sources and Synchronization Scope are hidden from the default Knowledge Base navigation or clearly marked unavailable
 - **AND** the user-facing page title and description avoid implementation-focused RAG terminology
 
+#### Scenario: Google Drive connects with least-privilege OAuth
+- **WHEN** an authorized user starts and completes Google Drive authorization
+- **THEN** the backend uses `drive.file`, `openid`, and `email`, validates one-time OAuth state, exchanges and refreshes tokens only on the backend, and returns safe connection metadata without credentials
+
+#### Scenario: Google Drive scope is configured explicitly
+- **WHEN** an authorized user saves one or more Google Drive folder IDs or file IDs
+- **THEN** the system stores the selected IDs, recursive-folder preference, allowed MIME types, and maximum-file limit as synchronization scope
+- **AND** the UI does not claim Google Picker or broad Drive browsing
+
+#### Scenario: Manual Google Drive sync imports eligible content
+- **WHEN** an authorized user requests synchronization for a connected Google Drive source
+- **THEN** the HTTP request creates a sync job and delegates execution through a runtime queue boundary
+- **AND** the runtime lists scoped files, skips unchanged and unsupported files safely, downloads or exports supported files, and sends new or changed content through the existing ingestion and indexing boundaries
+- **AND** the safe sync summary records discovered, imported, updated, unchanged, unsupported, failed, chunk, and vector counts when available
+
+#### Scenario: Google Drive runtime limitations remain explicit
+- **WHEN** the current Google Drive slice is described or displayed
+- **THEN** Google Drive is the only external provider presented as supported
+- **AND** synchronization is manual, the local queue is process-local and non-durable, and scheduled sync, Google Picker, legacy DOC, Google Slides, and OCR remain explicitly unsupported
+
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants
 - **THEN** the UI explains that one or more documents may be assigned

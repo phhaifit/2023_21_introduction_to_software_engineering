@@ -111,6 +111,17 @@ export class InMemoryKnowledgeDocumentRepository
     this.chunks.set(chunk.chunkId, copyChunk(chunk));
     return copyChunk(chunk);
   }
+
+  async deleteDocumentChunks(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<void> {
+    for (const [chunkId, chunk] of this.chunks) {
+      if (chunk.workspaceId === workspaceId && chunk.documentId === documentId) {
+        this.chunks.delete(chunkId);
+      }
+    }
+  }
 }
 
 export class InMemoryKnowledgeAccessGrantRepository

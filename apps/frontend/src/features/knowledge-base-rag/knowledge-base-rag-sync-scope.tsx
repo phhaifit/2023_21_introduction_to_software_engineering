@@ -36,6 +36,11 @@ type SyncScopeTreeNode = SyncScopeNodeDto & {
 export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreenProps) {
   const { apiClient = defaultApiClient, workspaceId = DEMO_WORKSPACE_ID } = props;
   const [scopeNodes, setScopeNodes] = useState<SyncScopeNodeDto[]>([]);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [folderIds, setFolderIds] = useState("");
+  const [fileIds, setFileIds] = useState("");
+  const [recursive, setRecursive] = useState(false);
+  const [maxFiles, setMaxFiles] = useState(100);
   const [syncJobs, setSyncJobs] = useState<SyncJobDto[]>([]);
   const [selectedScopeNodeIds, setSelectedScopeNodeIds] = useState<Set<string>>(new Set());
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
@@ -62,9 +67,14 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
     setLoadState("loading");
     setErrorMessage(null);
 
-    Promise.all([apiClient.getSyncScope(workspaceId), apiClient.listSyncJobs(workspaceId)])
-      .then(([nodes, jobs]) => {
+    Promise.all([
+      apiClient.listDataSources(workspaceId, { provider: "google_drive" }),
+      apiClient.getSyncScope(workspaceId),
+      apiClient.listSyncJobs(workspaceId)
+    ])
+      .then(([sources, nodes, jobs]) => {
         if (!isActive) return;
+        setSourceId(sources.find((source) => source.status === "connected")?.sourceId ?? null);
         setScopeNodes(nodes);
         setSelectedScopeNodeIds(new Set(nodes.filter((node) => node.selected).map((node) => node.scopeNodeId)));
         setSyncJobs(jobs.items);
@@ -107,9 +117,26 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
     setSuccessMessage(null);
 
     try {
-      const updatedNodes = await apiClient.updateSyncScope(workspaceId, {
-        selectedScopeNodeIds: [...selectedScopeNodeIds]
-      });
+      if (!sourceId) throw new Error("Connect Google Drive before saving scope.");
+      const updatedNodes = await apiClient.configureGoogleDriveScope(
+        workspaceId,
+        sourceId,
+        {
+          folderIds: parseIds(folderIds),
+          fileIds: parseIds(fileIds),
+          recursive,
+          maxFiles,
+          allowedMimeTypes: [
+            "text/plain",
+            "text/markdown",
+            "text/csv",
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.google-apps.document",
+            "application/vnd.google-apps.spreadsheet"
+          ]
+        }
+      );
       setScopeNodes(updatedNodes);
       setSelectedScopeNodeIds(
         new Set(updatedNodes.filter((node) => node.selected).map((node) => node.scopeNodeId))
@@ -131,6 +158,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
 
     try {
       const syncJob = await apiClient.requestManualSync(workspaceId, {
+        sourceId: sourceId ?? undefined,
         scopeNodeIds: [...selectedScopeNodeIds]
       });
       setSyncJobs((currentJobs) => [syncJob, ...currentJobs]);
@@ -163,7 +191,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         <KnowledgeBaseMetricCard
           label="Sync jobs"
           value={metrics.syncJobs}
-          helperText="Manual or scheduled sync status"
+          helperText="Manual Google Drive sync status"
         />
       </div>
 
@@ -179,7 +207,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
       <KnowledgeBaseSectionCard
         title="Synchronization scope"
         eyebrow="Scope selection"
-        description="Choose safe external source nodes to include in future synchronization."
+        description="Enter Google Drive folder or file IDs shared with this app. Sync is manual only."
       >
         {loadState === "loading" ? (
           <div className="knowledge-base-rag-sync-scope-feedback" role="status">
@@ -205,8 +233,45 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
           </div>
         ) : null}
 
-        {loadState === "loaded" && tree.length > 0 ? (
+        {loadState === "loaded" && sourceId ? (
           <>
+            <div className="knowledge-base-rag-sync-scope-config">
+              <label>
+                Google Drive folder IDs
+                <textarea
+                  value={folderIds}
+                  onChange={(event) => setFolderIds(event.target.value)}
+                  placeholder="One folder ID per line"
+                />
+              </label>
+              <label>
+                Google Drive file IDs
+                <textarea
+                  value={fileIds}
+                  onChange={(event) => setFileIds(event.target.value)}
+                  placeholder="One file ID per line"
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={recursive}
+                  onChange={(event) => setRecursive(event.target.checked)}
+                />
+                Include nested folders
+              </label>
+              <label>
+                Maximum files per sync
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={maxFiles}
+                  onChange={(event) => setMaxFiles(Number(event.target.value))}
+                />
+              </label>
+            </div>
+            {tree.length > 0 ? (
             <div className="knowledge-base-rag-sync-scope-tree" role="tree">
               {tree.map((node) => (
                 <SyncScopeTreeItem
@@ -217,10 +282,15 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                 />
               ))}
             </div>
+            ) : null}
 
             <div className="knowledge-base-rag-sync-scope-actions" aria-label="Sync scope actions">
-              <button type="button" disabled={isBusy} onClick={() => void handleSaveScope()}>
-                {operationState === "saving" ? "Saving..." : "Save selection"}
+              <button
+                type="button"
+                disabled={isBusy || (parseIds(folderIds).length === 0 && parseIds(fileIds).length === 0)}
+                onClick={() => void handleSaveScope()}
+              >
+                {operationState === "saving" ? "Saving..." : "Save Google Drive scope"}
               </button>
               <button
                 type="button"
@@ -233,10 +303,10 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
           </>
         ) : null}
 
-        {loadState === "loaded" && tree.length === 0 ? (
+        {loadState === "loaded" && !sourceId ? (
           <KnowledgeBaseEmptyState
             title="No synchronization scope available"
-            description="Connect a source before selecting sync scope."
+            description="Connect Google Drive before configuring folder or file scope."
           />
         ) : null}
       </KnowledgeBaseSectionCard>
@@ -245,7 +315,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         <KnowledgeBaseSectionCard
           title="Sync jobs"
           eyebrow="Manual sync status"
-          description="Review queued or recent sync requests without executing worker runtime in the UI."
+          description="Review queued and completed manual Google Drive sync jobs."
         >
           {syncJobs.length > 0 ? (
             <div className="knowledge-base-rag-sync-job-list" role="list">
@@ -266,6 +336,17 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
       ) : null}
     </div>
   );
+}
+
+function parseIds(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  ];
 }
 
 type SyncScopeTreeItemProps = {

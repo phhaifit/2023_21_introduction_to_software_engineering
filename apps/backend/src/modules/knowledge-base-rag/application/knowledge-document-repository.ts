@@ -38,5 +38,8 @@ export type KnowledgeDocumentRepository = {
     documentId: EntityId<"documentId">
   ): Promise<KnowledgeDocumentChunkListResult>;
   saveDocumentChunk(chunk: KnowledgeDocumentChunk): Promise<KnowledgeDocumentChunk>;
+  deleteDocumentChunks(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<void>;
 };
-

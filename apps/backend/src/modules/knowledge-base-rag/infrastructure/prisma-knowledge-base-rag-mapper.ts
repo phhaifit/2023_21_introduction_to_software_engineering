@@ -41,6 +41,9 @@ export function toKnowledgeDocumentDomain(record: PrismaDocument): KnowledgeDocu
     sourceId: record.sourceId ?? undefined,
     storageKey: record.storageKey ?? undefined,
     contentHash: record.contentHash ?? undefined,
+    externalId: record.externalId ?? undefined,
+    sourceModifiedAt: record.sourceModifiedAt ?? undefined,
+    lastSyncedAt: record.lastSyncedAt ?? undefined,
     status: record.status as KnowledgeIndexStatus,
     ingestionStatus: record.ingestionStatus as KnowledgeIndexStatus,
     indexingStatus: record.indexingStatus as KnowledgeIndexStatus,
@@ -66,6 +69,9 @@ export function toKnowledgeDocumentPrisma(document: KnowledgeDocument) {
     sourceId: document.sourceId ?? null,
     storageKey: document.storageKey ?? null,
     contentHash: document.contentHash ?? null,
+    externalId: document.externalId ?? null,
+    sourceModifiedAt: document.sourceModifiedAt ?? null,
+    lastSyncedAt: document.lastSyncedAt ?? null,
     status: document.status,
     ingestionStatus: document.ingestionStatus,
     indexingStatus: document.indexingStatus,
@@ -130,6 +136,10 @@ export function toKnowledgeIngestionJobDomain(
     failedAt: record.failedAt ?? undefined,
     errorCode: record.errorCode ?? undefined,
     errorMessage: record.errorMessage ?? undefined,
+    safeSummary:
+      record.safeSummary === null
+        ? undefined
+        : (record.safeSummary as SafeJsonValue),
     requestedByUserId: record.requestedByUserId
       ? (record.requestedByUserId as EntityId<"userId">)
       : undefined,
@@ -151,6 +161,7 @@ export function toKnowledgeIngestionJobPrisma(job: KnowledgeIngestionJob) {
     failedAt: job.failedAt ?? null,
     errorCode: job.errorCode ?? null,
     errorMessage: job.errorMessage ?? null,
+    safeSummary: job.safeSummary as never,
     requestedByUserId: job.requestedByUserId ?? null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt

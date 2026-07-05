@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
+import { KnowledgeBaseDataSourcesScreen } from "./knowledge-base-rag-data-sources.tsx";
 import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
 import {
   createKnowledgeBaseRagApiClient,
@@ -10,12 +11,15 @@ import {
 } from "./knowledge-base-rag-api-client.ts";
 import { KnowledgeBaseTabs } from "./knowledge-base-rag-components.tsx";
 import { KnowledgeBaseProcessingStatusScreen } from "./knowledge-base-rag-processing-status.tsx";
+import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
 
 type KnowledgeBaseRagViewId =
   | "documents"
   | "upload-documents"
+  | "data-sources"
+  | "synchronization-scope"
   | "processing-status";
 
 type KnowledgeBaseRagView = {
@@ -53,6 +57,22 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
       "Review selected files before adding them to the knowledge base.",
       "Prepare documents for ingestion and indexing."
     ]
+  },
+  {
+    id: "data-sources",
+    label: "Data Sources",
+    eyebrow: "Google Drive connection",
+    title: "Data Sources",
+    description: "Connect Google Drive as an external knowledge source.",
+    summaryItems: ["Connect one Google Drive account.", "Review connection and sync status."]
+  },
+  {
+    id: "synchronization-scope",
+    label: "Synchronization Scope",
+    eyebrow: "Google Drive scope",
+    title: "Synchronization Scope",
+    description: "Choose which Google Drive folders or files may be imported.",
+    summaryItems: ["Configure folder or file IDs.", "Run manual synchronization."]
   },
   {
     id: "processing-status",
@@ -123,6 +143,12 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
             onUploadPrepared={() => setDocumentsRefreshKey((current) => current + 1)}
             workspaceId={workspaceId}
           />
+        )}
+        {activeView.id === "data-sources" && (
+          <KnowledgeBaseDataSourcesScreen apiClient={apiClient} workspaceId={workspaceId} />
+        )}
+        {activeView.id === "synchronization-scope" && (
+          <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
         )}
         {activeView.id === "processing-status" && (
           <KnowledgeBaseProcessingStatusScreen

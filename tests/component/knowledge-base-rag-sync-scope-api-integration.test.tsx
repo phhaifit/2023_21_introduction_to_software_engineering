@@ -6,6 +6,7 @@ import type { KnowledgeBaseRagApiClient } from "@vcp/frontend/features/knowledge
 import { KnowledgeBaseSyncScopeScreen } from "@vcp/frontend/features/knowledge-base-rag/knowledge-base-rag-sync-scope.tsx";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
+  KnowledgeDataSourceDto,
   SyncJobDto,
   SyncScopeNodeDto
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
@@ -13,6 +14,15 @@ import type {
 afterEach(cleanup);
 
 const workspaceId = "workspace-a" as EntityId<"workspaceId">;
+const connectedSource: KnowledgeDataSourceDto = {
+  sourceId: "source-google-drive",
+  workspaceId,
+  provider: "google_drive",
+  displayName: "Google Drive",
+  status: "connected",
+  selectedScopeNodeCount: 2,
+  updatedAt: "2026-06-26T00:00:00.000Z"
+};
 
 const rootNode: SyncScopeNodeDto = {
   scopeNodeId: "scope-root",
@@ -51,15 +61,10 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
     validateUploadCandidates: vi.fn(),
     prepareUpload: vi.fn(),
     listIngestionJobs: vi.fn(),
-    listDataSources: vi.fn(),
+    listDataSources: vi.fn(async () => [connectedSource]),
     connectDataSource: vi.fn(),
     getSyncScope: vi.fn(async () => [rootNode, childNode]),
-    updateSyncScope: vi.fn(async (_workspaceId, request) =>
-      [rootNode, childNode].map((node) => ({
-        ...node,
-        selected: request.selectedScopeNodeIds.includes(node.scopeNodeId)
-      }))
-    ),
+    configureGoogleDriveScope: vi.fn(async () => [rootNode, childNode]),
     requestManualSync: vi.fn(async () => syncJob),
     listSyncJobs: vi.fn(async () => ({
       items: [syncJob],
@@ -83,8 +88,8 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading synchronization scope");
-    expect(await screen.findByText("Company Handbook")).toBeTruthy();
-    expect(screen.getByText("Benefits Overview.pdf")).toBeTruthy();
+    expect(await screen.findByLabelText("Google Drive folder IDs")).toBeTruthy();
+    expect(screen.getByLabelText("Google Drive file IDs")).toBeTruthy();
     expect(screen.getByText("sync-job-a")).toBeTruthy();
     expect(client.getSyncScope).toHaveBeenCalledWith(workspaceId);
     expect(client.listSyncJobs).toHaveBeenCalledWith(workspaceId);
@@ -114,28 +119,36 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     const { unmount } = render(
       <KnowledgeBaseSyncScopeScreen apiClient={emptyClient} workspaceId={workspaceId} />
     );
-    expect(await screen.findByText("No synchronization scope available")).toBeTruthy();
+    expect(await screen.findByLabelText("Google Drive folder IDs")).toBeTruthy();
     unmount();
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={failingClient} workspaceId={workspaceId} />);
     expect(await screen.findByText("Sync scope API unavailable")).toBeTruthy();
   });
 
-  it("updates selected scope nodes with safe request payloads", async () => {
+  it("saves folder and file IDs with a safe Google Drive scope payload", async () => {
     const client = createClient();
     const user = userEvent.setup();
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
 
-    await screen.findByText("Benefits Overview.pdf");
-    await user.click(screen.getByLabelText("Benefits Overview.pdf"));
-    await user.click(screen.getByRole("button", { name: "Save selection" }));
+    await user.type(await screen.findByLabelText("Google Drive folder IDs"), "folder-a");
+    await user.type(screen.getByLabelText("Google Drive file IDs"), "file-a");
+    await user.click(screen.getByLabelText("Include nested folders"));
+    await user.click(screen.getByRole("button", { name: "Save Google Drive scope" }));
 
-    await waitFor(() => expect(client.updateSyncScope).toHaveBeenCalledTimes(1));
-    expect(client.updateSyncScope).toHaveBeenCalledWith(workspaceId, {
-      selectedScopeNodeIds: ["scope-root", "scope-child"]
-    });
-    expect(JSON.stringify(vi.mocked(client.updateSyncScope).mock.calls[0][1])).not.toMatch(
+    await waitFor(() => expect(client.configureGoogleDriveScope).toHaveBeenCalledTimes(1));
+    expect(client.configureGoogleDriveScope).toHaveBeenCalledWith(
+      workspaceId,
+      "source-google-drive",
+      expect.objectContaining({
+        folderIds: ["folder-a"],
+        fileIds: ["file-a"],
+        recursive: true,
+        maxFiles: 100
+      })
+    );
+    expect(JSON.stringify(vi.mocked(client.configureGoogleDriveScope).mock.calls[0][2])).not.toMatch(
       /workspaceId|credential|secret|token|refresh|password|storageKey|vectorRef|queuePayload/i
     );
     expect(await screen.findByText("Synchronization scope updated.")).toBeTruthy();
@@ -147,11 +160,12 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
 
-    await screen.findByText("Company Handbook");
+    await screen.findByLabelText("Google Drive folder IDs");
     await user.click(screen.getByRole("button", { name: "Request manual sync" }));
 
     await waitFor(() => expect(client.requestManualSync).toHaveBeenCalledTimes(1));
     expect(client.requestManualSync).toHaveBeenCalledWith(workspaceId, {
+      sourceId: "source-google-drive",
       scopeNodeIds: ["scope-root"]
     });
     expect(JSON.stringify(vi.mocked(client.requestManualSync).mock.calls[0][1])).not.toMatch(

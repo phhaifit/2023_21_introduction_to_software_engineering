@@ -16,6 +16,8 @@ export type KnowledgeDocument = {
   sizeLabel: string;
   owner: string;
   updatedAt: string;
+  mediaType?: string;
+  lastSyncedAt?: string;
   status: KnowledgeDocumentStatus;
   chunkCount?: number;
   indexedItemCount?: number;

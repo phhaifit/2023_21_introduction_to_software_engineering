@@ -171,8 +171,12 @@ function DocumentListItem({ document }: DocumentListItemProps) {
           className="knowledge-base-rag-document-item__metadata"
           items={[
             { label: "Source", value: documentSourceLabels[document.source] },
+            { label: "MIME / type", value: document.mediaType ?? "Unknown" },
             { label: "Owner", value: document.owner },
             { label: "Updated", value: document.updatedAt },
+            ...(document.lastSyncedAt
+              ? [{ label: "Last synced", value: document.lastSyncedAt }]
+              : []),
             { label: indexedMetric.label, value: indexedMetric.value }
           ]}
         />
@@ -220,6 +224,10 @@ function toKnowledgeDocumentViewModel(document: KnowledgeDocumentDto): Knowledge
     sizeLabel: formatFileSize(document.sizeBytes),
     owner: "Workspace",
     updatedAt: formatDate(document.updatedAt),
+    mediaType: document.mediaType,
+    lastSyncedAt: document.lastSyncedAt
+      ? formatDate(document.lastSyncedAt)
+      : undefined,
     status: mapDocumentStatus(document.status),
     chunkCount: document.chunkCount,
     indexedItemCount: document.indexedChunkCount,

@@ -7,7 +7,7 @@ import type { KnowledgeBaseRagApiClient } from "@vcp/frontend/features/knowledge
 afterEach(cleanup);
 
 describe("KnowledgeBaseRagPage UI", () => {
-  it("uses a user-facing title and hides connector placeholder tabs", async () => {
+  it("uses a user-facing title and exposes Google Drive source tabs", async () => {
     const apiClient = {
       listDocuments: vi.fn(async () => ({
         items: [],
@@ -31,8 +31,8 @@ describe("KnowledgeBaseRagPage UI", () => {
     expect(screen.getByRole("button", { name: "Documents" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Upload Documents" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Processing Status" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Data Sources" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Synchronization Scope" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Data Sources" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Synchronization Scope" })).toBeVisible();
     expect(screen.queryByText(/RAG Management/)).toBeNull();
   });
 });

@@ -11,9 +11,11 @@ The implementation covers file upload/storage, TXT/DOCX/text-PDF extraction,
 ingestion and indexing boundaries, pgvector retrieval, grounded answer
 generation, access control, and the API-backed Processing Status screen.
 
-It does not provide a one-click deployment, a continuously running production
-ingestion worker, external connectors/OAuth, source-level grants, a standalone
-Agent Knowledge Ask UI, or production OpenClaw/tool runtime registration.
+Google Drive is the only external data source and supports backend OAuth plus
+manual synchronization. The implementation does not provide a one-click
+deployment, a durable production queue, scheduled synchronization, Google
+Picker, other connectors, source-level grants, a standalone Agent Knowledge
+Ask UI, OCR, legacy DOC extraction, or production OpenClaw/tool registration.
 
 ## Prerequisites
 
@@ -47,6 +49,10 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Use `1536` for the OpenRouter web demo. Do not use `3` here. |
 | `KNOWLEDGE_VECTOR_DISTANCE` | Live retrieval | See `.env.example`. |
 | `KNOWLEDGE_PGVECTOR_SMOKE` | Local pgvector smoke test | Set to `1` only when explicitly running the opt-in smoke test. |
+| `GOOGLE_DRIVE_CLIENT_ID` | Real Google Drive OAuth | Backend-only OAuth client ID. |
+| `GOOGLE_DRIVE_CLIENT_SECRET` | Real Google Drive OAuth | Backend-only secret; never expose or commit it. |
+| `GOOGLE_DRIVE_REDIRECT_URI` | Real Google Drive OAuth | Must target the workspace-scoped OAuth callback route. |
+| `GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY` | Encrypted local credential storage | Backend-only secret of at least 32 characters. |
 | `KNOWLEDGE_RAG_PROVIDER` | Live answers | Currently `openai-compatible`. |
 | `KNOWLEDGE_RAG_BASE_URL` | Live answers | Provider base URL. |
 | `KNOWLEDGE_RAG_API_KEY` | Live answers | Never commit this local secret. |
@@ -56,6 +62,25 @@ Optional batch-size, timeout, and output-limit variables have safe defaults in
 `.env.example`. There is no environment switch that turns the development
 server into deterministic mode. Tests inject deterministic adapters, require no
 API keys, and make no provider calls.
+
+## Google Drive data source
+
+The Data Sources screen exposes Google Drive only. OAuth requests
+`https://www.googleapis.com/auth/drive.file` plus `openid` and `email`.
+Synchronization Scope accepts explicit folder IDs and file IDs, optional
+recursive folder traversal, allowed MIME types, and a maximum file count.
+Synchronization is manual.
+
+Supported imports are TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs
+(exported as text), and Google Sheets (exported as CSV). Unsupported Google
+Workspace types are skipped safely. Scanned PDFs may yield no text because OCR
+is not implemented; they fail with a bounded user-facing parsing error.
+
+The local server uses an encrypted file credential store and a process-local
+asynchronous queue. That queue is non-durable and is not a production
+scheduler. Automated tests use fake Google Drive fetch/provider adapters and
+never call Google APIs. A real OAuth smoke test is opt-in and requires the four
+backend-only variables above.
 
 For local web demo uploads with OpenRouter embeddings:
 
@@ -414,8 +439,8 @@ checks workspace isolation. It does not call real embedding/RAG providers.
   retry endpoint is included.
 - Inline local mode composes ingestion and indexing, but the default queued
   mode still requires an external caller.
-- Google Drive, Notion, and Confluence remain placeholders; OAuth and
-  credential storage are not implemented.
+- Google Drive is implemented with backend OAuth and encrypted local credential
+  storage. No other external connector is supported.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
 - Agent grants and the current assignment UI are document-level only.

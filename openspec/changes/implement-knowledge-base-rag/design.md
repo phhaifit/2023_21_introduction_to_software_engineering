@@ -6,13 +6,14 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 
 **Goals:**
 - Upload and manage workspace documents.
-- Add placeholders for external data sync sources.
+- Implement Google Drive as the only external data sync source.
 - Process ingestion and vectorization asynchronously.
 - Store and query vector chunks through an adapter boundary.
 - Assign knowledge collections to specific agents.
 
 **Non-Goals:**
-- Build full Google Drive, Notion, or Confluence production integrations in V1.
+- Build connectors other than Google Drive.
+- Add scheduled synchronization, Google Picker, or a durable distributed queue.
 - Implement advanced document permission inheritance.
 - Expose raw vector database implementation details to agents or task orchestration.
 
@@ -135,6 +136,14 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Rationale: The demo needs focused proof that uploaded and locally indexed documents can ground Agent-mode Task chat answers only after explicit agent assignment.
    - Boundary: A deterministic contract test composes the existing local upload-to-index runner, assignment use case, retrieval/orchestration use cases, and Task Orchestration bridge route. It verifies persisted chunks, vector-boundary upserts, answered citations, revoked assignment fallback, unassigned fallback, workspace isolation, and safe public fields.
    - Constraint: The evidence test uses fake deterministic embedding/vector/composer adapters, does not call real providers or pgvector, does not add UI, does not register `knowledge.retrieve` with the production OpenClaw/tool runtime, and does not add queue, daemon, connector, source-grant, or scheduler behavior.
+
+26. Implement Google Drive as the only external data source.
+   - Rationale: A single connector slice validates OAuth, scoped synchronization, import, parsing, indexing, and citation behavior without creating a generic connector platform.
+   - Boundary: The backend uses the `drive.file`, `openid`, and `email` OAuth scopes; stores credentials through an encrypted backend-only credential port; accepts explicit folder IDs and file IDs; downloads blob files; exports Google Docs as text and Google Sheets as CSV; and imports changed content through the existing ingestion/indexing pipeline.
+   - Runtime: Manual sync creates an observable sync job and hands it to a process-local asynchronous queue adapter. A worker job entrypoint exists for production composition, but this change does not provide a durable distributed queue, scheduler, daemon, automatic periodic sync, or retry policy.
+   - Parsing: TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs, and Google Sheets are supported. Legacy DOC, Google Slides, and other unsupported Drive types are skipped safely. OCR is deferred; scanned PDFs that yield no text fail with a safe empty-content error.
+   - UI: Data Sources and Synchronization Scope become functional for Google Drive only. Scope configuration uses folder/file IDs and does not claim Google Picker or broad Drive browsing.
+   - Security: OAuth tokens, client secrets, raw provider responses, downloaded content, local paths, embeddings, and vectors are excluded from public DTOs, events, and UI. Automated tests inject fake fetch/provider adapters and make no real Google API calls.
 
 ## Risks / Trade-offs
 

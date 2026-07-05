@@ -6,6 +6,7 @@ export type JobName =
   | "openclaw.delete"
   | "payment.webhook"
   | "document.ingest"
+  | "knowledge.google_drive_sync"
   | "task.execute";
 
 export type JobPayload = Record<string, unknown>;

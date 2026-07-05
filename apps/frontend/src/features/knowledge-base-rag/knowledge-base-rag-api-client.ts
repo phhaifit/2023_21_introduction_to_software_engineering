@@ -18,7 +18,10 @@ import {
   type UpdateSyncScopeRequest,
   type UploadValidationRequest,
   type UploadValidationResponse,
-  type KnowledgeSyncJobStatus
+  type KnowledgeSyncJobStatus,
+  type GoogleDriveOAuthStartRequest,
+  type GoogleDriveOAuthStartResponse,
+  type GoogleDriveSyncScopeRequest
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 
 export type KnowledgeDocumentListFilters = {
@@ -78,6 +81,19 @@ export type KnowledgeBaseRagApiClient = {
     sourceId: string,
     request?: ConnectKnowledgeDataSourceRequest
   ): Promise<KnowledgeDataSourceDto>;
+  startGoogleDriveOAuth(
+    workspaceId: EntityId<"workspaceId">,
+    request?: GoogleDriveOAuthStartRequest
+  ): Promise<GoogleDriveOAuthStartResponse>;
+  disconnectDataSource(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string
+  ): Promise<KnowledgeDataSourceDto>;
+  configureGoogleDriveScope(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string,
+    request: GoogleDriveSyncScopeRequest
+  ): Promise<SyncScopeNodeDto[]>;
   getSyncScope(
     workspaceId: EntityId<"workspaceId">,
     sourceId?: string
@@ -277,6 +293,30 @@ export function createKnowledgeBaseRagApiClient(input: {
           sourceId
         }),
         payload
+      ),
+    startGoogleDriveOAuth: (workspaceId, payload = {}) =>
+      requestJson<GoogleDriveOAuthStartResponse>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthStart, {
+          workspaceId
+        }),
+        payload
+      ),
+    disconnectDataSource: (workspaceId, sourceId) =>
+      requestDataWithMethod<KnowledgeDataSourceDto>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.disconnectDataSource, {
+          workspaceId,
+          sourceId
+        }),
+        "POST"
+      ),
+    configureGoogleDriveScope: (workspaceId, sourceId, payload) =>
+      requestJson<SyncScopeNodeDto[]>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveScope, {
+          workspaceId,
+          sourceId
+        }),
+        payload,
+        "PUT"
       ),
     getSyncScope: (workspaceId, sourceId) =>
       requestData<SyncScopeNodeDto[]>(

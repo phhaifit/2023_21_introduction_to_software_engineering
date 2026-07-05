@@ -328,6 +328,9 @@ model Document {
   sourceId         String?
   storageKey       String?
   contentHash      String?
+  externalId       String?
+  sourceModifiedAt String?
+  lastSyncedAt     String?
   status           String @default("pending")
   ingestionStatus  String @default("pending")
   indexingStatus   String @default("pending")
@@ -351,6 +354,7 @@ model Document {
   @@index([workspaceId, ingestionStatus])
   @@index([workspaceId, indexingStatus])
   @@index([workspaceId, contentHash])
+  @@unique([workspaceId, sourceId, externalId])
   @@map("documents")
 }
 
@@ -488,6 +492,7 @@ model KnowledgeSyncJob {
   failedItems       Int?
   errorCode         String?
   errorMessage      String?
+  safeSummary       Json?
   createdAt         String
   updatedAt         String
 

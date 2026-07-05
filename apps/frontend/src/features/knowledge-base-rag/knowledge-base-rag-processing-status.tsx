@@ -5,7 +5,8 @@ import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
   IngestionJobDto,
-  KnowledgeDocumentDto
+  KnowledgeDocumentDto,
+  SyncJobDto
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 import type { KnowledgeIndexStatus } from "@vcp/shared/contracts/statuses.ts";
 
@@ -50,6 +51,7 @@ export function KnowledgeBaseProcessingStatusScreen(
     workspaceId = DEMO_WORKSPACE_ID
   } = props;
   const [jobs, setJobs] = useState<ProcessingJob[]>([]);
+  const [syncJobs, setSyncJobs] = useState<SyncJobDto[]>([]);
   const [loadState, setLoadState] =
     useState<"loading" | "loaded" | "error">("loading");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -64,9 +66,10 @@ export function KnowledgeBaseProcessingStatusScreen(
 
     Promise.all([
       apiClient.listIngestionJobs(workspaceId, { page: 1, pageSize: 100 }),
-      apiClient.listDocuments(workspaceId, { page: 1, pageSize: 100 })
+      apiClient.listDocuments(workspaceId, { page: 1, pageSize: 100 }),
+      apiClient.listSyncJobs(workspaceId, { page: 1, pageSize: 100 })
     ])
-      .then(([jobResponse, documentResponse]) => {
+      .then(([jobResponse, documentResponse, syncJobResponse]) => {
         if (!isActive) return;
         const documents = new Map(
           documentResponse.items.map((document) => [document.documentId, document])
@@ -76,11 +79,13 @@ export function KnowledgeBaseProcessingStatusScreen(
             toProcessingJob(job, documents.get(job.documentId))
           )
         );
+        setSyncJobs(syncJobResponse.items);
         setLoadState("loaded");
       })
       .catch(() => {
         if (!isActive) return;
         setJobs([]);
+        setSyncJobs([]);
         setLoadState("error");
       });
 
@@ -180,6 +185,54 @@ export function KnowledgeBaseProcessingStatusScreen(
         ) : null}
       </KnowledgeBaseSectionCard>
 
+      {loadState === "loaded" ? (
+        <KnowledgeBaseSectionCard
+          title="Google Drive synchronization"
+          eyebrow="External source jobs"
+          description="Manual Google Drive sync lifecycle and safe import summary."
+        >
+          {syncJobs.length > 0 ? (
+            <div className="knowledge-base-rag-processing-status-list" role="list">
+              {syncJobs.map((job) => (
+                <article className="knowledge-base-rag-processing-job" role="listitem" key={job.jobId}>
+                  <div className="knowledge-base-rag-processing-job__header">
+                    <div>
+                      <h3>Google Drive sync</h3>
+                      <p>{syncCurrentStep(job.status)}</p>
+                    </div>
+                    <ProcessingStatusBadge status={mapSyncStatus(job.status)} />
+                  </div>
+                  <KnowledgeBaseMetadataList
+                    items={[
+                      { label: "Source", value: "Google Drive" },
+                      { label: "Job type", value: "Synchronization" },
+                      { label: "Started", value: job.startedAt ? formatDateTime(job.startedAt) : "Queued" },
+                      { label: "Completed", value: job.finishedAt ? formatDateTime(job.finishedAt) : "Not completed" },
+                      { label: "Discovered", value: job.scannedItemCount },
+                      { label: "Imported", value: job.importedItemCount ?? 0 },
+                      { label: "Updated", value: job.updatedItemCount ?? 0 },
+                      { label: "Skipped unchanged", value: job.skippedUnchangedItemCount ?? 0 },
+                      { label: "Skipped unsupported", value: job.skippedUnsupportedItemCount ?? 0 },
+                      { label: "Failed files", value: job.failedItemCount ?? 0 }
+                    ]}
+                  />
+                  {job.failure ? (
+                    <p className="knowledge-base-rag-processing-job__error">
+                      {getSafeFailureMessage(job.failure.errorMessage)}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <KnowledgeBaseEmptyState
+              title="No Google Drive sync jobs"
+              description="Run a manual sync after connecting Google Drive and configuring scope."
+            />
+          )}
+        </KnowledgeBaseSectionCard>
+      ) : null}
+
       {loadState === "loaded" && selectedJob ? (
         <ProcessingJobDetails
           job={selectedJob}
@@ -188,6 +241,22 @@ export function KnowledgeBaseProcessingStatusScreen(
       ) : null}
     </div>
   );
+}
+
+function mapSyncStatus(status: SyncJobDto["status"]): KnowledgeBaseProcessingJobStatus {
+  if (status === "pending") return "queued";
+  if (status === "syncing") return "processing";
+  return status;
+}
+
+function syncCurrentStep(status: SyncJobDto["status"]): string {
+  const labels: Record<SyncJobDto["status"], string> = {
+    pending: "Queued for synchronization",
+    syncing: "Importing scoped Drive files",
+    completed: "Synchronization completed",
+    failed: "Synchronization failed"
+  };
+  return labels[status];
 }
 
 export function mapProcessingJobStatus(

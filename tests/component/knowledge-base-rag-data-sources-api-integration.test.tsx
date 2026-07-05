@@ -24,6 +24,7 @@ const notConnectedSource: KnowledgeDataSourceDto = {
 const connectedSource: KnowledgeDataSourceDto = {
   ...notConnectedSource,
   status: "connected",
+  connectedAccountEmail: "researcher@example.test",
   selectedScopeNodeCount: 2,
   lastSyncAt: "2026-06-26T00:10:00.000Z"
 };
@@ -35,7 +36,10 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
     prepareUpload: vi.fn(),
     listIngestionJobs: vi.fn(),
     listDataSources: vi.fn(async () => [notConnectedSource]),
-    connectDataSource: vi.fn(async () => connectedSource),
+    startGoogleDriveOAuth: vi.fn(async () => ({
+      authorizationUrl: "https://accounts.google.test/oauth"
+    })),
+    disconnectDataSource: vi.fn(async () => notConnectedSource),
     getSyncScope: vi.fn(),
     updateSyncScope: vi.fn(),
     requestManualSync: vi.fn(),
@@ -67,28 +71,36 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     const { unmount } = render(
       <KnowledgeBaseDataSourcesScreen apiClient={emptyClient} workspaceId={workspaceId} />
     );
-    expect(await screen.findByText("No data sources available")).toBeTruthy();
-    expect(screen.queryByText("Google Drive")).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Connect Google Drive" })).toBeTruthy();
     unmount();
 
     render(<KnowledgeBaseDataSourcesScreen apiClient={failingClient} workspaceId={workspaceId} />);
     expect(await screen.findByText("Data source API unavailable")).toBeTruthy();
   });
 
-  it("connects a data source placeholder without credentials or private payloads", async () => {
+  it("starts Google Drive OAuth without credentials in the frontend payload", async () => {
     const client = createClient();
+    const navigateToOAuth = vi.fn();
     const user = userEvent.setup();
 
-    render(<KnowledgeBaseDataSourcesScreen apiClient={client} workspaceId={workspaceId} />);
+    render(
+      <KnowledgeBaseDataSourcesScreen
+        apiClient={client}
+        navigateToOAuth={navigateToOAuth}
+        workspaceId={workspaceId}
+      />
+    );
 
     await screen.findByRole("heading", { name: "Google Drive" });
-    await user.click(screen.getByRole("button", { name: "Connect source" }));
+    await user.click(screen.getByRole("button", { name: "Connect Google Drive" }));
 
-    await waitFor(() => expect(client.connectDataSource).toHaveBeenCalledTimes(1));
-    expect(client.connectDataSource).toHaveBeenCalledWith(workspaceId, "source-google-drive");
-    expect(JSON.stringify(vi.mocked(client.connectDataSource).mock.calls[0])).not.toMatch(
+    await waitFor(() => expect(client.startGoogleDriveOAuth).toHaveBeenCalledTimes(1));
+    expect(client.startGoogleDriveOAuth).toHaveBeenCalledWith(workspaceId, {
+      displayName: "Google Drive"
+    });
+    expect(JSON.stringify(vi.mocked(client.startGoogleDriveOAuth).mock.calls[0])).not.toMatch(
       /credential|secret|token|refresh|password|rawProvider/i
     );
-    expect(await screen.findByText("Google Drive connection placeholder recorded.")).toBeTruthy();
+    expect(navigateToOAuth).toHaveBeenCalledWith("https://accounts.google.test/oauth");
   });
 });

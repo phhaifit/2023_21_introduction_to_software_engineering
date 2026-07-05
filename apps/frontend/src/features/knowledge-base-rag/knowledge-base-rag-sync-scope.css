@@ -66,6 +66,41 @@
   gap: 0.75rem;
 }
 
+.knowledge-base-rag-sync-scope-config {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.knowledge-base-rag-sync-scope-config label {
+  display: grid;
+  gap: 0.45rem;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.knowledge-base-rag-sync-scope-config label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+}
+
+.knowledge-base-rag-sync-scope-config textarea,
+.knowledge-base-rag-sync-scope-config input[type="number"] {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  padding: 0.65rem;
+}
+
+.knowledge-base-rag-sync-scope-config textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
 .knowledge-base-rag-sync-scope-node {
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
@@ -175,5 +210,9 @@
 
   .knowledge-base-rag-sync-scope-actions {
     justify-content: flex-start;
+  }
+
+  .knowledge-base-rag-sync-scope-config {
+    grid-template-columns: 1fr;
   }
 }

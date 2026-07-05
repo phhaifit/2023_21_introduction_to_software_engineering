@@ -2721,6 +2721,11 @@ export const WorkspaceScalarFieldEnum = {
   userId: 'userId',
   name: 'name',
   status: 'status',
+  plan: 'plan',
+  runtimeUrl: 'runtimeUrl',
+  containerId: 'containerId',
+  failureReason: 'failureReason',
+  subscriptionId: 'subscriptionId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -2951,6 +2956,9 @@ export const DocumentScalarFieldEnum = {
   sourceId: 'sourceId',
   storageKey: 'storageKey',
   contentHash: 'contentHash',
+  externalId: 'externalId',
+  sourceModifiedAt: 'sourceModifiedAt',
+  lastSyncedAt: 'lastSyncedAt',
   status: 'status',
   ingestionStatus: 'ingestionStatus',
   indexingStatus: 'indexingStatus',
@@ -2990,6 +2998,7 @@ export const KnowledgeDocumentChunkScalarFieldEnum = {
   contentHash: 'contentHash',
   tokenCount: 'tokenCount',
   embeddingStatus: 'embeddingStatus',
+  embeddingDimensions: 'embeddingDimensions',
   vectorRef: 'vectorRef',
   sourceLocator: 'sourceLocator',
   createdAt: 'createdAt',
@@ -3067,6 +3076,7 @@ export const KnowledgeSyncJobScalarFieldEnum = {
   failedItems: 'failedItems',
   errorCode: 'errorCode',
   errorMessage: 'errorMessage',
+  safeSummary: 'safeSummary',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

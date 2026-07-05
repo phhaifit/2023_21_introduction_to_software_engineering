@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import express, { type Express } from "express";
@@ -87,6 +88,14 @@ import {
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
 import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
+import {
+  GoogleDriveOAuthService,
+  GoogleDriveOAuthStateStore
+} from "./modules/knowledge-base-rag/application/google-drive-oauth-service.ts";
+import { GoogleDriveSyncRuntime } from "./modules/knowledge-base-rag/application/google-drive-sync-runtime.ts";
+import { EncryptedFileGoogleDriveCredentialStore } from "./modules/knowledge-base-rag/infrastructure/encrypted-google-drive-credential-store.ts";
+import { GoogleDriveApiProvider } from "./modules/knowledge-base-rag/infrastructure/google-drive-api-provider.ts";
+import { LocalKnowledgeRuntimeQueue } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-runtime-queue.ts";
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -676,8 +685,20 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const knowledgeFileStorage = new LocalKnowledgeFileStorage();
   const inlineIngestionEnabled =
     process.env.KNOWLEDGE_INGESTION_MODE?.trim().toLowerCase() === "inline";
+  const googleClientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+  const googleRedirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI;
+  const credentialEncryptionKey =
+    process.env.GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY;
+  const googleDriveConfigured = Boolean(
+    googleClientId &&
+      googleClientSecret &&
+      googleRedirectUri &&
+      credentialEncryptionKey
+  );
   let postUploadProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
-  if (inlineIngestionEnabled) {
+  let fullIngestionProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
+  if (inlineIngestionEnabled || (prisma && googleDriveConfigured)) {
     if (!prisma) {
       throw new Error(
         "KNOWLEDGE_INGESTION_MODE=inline requires DATABASE_URL and PostgreSQL."
@@ -700,26 +721,81 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         `${documentId}:chunk:${chunkIndex}`,
       generateEventId: () => randomUUID() as any
     });
-    postUploadProcessor = {
+    fullIngestionProcessor = {
       async process(input) {
         const result = await inlineRunner.run(input);
         return { document: result.document, job: result.job };
       }
     };
+    if (inlineIngestionEnabled) postUploadProcessor = fullIngestionProcessor;
+  }
+  const uploadUseCases = new KnowledgeUploadUseCases({
+    documentRepository: knowledgeDocumentRepository,
+    ingestionJobRepository: knowledgeIngestionJobRepository,
+    fileStorage: knowledgeFileStorage,
+    postUploadProcessor,
+    now: () => new Date().toISOString(),
+    generateDocumentId: () => randomUUID() as any,
+    generateJobId: () => randomUUID() as any
+  });
+  let googleDriveOAuthService: GoogleDriveOAuthService | undefined;
+  let enqueueSyncJob:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  if (
+    googleClientId &&
+    googleClientSecret &&
+    googleRedirectUri &&
+    credentialEncryptionKey &&
+    fullIngestionProcessor
+  ) {
+    const credentialStore = new EncryptedFileGoogleDriveCredentialStore({
+      rootDirectory: resolve(".data/knowledge-base-rag/google-drive-credentials"),
+      encryptionSecret: credentialEncryptionKey
+    });
+    googleDriveOAuthService = new GoogleDriveOAuthService({
+      config: {
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        redirectUri: googleRedirectUri
+      },
+      dataSourceRepository: knowledgeDataSourceRepository,
+      credentialStore,
+      stateStore: new GoogleDriveOAuthStateStore(),
+      now: () => new Date().toISOString(),
+      generateSourceId: () => `google-drive-${randomUUID()}`
+    });
+    const syncUploadUseCases = new KnowledgeUploadUseCases({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      fileStorage: knowledgeFileStorage,
+      postUploadProcessor: fullIngestionProcessor,
+      now: () => new Date().toISOString(),
+      generateDocumentId: () => randomUUID() as any,
+      generateJobId: () => randomUUID() as any
+    });
+    const syncRuntime = new GoogleDriveSyncRuntime({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      syncScopeRepository: knowledgeSyncScopeRepository,
+      syncJobRepository: knowledgeSyncJobRepository,
+      documentRepository: knowledgeDocumentRepository,
+      uploadUseCases: syncUploadUseCases,
+      oauthService: googleDriveOAuthService,
+      provider: new GoogleDriveApiProvider(),
+      now: () => new Date().toISOString(),
+      generateEventId: () => randomUUID()
+    });
+    const queue = new LocalKnowledgeRuntimeQueue({
+      googleDriveSync: (job) => syncRuntime.execute(job)
+    });
+    enqueueSyncJob = (input) =>
+      queue.enqueue({ kind: "google-drive-sync", ...input });
   }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
     }),
-    uploadUseCases: new KnowledgeUploadUseCases({
-      documentRepository: knowledgeDocumentRepository,
-      ingestionJobRepository: knowledgeIngestionJobRepository,
-      fileStorage: knowledgeFileStorage,
-      postUploadProcessor,
-      now: () => new Date().toISOString(),
-      generateDocumentId: () => randomUUID() as any,
-      generateJobId: () => randomUUID() as any
-    }),
+    uploadUseCases,
     ingestionUseCases: new KnowledgeIngestionUseCases({
       ingestionJobRepository: knowledgeIngestionJobRepository
     }),
@@ -730,8 +806,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     syncUseCases: new KnowledgeSyncUseCases({
       syncScopeRepository: knowledgeSyncScopeRepository,
       syncJobRepository: knowledgeSyncJobRepository,
+      dataSourceRepository: knowledgeDataSourceRepository,
       now: () => new Date().toISOString(),
-      generateJobId: () => randomUUID() as any
+      generateJobId: () => randomUUID() as any,
+      enqueueSyncJob
     }),
     retrievalSearchUseCase,
     ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
@@ -757,7 +835,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         }
       })
     }),
-    accessPolicy: knowledgeAccessPolicy
+    accessPolicy: knowledgeAccessPolicy,
+    googleDriveOAuthService
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {

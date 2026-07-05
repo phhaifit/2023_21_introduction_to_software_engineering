@@ -55,6 +55,12 @@ export function toIngestionJobDto(job: KnowledgeIngestionJob): IngestionJobDto {
 export function toKnowledgeDataSourceDto(
   source: KnowledgeDataSource
 ): KnowledgeDataSourceDto {
+  const safeMetadata =
+    source.safeMetadata &&
+    typeof source.safeMetadata === "object" &&
+    !Array.isArray(source.safeMetadata)
+      ? source.safeMetadata
+      : {};
   return {
     sourceId: source.sourceId,
     workspaceId: source.workspaceId,
@@ -62,6 +68,14 @@ export function toKnowledgeDataSourceDto(
     displayName: source.displayName,
     status: source.connectionStatus,
     selectedScopeNodeCount: source.selectedScopeNodeCount,
+    connectedAccountEmail:
+      typeof safeMetadata.connectedAccountEmail === "string"
+        ? safeMetadata.connectedAccountEmail
+        : undefined,
+    oauthConfigured:
+      typeof safeMetadata.oauthConfigured === "boolean"
+        ? safeMetadata.oauthConfigured
+        : undefined,
     lastSyncAt: source.lastSyncAt,
     updatedAt: source.updatedAt
   };
@@ -81,6 +95,14 @@ export function toSyncScopeNodeDto(node: KnowledgeSyncScopeNode): SyncScopeNodeD
 }
 
 export function toSyncJobDto(job: KnowledgeSyncJob): SyncJobDto {
+  const summary =
+    job.safeSummary &&
+    typeof job.safeSummary === "object" &&
+    !Array.isArray(job.safeSummary)
+      ? job.safeSummary
+      : {};
+  const count = (name: string) =>
+    typeof summary[name] === "number" ? summary[name] : undefined;
   return {
     jobId: job.jobId,
     workspaceId: job.workspaceId,
@@ -91,6 +113,13 @@ export function toSyncJobDto(job: KnowledgeSyncJob): SyncJobDto {
     finishedAt: job.completedAt ?? job.failedAt,
     scannedItemCount: job.totalItems ?? 0,
     changedItemCount: job.syncedItems ?? 0,
+    importedItemCount: count("importedItemCount"),
+    updatedItemCount: count("updatedItemCount"),
+    skippedUnchangedItemCount: count("skippedUnchangedItemCount"),
+    skippedUnsupportedItemCount: count("skippedUnsupportedItemCount"),
+    failedItemCount: count("failedItemCount"),
+    totalChunksCreated: count("totalChunksCreated"),
+    totalVectorsIndexed: count("totalVectorsIndexed"),
     failure:
       job.errorCode && job.errorMessage
         ? { errorCode: job.errorCode, errorMessage: job.errorMessage }
@@ -99,4 +128,3 @@ export function toSyncJobDto(job: KnowledgeSyncJob): SyncJobDto {
 }
 
 export type KnowledgeDocumentDtoSource = KnowledgeDocument;
-

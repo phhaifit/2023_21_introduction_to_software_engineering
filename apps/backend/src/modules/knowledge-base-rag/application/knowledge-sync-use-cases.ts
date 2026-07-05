@@ -1,5 +1,6 @@
 import type {
   RequestKnowledgeSyncJobRequest,
+  GoogleDriveSyncScopeRequest,
   SyncJobDto,
   SyncScopeNodeDto,
   UpdateSyncScopeRequest
@@ -12,12 +13,18 @@ import type {
 } from "./knowledge-sync-repositories.ts";
 import { toSyncJobDto, toSyncScopeNodeDto } from "./dto-mappers.ts";
 import { KnowledgeBaseRagValidationError } from "./knowledge-base-rag-errors.ts";
+import type { KnowledgeDataSourceRepository } from "./knowledge-data-source-repository.ts";
 
 export type KnowledgeSyncUseCaseDependencies = {
   syncScopeRepository: KnowledgeSyncScopeRepository;
   syncJobRepository: KnowledgeSyncJobRepository;
   now: () => string;
   generateJobId: () => EntityId<"jobId">;
+  dataSourceRepository?: KnowledgeDataSourceRepository;
+  enqueueSyncJob?: (input: {
+    workspaceId: EntityId<"workspaceId">;
+    jobId: EntityId<"jobId">;
+  }) => Promise<void>;
 };
 
 export class KnowledgeSyncUseCases {
@@ -83,8 +90,90 @@ export class KnowledgeSyncUseCases {
       createdAt: timestamp,
       updatedAt: timestamp
     });
+    if (this.dependencies.enqueueSyncJob) {
+      await this.dependencies.enqueueSyncJob({
+        workspaceId,
+        jobId: job.jobId
+      });
+    }
 
     return toSyncJobDto(job);
+  }
+
+  async configureGoogleDriveScope(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string,
+    request: GoogleDriveSyncScopeRequest
+  ): Promise<SyncScopeNodeDto[]> {
+    const folderIds = uniqueSafeIds(request.folderIds ?? []);
+    const fileIds = uniqueSafeIds(request.fileIds ?? []);
+    if (folderIds.length + fileIds.length === 0) {
+      throw new KnowledgeBaseRagValidationError([
+        "At least one Google Drive folder ID or file ID is required"
+      ]);
+    }
+    const maxFiles = Math.min(500, Math.max(1, request.maxFiles ?? 100));
+    const allowedMimeTypes = [
+      ...new Set((request.allowedMimeTypes ?? []).map((value) => value.trim()).filter(Boolean))
+    ].slice(0, 20);
+    const now = this.dependencies.now();
+    const existing = await this.dependencies.syncScopeRepository.getSyncScope(
+      workspaceId,
+      sourceId
+    );
+    const byExternalId = new Map(existing.map((node) => [node.externalId, node]));
+    const requested = [
+      ...folderIds.map((externalId) => ({ externalId, nodeType: "folder" as const })),
+      ...fileIds.map((externalId) => ({ externalId, nodeType: "file" as const }))
+    ];
+    const requestedIds = new Set(requested.map((item) => item.externalId));
+    const nodes = [
+      ...existing.map((node) => ({
+        ...node,
+        selected: requestedIds.has(node.externalId),
+        updatedAt: now
+      })),
+      ...requested
+        .filter((item) => !byExternalId.has(item.externalId))
+        .map((item) => ({
+          scopeNodeId: `google-drive:${sourceId}:${item.nodeType}:${item.externalId}`,
+          workspaceId,
+          sourceId,
+          externalId: item.externalId,
+          nodeType: item.nodeType,
+          displayName: `${item.nodeType === "folder" ? "Folder" : "File"} ${item.externalId}`,
+          selected: true,
+          selectable: true,
+          safeMetadata: {
+            recursive: request.recursive === true,
+            allowedMimeTypes,
+            maxFiles
+          },
+          createdAt: now,
+          updatedAt: now
+        }))
+    ];
+    const saved = (
+      await this.dependencies.syncScopeRepository.saveSyncScopeNodes(
+        workspaceId,
+        nodes
+      )
+    );
+    if (this.dependencies.dataSourceRepository) {
+      const source =
+        await this.dependencies.dataSourceRepository.getDataSourceById(
+          workspaceId,
+          sourceId
+        );
+      if (source) {
+        await this.dependencies.dataSourceRepository.saveDataSource({
+          ...source,
+          selectedScopeNodeCount: saved.filter((node) => node.selected).length,
+          updatedAt: now
+        });
+      }
+    }
+    return saved.map(toSyncScopeNodeDto);
   }
 
   async listSyncJobs(
@@ -115,3 +204,15 @@ export class KnowledgeSyncUseCases {
   }
 }
 
+function uniqueSafeIds(values: readonly string[]): string[] {
+  const ids = values.map((value) => value.trim()).filter(Boolean);
+  if (
+    ids.length > 100 ||
+    ids.some((value) => value.length > 200 || !/^[a-zA-Z0-9_-]+$/.test(value))
+  ) {
+    throw new KnowledgeBaseRagValidationError([
+      "Google Drive folder/file IDs are invalid"
+    ]);
+  }
+  return [...new Set(ids)];
+}

@@ -51,6 +51,9 @@ export type DocumentMinAggregateOutputType = {
   sourceId: string | null
   storageKey: string | null
   contentHash: string | null
+  externalId: string | null
+  sourceModifiedAt: string | null
+  lastSyncedAt: string | null
   status: string | null
   ingestionStatus: string | null
   indexingStatus: string | null
@@ -74,6 +77,9 @@ export type DocumentMaxAggregateOutputType = {
   sourceId: string | null
   storageKey: string | null
   contentHash: string | null
+  externalId: string | null
+  sourceModifiedAt: string | null
+  lastSyncedAt: string | null
   status: string | null
   ingestionStatus: string | null
   indexingStatus: string | null
@@ -97,6 +103,9 @@ export type DocumentCountAggregateOutputType = {
   sourceId: number
   storageKey: number
   contentHash: number
+  externalId: number
+  sourceModifiedAt: number
+  lastSyncedAt: number
   status: number
   ingestionStatus: number
   indexingStatus: number
@@ -134,6 +143,9 @@ export type DocumentMinAggregateInputType = {
   sourceId?: true
   storageKey?: true
   contentHash?: true
+  externalId?: true
+  sourceModifiedAt?: true
+  lastSyncedAt?: true
   status?: true
   ingestionStatus?: true
   indexingStatus?: true
@@ -157,6 +169,9 @@ export type DocumentMaxAggregateInputType = {
   sourceId?: true
   storageKey?: true
   contentHash?: true
+  externalId?: true
+  sourceModifiedAt?: true
+  lastSyncedAt?: true
   status?: true
   ingestionStatus?: true
   indexingStatus?: true
@@ -180,6 +195,9 @@ export type DocumentCountAggregateInputType = {
   sourceId?: true
   storageKey?: true
   contentHash?: true
+  externalId?: true
+  sourceModifiedAt?: true
+  lastSyncedAt?: true
   status?: true
   ingestionStatus?: true
   indexingStatus?: true
@@ -290,6 +308,9 @@ export type DocumentGroupByOutputType = {
   sourceId: string | null
   storageKey: string | null
   contentHash: string | null
+  externalId: string | null
+  sourceModifiedAt: string | null
+  lastSyncedAt: string | null
   status: string
   ingestionStatus: string
   indexingStatus: string
@@ -336,6 +357,9 @@ export type DocumentWhereInput = {
   sourceId?: Prisma.StringNullableFilter<"Document"> | string | null
   storageKey?: Prisma.StringNullableFilter<"Document"> | string | null
   contentHash?: Prisma.StringNullableFilter<"Document"> | string | null
+  externalId?: Prisma.StringNullableFilter<"Document"> | string | null
+  sourceModifiedAt?: Prisma.StringNullableFilter<"Document"> | string | null
+  lastSyncedAt?: Prisma.StringNullableFilter<"Document"> | string | null
   status?: Prisma.StringFilter<"Document"> | string
   ingestionStatus?: Prisma.StringFilter<"Document"> | string
   indexingStatus?: Prisma.StringFilter<"Document"> | string
@@ -364,6 +388,9 @@ export type DocumentOrderByWithRelationInput = {
   sourceId?: Prisma.SortOrderInput | Prisma.SortOrder
   storageKey?: Prisma.SortOrderInput | Prisma.SortOrder
   contentHash?: Prisma.SortOrderInput | Prisma.SortOrder
+  externalId?: Prisma.SortOrderInput | Prisma.SortOrder
+  sourceModifiedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastSyncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   ingestionStatus?: Prisma.SortOrder
   indexingStatus?: Prisma.SortOrder
@@ -381,6 +408,7 @@ export type DocumentOrderByWithRelationInput = {
 
 export type DocumentWhereUniqueInput = Prisma.AtLeast<{
   documentId?: string
+  workspaceId_sourceId_externalId?: Prisma.DocumentWorkspaceIdSourceIdExternalIdCompoundUniqueInput
   AND?: Prisma.DocumentWhereInput | Prisma.DocumentWhereInput[]
   OR?: Prisma.DocumentWhereInput[]
   NOT?: Prisma.DocumentWhereInput | Prisma.DocumentWhereInput[]
@@ -395,6 +423,9 @@ export type DocumentWhereUniqueInput = Prisma.AtLeast<{
   sourceId?: Prisma.StringNullableFilter<"Document"> | string | null
   storageKey?: Prisma.StringNullableFilter<"Document"> | string | null
   contentHash?: Prisma.StringNullableFilter<"Document"> | string | null
+  externalId?: Prisma.StringNullableFilter<"Document"> | string | null
+  sourceModifiedAt?: Prisma.StringNullableFilter<"Document"> | string | null
+  lastSyncedAt?: Prisma.StringNullableFilter<"Document"> | string | null
   status?: Prisma.StringFilter<"Document"> | string
   ingestionStatus?: Prisma.StringFilter<"Document"> | string
   indexingStatus?: Prisma.StringFilter<"Document"> | string
@@ -408,7 +439,7 @@ export type DocumentWhereUniqueInput = Prisma.AtLeast<{
   chunks?: Prisma.KnowledgeDocumentChunkListRelationFilter
   ingestionJobs?: Prisma.KnowledgeIngestionJobListRelationFilter
   accessGrants?: Prisma.KnowledgeAccessGrantListRelationFilter
-}, "documentId">
+}, "documentId" | "workspaceId_sourceId_externalId">
 
 export type DocumentOrderByWithAggregationInput = {
   documentId?: Prisma.SortOrder
@@ -423,6 +454,9 @@ export type DocumentOrderByWithAggregationInput = {
   sourceId?: Prisma.SortOrderInput | Prisma.SortOrder
   storageKey?: Prisma.SortOrderInput | Prisma.SortOrder
   contentHash?: Prisma.SortOrderInput | Prisma.SortOrder
+  externalId?: Prisma.SortOrderInput | Prisma.SortOrder
+  sourceModifiedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  lastSyncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
   ingestionStatus?: Prisma.SortOrder
   indexingStatus?: Prisma.SortOrder
@@ -454,6 +488,9 @@ export type DocumentScalarWhereWithAggregatesInput = {
   sourceId?: Prisma.StringNullableWithAggregatesFilter<"Document"> | string | null
   storageKey?: Prisma.StringNullableWithAggregatesFilter<"Document"> | string | null
   contentHash?: Prisma.StringNullableWithAggregatesFilter<"Document"> | string | null
+  externalId?: Prisma.StringNullableWithAggregatesFilter<"Document"> | string | null
+  sourceModifiedAt?: Prisma.StringNullableWithAggregatesFilter<"Document"> | string | null
+  lastSyncedAt?: Prisma.StringNullableWithAggregatesFilter<"Document"> | string | null
   status?: Prisma.StringWithAggregatesFilter<"Document"> | string
   ingestionStatus?: Prisma.StringWithAggregatesFilter<"Document"> | string
   indexingStatus?: Prisma.StringWithAggregatesFilter<"Document"> | string
@@ -476,6 +513,9 @@ export type DocumentCreateInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -504,6 +544,9 @@ export type DocumentUncheckedCreateInput = {
   sourceId?: string | null
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -530,6 +573,9 @@ export type DocumentUpdateInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -558,6 +604,9 @@ export type DocumentUncheckedUpdateInput = {
   sourceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -585,6 +634,9 @@ export type DocumentCreateManyInput = {
   sourceId?: string | null
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -607,6 +659,9 @@ export type DocumentUpdateManyMutationInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -630,6 +685,9 @@ export type DocumentUncheckedUpdateManyInput = {
   sourceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -638,6 +696,12 @@ export type DocumentUncheckedUpdateManyInput = {
   deletedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.StringFieldUpdateOperationsInput | string
   updatedAt?: Prisma.StringFieldUpdateOperationsInput | string
+}
+
+export type DocumentWorkspaceIdSourceIdExternalIdCompoundUniqueInput = {
+  workspaceId: string
+  sourceId: string
+  externalId: string
 }
 
 export type DocumentCountOrderByAggregateInput = {
@@ -653,6 +717,9 @@ export type DocumentCountOrderByAggregateInput = {
   sourceId?: Prisma.SortOrder
   storageKey?: Prisma.SortOrder
   contentHash?: Prisma.SortOrder
+  externalId?: Prisma.SortOrder
+  sourceModifiedAt?: Prisma.SortOrder
+  lastSyncedAt?: Prisma.SortOrder
   status?: Prisma.SortOrder
   ingestionStatus?: Prisma.SortOrder
   indexingStatus?: Prisma.SortOrder
@@ -682,6 +749,9 @@ export type DocumentMaxOrderByAggregateInput = {
   sourceId?: Prisma.SortOrder
   storageKey?: Prisma.SortOrder
   contentHash?: Prisma.SortOrder
+  externalId?: Prisma.SortOrder
+  sourceModifiedAt?: Prisma.SortOrder
+  lastSyncedAt?: Prisma.SortOrder
   status?: Prisma.SortOrder
   ingestionStatus?: Prisma.SortOrder
   indexingStatus?: Prisma.SortOrder
@@ -705,6 +775,9 @@ export type DocumentMinOrderByAggregateInput = {
   sourceId?: Prisma.SortOrder
   storageKey?: Prisma.SortOrder
   contentHash?: Prisma.SortOrder
+  externalId?: Prisma.SortOrder
+  sourceModifiedAt?: Prisma.SortOrder
+  lastSyncedAt?: Prisma.SortOrder
   status?: Prisma.SortOrder
   ingestionStatus?: Prisma.SortOrder
   indexingStatus?: Prisma.SortOrder
@@ -853,6 +926,9 @@ export type DocumentCreateWithoutIndexesInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -880,6 +956,9 @@ export type DocumentUncheckedCreateWithoutIndexesInput = {
   sourceId?: string | null
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -921,6 +1000,9 @@ export type DocumentUpdateWithoutIndexesInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -948,6 +1030,9 @@ export type DocumentUncheckedUpdateWithoutIndexesInput = {
   sourceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -973,6 +1058,9 @@ export type DocumentCreateWithoutChunksInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1000,6 +1088,9 @@ export type DocumentUncheckedCreateWithoutChunksInput = {
   sourceId?: string | null
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1041,6 +1132,9 @@ export type DocumentUpdateWithoutChunksInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1068,6 +1162,9 @@ export type DocumentUncheckedUpdateWithoutChunksInput = {
   sourceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1093,6 +1190,9 @@ export type DocumentCreateWithoutIngestionJobsInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1120,6 +1220,9 @@ export type DocumentUncheckedCreateWithoutIngestionJobsInput = {
   sourceId?: string | null
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1161,6 +1264,9 @@ export type DocumentUpdateWithoutIngestionJobsInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1188,6 +1294,9 @@ export type DocumentUncheckedUpdateWithoutIngestionJobsInput = {
   sourceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1213,6 +1322,9 @@ export type DocumentCreateWithoutSourceInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1239,6 +1351,9 @@ export type DocumentUncheckedCreateWithoutSourceInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1295,6 +1410,9 @@ export type DocumentScalarWhereInput = {
   sourceId?: Prisma.StringNullableFilter<"Document"> | string | null
   storageKey?: Prisma.StringNullableFilter<"Document"> | string | null
   contentHash?: Prisma.StringNullableFilter<"Document"> | string | null
+  externalId?: Prisma.StringNullableFilter<"Document"> | string | null
+  sourceModifiedAt?: Prisma.StringNullableFilter<"Document"> | string | null
+  lastSyncedAt?: Prisma.StringNullableFilter<"Document"> | string | null
   status?: Prisma.StringFilter<"Document"> | string
   ingestionStatus?: Prisma.StringFilter<"Document"> | string
   indexingStatus?: Prisma.StringFilter<"Document"> | string
@@ -1317,6 +1435,9 @@ export type DocumentCreateWithoutAccessGrantsInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1344,6 +1465,9 @@ export type DocumentUncheckedCreateWithoutAccessGrantsInput = {
   sourceId?: string | null
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1385,6 +1509,9 @@ export type DocumentUpdateWithoutAccessGrantsInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1412,6 +1539,9 @@ export type DocumentUncheckedUpdateWithoutAccessGrantsInput = {
   sourceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1437,6 +1567,9 @@ export type DocumentCreateManySourceInput = {
   sourceType?: string
   storageKey?: string | null
   contentHash?: string | null
+  externalId?: string | null
+  sourceModifiedAt?: string | null
+  lastSyncedAt?: string | null
   status?: string
   ingestionStatus?: string
   indexingStatus?: string
@@ -1459,6 +1592,9 @@ export type DocumentUpdateWithoutSourceInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1485,6 +1621,9 @@ export type DocumentUncheckedUpdateWithoutSourceInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1511,6 +1650,9 @@ export type DocumentUncheckedUpdateManyWithoutSourceInput = {
   sourceType?: Prisma.StringFieldUpdateOperationsInput | string
   storageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   contentHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  externalId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sourceModifiedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastSyncedAt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   ingestionStatus?: Prisma.StringFieldUpdateOperationsInput | string
   indexingStatus?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1592,6 +1734,9 @@ export type DocumentSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   sourceId?: boolean
   storageKey?: boolean
   contentHash?: boolean
+  externalId?: boolean
+  sourceModifiedAt?: boolean
+  lastSyncedAt?: boolean
   status?: boolean
   ingestionStatus?: boolean
   indexingStatus?: boolean
@@ -1621,6 +1766,9 @@ export type DocumentSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   sourceId?: boolean
   storageKey?: boolean
   contentHash?: boolean
+  externalId?: boolean
+  sourceModifiedAt?: boolean
+  lastSyncedAt?: boolean
   status?: boolean
   ingestionStatus?: boolean
   indexingStatus?: boolean
@@ -1645,6 +1793,9 @@ export type DocumentSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   sourceId?: boolean
   storageKey?: boolean
   contentHash?: boolean
+  externalId?: boolean
+  sourceModifiedAt?: boolean
+  lastSyncedAt?: boolean
   status?: boolean
   ingestionStatus?: boolean
   indexingStatus?: boolean
@@ -1669,6 +1820,9 @@ export type DocumentSelectScalar = {
   sourceId?: boolean
   storageKey?: boolean
   contentHash?: boolean
+  externalId?: boolean
+  sourceModifiedAt?: boolean
+  lastSyncedAt?: boolean
   status?: boolean
   ingestionStatus?: boolean
   indexingStatus?: boolean
@@ -1679,7 +1833,7 @@ export type DocumentSelectScalar = {
   updatedAt?: boolean
 }
 
-export type DocumentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"documentId" | "workspaceId" | "uploadedByUserId" | "displayName" | "fileName" | "mimeType" | "fileType" | "sizeBytes" | "sourceType" | "sourceId" | "storageKey" | "contentHash" | "status" | "ingestionStatus" | "indexingStatus" | "chunkCount" | "indexedChunkCount" | "deletedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["document"]>
+export type DocumentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"documentId" | "workspaceId" | "uploadedByUserId" | "displayName" | "fileName" | "mimeType" | "fileType" | "sizeBytes" | "sourceType" | "sourceId" | "storageKey" | "contentHash" | "externalId" | "sourceModifiedAt" | "lastSyncedAt" | "status" | "ingestionStatus" | "indexingStatus" | "chunkCount" | "indexedChunkCount" | "deletedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["document"]>
 export type DocumentInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   source?: boolean | Prisma.Document$sourceArgs<ExtArgs>
   indexes?: boolean | Prisma.Document$indexesArgs<ExtArgs>
@@ -1717,6 +1871,9 @@ export type $DocumentPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     sourceId: string | null
     storageKey: string | null
     contentHash: string | null
+    externalId: string | null
+    sourceModifiedAt: string | null
+    lastSyncedAt: string | null
     status: string
     ingestionStatus: string
     indexingStatus: string
@@ -2165,6 +2322,9 @@ export interface DocumentFieldRefs {
   readonly sourceId: Prisma.FieldRef<"Document", 'String'>
   readonly storageKey: Prisma.FieldRef<"Document", 'String'>
   readonly contentHash: Prisma.FieldRef<"Document", 'String'>
+  readonly externalId: Prisma.FieldRef<"Document", 'String'>
+  readonly sourceModifiedAt: Prisma.FieldRef<"Document", 'String'>
+  readonly lastSyncedAt: Prisma.FieldRef<"Document", 'String'>
   readonly status: Prisma.FieldRef<"Document", 'String'>
   readonly ingestionStatus: Prisma.FieldRef<"Document", 'String'>
   readonly indexingStatus: Prisma.FieldRef<"Document", 'String'>

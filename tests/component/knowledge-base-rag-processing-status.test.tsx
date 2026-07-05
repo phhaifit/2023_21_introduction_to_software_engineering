@@ -58,6 +58,10 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
   return {
     listDocuments: vi.fn(async () => ({ items: documents, pagination })),
     listIngestionJobs: vi.fn(async () => ({ items: jobs, pagination })),
+    listSyncJobs: vi.fn(async () => ({
+      items: [],
+      pagination: { ...pagination, totalItems: 0 }
+    })),
     ...overrides
   } as unknown as KnowledgeBaseRagApiClient;
 }
