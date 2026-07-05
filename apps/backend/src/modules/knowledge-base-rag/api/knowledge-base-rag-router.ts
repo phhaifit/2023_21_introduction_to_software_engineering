@@ -729,7 +729,7 @@ function googleDriveCallbackRedirectUrl(
   } catch {
     url = new URL("/knowledge-base-rag", "http://127.0.0.1:5173");
   }
-  url.searchParams.set("tab", "data-sources");
+  url.searchParams.set("tab", "data-sync");
   url.searchParams.set("googleDrive", status);
   return url.toString();
 }

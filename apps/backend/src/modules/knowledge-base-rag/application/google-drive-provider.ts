@@ -38,6 +38,9 @@ export class GoogleDriveProviderError extends Error {
     | "credential_invalid"
     | "rate_limited"
     | "quota_exceeded"
+    | "api_disabled"
+    | "insufficient_scope"
+    | "not_found"
     | "unsupported_file"
     | "provider_unavailable";
 

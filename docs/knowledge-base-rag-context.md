@@ -23,8 +23,8 @@ OpenSpec change: `implement-knowledge-base-rag`
 The frontend implementation lives under
 `apps/frontend/src/features/knowledge-base-rag`:
 
-- Base layout and local navigation for Documents, Upload Documents, Data
-  Sources, Synchronization Scope, and Processing Status.
+- Base layout and local navigation for Documents, Upload Documents, Data Sync,
+  and Processing Status.
 - Shared KB/RAG UI components in `knowledge-base-rag-components.tsx`.
 - Shared local view types in `knowledge-base-rag-view.ts`.
 - Documents screen in `knowledge-base-rag-documents.tsx`.
@@ -35,10 +35,10 @@ The frontend implementation lives under
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration. Documents, Upload, Data Sources, and Synchronization
-Scope screens now use the typed frontend KB/RAG API client as their runtime
-source of truth. The remaining Processing Status view is still
-placeholder-only and should be integrated in a later scoped slice.
+change that integration. Documents, Upload, the combined Google Drive Data
+Sync view, and Processing Status use the typed frontend KB/RAG API client as
+their runtime source of truth. Processing Status is the only user-facing job
+history for document ingestion and external-source synchronization.
 
 The backend now has an internal module foundation under
 `apps/backend/src/modules/knowledge-base-rag`:
@@ -55,7 +55,7 @@ The backend now has an internal module foundation under
 - Deterministic in-memory repositories for future use-case tests.
 - A thin workspace-scoped HTTP API router under `api/` that maps shared route
   contracts to application use cases and shared `ApiResponse` envelopes.
-- A Google Drive-only Data Sources flow with backend OAuth, encrypted local
+- A Google Drive-only Data Sync flow with backend OAuth, encrypted local
   credential storage, explicit folder/file ID scope, manual synchronization,
   blob download, Google Docs/Sheets export, and safe sync summaries.
 - A worker handoff skeleton that transitions already-created document ingestion

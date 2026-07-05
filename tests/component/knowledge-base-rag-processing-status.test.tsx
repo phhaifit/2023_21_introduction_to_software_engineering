@@ -212,7 +212,54 @@ describe("Knowledge Base / RAG Processing Status", () => {
     );
 
     expect(await screen.findByText("Automatic sync")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Google Drive sync · Automatic" })).toBeTruthy();
+    expect(screen.queryByText("sync-scheduled")).toBeNull();
     expect(screen.getByText("Removed")).toBeTruthy();
+  });
+
+  it("explains provider failures that happen before Drive scanning", async () => {
+    const failedSync: SyncJobDto = {
+      jobId: "ca39c5dc-4144-433c-bf1b-60e0c682845f" as EntityId<"jobId">,
+      workspaceId,
+      sourceId: "source-drive",
+      status: "failed",
+      requestedAt: "2026-07-05T00:00:00.000Z",
+      startedAt: "2026-07-05T00:00:01.000Z",
+      finishedAt: "2026-07-05T00:00:02.000Z",
+      scannedItemCount: 0,
+      changedItemCount: 0,
+      syncMode: "manual",
+      failure: {
+        errorCode: "google_drive.not_found",
+        errorMessage:
+          "The selected Drive file or folder could not be found or is not accessible."
+      }
+    };
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({
+          listSyncJobs: vi.fn(async () => ({
+            items: [failedSync],
+            pagination: { ...pagination, totalItems: 1 }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Google Drive sync · Manual" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Sync failed before any files could be scanned.")
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "The selected Drive file or folder could not be found or is not accessible."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText(failedSync.jobId)).toBeNull();
   });
 
   it("shows a safe unavailable state and retries without rendering raw errors", async () => {
@@ -300,6 +347,11 @@ describe("Knowledge Base / RAG Processing Status", () => {
     expect(within(readyDialog).getByText("application/pdf")).toBeVisible();
     expect(within(readyDialog).getByText("4 of 4 chunks indexed")).toBeVisible();
     expect(within(readyDialog).queryByText("Retry failed job")).toBeNull();
+    expect(within(readyDialog).queryByText("Debug details")).toBeNull();
+    expect(within(readyDialog).queryByText("Job ID")).toBeNull();
+    expect(within(readyDialog).queryByText("Document ID")).toBeNull();
+    expect(within(readyDialog).queryByText("job-ready")).toBeNull();
+    expect(within(readyDialog).queryByText("document-ready")).toBeNull();
 
     await user.click(
       within(readyDialog).getByRole("button", { name: "Close processing job details" })

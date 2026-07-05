@@ -223,6 +223,12 @@
   padding: 0.75rem 0.875rem;
 }
 
+.knowledge-base-rag-processing-job__hint {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
 .knowledge-base-rag-processing-job__actions {
   justify-content: flex-end;
   margin-top: 1rem;

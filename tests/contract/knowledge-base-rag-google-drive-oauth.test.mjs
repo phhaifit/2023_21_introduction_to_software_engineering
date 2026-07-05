@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   GoogleDriveOAuthService,
   GoogleDriveOAuthStateStore,
-  GOOGLE_DRIVE_OAUTH_SCOPES
+  GOOGLE_DRIVE_OAUTH_SCOPES,
+  googleDriveOAuthScopes
 } from "@vcp/backend/modules/knowledge-base-rag/application/google-drive-oauth-service.ts";
 import { InMemoryGoogleDriveCredentialStore } from "@vcp/backend/modules/knowledge-base-rag/application/google-drive-credential-store.ts";
 import { InMemoryKnowledgeDataSourceRepository } from "@vcp/backend/modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
@@ -47,6 +48,38 @@ assert.equal(authorizationUrl.searchParams.get("access_type"), "offline");
 assert.equal(authorizationUrl.searchParams.get("scope"), GOOGLE_DRIVE_OAUTH_SCOPES.join(" "));
 assert.equal(
   authorizationUrl.searchParams.get("scope").includes("https://www.googleapis.com/auth/drive "),
+  false
+);
+
+const readonlyService = new GoogleDriveOAuthService({
+  config: {
+    clientId: "client-id",
+    clientSecret: "client-secret-value",
+    redirectUri: "http://127.0.0.1:3001/oauth/callback",
+    scopeMode: "readonly"
+  },
+  dataSourceRepository: new InMemoryKnowledgeDataSourceRepository(),
+  credentialStore: new InMemoryGoogleDriveCredentialStore(),
+  stateStore: new GoogleDriveOAuthStateStore(),
+  now: () => "2026-07-05T00:00:00.000Z",
+  generateSourceId: () => "source-google-drive-readonly",
+  fetchImplementation
+});
+const readonlyUrl = new URL(
+  (
+    await readonlyService.start(
+      "workspace-readonly",
+      "user-a",
+      "Read-only Drive"
+    )
+  ).authorizationUrl
+);
+assert.equal(
+  readonlyUrl.searchParams.get("scope"),
+  googleDriveOAuthScopes("readonly").join(" ")
+);
+assert.equal(
+  readonlyUrl.searchParams.get("scope").includes("/auth/drive.file"),
   false
 );
 

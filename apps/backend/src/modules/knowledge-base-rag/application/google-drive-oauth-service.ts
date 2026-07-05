@@ -18,6 +18,20 @@ export const GOOGLE_DRIVE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/drive.file"
 ] as const;
 
+export type GoogleDriveOAuthScopeMode = "file" | "readonly";
+
+export function googleDriveOAuthScopes(
+  mode: GoogleDriveOAuthScopeMode = "file"
+): readonly string[] {
+  return [
+    "openid",
+    "email",
+    mode === "readonly"
+      ? "https://www.googleapis.com/auth/drive.readonly"
+      : "https://www.googleapis.com/auth/drive.file"
+  ];
+}
+
 type OAuthState = {
   workspaceId: EntityId<"workspaceId">;
   sourceId: string;
@@ -29,6 +43,7 @@ export type GoogleDriveOAuthConfig = {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  scopeMode?: GoogleDriveOAuthScopeMode;
 };
 
 export class GoogleDriveOAuthStateStore {
@@ -48,6 +63,7 @@ export class GoogleDriveOAuthStateStore {
 }
 
 export class GoogleDriveOAuthService {
+  private readonly oauthScopes: readonly string[];
   private readonly dependencies: {
     config: GoogleDriveOAuthConfig;
     dataSourceRepository: KnowledgeDataSourceRepository;
@@ -70,6 +86,7 @@ export class GoogleDriveOAuthService {
     }
   ) {
     this.dependencies = dependencies;
+    this.oauthScopes = googleDriveOAuthScopes(dependencies.config.scopeMode);
   }
 
   async start(
@@ -106,7 +123,7 @@ export class GoogleDriveOAuthService {
       client_id: this.dependencies.config.clientId,
       redirect_uri: this.dependencies.config.redirectUri,
       response_type: "code",
-      scope: GOOGLE_DRIVE_OAUTH_SCOPES.join(" "),
+      scope: this.oauthScopes.join(" "),
       access_type: "offline",
       include_granted_scopes: "true",
       prompt: "consent",
@@ -250,7 +267,7 @@ export class GoogleDriveOAuthService {
         "Google Drive authorization could not be completed."
       );
     }
-    return tokenResponse(await response.json());
+    return tokenResponse(await response.json(), this.oauthScopes);
   }
 
   private async refresh(
@@ -272,7 +289,7 @@ export class GoogleDriveOAuthService {
         "Google Drive authorization was revoked. Reconnect the data source."
       );
     }
-    const refreshed = tokenResponse(await response.json());
+    const refreshed = tokenResponse(await response.json(), this.oauthScopes);
     return {
       ...refreshed,
       refreshToken: credential.refreshToken,
@@ -316,7 +333,10 @@ export class GoogleDriveOAuthError extends Error {
   }
 }
 
-function tokenResponse(value: unknown): GoogleDriveCredential {
+function tokenResponse(
+  value: unknown,
+  fallbackScopes: readonly string[]
+): GoogleDriveCredential {
   const response = value as Record<string, unknown>;
   if (typeof response.access_token !== "string") {
     throw new GoogleDriveOAuthError(
@@ -338,6 +358,6 @@ function tokenResponse(value: unknown): GoogleDriveCredential {
     scopes:
       typeof response.scope === "string"
         ? response.scope.split(/\s+/).filter(Boolean)
-        : [...GOOGLE_DRIVE_OAUTH_SCOPES]
+        : [...fallbackScopes]
   };
 }

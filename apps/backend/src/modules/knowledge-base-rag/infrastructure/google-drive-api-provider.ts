@@ -78,7 +78,7 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
       url = `${DRIVE_API}/files/${encodeURIComponent(file.fileId)}?alt=media`;
     }
 
-    const response = await this.fetchImplementation(url, {
+    const response = await this.request(url, {
       headers: { authorization: `Bearer ${accessToken}` }
     });
     if (!response.ok) throw await providerError(response);
@@ -107,7 +107,7 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
           pageSize: String(Math.min(100, scope.maxFiles))
         });
         if (pageToken) query.set("pageToken", pageToken);
-        const response = await this.fetchImplementation(
+        const response = await this.request(
           `${DRIVE_API}/files?${query.toString()}`,
           { headers: { authorization: `Bearer ${accessToken}` } }
         );
@@ -136,12 +136,23 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
   ): Promise<GoogleDriveFile> {
     const fields =
       "id,name,mimeType,modifiedTime,size,md5Checksum,trashed,capabilities(canDownload),parents";
-    const response = await this.fetchImplementation(
+    const response = await this.request(
       `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}`,
       { headers: { authorization: `Bearer ${accessToken}` } }
     );
     if (!response.ok) throw await providerError(response);
     return mapFile(await response.json());
+  }
+
+  private async request(input: string, init?: RequestInit): Promise<Response> {
+    try {
+      return await this.fetchImplementation(input, init);
+    } catch {
+      throw new GoogleDriveProviderError(
+        "provider_unavailable",
+        "Google Drive is temporarily unavailable. Try again later."
+      );
+    }
   }
 }
 
@@ -176,22 +187,110 @@ function mapFile(value: unknown): GoogleDriveFile {
 
 async function providerError(response: Response): Promise<GoogleDriveProviderError> {
   const status = response.status;
-  const safeMessage =
-    status === 401
-      ? "Google Drive authorization has expired or was revoked."
-      : status === 403
-        ? "Google Drive access was denied or quota was exceeded."
-        : status === 429
-          ? "Google Drive rate limit was reached. Try again later."
-          : "Google Drive is temporarily unavailable.";
+  const details = await safeProviderErrorDetails(response);
+  if (status === 401) {
+    return new GoogleDriveProviderError(
+      "credential_invalid",
+      "Google Drive credentials are invalid or expired. Reconnect Google Drive."
+    );
+  }
+  if (status === 404) {
+    return new GoogleDriveProviderError(
+      "not_found",
+      "The selected Drive file or folder could not be found or is not accessible."
+    );
+  }
+  if (status === 429 || isRateLimit(details)) {
+    return new GoogleDriveProviderError(
+      "rate_limited",
+      "Google Drive rate limit reached. Try again later."
+    );
+  }
+  if (status === 403 && isApiDisabled(details)) {
+    return new GoogleDriveProviderError(
+      "api_disabled",
+      "Google Drive API is not enabled for this Google Cloud project."
+    );
+  }
+  if (status === 403 && isInsufficientScope(details)) {
+    return new GoogleDriveProviderError(
+      "insufficient_scope",
+      "Google Drive OAuth scope is insufficient for this file or folder. Reconnect Google Drive after updating OAuth scopes."
+    );
+  }
+  if (status === 403) {
+    return new GoogleDriveProviderError(
+      "permission_denied",
+      "Google Drive did not grant this app access to the selected file or folder. Reconnect Google Drive or choose a file the app can access."
+    );
+  }
   return new GoogleDriveProviderError(
-    status === 401
-      ? "credential_invalid"
-      : status === 429
-        ? "rate_limited"
-        : status === 403
-          ? "permission_denied"
-          : "provider_unavailable",
-    safeMessage
+    "provider_unavailable",
+    "Google Drive is temporarily unavailable. Try again later."
+  );
+}
+
+type SafeProviderErrorDetails = {
+  message: string;
+  reasons: string[];
+};
+
+async function safeProviderErrorDetails(
+  response: Response
+): Promise<SafeProviderErrorDetails> {
+  try {
+    const body = (await response.json()) as {
+      error?: {
+        message?: unknown;
+        status?: unknown;
+        errors?: Array<{ reason?: unknown }>;
+      };
+    };
+    return {
+      message:
+        typeof body.error?.message === "string"
+          ? body.error.message.toLowerCase()
+          : "",
+      reasons: Array.isArray(body.error?.errors)
+        ? body.error.errors
+            .map((item) =>
+              typeof item.reason === "string" ? item.reason.toLowerCase() : ""
+            )
+            .filter(Boolean)
+        : []
+    };
+  } catch {
+    return { message: "", reasons: [] };
+  }
+}
+
+function isApiDisabled(details: SafeProviderErrorDetails): boolean {
+  return (
+    details.reasons.some((reason) =>
+      ["accessnotconfigured", "servicedisabled"].includes(reason)
+    ) ||
+    details.message.includes("has not been used") ||
+    details.message.includes("is disabled")
+  );
+}
+
+function isInsufficientScope(details: SafeProviderErrorDetails): boolean {
+  return (
+    details.reasons.some((reason) =>
+      ["insufficientpermissions", "autherror"].includes(reason)
+    ) ||
+    details.message.includes("insufficient authentication scopes") ||
+    details.message.includes("insufficient permission")
+  );
+}
+
+function isRateLimit(details: SafeProviderErrorDetails): boolean {
+  return details.reasons.some((reason) =>
+    [
+      "dailylimitexceeded",
+      "quotaexceeded",
+      "ratelimitexceeded",
+      "userratelimitexceeded"
+    ].includes(reason)
   );
 }

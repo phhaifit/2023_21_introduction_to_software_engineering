@@ -14,6 +14,9 @@ Agents need workspace-specific company knowledge to answer and act with the righ
   Google Picker, Drive push notifications, and a durable distributed queue.
 - Add opt-in hourly/daily Google Drive scheduled polling that reuses the
   existing sync and ingestion pipeline.
+- Consolidate Google Drive connection and scoped sync settings into one Data
+  Sync view, and add an explicit local-demo `drive.readonly` OAuth mode for
+  manual URL/ID selection while retaining `drive.file` as the default.
 
 ## Capabilities
 

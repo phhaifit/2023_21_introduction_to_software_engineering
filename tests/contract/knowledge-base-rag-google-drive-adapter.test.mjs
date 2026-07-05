@@ -86,6 +86,8 @@ assert.ok(rawFolderCalls.some((url) => url.includes("%27raw-folder%27+in+parents
 for (const [status, code] of [
   [401, "credential_invalid"],
   [403, "permission_denied"],
+  [404, "not_found"],
+  [500, "provider_unavailable"],
   [429, "rate_limited"]
 ]) {
   const failing = new GoogleDriveApiProvider(async () =>
@@ -107,6 +109,66 @@ for (const [status, code] of [
       !error.message.includes("secret-access-token")
   );
 }
+
+for (const [reason, code, message] of [
+  [
+    "accessNotConfigured",
+    "api_disabled",
+    "Google Drive API is not enabled"
+  ],
+  [
+    "insufficientPermissions",
+    "insufficient_scope",
+    "Google Drive OAuth scope is insufficient"
+  ],
+  ["userRateLimitExceeded", "rate_limited", "rate limit reached"]
+]) {
+  const failing = new GoogleDriveApiProvider(async () =>
+    jsonResponse(
+      {
+        error: {
+          message: "private provider payload token",
+          errors: [{ reason }]
+        }
+      },
+      403
+    )
+  );
+  await assert.rejects(
+    () =>
+      failing.listFiles("secret-access-token", {
+        folderIds: [],
+        fileIds: ["file-1"],
+        recursive: false,
+        allowedMimeTypes: [],
+        maxFiles: 1
+      }),
+    (error) =>
+      error instanceof GoogleDriveProviderError &&
+      error.code === code &&
+      error.message.includes(message) &&
+      !error.message.includes("private provider payload") &&
+      !error.message.includes("secret-access-token")
+  );
+}
+
+const networkFailure = new GoogleDriveApiProvider(async () => {
+  throw new Error("socket failed with secret-access-token");
+});
+await assert.rejects(
+  () =>
+    networkFailure.listFiles("secret-access-token", {
+      folderIds: [],
+      fileIds: ["file-1"],
+      recursive: false,
+      allowedMimeTypes: [],
+      maxFiles: 1
+    }),
+  (error) =>
+    error instanceof GoogleDriveProviderError &&
+    error.code === "provider_unavailable" &&
+    error.message === "Google Drive is temporarily unavailable. Try again later."
+);
 
 console.log("knowledge-base-rag Google Drive adapter checks passed");
 

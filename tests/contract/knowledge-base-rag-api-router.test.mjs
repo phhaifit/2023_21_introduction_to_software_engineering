@@ -453,7 +453,7 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   const redirectLocation = browserCallback.headers.get("location");
   assert.equal(
     redirectLocation,
-    "http://127.0.0.1:5173/knowledge-base-rag?tab=data-sources&googleDrive=connected"
+    "http://127.0.0.1:5173/knowledge-base-rag?tab=data-sync&googleDrive=connected"
   );
   assert.equal(/browser-code|safe-state|token|secret/i.test(redirectLocation), false);
 

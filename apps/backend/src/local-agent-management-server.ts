@@ -692,6 +692,11 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const googleClientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
   const googleRedirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI;
+  const googleDriveOAuthScopeMode =
+    process.env.GOOGLE_DRIVE_OAUTH_SCOPE_MODE?.trim().toLowerCase() ===
+    "readonly"
+      ? "readonly"
+      : "file";
   const credentialEncryptionKey =
     process.env.GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY;
   const googleDriveConfigured = Boolean(
@@ -761,7 +766,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       config: {
         clientId: googleClientId,
         clientSecret: googleClientSecret,
-        redirectUri: googleRedirectUri
+        redirectUri: googleRedirectUri,
+        scopeMode: googleDriveOAuthScopeMode
       },
       dataSourceRepository: knowledgeDataSourceRepository,
       credentialStore,

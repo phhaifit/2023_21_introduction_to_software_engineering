@@ -89,16 +89,17 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
 }
 
 describe("Knowledge Base / RAG Sync Scope API integration", () => {
-  it("loads sync scope and sync jobs through the API client", async () => {
+  it("loads saved scope without rendering duplicated sync history", async () => {
     const client = createClient();
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading synchronization scope");
     expect(await screen.findByLabelText("Paste Drive file/folder URLs or IDs")).toBeTruthy();
-    expect(screen.getByText("sync-job-a")).toBeTruthy();
     expect(client.getSyncScope).toHaveBeenCalledWith(workspaceId);
-    expect(client.listSyncJobs).toHaveBeenCalledWith(workspaceId);
+    expect(client.listSyncJobs).not.toHaveBeenCalled();
+    expect(screen.queryByText("sync-job-a")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Sync jobs" })).toBeNull();
   });
 
   it("renders empty and error states without mock scope nodes", async () => {
@@ -130,7 +131,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={failingClient} workspaceId={workspaceId} />);
     expect(
-      await screen.findByText(/Some synchronization details could not be loaded/)
+      await screen.findByText(/Saved scope is temporarily unavailable/)
     ).toBeTruthy();
     expect(screen.getByLabelText("Paste Drive file/folder URLs or IDs")).toBeTruthy();
   });
@@ -165,7 +166,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(
       screen.getByText("182d96jUaHozp6IrL8Ne55-YmSQSePagGfy85y3t2W6g")
     ).toBeTruthy();
-    expect(screen.getByText(/Full URLs are normalized automatically/)).toBeTruthy();
+    expect(screen.getByText(/Full URLs and raw IDs are accepted/)).toBeTruthy();
   });
 
   it("normalizes Drive URLs and saves Auto Sync settings", async () => {
@@ -183,7 +184,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     await user.click(screen.getByLabelText("Include nested folders"));
     await user.click(screen.getByLabelText("Enable Auto Sync"));
     await user.selectOptions(screen.getByLabelText("Auto Sync frequency"), "hourly");
-    await user.click(screen.getByRole("button", { name: "Save Google Drive scope" }));
+    await user.click(screen.getByRole("button", { name: "Save scope" }));
 
     await waitFor(() => expect(client.configureGoogleDriveScope).toHaveBeenCalledTimes(1));
     expect(client.configureGoogleDriveScope).toHaveBeenCalledWith(
@@ -207,14 +208,21 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(await screen.findByText("Synchronization scope updated.")).toBeTruthy();
   });
 
-  it("requests manual sync as a queued intent without worker runtime payloads", async () => {
+  it("shows simple sections and syncs now without exposing internal runtime wording", async () => {
     const client = createClient();
     const user = userEvent.setup();
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
 
     await screen.findByLabelText("Paste Drive file/folder URLs or IDs");
-    await user.click(screen.getByRole("button", { name: "Request manual sync" }));
+    expect(screen.getByRole("heading", { name: "Drive content" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sync settings" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Save and sync" })).toBeTruthy();
+    expect(screen.queryByText(/^Step 1$/i)).toBeNull();
+    expect(screen.queryByText(/^Step 2$/i)).toBeNull();
+    expect(screen.queryByText(/Step 3/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Request manual sync" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Sync now" }));
 
     await waitFor(() => expect(client.requestManualSync).toHaveBeenCalledTimes(1));
     expect(client.requestManualSync).toHaveBeenCalledWith(workspaceId, {
@@ -224,6 +232,27 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(JSON.stringify(vi.mocked(client.requestManualSync).mock.calls[0][1])).not.toMatch(
       /credential|secret|token|refresh|password|rawProvider|worker|queuePayload|vectorConfig/i
     );
-    expect(await screen.findByText("Manual sync requested.")).toBeTruthy();
+    expect(
+      await screen.findByText("Sync job started. View progress in Processing Status.")
+    ).toBeTruthy();
+  });
+
+  it("disables Sync now until at least one scope item has been saved", async () => {
+    render(
+      <KnowledgeBaseSyncScopeScreen
+        apiClient={createClient({
+          getSyncScope: vi.fn(async () => [])
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const syncButton = await screen.findByRole("button", { name: "Sync now" });
+    expect(syncButton).toBeDisabled();
+    expect(
+      screen.getByText("Save at least one Drive file or folder before syncing.")
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save scope" })).toBeDisabled();
+    expect(screen.queryByText(/Notion|Confluence/i)).toBeNull();
   });
 });

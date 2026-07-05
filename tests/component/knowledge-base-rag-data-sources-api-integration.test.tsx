@@ -64,7 +64,8 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Loading data sources");
     expect(await screen.findByRole("heading", { name: "Google Drive" })).toBeTruthy();
-    expect(screen.getByText("External data sources")).toBeTruthy();
+    expect(screen.queryByLabelText("Data source summary")).toBeNull();
+    expect(screen.queryByText("Needs attention")).toBeNull();
     expect(client.listDataSources).toHaveBeenCalledWith(workspaceId);
   });
 
@@ -112,22 +113,18 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     expect(navigateToOAuth).toHaveBeenCalledWith("https://accounts.google.test/oauth");
   });
 
-  it("shows callback success and requires scope before manual sync", async () => {
+  it("shows callback success and keeps sync actions in the scope section", async () => {
     window.history.replaceState(
       {},
       "",
-      "/knowledge-base-rag?tab=data-sources&googleDrive=connected"
+      "/knowledge-base-rag?tab=data-sync&googleDrive=connected"
     );
     const client = createClient({
       listDataSources: vi.fn(async () => [connectedWithoutScope])
     });
-    const onConfigureScope = vi.fn();
-    const user = userEvent.setup();
-
     render(
       <KnowledgeBaseDataSourcesScreen
         apiClient={client}
-        onConfigureScope={onConfigureScope}
         workspaceId={workspaceId}
       />
     );
@@ -137,16 +134,9 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     ).toBeTruthy();
     expect(screen.getByText("researcher@example.test")).toBeTruthy();
     expect(screen.getByText("Not synced")).toBeTruthy();
-    expect(screen.getByText(/Configure Synchronization Scope before running sync/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sync now" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Sync now" })).toHaveAttribute(
-      "title",
-      "Add at least one Google Drive file ID or folder ID in Synchronization Scope before syncing."
-    );
-
-    await user.click(screen.getByRole("button", { name: "Configure scope" }));
-    expect(onConfigureScope).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Sync now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Configure scope" })).toBeNull();
     expect(client.requestManualSync).not.toHaveBeenCalled();
   });
 
@@ -164,14 +154,12 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
             }
           ])
         })}
-        onConfigureScope={vi.fn()}
         workspaceId={workspaceId}
       />
     );
 
     expect(await screen.findByText("Hourly")).toBeTruthy();
-    expect(screen.getByText("completed")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Configure scope" })).toBeEnabled();
+    expect(screen.getByText("Completed")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sync now" })).toBeNull();
   });
 });

@@ -300,6 +300,12 @@ through a workspace-scoped public API.
 - **THEN** the backend uses `drive.file`, `openid`, and `email`, validates one-time OAuth state, exchanges and refreshes tokens only on the backend, and returns safe connection metadata without credentials
 - **AND** browser callbacks redirect to the frontend Data Sources view with only a bounded success/error indicator, while explicit JSON clients may receive the safe API response
 
+#### Scenario: Local demo may opt into read-only Drive scope
+- **WHEN** Google Picker is unavailable and the local demo explicitly configures `GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly`
+- **THEN** new Google Drive authorization requests use `drive.readonly`, `openid`, and `email`
+- **AND** users must disconnect and reconnect after changing scope mode
+- **AND** synchronization still imports only explicitly configured file or folder scope
+
 #### Scenario: Connected Google Drive requires explicit scope
 - **WHEN** Google Drive is connected but no folder or file scope is selected
 - **THEN** the Data Sources UI explains that connection only authorizes access, disables manual sync, keeps disconnect available, and links to Synchronization Scope
@@ -338,6 +344,17 @@ through a workspace-scoped public API.
 - **WHEN** a user enters a raw Drive ID, Google Docs URL, Drive file URL, Drive folder URL, or copied ID with `/edit`, `/view`, or query parameters
 - **THEN** the system extracts and validates the stable Drive item ID before persisting scope
 - **AND** empty or invalid values fail with an actionable validation error
+
+#### Scenario: Google Drive configuration has one user-facing home
+- **WHEN** a user opens Knowledge Base data synchronization
+- **THEN** one `Data Sync` tab presents Google Drive connection, selected content, schedule settings, and manual sync actions
+- **AND** detailed sync jobs are shown only in Processing Status
+- **AND** raw source, document, ingestion-job, and sync-job identifiers are not displayed in normal user-facing content or processing details
+
+#### Scenario: Drive provider failures are actionable and safe
+- **WHEN** Google Drive returns invalid credentials, insufficient permission or scope, disabled API, missing item, rate limit, server error, or a network failure
+- **THEN** the sync job records a bounded actionable message for that category
+- **AND** provider payloads, OAuth tokens, credentials, secrets, local paths, and stack traces are not exposed
 
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants

@@ -187,7 +187,7 @@ export function KnowledgeBaseProcessingStatusScreen(
 
       {loadState === "loaded" ? (
         <KnowledgeBaseSectionCard
-          title="Google Drive synchronization"
+          title="External source sync"
           eyebrow="External source jobs"
           description="Manual and automatic Google Drive sync lifecycle and safe import summary."
         >
@@ -197,7 +197,10 @@ export function KnowledgeBaseProcessingStatusScreen(
                 <article className="knowledge-base-rag-processing-job" role="listitem" key={job.jobId}>
                   <div className="knowledge-base-rag-processing-job__header">
                     <div>
-                      <h3>Google Drive sync</h3>
+                      <h3>
+                        Google Drive sync ·{" "}
+                        {job.syncMode === "scheduled" ? "Automatic" : "Manual"}
+                      </h3>
                       <p>{syncCurrentStep(job.status)}</p>
                     </div>
                     <ProcessingStatusBadge status={mapSyncStatus(job.status)} />
@@ -224,9 +227,16 @@ export function KnowledgeBaseProcessingStatusScreen(
                     ]}
                   />
                   {job.failure ? (
-                    <p className="knowledge-base-rag-processing-job__error">
-                      {getSafeFailureMessage(job.failure.errorMessage)}
-                    </p>
+                    <>
+                      <p className="knowledge-base-rag-processing-job__error">
+                        {getSafeFailureMessage(job.failure.errorMessage)}
+                      </p>
+                      {job.scannedItemCount === 0 ? (
+                        <p className="knowledge-base-rag-processing-job__hint">
+                          Sync failed before any files could be scanned.
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
                 </article>
               ))}
@@ -286,7 +296,7 @@ function toProcessingJob(
   return {
     jobId: job.jobId,
     documentId: job.documentId,
-    documentName: document?.name ?? job.documentId,
+    documentName: document?.name ?? "Document processing",
     documentStatus: mapDocumentStatus(document?.status ?? job.status),
     mediaType: document?.mediaType ?? "Unknown",
     fileType: inferDocumentType(document),
@@ -560,14 +570,6 @@ function ProcessingJobDetails({
             <p>{job.safeErrorMessage}</p>
           </div>
         ) : null}
-
-        <details className="knowledge-base-rag-processing-details-modal__debug">
-          <summary>Debug details</summary>
-          <dl>
-            <div><dt>Job ID</dt><dd>{job.jobId}</dd></div>
-            <div><dt>Document ID</dt><dd>{job.documentId}</dd></div>
-          </dl>
-        </details>
 
         <footer>
           {job.status === "failed" ? (

@@ -153,6 +153,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Selection: Manual scope input accepts raw IDs, full Docs/Drive URLs, and copied `/edit` or `/view` suffixes. Google Picker is deferred and is not presented as implemented.
    - Limitation: The process-local scheduler is suitable for the local/demo runtime but is non-durable and single-process. Production multi-instance scheduling still requires a durable queue/lease boundary.
 
+28. Consolidate Google Drive configuration and make manual-ID OAuth limitations explicit.
+   - UI: One `Data Sync` tab owns Google Drive connection, selected content, schedule settings, and manual sync actions. Detailed ingestion and sync jobs remain only in Processing Status, and normal user-facing views omit raw IDs.
+   - OAuth: `drive.file` remains the least-privilege default. Local demos may explicitly set `GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly` to request `drive.readonly` when Google Picker is unavailable and users paste URLs or IDs. Changing the mode requires disconnecting and reconnecting.
+   - Safety: Read-only mode does not broaden configured synchronization scope; the runtime still lists and downloads only selected file or folder IDs.
+
 ## Risks / Trade-offs
 
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.

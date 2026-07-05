@@ -53,6 +53,7 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | `GOOGLE_DRIVE_CLIENT_SECRET` | Real Google Drive OAuth | Backend-only secret; never expose or commit it. |
 | `GOOGLE_DRIVE_REDIRECT_URI` | Real Google Drive OAuth | Must target the workspace-scoped OAuth callback route. |
 | `GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY` | Encrypted local credential storage | Backend-only secret of at least 32 characters. |
+| `GOOGLE_DRIVE_OAUTH_SCOPE_MODE` | Google Drive selection mode | Optional. Defaults to `file`. Set to `readonly` for a local demo that uses manually pasted Drive URLs/IDs without Google Picker; disconnect and reconnect after changing it. |
 | `APP_FRONTEND_BASE_URL` | OAuth browser return URL | Optional; defaults to `http://127.0.0.1:5173` for local development. |
 | `KNOWLEDGE_AUTO_SYNC_ENABLED` | Process-local Google Drive scheduler | Set to `true` explicitly to start scheduled polling. Disabled by default. |
 | `KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS` | Scheduler due-source check interval | Optional; defaults to `60000` and is clamped to at least 10 seconds. |
@@ -68,13 +69,13 @@ API keys, and make no provider calls.
 
 ## Google Drive data source
 
-The Data Sources screen exposes Google Drive only. OAuth requests
+The Data Sync screen exposes Google Drive only. By default OAuth requests
 `https://www.googleapis.com/auth/drive.file` plus `openid` and `email`.
 After a browser callback, the backend redirects to
-`/knowledge-base-rag?tab=data-sources&googleDrive=connected`; clients that
+`/knowledge-base-rag?tab=data-sync&googleDrive=connected`; clients that
 explicitly request `application/json` continue to receive a safe API envelope.
-Synchronization Scope accepts raw Drive IDs or full Google Docs/Drive file and
-folder URLs, optional recursive folder traversal, allowed MIME types, and a
+Data Sync accepts raw Drive IDs or full Google Docs/Drive file and folder URLs,
+optional recursive folder traversal, allowed MIME types, and a
 maximum file count. Users can run sync manually or enable an hourly/daily
 schedule. The app never imports an entire Drive by default.
 
@@ -98,6 +99,30 @@ detecting files removed from a selected folder remains limited by Drive folder
 listing behavior. Automated tests use fake Google Drive adapters and never call
 Google APIs. A real OAuth smoke test is opt-in and requires the backend-only
 variables above.
+
+`drive.file` is the safer production default and works best with Google Picker,
+because Google must grant the app access to each selected item. With the current
+manual URL/ID fallback, a local demo may set:
+
+```env
+GOOGLE_DRIVE_OAUTH_SCOPE_MODE="readonly"
+```
+
+Then disconnect and reconnect Google Drive so the new consent scope is issued.
+`drive.readonly` allows metadata/download access but does not cause whole-Drive
+imports: the synchronization runtime still processes only the file and folder
+IDs saved in Data Sync. Production should prefer `drive.file` plus Google
+Picker.
+
+The user-facing flow is:
+
+1. **Connect Google Drive** authorizes access.
+2. **Data Sync** configures selected Drive content, Auto Sync, and Sync now.
+3. **Processing Status** is the single place to review document and external
+   sync jobs.
+4. **Documents** shows imported and indexed files.
+5. Agent document assignment controls which imported documents each agent may
+   retrieve.
 
 For local web demo uploads with OpenRouter embeddings:
 
@@ -447,6 +472,11 @@ checks workspace isolation. It does not call real embedding/RAG providers.
 - **RAG returns a provider fallback:** configure the RAG provider and ensure
   retrieval has indexed evidence.
 - **Image-only PDF fails:** OCR is not implemented.
+- **Drive sync fails before scanning:** confirm the Google Drive API is enabled,
+  the consent screen includes the configured scope, and the file/folder exists
+  and is accessible. After changing `GOOGLE_DRIVE_OAUTH_SCOPE_MODE`, disconnect
+  and reconnect. Manual URL/ID selection may require local-demo `readonly`
+  mode because `drive.file` normally relies on Google Picker/app-created files.
 - **OpenSpec validation fails:** install the approved `openspec` CLI; it is not
   currently an npm dependency.
 

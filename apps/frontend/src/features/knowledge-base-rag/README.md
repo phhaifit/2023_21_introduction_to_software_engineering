@@ -17,15 +17,15 @@ UI.
 
 ## Current Status
 
-The feature currently has API-backed Documents, Upload, Data Sources,
-Synchronization Scope, and Processing Status views, plus local mock fixtures
+The feature currently has API-backed Documents, Upload, Data Sync, and
+Processing Status views, plus local mock fixtures
 for isolated tests:
 
 - `knowledge-base-rag-page.tsx`: base shell and local navigation.
-- `knowledge-base-rag-data-sources.tsx`: Data Sources screen wired to
-  `listDataSources` and safe connection intent `connectDataSource` calls.
-- `knowledge-base-rag-sync-scope.tsx`: Synchronization Scope screen wired to
-  `getSyncScope`, `updateSyncScope`, `requestManualSync`, and `listSyncJobs`.
+- `knowledge-base-rag-data-sources.tsx`: Google Drive connection section wired
+  to safe OAuth connect/disconnect calls.
+- `knowledge-base-rag-sync-scope.tsx`: Drive content, schedule settings, and
+  sync actions used by the combined Data Sync view.
 - `knowledge-base-rag-components.tsx`: shared presentational components such as
   status badges, metric cards, section cards, metadata lists, progress bars,
   empty states, and tabs.
@@ -46,7 +46,7 @@ for isolated tests:
 - Feature-prefixed CSS split by shell, shared components, Documents, and Upload
   screens.
 
-Documents, Upload, Data Sources, Synchronization Scope, and Processing Status
+Documents, Upload, Data Sync, and Processing Status
 use the API client as their runtime source of truth. Processing Status fetches
 on mount and workspace change, supports manual refresh, and renders safe
 loading, empty, and unavailable states. Current local view types are
@@ -59,9 +59,8 @@ public contracts.
 - Upload candidate review.
 - Upload validation display.
 - Processing and indexing status display.
-- API-backed data source connections.
-- API-backed synchronization scope selections.
-- API-backed manual sync status in Synchronization Scope.
+- API-backed Google Drive connection and scoped synchronization in Data Sync.
+- Detailed manual and automatic sync status in Processing Status only.
 - Agent document-grant API client methods consumed by Agent Management.
 
 ## Architecture Alignment
@@ -127,7 +126,7 @@ contracts. Runtime screens map shared DTOs through
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | KB-RAG-FT-001 | Base layout and navigation | Confirm the module opens inside the existing platform shell. | App is running and user can navigate to Knowledge Base / RAG Management. | Open the module from the platform navigation. | The page header shows Workspace Knowledge and Knowledge Base / RAG Management. | Pending manual verification | Verify with browser before final demo submission. |
 | KB-RAG-FT-002 | Base layout and navigation | Confirm the global platform sidebar is the only vertical sidebar. | Module page is open. | Inspect the page layout. | No nested Knowledge Base vertical sidebar or K / Knowledge Base / Manager block is shown. | Pending manual verification | The module uses horizontal internal tabs. |
-| KB-RAG-FT-003 | Base layout and navigation | Confirm internal navigation is clear and complete. | Module page is open. | Review the horizontal tabs and switch through Documents, Upload Documents, Data Sources, Synchronization Scope, and Processing Status. | Each tab renders its screen and the active tab state is visually clear. | Pending manual verification | State remains local to the page. |
+| KB-RAG-FT-003 | Base layout and navigation | Confirm internal navigation is clear and complete. | Module page is open. | Review the horizontal tabs and switch through Documents, Upload Documents, Data Sync, and Processing Status. | Each tab renders its screen and the active tab state is visually clear. | Pending manual verification | Data Sync combines connection and selected-content configuration. |
 | KB-RAG-FT-004 | Base layout and navigation | Confirm internal engineering wording is absent from visible UI. | Module page is open. | Review visible text across all tabs. | Visible UI does not show internal planning wording such as internal tracking labels or incomplete-work labels. | Pending manual verification | Also checked by source text search during this documentation pass. |
 | KB-RAG-FT-005 | Documents | Confirm the Documents tab renders useful document state. | Backend API may be available or unavailable. | Open Documents. | Summary metrics and workspace document section render, with loading, error, or empty state as appropriate. | Pending manual verification | Automated coverage exists for Documents API integration. |
 | KB-RAG-FT-006 | Documents | Confirm API unavailable state is user-facing. | Backend API is unavailable or mocked to fail. | Open Documents and observe error state. | User sees Unable to load documents and a Retry action where applicable. | Pending manual verification | No private API details should be shown. |
@@ -135,11 +134,11 @@ contracts. Runtime screens map shared DTOs through
 | KB-RAG-FT-008 | Upload Documents | Confirm Upload Documents tab renders. | Module page is open. | Open Upload Documents. | File selection area, upload validation metrics, selected files section, and preparation action render. | Pending manual verification | Automated coverage exists for Upload API integration. |
 | KB-RAG-FT-009 | Upload Documents | Confirm selected file cards remain neutral and readable. | A local file selection or mocked candidate file exists. | Select files or use a test harness that provides candidate files. | Selected file cards use white background, neutral border, no colored left accent stripe, and retain file type/status badges. | Pending manual verification | This is a visual QA check. |
 | KB-RAG-FT-010 | Upload Documents | Confirm validation messaging stays safe. | File candidates are selected. | Review each selected file card. | File type badge, validation status badge, review status, size, and safe validation message are visible. | Pending manual verification | Actions should not imply production storage when API is unavailable. |
-| KB-RAG-FT-011 | Data Sources | Confirm Data Sources tab renders source state. | Backend API may be available or unavailable. | Open Data Sources. | Metrics, external data sources section, loading/error/empty state, and Retry action where applicable render clearly. | Pending manual verification | Automated coverage exists for Data Sources API integration. |
-| KB-RAG-FT-012 | Data Sources | Confirm source actions avoid private provider data. | Data Sources tab is loaded. | Inspect source cards and connect action. | OAuth credentials, tokens, secrets, refresh tokens, and raw provider payloads are not visible. | Pending manual verification | Connect action records safe connection intent only. |
-| KB-RAG-FT-013 | Data Sources | Confirm the screen does not overclaim provider runtime. | Data Sources tab is loaded. | Review copy around source connection and sync state. | Copy describes safe source connection and sync status without claiming real provider sync execution when runtime is unavailable. | Pending manual verification | Runtime availability is environment-dependent. |
-| KB-RAG-FT-014 | Synchronization Scope | Confirm Synchronization Scope tab renders. | Backend API may be available or unavailable. | Open Synchronization Scope. | Metrics, scope tree or loading/error/empty state, Save selection, and Request manual sync actions render when applicable. | Pending manual verification | Automated coverage exists for Sync Scope API integration. |
-| KB-RAG-FT-015 | Synchronization Scope | Confirm sync job list is safe. | Sync jobs are available. | Inspect sync job list. | Job rows show safe status and counts without queue/runtime internals. | Pending manual verification | Duplicate key warning is expected to remain fixed by the jobId-requestedAt-index key. |
+| KB-RAG-FT-011 | Data Sync | Confirm Data Sync renders Google Drive connection state. | Backend API may be available or unavailable. | Open Data Sync. | The single Google Drive connection card and loading/error/empty state render without multi-source metrics. | Pending manual verification | Automated coverage exists for Data Sources API integration. |
+| KB-RAG-FT-012 | Data Sync | Confirm source actions avoid private provider data. | Data Sync is loaded. | Inspect connection and scope sections. | OAuth credentials, tokens, secrets, refresh tokens, raw provider payloads, and technical IDs are not visible. | Pending manual verification | Connect action records safe connection intent only. |
+| KB-RAG-FT-013 | Data Sync | Confirm the screen does not overclaim provider runtime. | Data Sync is loaded. | Review copy around connection and sync state. | Copy describes scoped manual/hourly/daily sync without claiming real-time, whole-Drive, or another provider. | Pending manual verification | Runtime availability is environment-dependent. |
+| KB-RAG-FT-014 | Data Sync | Confirm scoped sync configuration renders. | Backend API may be available or unavailable. | Open Data Sync. | URL/ID configuration, settings, Save scope, and Sync now actions render when applicable. | Pending manual verification | Automated coverage exists for Sync Scope API integration. |
+| KB-RAG-FT-015 | Processing Status | Confirm sync jobs have one status home. | Sync jobs are available. | Open Processing Status. | External source sync rows show safe counts and actionable failures without raw job IDs. | Pending manual verification | Data Sync does not duplicate sync history. |
 | KB-RAG-FT-016 | Processing Status | Confirm Processing Status tab renders job summary. | Module page is open and the backend is available. | Open Processing Status. | Total, queued, processing, completed, and failed metrics reflect workspace ingestion jobs. | Pending manual verification | Screen reads ingestion jobs and document metadata through the typed API client. |
 | KB-RAG-FT-017 | Processing Status | Confirm all job states are represented. | Processing Status tab is open. | Inspect processing job cards. | Pending, ingesting, ready, and failed backend states render as Queued, Processing, Completed, and Failed. | Pending manual verification | Backend lifecycle mapping is covered by component tests. |
 | KB-RAG-FT-018 | Processing Status | Confirm progress bars are readable and status-aware. | Processing Status tab is open. | Inspect each job progress bar. | Bars use a standard track/fill layout; queued is neutral gray, processing is primary purple/blue, completed is green, and failed is red/orange. | Pending manual verification | Visual QA check. |
@@ -167,11 +166,10 @@ Priority definitions:
 
 Environment/runtime limitations recorded as non-defect notes:
 
-- Documents, Upload validation, Data Sources, and Synchronization Scope may show API loading/error states when the backend API is not running. This is an environment/runtime availability condition, not necessarily a UI defect.
-- OCR and live external-provider synchronization execution remain outside this
-  frontend status integration. Synchronization status continues through the
-  separate Synchronization Scope API flow and is not merged into Processing
-  Status.
+- Documents, Upload validation, and Data Sync may show API loading/error states
+  when the backend API is not running.
+- OCR remains outside this frontend integration. Processing Status is the
+  single user-facing home for document and Google Drive sync jobs.
 
 Resolved / previously addressed:
 
@@ -190,8 +188,7 @@ Screens covered:
 
 - Documents
 - Upload Documents
-- Data Sources
-- Synchronization Scope
+- Data Sync
 - Processing Status
 
 Automated validation evidence:
