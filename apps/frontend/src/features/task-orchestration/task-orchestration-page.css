@@ -1078,11 +1078,20 @@
 }
 
 .task-assistant-progress {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
+.task-assistant-progress__icon {
+  color: #6366f1;
+  flex: none;
+  margin-top: 3px;
+}
+
 .task-assistant-progress__text {
-  color: #0f172a;
+  color: #64748b;
   font-size: 0.94rem;
   line-height: 1.65;
   margin: 0;

@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import type { CreatedTaskRecord } from "../model/task-types";
 import { toTaskPresentationStatus } from "../model/task-lifecycle";
 import { TaskMarkdown } from "./task-markdown";
@@ -52,6 +53,14 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
       <span className="sr-only" aria-label={`Task status: ${TASK_STATUS_LABELS[presentationStatus]}`}>
         {TASK_STATUS_LABELS[presentationStatus]}
       </span>
+      {isLive ? (
+        <Loader2 
+          size={16} 
+          className="task-assistant-progress__icon" 
+          style={{ animation: "spin 2s linear infinite" }}
+          aria-hidden="true" 
+        />
+      ) : null}
       <TaskMarkdown
         className="task-assistant-progress__text task-markdown"
         aria-label="Assistant runtime status"
