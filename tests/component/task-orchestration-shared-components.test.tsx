@@ -7,6 +7,7 @@ import {
   TaskAssistantProgressSummary,
   resolveActivityLabel
 } from "@vcp/frontend/features/task-orchestration/components/task-assistant-progress-summary.tsx";
+import { TaskAssistantMessage } from "@vcp/frontend/features/task-orchestration/components/task-conversation.tsx";
 import { TaskStatusBadge } from
   "@vcp/frontend/features/task-orchestration/components/task-status-badge.tsx";
 import type {
@@ -253,6 +254,33 @@ describe("TaskAssistantProgressSummary", () => {
     expect(within(activity).getByText("Agent Execution")).toBeVisible();
     expect(within(activity).queryByText("start")).not.toBeInTheDocument();
     expect(within(activity).queryByText("OpenClaw activity")).not.toBeInTheDocument();
+  });
+
+  it("keeps fallback provider progress visible in a completed assistant response", () => {
+    render(
+      <TaskAssistantMessage
+        task={{
+          ...createTaskWithRuntimeProgress(
+            [{ id: "step-1", label: "Agent Execution", status: "completed" }],
+            "succeeded"
+          ),
+          finalizedResult: {
+            text: "Final answer",
+            finalizedAt: "2026-06-30T00:00:02.000Z"
+          }
+        }}
+        routingSummary="Auto-routing"
+        partialText=""
+        isStreaming={false}
+        shouldShowPartialResult={false}
+        clipboardWriter={{ writeText: async () => {} }}
+        onOpenDetails={() => {}}
+      />
+    );
+
+    expect(screen.getByLabelText("OpenClaw runtime activity")).toBeVisible();
+    expect(screen.getByText("Agent Execution")).toBeVisible();
+    expect(screen.getByLabelText("Assistant final response")).toHaveTextContent("Final answer");
   });
 });
 

@@ -89,6 +89,10 @@ export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSumm
   );
 }
 
+export function hasDisplayableRuntimeActivity(task: CreatedTaskRecord): boolean {
+  return buildRuntimeActivityItems(task).length > 0;
+}
+
 function buildRuntimeActivityItems(task: CreatedTaskRecord): RuntimeActivityItem[] {
   const items: RuntimeActivityItem[] = [];
   const seen = new Set<string>();
