@@ -44,7 +44,10 @@ export type KnowledgeBaseProcessingJobStatus =
 
 export type ProcessingJob = {
   jobId: string;
+  documentId: string;
   documentName: string;
+  documentStatus: KnowledgeDocumentStatus;
+  mediaType: string;
   fileType: KnowledgeDocumentType;
   sourceName: string;
   status: KnowledgeBaseProcessingJobStatus;
@@ -53,6 +56,8 @@ export type ProcessingJob = {
   startedAt: string;
   completedAt?: string;
   failedAt?: string;
+  chunkCount?: number;
+  indexedChunkCount?: number;
   safeErrorMessage?: string;
 };
 

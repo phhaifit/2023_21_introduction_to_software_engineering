@@ -32,6 +32,7 @@ pnpm-debug.log*
 .data/
 agent-skills/
 openclaw-agents/
+openclaw-workflows
 
 # Postman Local Sync
 /postman/
@@ -39,6 +40,7 @@ openclaw-agents/
 
 playwright-report/
 test-results/
+apps/backend/task-logs/
 
 # Personal docs
 .local-docs/

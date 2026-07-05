@@ -106,9 +106,9 @@ describe("AgentKnowledgeAssignmentPanel", () => {
     );
 
     expect(
-      await screen.findByText("No knowledge documents are assigned.")
+      await screen.findByText(/No documents assigned.*will not retrieve/i)
     ).toBeTruthy();
-    expect(screen.getByText("No KB/RAG documents are available.")).toBeTruthy();
+    expect(screen.getByText("No knowledge documents are available.")).toBeTruthy();
     expect(screen.queryByText("Support Handbook")).toBeNull();
   });
 
@@ -139,14 +139,14 @@ describe("AgentKnowledgeAssignmentPanel", () => {
     renderPanel(apiClient);
     await screen.findByText("Support Handbook");
 
-    await user.click(screen.getByRole("button", { name: "Remove Support Handbook" }));
+    await user.click(screen.getByRole("button", { name: "Revoke Support Handbook" }));
 
     expect(apiClient.revokeAgentKnowledgeDocument).toHaveBeenCalledWith(
       workspaceId,
       agentId,
       assignedDocument.documentId
     );
-    expect(await screen.findByText("Support Handbook removed.")).toBeTruthy();
+    expect(await screen.findByText("Support Handbook access revoked.")).toBeTruthy();
     expect(
       within(screen.getByRole("region", { name: "Available documents" })).getByText(
         "Support Handbook"
@@ -217,7 +217,7 @@ describe("AgentKnowledgeAssignmentPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Assign Equipment Policy" }));
     expect(screen.getByRole("button", { name: "Assign Equipment Policy" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove Support Handbook" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Revoke Support Handbook" })).toBeDisabled();
     resolveAssign({
       workspaceId,
       agentId,
@@ -230,23 +230,23 @@ describe("AgentKnowledgeAssignmentPanel", () => {
       ).toBeNull()
     );
 
-    await user.click(screen.getByRole("button", { name: "Remove Support Handbook" }));
-    expect(screen.getByRole("button", { name: "Remove Support Handbook" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove Equipment Policy" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Revoke Support Handbook" }));
+    expect(screen.getByRole("button", { name: "Revoke Support Handbook" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Revoke Equipment Policy" })).toBeDisabled();
     resolveRevoke({
       workspaceId,
       agentId,
       document: assignedDocument,
       grantStatus: "revoked"
     });
-    expect(await screen.findByText("Support Handbook removed.")).toBeTruthy();
+    expect(await screen.findByText("Support Handbook access revoked.")).toBeTruthy();
   });
 
   it("hides assignment mutations in viewer mode", async () => {
     renderPanel(client(), false);
     await screen.findByText("Support Handbook");
     expect(screen.queryByRole("button", { name: /Assign / })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Remove / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Revoke / })).toBeNull();
   });
 
   it("does not import local mock documents as a runtime source", () => {

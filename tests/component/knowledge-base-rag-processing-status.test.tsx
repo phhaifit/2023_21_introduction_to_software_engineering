@@ -24,9 +24,20 @@ const pagination = {
 
 const documents: KnowledgeDocumentDto[] = [
   createDocument("document-queued", "Queued.txt", "text/plain"),
-  createDocument("document-processing", "Processing.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-  createDocument("document-ready", "Ready.pdf", "application/pdf"),
-  createDocument("document-failed", "Failed.txt", "text/plain")
+  {
+    ...createDocument("document-processing", "Processing.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    status: "ingesting"
+  },
+  {
+    ...createDocument("document-ready", "Ready.pdf", "application/pdf"),
+    status: "ready",
+    chunkCount: 4,
+    indexedChunkCount: 4
+  },
+  {
+    ...createDocument("document-failed", "Failed.txt", "text/plain"),
+    status: "failed"
+  }
 ];
 
 const jobs: IngestionJobDto[] = [
@@ -213,5 +224,50 @@ describe("Knowledge Base / RAG Processing Status", () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByText(/private\/upload|token=secret/i)).toBeNull();
     expect(listIngestionJobs).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens useful details and only presents retry for failed jobs", async () => {
+    const user = userEvent.setup();
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient()}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const readyCard = (await screen.findByText("Ready.pdf")).closest("article");
+    expect(readyCard).not.toBeNull();
+    expect(within(readyCard!).queryByText("Retry failed job")).toBeNull();
+    await user.click(within(readyCard!).getByRole("button", { name: "View details" }));
+
+    const readyDialog = screen.getByRole("dialog", { name: "Ready.pdf" });
+    expect(within(readyDialog).getByText("Document status")).toBeVisible();
+    expect(within(readyDialog).getByText("Ready", { selector: "strong" })).toBeVisible();
+    expect(within(readyDialog).getByText("Processing job status")).toBeVisible();
+    expect(within(readyDialog).getByText("Completed")).toBeVisible();
+    expect(
+      within(readyDialog).getByText("Ready for retrieval", { selector: "strong" })
+    ).toBeVisible();
+    expect(within(readyDialog).getByText("application/pdf")).toBeVisible();
+    expect(within(readyDialog).getByText("4 of 4 chunks indexed")).toBeVisible();
+    expect(within(readyDialog).queryByText("Retry failed job")).toBeNull();
+
+    await user.click(
+      within(readyDialog).getByRole("button", { name: "Close processing job details" })
+    );
+    const failedCard = screen.getByText("Failed.txt").closest("article");
+    expect(failedCard).not.toBeNull();
+    const retry = within(failedCard!).getByRole("button", {
+      name: "Retry failed job"
+    });
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveAttribute("title", "Retry is not implemented yet.");
+    await user.click(within(failedCard!).getByRole("button", { name: "View details" }));
+    const failedDialog = screen.getByRole("dialog", { name: "Failed.txt" });
+    expect(within(failedDialog).getByText("Failure reason")).toBeVisible();
+    expect(
+      within(failedDialog).getByText("The document could not be processed.")
+    ).toBeVisible();
+    expect(within(failedDialog).getByText("Not implemented yet")).toBeVisible();
   });
 });

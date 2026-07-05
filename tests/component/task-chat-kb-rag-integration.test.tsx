@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -87,7 +88,8 @@ describe("Task chat KB/RAG integration", () => {
     );
   });
 
-  it("renders citations and the insufficient-evidence fallback safely", () => {
+  it("renders compact expandable citations and the insufficient-evidence fallback safely", async () => {
+    const user = userEvent.setup();
     const clipboard = { writeText: vi.fn(async () => undefined) };
     const { rerender } = render(
       <TaskCompletedResult
@@ -102,14 +104,22 @@ describe("Task chat KB/RAG integration", () => {
               documentId: "document-policy" as any,
               documentTitle: "sample-company-policy.txt",
               snippet: "Equipment requests are reviewed within three business days.",
-              sourceType: "upload"
+              sourceType: "upload",
+              sourceLocator: "text:0"
             }
           ]
         }}
       />
     );
-    expect(screen.getAllByText(/three business days/)).toHaveLength(2);
-    expect(screen.getByText("E1: sample-company-policy.txt")).toBeVisible();
+    const citationSummary = screen
+      .getByText("sample-company-policy.txt", { selector: "summary span" })
+      .closest("summary");
+    expect(citationSummary).not.toBeNull();
+    expect(citationSummary).toHaveTextContent("E1");
+    expect(screen.getByText("text:0")).not.toBeVisible();
+    await user.click(citationSummary!);
+    expect(screen.getByText("text:0")).toBeVisible();
+    expect(screen.getByText("Evidence id")).toBeVisible();
 
     rerender(
       <TaskCompletedResult

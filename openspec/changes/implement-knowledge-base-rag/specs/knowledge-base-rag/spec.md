@@ -278,3 +278,41 @@ through a workspace-scoped public API.
 #### Scenario: Revoked or unassigned uploaded document does not ground Task chat
 - **WHEN** the indexed uploaded document is unassigned from the selected agent or its grant is revoked
 - **THEN** the Task chat bridge returns `insufficient_evidence` without exposing private storage, vector, provider, prompt, or runtime fields
+
+#### Scenario: Task chat presents assigned evidence as compact citations
+- **WHEN** Agent-mode Task chat receives an answer with bounded safe citations
+- **THEN** the answer remains readable while each citation is rendered as a compact reference using the document title
+- **AND** the evidence excerpt and optional source locator are hidden until the citation is expanded
+- **AND** raw source locators are not rendered as normal answer text
+
+#### Scenario: Task chat presents external routing metadata with display names
+- **WHEN** Task chat renders a selected agent or workflow and its catalog display name is available
+- **THEN** the primary chat label uses the display name instead of the full entity identifier
+- **AND** identifiers remain optional debugging metadata rather than the primary label
+
+#### Scenario: Knowledge management UI does not overclaim placeholder integrations
+- **WHEN** external connector runtimes are not enabled in the local demo
+- **THEN** Data Sources and Synchronization Scope are hidden from the default Knowledge Base navigation or clearly marked unavailable
+- **AND** the user-facing page title and description avoid implementation-focused RAG terminology
+
+#### Scenario: Agent knowledge assignments communicate grant behavior
+- **WHEN** an authorized user manages an agent's document grants
+- **THEN** the UI explains that one or more documents may be assigned
+- **AND** document readiness is visible for assigned and available documents
+- **AND** the empty state explains that the agent cannot retrieve workspace knowledge without an assignment
+
+#### Scenario: Processing status exposes safe useful job details
+- **WHEN** a user opens details for a document processing job
+- **THEN** the UI displays distinct document and processing statuses, safe timing, progress, current step, source, media type, and available chunk/indexing summary
+- **AND** failed jobs display only a bounded safe failure reason and retry availability
+- **AND** raw stack traces, local paths, provider payloads, embeddings, vectors, credentials, and secrets are not displayed
+
+#### Scenario: Processing retry does not overclaim unavailable behavior
+- **WHEN** a processing job is completed, queued, or processing
+- **THEN** the UI does not present an active retry action
+- **AND** when a failed job has no reviewed retry endpoint, the retry action is disabled and explains that retry is not implemented yet
+
+#### Scenario: Workflow run history prioritizes readable run references
+- **WHEN** workflow run history is rendered
+- **THEN** the primary table displays a short run reference instead of the full execution identifier
+- **AND** the full identifier remains available through a tooltip, copy action, full-ID search, and run-log metadata

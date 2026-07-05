@@ -1543,12 +1543,33 @@
 }
 
 .agent-knowledge-panel__success {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   border-radius: 8px;
   background: #e4f4ea;
   color: #1b5e37;
   padding: 9px 11px;
   font-size: 12px;
   font-weight: 800;
+}
+
+.agent-knowledge-panel__success button {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.agent-knowledge-panel__success button:hover {
+  background: rgb(27 94 55 / 10%);
 }
 
 .agent-info-dialog__section-title {

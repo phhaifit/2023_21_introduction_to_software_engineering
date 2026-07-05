@@ -206,7 +206,7 @@ describe("5. auto routing summary", () => {
 // 6. Specific-agent summary is correct
 // ---------------------------------------------------------------------------
 describe("6. specific-agent routing summary", () => {
-  it("shows the selected agent ID in the routing summary", async () => {
+  it("shows the selected agent name and keeps its ID out of the primary label", async () => {
     const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
@@ -219,7 +219,9 @@ describe("6. specific-agent routing summary", () => {
     await submitPrompt("Review this code.");
 
     const assistantMessage = screen.getByLabelText("Assistant response");
-    expect(within(assistantMessage).getByText("Agent - AGT-CODE")).toBeVisible();
+    const label = within(assistantMessage).getByText("Agent: Code Agent");
+    expect(label).toBeVisible();
+    expect(label).toHaveAttribute("title", "Agent ID: AGT-CODE");
   });
 });
 
@@ -227,7 +229,7 @@ describe("6. specific-agent routing summary", () => {
 // 7. Predefined-workflow summary is correct
 // ---------------------------------------------------------------------------
 describe("7. predefined-workflow routing summary", () => {
-  it("shows the selected workflow ID in the routing summary", async () => {
+  it("shows the selected workflow name and keeps its ID out of the primary label", async () => {
     const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
@@ -241,7 +243,7 @@ describe("7. predefined-workflow routing summary", () => {
 
     const assistantMessage = screen.getByLabelText("Assistant response");
     expect(
-      within(assistantMessage).getByText("Workflow - WFL-RESEARCH-SYNTHESIS")
+      within(assistantMessage).getByText("Workflow: Research + Synthesis")
     ).toBeVisible();
   });
 });

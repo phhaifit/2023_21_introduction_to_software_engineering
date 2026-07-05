@@ -475,6 +475,106 @@
   overflow-wrap: anywhere;
 }
 
+.task-knowledge-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-knowledge-citation {
+  position: relative;
+}
+
+.task-knowledge-citation summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  background: #f0f9ff;
+  color: #075985;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 9px;
+  list-style: none;
+}
+
+.task-knowledge-citation summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-knowledge-citation summary:hover,
+.task-knowledge-citation summary:focus-visible {
+  border-color: #7dd3fc;
+  background: #e0f2fe;
+}
+
+.task-knowledge-citation__details {
+  width: min(360px, calc(100vw - 64px));
+  margin-top: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+  padding: 12px;
+}
+
+.task-knowledge-citation__details dl,
+.task-knowledge-citation__details p {
+  margin: 0;
+}
+
+.task-knowledge-citation__details dl {
+  display: grid;
+  gap: 5px;
+}
+
+.task-knowledge-citation__details dl > div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.task-knowledge-citation__details dt {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.task-knowledge-citation__details dd {
+  margin: 0;
+  color: #334155;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.task-knowledge-citation__details p {
+  margin-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.task-workflow-completion {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #166534;
+  padding: 12px 14px;
+}
+
+.task-workflow-completion span {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
 .task-workspace__cancel-btn {
   background: #fff1f2;
   border: 1px solid #fecdd3;
