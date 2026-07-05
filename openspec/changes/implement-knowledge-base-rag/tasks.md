@@ -30,6 +30,7 @@
 - [x] 2.12 Add opt-in local pgvector retrieval smoke test and docs
 - [x] 2.13 Add upload-to-Task-chat local-demo RAG integration evidence
 - [x] 2.14 Polish Knowledge Base navigation, agent/workflow labels, citation presentation, assigned-document UX, and workflow completion fallback without changing retrieval or runtime behavior
+- [x] 2.15 Add safe Processing Status details/retry presentation and compact Workflow Run History identifiers without adding runtime APIs
 
 ## 3. Remaining Verification and Handoff
 

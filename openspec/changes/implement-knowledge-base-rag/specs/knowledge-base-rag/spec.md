@@ -300,3 +300,19 @@ through a workspace-scoped public API.
 - **THEN** the UI explains that one or more documents may be assigned
 - **AND** document readiness is visible for assigned and available documents
 - **AND** the empty state explains that the agent cannot retrieve workspace knowledge without an assignment
+
+#### Scenario: Processing status exposes safe useful job details
+- **WHEN** a user opens details for a document processing job
+- **THEN** the UI displays distinct document and processing statuses, safe timing, progress, current step, source, media type, and available chunk/indexing summary
+- **AND** failed jobs display only a bounded safe failure reason and retry availability
+- **AND** raw stack traces, local paths, provider payloads, embeddings, vectors, credentials, and secrets are not displayed
+
+#### Scenario: Processing retry does not overclaim unavailable behavior
+- **WHEN** a processing job is completed, queued, or processing
+- **THEN** the UI does not present an active retry action
+- **AND** when a failed job has no reviewed retry endpoint, the retry action is disabled and explains that retry is not implemented yet
+
+#### Scenario: Workflow run history prioritizes readable run references
+- **WHEN** workflow run history is rendered
+- **THEN** the primary table displays a short run reference instead of the full execution identifier
+- **AND** the full identifier remains available through a tooltip, copy action, full-ID search, and run-log metadata
