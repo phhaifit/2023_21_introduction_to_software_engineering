@@ -149,4 +149,29 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     expect(onConfigureScope).toHaveBeenCalledTimes(1);
     expect(client.requestManualSync).not.toHaveBeenCalled();
   });
+
+  it("shows automatic sync schedule for a configured source", async () => {
+    render(
+      <KnowledgeBaseDataSourcesScreen
+        apiClient={createClient({
+          listDataSources: vi.fn(async () => [
+            {
+              ...connectedSource,
+              autoSyncEnabled: true,
+              autoSyncFrequency: "hourly",
+              nextAutoSyncAt: "2026-06-26T01:10:00.000Z",
+              lastSyncStatus: "completed"
+            }
+          ])
+        })}
+        onConfigureScope={vi.fn()}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(await screen.findByText("Hourly")).toBeTruthy();
+    expect(screen.getByText("completed")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Configure scope" })).toBeEnabled();
+  });
 });

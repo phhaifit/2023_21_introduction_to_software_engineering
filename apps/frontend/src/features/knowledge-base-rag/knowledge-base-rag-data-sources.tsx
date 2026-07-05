@@ -271,7 +271,21 @@ function DataSourceCard({
         items={[
           { label: "Selected scope", value: source.selectedScopeNodeCount.toString() },
           { label: "Connected account", value: source.connectedAccountEmail ?? "Not available" },
+          { label: "Auto Sync", value: source.autoSyncEnabled ? "On" : "Off" },
+          {
+            label: "Frequency",
+            value: source.autoSyncEnabled
+              ? source.autoSyncFrequency === "hourly"
+                ? "Hourly"
+                : "Daily"
+              : "Not scheduled"
+          },
           { label: "Last sync", value: source.lastSyncAt ? formatDate(source.lastSyncAt) : "Not synced" },
+          {
+            label: "Next sync",
+            value: source.nextAutoSyncAt ? formatDate(source.nextAutoSyncAt) : "Not scheduled"
+          },
+          { label: "Last result", value: source.lastSyncStatus ?? "No result" },
           { label: "Updated", value: formatDate(source.updatedAt) }
         ]}
       />
@@ -292,6 +306,10 @@ function DataSourceCard({
             Connect only authorizes the app. Files are imported only after you add
             Google Drive file IDs or folder IDs in Synchronization Scope and run
             Sync now.
+          </p>
+          <p>
+            Connect authorizes Google Drive. Scope chooses what to import. Auto
+            Sync keeps selected content updated.
           </p>
           <p>
             For privacy and performance, the app does not import your entire Google
@@ -320,7 +338,7 @@ function DataSourceCard({
             >
               {isConnecting ? "Working..." : "Sync now"}
             </button>
-            {!hasConfiguredScope && onConfigureScope ? (
+            {onConfigureScope ? (
               <button
                 className="knowledge-base-rag-data-source-card__configure"
                 type="button"

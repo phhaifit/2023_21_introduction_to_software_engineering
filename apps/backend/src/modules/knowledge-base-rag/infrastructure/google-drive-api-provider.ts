@@ -9,6 +9,7 @@ import {
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
+const GOOGLE_FOLDER = "application/vnd.google-apps.folder";
 
 export class GoogleDriveApiProvider implements GoogleDriveProvider {
   private readonly fetchImplementation: typeof fetch;
@@ -24,14 +25,20 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
     const files = new Map<string, GoogleDriveFile>();
     for (const fileId of scope.fileIds) {
       const file = await this.getMetadata(accessToken, fileId);
-      files.set(file.fileId, file);
+      if (file.mimeType === GOOGLE_FOLDER) {
+        const discovered = await this.listFolder(accessToken, file.fileId, scope);
+        for (const discoveredFile of discovered) {
+          files.set(discoveredFile.fileId, discoveredFile);
+        }
+      } else {
+        files.set(file.fileId, file);
+      }
     }
     for (const folderId of scope.folderIds) {
       const discovered = await this.listFolder(accessToken, folderId, scope);
       for (const file of discovered) files.set(file.fileId, file);
     }
     return [...files.values()]
-      .filter((file) => !file.trashed)
       .filter(
         (file) =>
           scope.allowedMimeTypes.length === 0 ||
@@ -111,7 +118,7 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
         };
         for (const raw of body.files ?? []) {
           const file = mapFile(raw);
-          if (file.mimeType === "application/vnd.google-apps.folder") {
+          if (file.mimeType === GOOGLE_FOLDER) {
             if (scope.recursive) pending.push(file.fileId);
           } else {
             result.push(file);

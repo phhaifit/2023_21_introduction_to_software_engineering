@@ -61,6 +61,32 @@ await documentRepository.saveDocument({
   createdAt: now,
   updatedAt: now
 });
+for (const [documentId, externalId] of [
+  ["document-changed", "file-changed"],
+  ["document-trashed", "file-trashed"]
+]) {
+  await documentRepository.saveDocument({
+    documentId,
+    workspaceId: "workspace-a",
+    uploadedByUserId: "user-a",
+    displayName: `${externalId}.txt`,
+    fileName: `${externalId}.txt`,
+    mimeType: "text/plain",
+    fileType: "txt",
+    sizeBytes: 10,
+    sourceType: "google_drive",
+    sourceId: "source-drive",
+    externalId,
+    sourceModifiedAt: "2026-07-04T00:00:00.000Z",
+    status: "ready",
+    ingestionStatus: "ready",
+    indexingStatus: "ready",
+    chunkCount: 1,
+    indexedChunkCount: 1,
+    createdAt: now,
+    updatedAt: now
+  });
+}
 await syncJobRepository.saveSyncJob({
   jobId: "sync-job",
   workspaceId: "workspace-a",
@@ -82,7 +108,9 @@ const runtime = new GoogleDriveSyncRuntime({
   provider: {
     listFiles: async () => [
       driveFile("file-new", "new.txt", "text/plain", now),
+      driveFile("file-changed", "changed.txt", "text/plain", now),
       driveFile("file-unchanged", "unchanged.txt", "text/plain", now),
+      { ...driveFile("file-trashed", "trashed.txt", "text/plain", now), trashed: true },
       driveFile("file-slides", "slides", "application/vnd.google-apps.presentation", now)
     ],
     downloadFile: async (_token, file) => ({
@@ -125,20 +153,27 @@ const runtime = new GoogleDriveSyncRuntime({
 });
 
 await runtime.execute({ workspaceId: "workspace-a", jobId: "sync-job" });
-assert.deepEqual(imported, ["file-new"]);
+assert.deepEqual(imported, ["file-new", "file-changed"]);
 const completed = await syncJobRepository.getSyncJobById("workspace-a", "sync-job");
 assert.equal(completed.status, "completed");
-assert.equal(completed.totalItems, 3);
-assert.equal(completed.syncedItems, 1);
+assert.equal(completed.totalItems, 5);
+assert.equal(completed.syncedItems, 2);
 assert.deepEqual(completed.safeSummary, {
+  syncMode: "manual",
   importedItemCount: 1,
-  updatedItemCount: 0,
+  updatedItemCount: 1,
   skippedUnchangedItemCount: 1,
   skippedUnsupportedItemCount: 1,
+  removedItemCount: 1,
   failedItemCount: 0,
-  totalChunksCreated: 2,
-  totalVectorsIndexed: 2
+  totalChunksCreated: 4,
+  totalVectorsIndexed: 4
 });
+assert.equal(
+  (await documentRepository.getDocumentById("workspace-a", "document-trashed"))
+    .status,
+  "failed"
+);
 const events = await syncJobRepository.listSyncJobEvents("workspace-a", "sync-job");
 assert.deepEqual(events.map((event) => event.status), ["syncing", "completed"]);
 assert.equal(JSON.stringify(completed).includes("access-value"), false);

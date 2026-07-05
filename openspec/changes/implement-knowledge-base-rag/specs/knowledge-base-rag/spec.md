@@ -320,7 +320,24 @@ through a workspace-scoped public API.
 #### Scenario: Google Drive runtime limitations remain explicit
 - **WHEN** the current Google Drive slice is described or displayed
 - **THEN** Google Drive is the only external provider presented as supported
-- **AND** synchronization is manual, the local queue is process-local and non-durable, and scheduled sync, Google Picker, legacy DOC, Google Slides, and OCR remain explicitly unsupported
+- **AND** manual and opt-in hourly/daily scheduled polling are supported through process-local non-durable runtime boundaries
+- **AND** Google Picker, Drive push notifications/change tokens, legacy DOC, Google Slides, OCR, and a durable distributed scheduler remain explicitly unsupported
+
+#### Scenario: Google Drive Auto Sync refreshes selected content
+- **WHEN** a connected Google Drive source has selected scope, Auto Sync enabled, and its hourly or daily schedule is due
+- **THEN** the scheduler creates one scheduled sync job through the existing queue/runtime boundary
+- **AND** it does not create another pending or syncing job for the same source
+- **AND** new and modified scoped files run through the existing import, parsing, chunking, embedding, and vector indexing pipeline while unchanged files are skipped
+
+#### Scenario: Auto Sync remains opt-in and scoped
+- **WHEN** Auto Sync is disabled, the scheduler runtime is disabled, or selected scope is empty
+- **THEN** no automatic sync job is created
+- **AND** the application never expands synchronization to the user's whole Drive
+
+#### Scenario: Drive URL input is normalized safely
+- **WHEN** a user enters a raw Drive ID, Google Docs URL, Drive file URL, Drive folder URL, or copied ID with `/edit`, `/view`, or query parameters
+- **THEN** the system extracts and validates the stable Drive item ID before persisting scope
+- **AND** empty or invalid values fail with an actionable validation error
 
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants

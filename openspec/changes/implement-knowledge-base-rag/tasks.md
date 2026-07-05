@@ -18,7 +18,7 @@
 
 - [x] 2.1 Implement real file/object storage upload and content-read runtime
 - [ ] 2.2 Complete document parsing beyond text/markdown (PDF and DOCX extraction implemented; legacy DOC and OCR explicitly deferred)
-- [ ] 2.3 Implement a durable production queue/scheduler runtime (worker entrypoint and process-local async adapter implemented; durable queue and scheduled sync remain)
+- [ ] 2.3 Implement a durable production queue/scheduler runtime (worker entrypoint, process-local async queue, and opt-in scheduled polling implemented; durable multi-instance queue/lease remains)
 - [x] 2.4 Implement real external provider sync for Google Drive only
 - [x] 2.5 Implement real OAuth/credential handling for Google Drive only
 - [x] 2.6 Implement real embedding provider adapter integration
@@ -31,6 +31,7 @@
 - [x] 2.13 Add upload-to-Task-chat local-demo RAG integration evidence
 - [x] 2.14 Polish Knowledge Base navigation, agent/workflow labels, citation presentation, assigned-document UX, and workflow completion fallback without changing retrieval or runtime behavior
 - [x] 2.15 Add safe Processing Status details/retry presentation and compact Workflow Run History identifiers without adding runtime APIs
+- [x] 2.16 Add opt-in Google Drive automatic scoped polling, hourly/daily settings, URL/ID normalization, and focused UI/runtime tests
 
 ## 3. Remaining Verification and Handoff
 

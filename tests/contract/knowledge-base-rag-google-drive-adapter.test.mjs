@@ -61,6 +61,28 @@ await assert.rejects(
 assert.ok(calls.some((call) => call.url.includes("alt=media")));
 assert.ok(calls.some((call) => call.url.includes("/export?mimeType=text%2Fplain")));
 
+const rawFolderCalls = [];
+const rawFolderProvider = new GoogleDriveApiProvider(async (url) => {
+  rawFolderCalls.push(String(url));
+  if (String(url).includes("/files/raw-folder?")) {
+    return jsonResponse(
+      file("raw-folder", "Policies", "application/vnd.google-apps.folder")
+    );
+  }
+  return jsonResponse({
+    files: [file("nested-file", "nested.txt", "text/plain")]
+  });
+});
+const rawFolderFiles = await rawFolderProvider.listFiles("access-value", {
+  folderIds: [],
+  fileIds: ["raw-folder"],
+  recursive: false,
+  allowedMimeTypes: [],
+  maxFiles: 10
+});
+assert.deepEqual(rawFolderFiles.map((item) => item.fileId), ["nested-file"]);
+assert.ok(rawFolderCalls.some((url) => url.includes("%27raw-folder%27+in+parents")));
+
 for (const [status, code] of [
   [401, "credential_invalid"],
   [403, "permission_denied"],

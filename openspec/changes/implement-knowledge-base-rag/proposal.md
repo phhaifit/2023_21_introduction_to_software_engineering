@@ -5,13 +5,15 @@ Agents need workspace-specific company knowledge to answer and act with the righ
 ## What Changes
 
 - Add document upload for PDF, Word, TXT, CSV, and similar internal files.
-- Add a real Google Drive OAuth and manual synchronization slice as the only
+- Add a real Google Drive OAuth and scoped synchronization slice as the only
   external data source currently supported.
 - Add document ingestion and vectorization through a worker job.
 - Store searchable chunks in a vector database through an adapter boundary.
 - Add knowledge access assignment to specific agents.
 - Add PDF and DOCX text extraction while explicitly deferring OCR, legacy DOC,
-  scheduled synchronization, Google Picker, and a durable production queue.
+  Google Picker, Drive push notifications, and a durable distributed queue.
+- Add opt-in hourly/daily Google Drive scheduled polling that reuses the
+  existing sync and ingestion pipeline.
 
 ## Capabilities
 

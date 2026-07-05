@@ -177,6 +177,9 @@ function DocumentListItem({ document }: DocumentListItemProps) {
             ...(document.lastSyncedAt
               ? [{ label: "Last synced", value: document.lastSyncedAt }]
               : []),
+            ...(document.sourceModifiedAt
+              ? [{ label: "Drive modified", value: document.sourceModifiedAt }]
+              : []),
             { label: indexedMetric.label, value: indexedMetric.value }
           ]}
         />
@@ -227,6 +230,9 @@ function toKnowledgeDocumentViewModel(document: KnowledgeDocumentDto): Knowledge
     mediaType: document.mediaType,
     lastSyncedAt: document.lastSyncedAt
       ? formatDate(document.lastSyncedAt)
+      : undefined,
+    sourceModifiedAt: document.sourceModifiedAt
+      ? formatDate(document.sourceModifiedAt)
       : undefined,
     status: mapDocumentStatus(document.status),
     chunkCount: document.chunkCount,

@@ -8,6 +8,9 @@ export type KnowledgeDataSourceListFilters = {
 };
 
 export type KnowledgeDataSourceRepository = {
+  listAllDataSources(
+    filters?: KnowledgeDataSourceListFilters
+  ): Promise<KnowledgeDataSource[]>;
   listDataSources(
     workspaceId: EntityId<"workspaceId">,
     filters?: KnowledgeDataSourceListFilters
@@ -18,4 +21,3 @@ export type KnowledgeDataSourceRepository = {
   ): Promise<KnowledgeDataSource | null>;
   saveDataSource(source: KnowledgeDataSource): Promise<KnowledgeDataSource>;
 };
-

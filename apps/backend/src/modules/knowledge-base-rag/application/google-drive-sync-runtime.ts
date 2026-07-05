@@ -6,6 +6,10 @@ import type { KnowledgeUploadUseCases } from "./knowledge-upload-use-cases.ts";
 import type { GoogleDriveProvider, GoogleDriveScope } from "./google-drive-provider.ts";
 import { GoogleDriveProviderError } from "./google-drive-provider.ts";
 import type { GoogleDriveOAuthService } from "./google-drive-oauth-service.ts";
+import {
+  nextGoogleDriveAutoSyncAt,
+  readGoogleDriveAutoSyncSettings
+} from "./google-drive-auto-sync.ts";
 
 const SUPPORTED_DRIVE_TYPES = new Set([
   "text/plain",
@@ -103,21 +107,44 @@ export class GoogleDriveSyncRuntime {
           .map((document) => [document.externalId!, document])
       );
       const summary = {
+        syncMode: syncMode(job.safeSummary),
         importedItemCount: 0,
         updatedItemCount: 0,
         skippedUnchangedItemCount: 0,
         skippedUnsupportedItemCount: 0,
+        removedItemCount: 0,
         failedItemCount: 0,
         totalChunksCreated: 0,
         totalVectorsIndexed: 0
       };
 
       for (const file of files) {
+        const existing = byExternalId.get(file.fileId);
+        if (file.trashed) {
+          if (existing) {
+            await this.dependencies.documentRepository.deleteDocumentChunks(
+              input.workspaceId,
+              existing.documentId
+            );
+            await this.dependencies.documentRepository.saveDocument({
+              ...existing,
+              status: "failed",
+              ingestionStatus: "failed",
+              indexingStatus: "failed",
+              deletedAt: this.dependencies.now(),
+              lastSyncedAt: this.dependencies.now(),
+              chunkCount: 0,
+              indexedChunkCount: 0,
+              updatedAt: this.dependencies.now()
+            });
+            summary.removedItemCount += 1;
+          }
+          continue;
+        }
         if (!SUPPORTED_DRIVE_TYPES.has(file.mimeType)) {
           summary.skippedUnsupportedItemCount += 1;
           continue;
         }
-        const existing = byExternalId.get(file.fileId);
         if (existing?.sourceModifiedAt === file.modifiedTime) {
           summary.skippedUnchangedItemCount += 1;
           continue;
@@ -165,6 +192,12 @@ export class GoogleDriveSyncRuntime {
       await this.dependencies.dataSourceRepository.saveDataSource({
         ...source,
         lastSyncAt: completedAt,
+        safeMetadata: syncMetadata(
+          source.safeMetadata,
+          summary.syncMode,
+          "completed",
+          completedAt
+        ),
         updatedAt: completedAt
       });
       await this.event(input, "google_drive.sync_completed", "completed", "Google Drive synchronization completed.");
@@ -187,6 +220,25 @@ export class GoogleDriveSyncRuntime {
         failure.errorMessage,
         failure.errorCode
       );
+      if (job.sourceId) {
+        const source =
+          await this.dependencies.dataSourceRepository.getDataSourceById(
+            input.workspaceId,
+            job.sourceId
+          );
+        if (source) {
+          await this.dependencies.dataSourceRepository.saveDataSource({
+            ...source,
+            safeMetadata: syncMetadata(
+              source.safeMetadata,
+              syncMode(job.safeSummary),
+              "failed",
+              failedAt
+            ),
+            updatedAt: failedAt
+          });
+        }
+      }
     }
   }
 
@@ -210,6 +262,36 @@ export class GoogleDriveSyncRuntime {
       createdAt: now
     });
   }
+}
+
+function syncMode(value: unknown): "manual" | "scheduled" {
+  return value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    value.syncMode === "scheduled"
+    ? "scheduled"
+    : "manual";
+}
+
+function syncMetadata(
+  value: unknown,
+  mode: "manual" | "scheduled",
+  status: "completed" | "failed",
+  at: string
+) {
+  const metadata =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? { ...value }
+      : {};
+  const settings = readGoogleDriveAutoSyncSettings(value as never);
+  return {
+    ...metadata,
+    lastSyncStatus: status,
+    ...(mode === "scheduled" ? { lastAutoSyncAt: at } : {}),
+    ...(settings.enabled && settings.frequency
+      ? { nextAutoSyncAt: nextGoogleDriveAutoSyncAt(at, settings.frequency) }
+      : {})
+  };
 }
 
 function toProviderScope(

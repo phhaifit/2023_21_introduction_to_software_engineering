@@ -93,6 +93,7 @@ import {
   GoogleDriveOAuthStateStore
 } from "./modules/knowledge-base-rag/application/google-drive-oauth-service.ts";
 import { GoogleDriveSyncRuntime } from "./modules/knowledge-base-rag/application/google-drive-sync-runtime.ts";
+import { GoogleDriveAutoSyncScheduler } from "./modules/knowledge-base-rag/application/google-drive-auto-sync-scheduler.ts";
 import { EncryptedFileGoogleDriveCredentialStore } from "./modules/knowledge-base-rag/infrastructure/encrypted-google-drive-credential-store.ts";
 import { GoogleDriveApiProvider } from "./modules/knowledge-base-rag/infrastructure/google-drive-api-provider.ts";
 import { LocalKnowledgeRuntimeQueue } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-runtime-queue.ts";
@@ -794,6 +795,32 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     enqueueSyncJob = (input) =>
       queue.enqueue({ kind: "google-drive-sync", ...input });
   }
+  const knowledgeSyncUseCases = new KnowledgeSyncUseCases({
+    syncScopeRepository: knowledgeSyncScopeRepository,
+    syncJobRepository: knowledgeSyncJobRepository,
+    dataSourceRepository: knowledgeDataSourceRepository,
+    now: () => new Date().toISOString(),
+    generateJobId: () => randomUUID() as any,
+    enqueueSyncJob
+  });
+  if (
+    process.env.KNOWLEDGE_AUTO_SYNC_ENABLED?.trim().toLowerCase() === "true" &&
+    enqueueSyncJob
+  ) {
+    const configuredPollInterval = Number(
+      process.env.KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS ?? "60000"
+    );
+    const scheduler = new GoogleDriveAutoSyncScheduler({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      syncUseCases: knowledgeSyncUseCases,
+      now: () => new Date().toISOString(),
+      pollIntervalMs:
+        Number.isFinite(configuredPollInterval) && configuredPollInterval > 0
+          ? configuredPollInterval
+          : 60_000
+    });
+    scheduler.start();
+  }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
@@ -806,14 +833,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       dataSourceRepository: knowledgeDataSourceRepository,
       now: () => new Date().toISOString()
     }),
-    syncUseCases: new KnowledgeSyncUseCases({
-      syncScopeRepository: knowledgeSyncScopeRepository,
-      syncJobRepository: knowledgeSyncJobRepository,
-      dataSourceRepository: knowledgeDataSourceRepository,
-      now: () => new Date().toISOString(),
-      generateJobId: () => randomUUID() as any,
-      enqueueSyncJob
-    }),
+    syncUseCases: knowledgeSyncUseCases,
     retrievalSearchUseCase,
     ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
     agentKnowledgeAssignmentUseCase: new AgentKnowledgeAssignmentUseCase({

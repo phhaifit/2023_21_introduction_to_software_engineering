@@ -11,6 +11,7 @@ import type {
 } from "../domain/knowledge-document.ts";
 import { toKnowledgeDocumentDto } from "../domain/knowledge-document.ts";
 import type { KnowledgeDataSource } from "../domain/knowledge-data-source.ts";
+import { readGoogleDriveAutoSyncSettings } from "./google-drive-auto-sync.ts";
 import type { KnowledgeIngestionJob } from "../domain/knowledge-ingestion-job.ts";
 import type { KnowledgeSyncJob, KnowledgeSyncScopeNode } from "../domain/knowledge-sync.ts";
 
@@ -61,6 +62,7 @@ export function toKnowledgeDataSourceDto(
     !Array.isArray(source.safeMetadata)
       ? source.safeMetadata
       : {};
+  const autoSync = readGoogleDriveAutoSyncSettings(source.safeMetadata);
   return {
     sourceId: source.sourceId,
     workspaceId: source.workspaceId,
@@ -77,6 +79,11 @@ export function toKnowledgeDataSourceDto(
         ? safeMetadata.oauthConfigured
         : undefined,
     lastSyncAt: source.lastSyncAt,
+    autoSyncEnabled: autoSync.enabled,
+    autoSyncFrequency: autoSync.frequency,
+    lastAutoSyncAt: autoSync.lastAutoSyncAt,
+    nextAutoSyncAt: autoSync.nextAutoSyncAt,
+    lastSyncStatus: autoSync.lastSyncStatus,
     updatedAt: source.updatedAt
   };
 }
@@ -85,6 +92,7 @@ export function toSyncScopeNodeDto(node: KnowledgeSyncScopeNode): SyncScopeNodeD
   return {
     scopeNodeId: node.scopeNodeId,
     sourceId: node.sourceId,
+    externalId: node.externalId,
     parentScopeNodeId: node.parentScopeNodeId,
     name: node.displayName,
     nodeType: node.nodeType,
@@ -117,9 +125,14 @@ export function toSyncJobDto(job: KnowledgeSyncJob): SyncJobDto {
     updatedItemCount: count("updatedItemCount"),
     skippedUnchangedItemCount: count("skippedUnchangedItemCount"),
     skippedUnsupportedItemCount: count("skippedUnsupportedItemCount"),
+    removedItemCount: count("removedItemCount"),
     failedItemCount: count("failedItemCount"),
     totalChunksCreated: count("totalChunksCreated"),
     totalVectorsIndexed: count("totalVectorsIndexed"),
+    syncMode:
+      summary.syncMode === "manual" || summary.syncMode === "scheduled"
+        ? summary.syncMode
+        : undefined,
     failure:
       job.errorCode && job.errorMessage
         ? { errorCode: job.errorCode, errorMessage: job.errorMessage }

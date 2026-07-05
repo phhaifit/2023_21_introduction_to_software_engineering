@@ -13,7 +13,7 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 
 **Non-Goals:**
 - Build connectors other than Google Drive.
-- Add scheduled synchronization, Google Picker, or a durable distributed queue.
+- Add Google Picker, Drive push notifications, or a durable distributed queue.
 - Implement advanced document permission inheritance.
 - Expose raw vector database implementation details to agents or task orchestration.
 
@@ -144,6 +144,14 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Parsing: TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs, and Google Sheets are supported. Legacy DOC, Google Slides, and other unsupported Drive types are skipped safely. OCR is deferred; scanned PDFs that yield no text fail with a safe empty-content error.
    - UI: Data Sources and Synchronization Scope become functional for Google Drive only. Scope configuration uses folder/file IDs and does not claim Google Picker or broad Drive browsing.
    - Security: OAuth tokens, client secrets, raw provider responses, downloaded content, local paths, embeddings, and vectors are excluded from public DTOs, events, and UI. Automated tests inject fake fetch/provider adapters and make no real Google API calls.
+
+27. Add opt-in scoped Google Drive scheduled polling.
+   - Rationale: The project requirement needs selected Drive content to refresh without requiring users to repeatedly press Sync now.
+   - Boundary: Auto Sync is disabled by default, supports only hourly or daily frequency, and is enabled only when a connected Google Drive source has selected scope. Settings are stored in the existing safe data-source metadata boundary.
+   - Runtime: A process-local scheduler, enabled explicitly with `KNOWLEDGE_AUTO_SYNC_ENABLED=true`, polls due sources at `KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS`, creates scheduled sync jobs through the existing use case/queue boundary, and prevents overlapping pending or syncing jobs per source.
+   - Change detection: Each scheduled run lists only configured folder/file scope and compares stable `(workspaceId, sourceId, externalId)` identity plus Drive `modifiedTime`. New files import, changed files replace content/chunks/vectors through the existing pipeline, and unchanged files skip. Full scoped listing is the fallback and current implementation; Drive changes page tokens and push notifications are deferred.
+   - Selection: Manual scope input accepts raw IDs, full Docs/Drive URLs, and copied `/edit` or `/view` suffixes. Google Picker is deferred and is not presented as implemented.
+   - Limitation: The process-local scheduler is suitable for the local/demo runtime but is non-durable and single-process. Production multi-instance scheduling still requires a durable queue/lease boundary.
 
 ## Risks / Trade-offs
 

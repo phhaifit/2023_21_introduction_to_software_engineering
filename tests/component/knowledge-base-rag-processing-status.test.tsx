@@ -7,7 +7,8 @@ import { KnowledgeBaseProcessingStatusScreen } from "@vcp/frontend/features/know
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
   IngestionJobDto,
-  KnowledgeDocumentDto
+  KnowledgeDocumentDto,
+  SyncJobDto
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 
 afterEach(cleanup);
@@ -168,6 +169,50 @@ describe("Knowledge Base / RAG Processing Status", () => {
 
     expect(await screen.findByText("No processing jobs")).toBeTruthy();
     expect(screen.queryByText("Employee Handbook.pdf")).toBeNull();
+  });
+
+  it("labels scheduled Google Drive jobs as automatic sync", async () => {
+    const scheduledJob: SyncJobDto = {
+      jobId: "sync-scheduled" as EntityId<"jobId">,
+      workspaceId,
+      sourceId: "source-drive",
+      status: "completed",
+      requestedAt: "2026-07-05T00:00:00.000Z",
+      startedAt: "2026-07-05T00:00:01.000Z",
+      finishedAt: "2026-07-05T00:00:02.000Z",
+      scannedItemCount: 4,
+      changedItemCount: 2,
+      importedItemCount: 1,
+      updatedItemCount: 1,
+      skippedUnchangedItemCount: 2,
+      skippedUnsupportedItemCount: 0,
+      removedItemCount: 1,
+      failedItemCount: 0,
+      syncMode: "scheduled"
+    };
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({
+          listDocuments: vi.fn(async () => ({
+            items: [],
+            pagination: { ...pagination, totalItems: 0 }
+          })),
+          listIngestionJobs: vi.fn(async () => ({
+            items: [],
+            pagination: { ...pagination, totalItems: 0 }
+          })),
+          listSyncJobs: vi.fn(async () => ({
+            items: [scheduledJob],
+            pagination: { ...pagination, totalItems: 1 }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(await screen.findByText("Automatic sync")).toBeTruthy();
+    expect(screen.getByText("Removed")).toBeTruthy();
   });
 
   it("shows a safe unavailable state and retries without rendering raw errors", async () => {

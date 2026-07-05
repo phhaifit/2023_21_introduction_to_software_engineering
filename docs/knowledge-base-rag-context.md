@@ -71,20 +71,21 @@ The backend now has an internal module foundation under
 
 Remaining production runtime gaps include:
 
-- A durable production queue/daemon and scheduled Google Drive sync. The
-  current manual sync runtime uses a process-local asynchronous adapter.
+- A durable production queue/daemon and multi-instance scheduler lease. Manual
+  and scheduled Google Drive sync currently use process-local adapters.
 - OCR and legacy DOC parsing. PDF and DOCX text extraction are implemented;
   scanned PDFs with no extractable text fail safely.
-- Google Picker. Current scope configuration accepts explicit folder/file IDs.
+- Google Picker. Current scope configuration accepts raw IDs and full
+  Google Docs/Drive file or folder URLs.
 - Other connectors, which are intentionally out of scope. Google Drive is the
   only supported external source.
 
 The queue boundary reserves document ingestion and Google Drive sync job
 kinds. The current local server can run Google Drive sync through a
-process-local asynchronous queue and the existing ingestion/indexing pipeline.
-PDF and DOCX text extraction are implemented; OCR is not. Durable queue
-delivery, a worker daemon, and scheduled synchronization remain separate
-production work.
+process-local asynchronous queue, opt-in hourly/daily scheduler, and the
+existing ingestion/indexing pipeline. PDF and DOCX text extraction are
+implemented; OCR is not. Durable queue delivery, a worker daemon, and
+multi-instance scheduler coordination remain separate production work.
 
 ## Modular Monolith Alignment
 
@@ -153,8 +154,9 @@ Future implementation should define these concepts before writing runtime code:
   detection, workspace policy, and safe error reporting.
 - `KnowledgeIngestionJob`: asynchronous parsing, chunking, embedding, and
   indexing work record.
-- `KnowledgeDataSource`: external source such as Google Drive, Notion, or
-  Confluence, excluding raw credentials from public DTOs.
+- `KnowledgeDataSource`: Google Drive connection and safe synchronization
+  metadata, excluding raw credentials from public DTOs. Other connectors are
+  out of scope.
 - `KnowledgeSyncScopeNode`: selected external folder, file, page, or space
   included in synchronization.
 - `KnowledgeSyncJob`: manual or scheduled sync work record.

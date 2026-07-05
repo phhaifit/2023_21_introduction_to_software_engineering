@@ -189,7 +189,7 @@ export function KnowledgeBaseProcessingStatusScreen(
         <KnowledgeBaseSectionCard
           title="Google Drive synchronization"
           eyebrow="External source jobs"
-          description="Manual Google Drive sync lifecycle and safe import summary."
+          description="Manual and automatic Google Drive sync lifecycle and safe import summary."
         >
           {syncJobs.length > 0 ? (
             <div className="knowledge-base-rag-processing-status-list" role="list">
@@ -205,7 +205,13 @@ export function KnowledgeBaseProcessingStatusScreen(
                   <KnowledgeBaseMetadataList
                     items={[
                       { label: "Source", value: "Google Drive" },
-                      { label: "Job type", value: "Synchronization" },
+                      {
+                        label: "Job type",
+                        value:
+                          job.syncMode === "scheduled"
+                            ? "Automatic sync"
+                            : "Manual sync"
+                      },
                       { label: "Started", value: job.startedAt ? formatDateTime(job.startedAt) : "Queued" },
                       { label: "Completed", value: job.finishedAt ? formatDateTime(job.finishedAt) : "Not completed" },
                       { label: "Discovered", value: job.scannedItemCount },
@@ -213,6 +219,7 @@ export function KnowledgeBaseProcessingStatusScreen(
                       { label: "Updated", value: job.updatedItemCount ?? 0 },
                       { label: "Skipped unchanged", value: job.skippedUnchangedItemCount ?? 0 },
                       { label: "Skipped unsupported", value: job.skippedUnsupportedItemCount ?? 0 },
+                      { label: "Removed", value: job.removedItemCount ?? 0 },
                       { label: "Failed files", value: job.failedItemCount ?? 0 }
                     ]}
                   />
@@ -227,7 +234,7 @@ export function KnowledgeBaseProcessingStatusScreen(
           ) : (
             <KnowledgeBaseEmptyState
               title="No Google Drive sync jobs"
-              description="Run a manual sync after connecting Google Drive and configuring scope."
+              description="Run a manual sync or enable Auto Sync after configuring Google Drive scope."
             />
           )}
         </KnowledgeBaseSectionCard>

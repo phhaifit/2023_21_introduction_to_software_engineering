@@ -77,6 +77,40 @@
   padding: 1rem;
 }
 
+.knowledge-base-rag-sync-scope-instructions summary {
+  cursor: pointer;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.knowledge-base-rag-sync-scope-step {
+  margin-bottom: 0.75rem;
+}
+
+.knowledge-base-rag-sync-scope-step h3,
+.knowledge-base-rag-sync-scope-step p {
+  margin: 0;
+}
+
+.knowledge-base-rag-sync-scope-step h3 {
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.knowledge-base-rag-sync-scope-step p:not(.knowledge-base-rag-sync-scope-step__label) {
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.knowledge-base-rag-sync-scope-step__label {
+  color: #4f46e5;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .knowledge-base-rag-sync-scope-instructions p {
   margin: 0;
 }
@@ -126,7 +160,8 @@
 }
 
 .knowledge-base-rag-sync-scope-config textarea,
-.knowledge-base-rag-sync-scope-config input[type="number"] {
+.knowledge-base-rag-sync-scope-config input[type="number"],
+.knowledge-base-rag-sync-scope-config select {
   border: 1px solid #cbd5e1;
   border-radius: 0.5rem;
   background: #ffffff;
@@ -189,6 +224,11 @@
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.knowledge-base-rag-sync-scope-actions .knowledge-base-rag-sync-scope-step__label {
+  align-self: center;
+  margin-right: auto;
 }
 
 .knowledge-base-rag-sync-job-list {

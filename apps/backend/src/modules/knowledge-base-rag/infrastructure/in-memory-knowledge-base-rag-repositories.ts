@@ -249,14 +249,27 @@ export class InMemoryKnowledgeDataSourceRepository
 {
   private readonly dataSources = new Map<string, KnowledgeDataSource>();
 
+  async listAllDataSources(
+    filters: KnowledgeDataSourceListFilters = {}
+  ): Promise<KnowledgeDataSource[]> {
+    return this.filterDataSources([...this.dataSources.values()], filters);
+  }
+
   async listDataSources(
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeDataSourceListFilters = {}
   ): Promise<KnowledgeDataSource[]> {
-    let items = [...this.dataSources.values()].filter(
+    const items = [...this.dataSources.values()].filter(
       (source) => source.workspaceId === workspaceId
     );
+    return this.filterDataSources(items, filters);
+  }
 
+  private filterDataSources(
+    sources: KnowledgeDataSource[],
+    filters: KnowledgeDataSourceListFilters
+  ): KnowledgeDataSource[] {
+    let items = sources;
     if (filters.provider) {
       items = items.filter((source) => source.provider === filters.provider);
     }

@@ -28,6 +28,8 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
     "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/disconnect",
   googleDriveScope:
     "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/scope",
+  googleDriveAutoSync:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/auto-sync",
   syncJob:
     "/api/workspaces/:workspaceId/knowledge/sync-jobs/:jobId"
 } as const;
@@ -54,6 +56,7 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthCallback },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.disconnectDataSource },
   { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveScope },
+  { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveAutoSync },
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJob }
 ] as const;
 
@@ -107,6 +110,7 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "GoogleDriveOAuthStartResponse",
   "GoogleDriveOAuthCallbackResponse",
   "GoogleDriveSyncScopeRequest",
+  "GoogleDriveAutoSyncSettingsRequest",
   "KnowledgeRetrievalSearchRequest",
   "KnowledgeEvidenceDto",
   "KnowledgeRetrievalSearchResponse",
@@ -254,6 +258,11 @@ export type KnowledgeDataSourceDto = {
   connectedAccountEmail?: string;
   oauthConfigured?: boolean;
   lastSyncAt?: string;
+  autoSyncEnabled?: boolean;
+  autoSyncFrequency?: "hourly" | "daily";
+  lastAutoSyncAt?: string;
+  nextAutoSyncAt?: string;
+  lastSyncStatus?: "completed" | "failed";
   updatedAt: string;
   failure?: SafeFailureSummary;
 };
@@ -261,6 +270,7 @@ export type KnowledgeDataSourceDto = {
 export type SyncScopeNodeDto = {
   scopeNodeId: string;
   sourceId: string;
+  externalId?: string;
   parentScopeNodeId?: string;
   name: string;
   nodeType: "folder" | "file" | "page" | "space";
@@ -283,9 +293,11 @@ export type SyncJobDto = {
   updatedItemCount?: number;
   skippedUnchangedItemCount?: number;
   skippedUnsupportedItemCount?: number;
+  removedItemCount?: number;
   failedItemCount?: number;
   totalChunksCreated?: number;
   totalVectorsIndexed?: number;
+  syncMode?: "manual" | "scheduled";
   failure?: SafeFailureSummary;
 };
 
@@ -308,6 +320,11 @@ export type GoogleDriveSyncScopeRequest = {
   recursive?: boolean;
   allowedMimeTypes?: string[];
   maxFiles?: number;
+};
+
+export type GoogleDriveAutoSyncSettingsRequest = {
+  autoSyncEnabled: boolean;
+  autoSyncFrequency?: "hourly" | "daily";
 };
 
 export type ConnectKnowledgeDataSourceRequest = {

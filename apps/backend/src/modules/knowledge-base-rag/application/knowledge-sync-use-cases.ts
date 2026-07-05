@@ -1,5 +1,6 @@
 import type {
   RequestKnowledgeSyncJobRequest,
+  GoogleDriveAutoSyncSettingsRequest,
   GoogleDriveSyncScopeRequest,
   SyncJobDto,
   SyncScopeNodeDto,
@@ -11,9 +12,18 @@ import type {
   KnowledgeSyncJobRepository,
   KnowledgeSyncScopeRepository
 } from "./knowledge-sync-repositories.ts";
-import { toSyncJobDto, toSyncScopeNodeDto } from "./dto-mappers.ts";
+import {
+  toKnowledgeDataSourceDto,
+  toSyncJobDto,
+  toSyncScopeNodeDto
+} from "./dto-mappers.ts";
 import { KnowledgeBaseRagValidationError } from "./knowledge-base-rag-errors.ts";
 import type { KnowledgeDataSourceRepository } from "./knowledge-data-source-repository.ts";
+import {
+  nextGoogleDriveAutoSyncAt,
+  readGoogleDriveAutoSyncSettings
+} from "./google-drive-auto-sync.ts";
+import { normalizeGoogleDriveItemId } from "./google-drive-id.ts";
 
 export type KnowledgeSyncUseCaseDependencies = {
   syncScopeRepository: KnowledgeSyncScopeRepository;
@@ -72,6 +82,90 @@ export class KnowledgeSyncUseCases {
     actorId: EntityId<"userId">,
     request: RequestKnowledgeSyncJobRequest = {}
   ): Promise<SyncJobDto> {
+    return this.requestSync(workspaceId, actorId, request, "manual");
+  }
+
+  async requestScheduledSync(input: {
+    workspaceId: EntityId<"workspaceId">;
+    sourceId: string;
+    actorId: EntityId<"userId">;
+  }): Promise<SyncJobDto | null> {
+    const active = await this.dependencies.syncJobRepository.listSyncJobs(
+      input.workspaceId,
+      {
+        sourceId: input.sourceId,
+        statuses: ["pending", "syncing"],
+        page: 1,
+        pageSize: 1
+      }
+    );
+    if (active.total > 0) return null;
+    const source = await this.requireGoogleDriveSource(
+      input.workspaceId,
+      input.sourceId
+    );
+    const settings = readGoogleDriveAutoSyncSettings(source.safeMetadata);
+    if (!settings.enabled || !settings.frequency) return null;
+    const now = this.dependencies.now();
+    const saved = await this.dependencies.dataSourceRepository!.saveDataSource({
+      ...source,
+      safeMetadata: {
+        ...metadataRecord(source.safeMetadata),
+        nextAutoSyncAt: nextGoogleDriveAutoSyncAt(now, settings.frequency)
+      },
+      updatedAt: now
+    });
+    return this.requestSync(
+      input.workspaceId,
+      input.actorId,
+      { sourceId: saved.sourceId },
+      "scheduled"
+    );
+  }
+
+  async configureGoogleDriveAutoSync(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string,
+    request: GoogleDriveAutoSyncSettingsRequest
+  ) {
+    const source = await this.requireGoogleDriveSource(workspaceId, sourceId);
+    if (request.autoSyncEnabled && source.selectedScopeNodeCount === 0) {
+      throw new KnowledgeBaseRagValidationError([
+        "Add a Google Drive file or folder scope before enabling Auto Sync."
+      ]);
+    }
+    const frequency = request.autoSyncEnabled
+      ? request.autoSyncFrequency ?? "daily"
+      : undefined;
+    if (frequency && frequency !== "hourly" && frequency !== "daily") {
+      throw new KnowledgeBaseRagValidationError([
+        "Auto Sync frequency must be hourly or daily."
+      ]);
+    }
+    const now = this.dependencies.now();
+    const safeMetadata = metadataRecord(source.safeMetadata);
+    safeMetadata.autoSyncEnabled = request.autoSyncEnabled;
+    if (request.autoSyncEnabled && frequency) {
+      safeMetadata.autoSyncFrequency = frequency;
+      safeMetadata.nextAutoSyncAt = nextGoogleDriveAutoSyncAt(now, frequency);
+    } else {
+      delete safeMetadata.autoSyncFrequency;
+      delete safeMetadata.nextAutoSyncAt;
+    }
+    const saved = await this.dependencies.dataSourceRepository!.saveDataSource({
+      ...source,
+      safeMetadata,
+      updatedAt: now
+    });
+    return toKnowledgeDataSourceDto(saved);
+  }
+
+  private async requestSync(
+    workspaceId: EntityId<"workspaceId">,
+    actorId: EntityId<"userId">,
+    request: RequestKnowledgeSyncJobRequest,
+    syncMode: "manual" | "scheduled"
+  ): Promise<SyncJobDto> {
     if (!actorId) {
       throw new KnowledgeBaseRagValidationError(["actorId is required"]);
     }
@@ -106,6 +200,7 @@ export class KnowledgeSyncUseCases {
       totalItems: 0,
       syncedItems: 0,
       failedItems: 0,
+      safeSummary: { syncMode },
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -117,6 +212,32 @@ export class KnowledgeSyncUseCases {
     }
 
     return toSyncJobDto(job);
+  }
+
+  private async requireGoogleDriveSource(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string
+  ) {
+    if (!this.dependencies.dataSourceRepository) {
+      throw new KnowledgeBaseRagValidationError([
+        "Google Drive data source runtime is unavailable."
+      ]);
+    }
+    const source =
+      await this.dependencies.dataSourceRepository.getDataSourceById(
+        workspaceId,
+        sourceId
+      );
+    if (
+      !source ||
+      source.provider !== "google_drive" ||
+      source.connectionStatus !== "connected"
+    ) {
+      throw new KnowledgeBaseRagValidationError([
+        "Connect Google Drive before configuring Auto Sync."
+      ]);
+    }
+    return source;
   }
 
   async configureGoogleDriveScope(
@@ -224,14 +345,20 @@ export class KnowledgeSyncUseCases {
 }
 
 function uniqueSafeIds(values: readonly string[]): string[] {
-  const ids = values.map((value) => value.trim()).filter(Boolean);
+  const raw = values.map((value) => value.trim()).filter(Boolean);
   if (
-    ids.length > 100 ||
-    ids.some((value) => value.length > 200 || !/^[a-zA-Z0-9_-]+$/.test(value))
+    raw.length > 100
   ) {
     throw new KnowledgeBaseRagValidationError([
       "Google Drive folder/file IDs are invalid"
     ]);
   }
+  const ids = raw.map(normalizeGoogleDriveItemId);
   return [...new Set(ids)];
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? { ...value }
+    : {};
 }

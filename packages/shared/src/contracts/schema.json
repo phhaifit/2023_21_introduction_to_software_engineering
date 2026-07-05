@@ -326,6 +326,7 @@
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/data-sources/google-drive/oauth/callback" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/disconnect" },
       { "method": "PUT", "path": "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/scope" },
+      { "method": "PUT", "path": "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/auto-sync" },
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs/:jobId" }
     ],
     "dtoExports": [
@@ -344,6 +345,7 @@
       "GoogleDriveOAuthStartResponse",
       "GoogleDriveOAuthCallbackResponse",
       "GoogleDriveSyncScopeRequest",
+      "GoogleDriveAutoSyncSettingsRequest",
       "KnowledgeRetrievalSearchRequest",
       "KnowledgeEvidenceDto",
       "KnowledgeRetrievalSearchResponse",
@@ -363,6 +365,7 @@
       "RequestKnowledgeSyncJobRequest",
       "GoogleDriveOAuthStartRequest",
       "GoogleDriveSyncScopeRequest",
+      "GoogleDriveAutoSyncSettingsRequest",
       "KnowledgeRetrievalSearchRequest",
       "KnowledgeRagAnswerRequest",
       "AgentKnowledgeAskRequest"

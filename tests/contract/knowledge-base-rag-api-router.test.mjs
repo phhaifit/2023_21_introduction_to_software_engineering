@@ -356,6 +356,36 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   );
   assertNoForbiddenPublicKeys(noScopeSync.body);
 
+  const configuredDriveScope = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/scope",
+    {
+      method: "PUT",
+      body: {
+        fileIds: [
+          "https://docs.google.com/document/d/1DRIVEFILE123/edit?tab=t.0"
+        ],
+        recursive: false,
+        maxFiles: 25
+      }
+    }
+  );
+  assert.equal(configuredDriveScope.status, 200);
+  assert.equal(configuredDriveScope.body.data[0].externalId, "1DRIVEFILE123");
+
+  const autoSyncSettings = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/auto-sync",
+    {
+      method: "PUT",
+      body: { autoSyncEnabled: true, autoSyncFrequency: "hourly" }
+    }
+  );
+  assert.equal(autoSyncSettings.status, 200);
+  assert.equal(autoSyncSettings.body.data.autoSyncEnabled, true);
+  assert.equal(autoSyncSettings.body.data.autoSyncFrequency, "hourly");
+  assertNoForbiddenPublicKeys(autoSyncSettings.body);
+
   const syncJobs = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/sync-jobs"

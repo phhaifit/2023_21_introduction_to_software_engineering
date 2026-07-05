@@ -19,6 +19,7 @@ import {
   KnowledgeBaseStatusBadge
 } from "./knowledge-base-rag-components.tsx";
 import type { ProcessingJobStatus, SyncScopeNodeType } from "./knowledge-base-rag-view.ts";
+import { parseGoogleDriveScopeInput } from "./google-drive-id.ts";
 
 import "./knowledge-base-rag-sync-scope.css";
 
@@ -37,10 +38,11 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
   const { apiClient = defaultApiClient, workspaceId = DEMO_WORKSPACE_ID } = props;
   const [scopeNodes, setScopeNodes] = useState<SyncScopeNodeDto[]>([]);
   const [sourceId, setSourceId] = useState<string | null>(null);
-  const [folderIds, setFolderIds] = useState("");
-  const [fileIds, setFileIds] = useState("");
+  const [scopeInput, setScopeInput] = useState("");
   const [recursive, setRecursive] = useState(false);
   const [maxFiles, setMaxFiles] = useState(100);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [autoSyncFrequency, setAutoSyncFrequency] = useState<"hourly" | "daily">("daily");
   const [syncJobs, setSyncJobs] = useState<SyncJobDto[]>([]);
   const [selectedScopeNodeIds, setSelectedScopeNodeIds] = useState<Set<string>>(new Set());
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
@@ -83,18 +85,19 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
           jobsResult.status === "fulfilled"
             ? jobsResult.value
             : { items: [] };
-        setSourceId(sources.find((source) => source.status === "connected")?.sourceId ?? null);
+        const connectedSource = sources.find((source) => source.status === "connected");
+        setSourceId(connectedSource?.sourceId ?? null);
+        setAutoSyncEnabled(connectedSource?.autoSyncEnabled === true);
+        setAutoSyncFrequency(connectedSource?.autoSyncFrequency ?? "daily");
         setScopeNodes(nodes);
         setSelectedScopeNodeIds(new Set(nodes.filter((node) => node.selected).map((node) => node.scopeNodeId)));
-        setFolderIds(
+        setScopeInput(
           nodes
-            .filter((node) => node.selected && node.nodeType === "folder")
-            .map((node) => node.externalId)
-            .join("\n")
-        );
-        setFileIds(
-          nodes
-            .filter((node) => node.selected && node.nodeType === "file")
+            .filter(
+              (node) =>
+                node.selected &&
+                (node.nodeType === "folder" || node.nodeType === "file")
+            )
             .map((node) => node.externalId)
             .join("\n")
         );
@@ -144,12 +147,13 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
 
     try {
       if (!sourceId) throw new Error("Connect Google Drive before saving scope.");
+      const parsedScope = parseGoogleDriveScopeInput(scopeInput);
       const updatedNodes = await apiClient.configureGoogleDriveScope(
         workspaceId,
         sourceId,
         {
-          folderIds: parseIds(folderIds),
-          fileIds: parseIds(fileIds),
+          folderIds: parsedScope.filter((item) => item.kind === "folder").map((item) => item.id),
+          fileIds: parsedScope.filter((item) => item.kind === "file").map((item) => item.id),
           recursive,
           maxFiles,
           allowedMimeTypes: [
@@ -167,6 +171,10 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
       setSelectedScopeNodeIds(
         new Set(updatedNodes.filter((node) => node.selected).map((node) => node.scopeNodeId))
       );
+      await apiClient.configureGoogleDriveAutoSync(workspaceId, sourceId, {
+        autoSyncEnabled,
+        autoSyncFrequency: autoSyncEnabled ? autoSyncFrequency : undefined
+      });
       setSuccessMessage("Synchronization scope updated.");
     } catch (error: unknown) {
       setErrorMessage(getErrorMessage(error));
@@ -261,11 +269,18 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
 
         {loadState === "loaded" && sourceId ? (
           <>
-            <div className="knowledge-base-rag-sync-scope-instructions">
+            <div className="knowledge-base-rag-sync-scope-step">
+              <p className="knowledge-base-rag-sync-scope-step__label">Step 1</p>
+              <h3>Select Drive content</h3>
               <p>
-                For privacy and performance, the app does not import your entire
-                Google Drive after connection. Configure a file or folder scope,
-                then run manual sync.
+                Paste Google Drive file or folder URLs or IDs, one per line.
+                Full URLs are normalized automatically.
+              </p>
+            </div>
+            <details className="knowledge-base-rag-sync-scope-instructions">
+              <summary>How do I find a Drive file or folder ID?</summary>
+              <p>
+                You can paste the full URL. The app extracts the ID automatically.
               </p>
               <ul>
                 <li>
@@ -287,34 +302,27 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                 access, share or select the item for this app. Production should
                 use Google Picker with <code>drive.file</code>.
               </p>
-            </div>
+            </details>
             <div className="knowledge-base-rag-sync-scope-config">
               <label>
-                Google Drive folder IDs
+                Paste Drive file/folder URLs or IDs
                 <textarea
-                  aria-label="Google Drive folder IDs"
-                  value={folderIds}
-                  onChange={(event) => setFolderIds(event.target.value)}
-                  placeholder="One folder ID per line"
+                  aria-label="Paste Drive file/folder URLs or IDs"
+                  value={scopeInput}
+                  onChange={(event) => setScopeInput(event.target.value)}
+                  placeholder="https://drive.google.com/file/d/.../view"
                 />
                 <span>
-                  Paste one ID per line. Do not include /edit, /view, or query
-                  parameters.
+                  One item per line. Full URLs and raw IDs are accepted. Google
+                  Drive metadata is used to detect folders for raw IDs.
                 </span>
               </label>
-              <label>
-                Google Drive file IDs
-                <textarea
-                  aria-label="Google Drive file IDs"
-                  value={fileIds}
-                  onChange={(event) => setFileIds(event.target.value)}
-                  placeholder="One file ID per line"
-                />
-                <span>
-                  Paste one ID per line. Do not include /edit, /view, or query
-                  parameters.
-                </span>
-              </label>
+            </div>
+            <div className="knowledge-base-rag-sync-scope-step">
+              <p className="knowledge-base-rag-sync-scope-step__label">Step 2</p>
+              <h3>Sync settings</h3>
+            </div>
+            <div className="knowledge-base-rag-sync-scope-config">
               <label>
                 <input
                   type="checkbox"
@@ -333,6 +341,29 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                   onChange={(event) => setMaxFiles(Number(event.target.value))}
                 />
               </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoSyncEnabled}
+                  onChange={(event) => setAutoSyncEnabled(event.target.checked)}
+                  disabled={scopeInput.trim().length === 0}
+                />
+                Enable Auto Sync
+              </label>
+              <label>
+                Frequency
+                <select
+                  aria-label="Auto Sync frequency"
+                  disabled={!autoSyncEnabled}
+                  value={autoSyncFrequency}
+                  onChange={(event) =>
+                    setAutoSyncFrequency(event.target.value as "hourly" | "daily")
+                  }
+                >
+                  <option value="hourly">Hourly</option>
+                  <option value="daily">Daily</option>
+                </select>
+              </label>
             </div>
             {tree.length > 0 ? (
             <div className="knowledge-base-rag-sync-scope-tree" role="tree">
@@ -348,9 +379,10 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
             ) : null}
 
             <div className="knowledge-base-rag-sync-scope-actions" aria-label="Sync scope actions">
+              <span className="knowledge-base-rag-sync-scope-step__label">Step 3 · Save and sync</span>
               <button
                 type="button"
-                disabled={isBusy || (parseIds(folderIds).length === 0 && parseIds(fileIds).length === 0)}
+                disabled={isBusy || scopeInput.trim().length === 0}
                 onClick={() => void handleSaveScope()}
               >
                 {operationState === "saving" ? "Saving..." : "Save Google Drive scope"}
@@ -399,17 +431,6 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
       ) : null}
     </div>
   );
-}
-
-function parseIds(value: string): string[] {
-  return [
-    ...new Set(
-      value
-        .split(/[\n,]/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-    )
-  ];
 }
 
 type SyncScopeTreeItemProps = {

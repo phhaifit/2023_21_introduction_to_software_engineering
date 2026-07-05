@@ -1,5 +1,6 @@
 import type {
   AgentKnowledgeAskRequest,
+  GoogleDriveAutoSyncSettingsRequest,
   GoogleDriveOAuthStartRequest,
   GoogleDriveSyncScopeRequest,
   ConnectKnowledgeDataSourceRequest,
@@ -169,6 +170,33 @@ export function parseGoogleDriveSyncScopeRequest(
       payload["maxFiles"] === undefined
         ? undefined
         : requireFiniteNumber(payload["maxFiles"], "maxFiles")
+  };
+}
+
+export function parseGoogleDriveAutoSyncSettingsRequest(
+  body: unknown
+): GoogleDriveAutoSyncSettingsRequest {
+  const payload = requirePlainObject(body, "Google Drive Auto Sync request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["autoSyncEnabled", "autoSyncFrequency"],
+    "Google Drive Auto Sync request"
+  );
+  const enabled = requireBoolean(payload["autoSyncEnabled"], "autoSyncEnabled");
+  const frequency = parseOptionalTrimmedString(payload["autoSyncFrequency"]);
+  if (
+    frequency !== undefined &&
+    frequency !== "hourly" &&
+    frequency !== "daily"
+  ) {
+    throw new KnowledgeBaseRagValidationError([
+      "Auto Sync frequency must be hourly or daily."
+    ]);
+  }
+  return {
+    autoSyncEnabled: enabled,
+    autoSyncFrequency: frequency
   };
 }
 
