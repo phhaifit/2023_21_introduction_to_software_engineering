@@ -6,7 +6,7 @@ import { TaskPartialResult } from "./task-partial-result";
 import { TaskFailedState } from "./task-failed-state";
 import { TaskCanceledState } from "./task-canceled-state";
 import { TaskTurnActionsMenu } from "./task-turn-actions-menu";
-import { TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
+import { hasDisplayableRuntimeActivity, TaskAssistantProgressSummary } from "./task-assistant-progress-summary";
 import { TaskMarkdown } from "./task-markdown";
 import type { TaskClipboardWriter } from "../model/task-completion-runtime";
 
@@ -132,7 +132,11 @@ export function TaskAssistantMessage({
   const presentationStatusLabel = presentationStatus
     ? TASK_STATUS_LABELS[presentationStatus]
     : null;
-  const toolbarStatusLabel = isNonTerminal || hasCapturedRuntimeProgress ? null : presentationStatusLabel;
+  const shouldShowRuntimeStatus =
+    isNonTerminal &&
+    !shouldShowPartialResult &&
+    (hasCapturedRuntimeProgress || task.status === "queued");
+  const toolbarStatusLabel = shouldShowRuntimeStatus ? null : presentationStatusLabel;
 
   return (
     <div
@@ -163,7 +167,7 @@ export function TaskAssistantMessage({
           </div>
         </div>
 
-        {isNonTerminal || hasCapturedRuntimeProgress ? (
+        {shouldShowRuntimeStatus ? (
           <TaskAssistantProgressSummary task={task} onCancelTask={onCancelTask} />
         ) : null}
 
@@ -209,23 +213,5 @@ export function TaskAssistantMessage({
 }
 
 function hasProviderRuntimeProgress(task: CreatedTaskRecord): boolean {
-  return (
-    task.processingSnapshot.steps.some((step) => {
-      const label = step.label.toLowerCase();
-      return (
-        step.id.startsWith("openclaw-") ||
-        step.id.includes("vcp-run") ||
-        label.includes("openclaw") ||
-        label === "agent activity" ||
-        label === "thinking" ||
-        label === "searching web" ||
-        label === "calling tool" ||
-        label === "composing response"
-      );
-    }) ||
-    task.processingSnapshot.logs.some((log) => {
-      const message = log.message.toLowerCase();
-      return log.stepId.startsWith("openclaw-") || log.stepId.includes("vcp-run") || message.includes("openclaw");
-    })
-  );
+  return hasDisplayableRuntimeActivity(task);
 }

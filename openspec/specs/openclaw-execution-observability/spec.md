@@ -12,13 +12,22 @@ Task & Orchestration SHALL act strictly as an observability projection consumer.
 * **GIVEN** an external OpenClaw runtime emits tool activity events
 * **WHEN** Task & Orchestration receives the events via the adapter boundary
 * **THEN** it SHALL project the tool activity in the execution feed and inspector
+* **AND** it MAY render the latest safe tool activity as the active assistant runtime status in chat
 * **AND** it SHALL NOT attempt to create or administer tools in external module catalogs
 
 #### Scenario: Project sub-agent collaboration activity
 * **GIVEN** an external OpenClaw runtime emits sub-agent coordination events
 * **WHEN** Task & Orchestration receives the events via the adapter boundary
 * **THEN** it SHALL project the sub-agent activity in the execution feed
+* **AND** it MAY render the latest safe sub-agent activity as the active assistant runtime status in chat
 * **AND** it SHALL NOT attempt to control OpenClaw internal orchestration mechanics
+
+#### Scenario: Render active chat observability as transient status
+* **GIVEN** an active assistant response has displayable provider activity such as tool, search, file, browser, sub-agent, or thinking status
+* **WHEN** a newer displayable provider activity is received before assistant output text is available
+* **THEN** the chat UI SHALL replace the previous runtime status with the newer activity text
+* **AND** the chat UI SHALL NOT accumulate provider activity as visible log rows, chips, tags, boxes, or step counters inside the assistant message
+* **AND** the status text SHALL be derived from sanitized provider activity only
 
 ---
 

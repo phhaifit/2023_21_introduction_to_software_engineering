@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Observability as Projection Only
-Task & Orchestration SHALL act strictly as an observability projection consumer. It SHALL display or project activity supplied by the provider but SHALL NOT create tools, assign tools to agents, create sub-agents, control OpenClaw internal orchestration, create workflows, or infer events that were not provided. Safe provider activity supplied by OpenClaw for an active task SHALL be projected into the execution feed, inspector, and active chat progress summary.
+Task & Orchestration SHALL act strictly as an observability projection consumer. It SHALL display or project activity supplied by the provider but SHALL NOT create tools, assign tools to agents, create sub-agents, control OpenClaw internal orchestration, create workflows, or infer events that were not provided. Safe provider activity supplied by OpenClaw for an active task SHALL be projected into the execution feed, inspector, and active chat runtime status.
 
 #### Scenario: Project provider tool activity
 * **GIVEN** an external OpenClaw runtime emits tool activity events
@@ -18,5 +18,7 @@ Task & Orchestration SHALL act strictly as an observability projection consumer.
 #### Scenario: Project provider activity into active chat progress
 * **GIVEN** an active OpenClaw task receives safe provider activity
 * **WHEN** the frontend consumes the normalized runtime event
-* **THEN** the assistant progress summary SHALL show the current provider activity label
+* **THEN** the assistant response SHALL show the latest provider activity as transient plain message text until assistant output text is available
+* **AND** newer displayable provider activity SHALL replace older provider activity
+* **AND** visible chat logs, chips, tags, boxes, and step counters SHALL NOT be rendered for provider activity inside the assistant response
 * **AND** the projection SHALL be derived from Task state and runtime event payloads rather than provider-specific UI branches

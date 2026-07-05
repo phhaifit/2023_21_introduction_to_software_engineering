@@ -10,6 +10,7 @@ import { createBrowserTaskCompletionRuntime, DEFAULT_TASK_COMPLETION_DELAYS, typ
 import type { TaskCancellationCoordinator } from "./task-cancellation-coordinator";
 import { DEFAULT_TASK_RUNTIME_TIMINGS } from "../data/task-routing-options";
 import { isTerminalTaskStatus } from "./task-lifecycle";
+import { selectAccumulatedPartialText } from "./task-streaming";
 
 export interface TaskRuntimeEventBase {
   readonly taskId: EntityId<"taskId">;
@@ -813,7 +814,6 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     }
 
     if (data.type === "execution-completed") {
-      const finalOutput = data.finalOutput || "Completed successfully.";
       ensureProviderProcessingStarted();
       const latestTask = this.tasks.get(taskId);
       const activeStep = latestTask?.processingSnapshot.steps.find((s) => s.status === "active");
@@ -848,6 +848,12 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       } else if (taskBeforeComplete?.streamingSnapshot?.phase === "streaming") {
         this.applyTaskAction(taskId, { type: "streaming-exhausted", taskId: subscribedTask.taskId, exhaustedAt: timestamp });
       }
+      const finalTask = this.tasks.get(taskId) ?? taskBeforeComplete;
+      const streamedOutput = finalTask ? selectAccumulatedPartialText(finalTask.streamingSnapshot).trim() : "";
+      const eventFinalOutput = typeof data.finalOutput === "string" ? data.finalOutput.trim() : "";
+      const finalOutput = shouldUseStreamedFinalOutput(eventFinalOutput, streamedOutput)
+        ? streamedOutput
+        : eventFinalOutput || "Completed successfully.";
       snapshot = this.applyTaskAction(taskId, {
         type: "task-completed",
         taskId: subscribedTask.taskId,
@@ -1157,6 +1163,18 @@ function toStepId(value: unknown): string | undefined {
     return undefined;
   }
   return text.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || undefined;
+}
+
+function shouldUseStreamedFinalOutput(eventFinalOutput: string, streamedOutput: string): boolean {
+  if (!streamedOutput) {
+    return false;
+  }
+  const normalizedEventOutput = eventFinalOutput.trim().replace(/\s+/g, " ").toLowerCase();
+  return (
+    !normalizedEventOutput ||
+    normalizedEventOutput === "completed successfully." ||
+    normalizedEventOutput === "execution completed successfully."
+  );
 }
 
 function isSyntheticRestoredWorkId(task: CreatedTaskRecord): boolean {

@@ -7,12 +7,14 @@ import {
   TaskAssistantProgressSummary,
   resolveActivityLabel
 } from "@vcp/frontend/features/task-orchestration/components/task-assistant-progress-summary.tsx";
+import { TaskAssistantMessage } from "@vcp/frontend/features/task-orchestration/components/task-conversation.tsx";
 import { TaskStatusBadge } from
   "@vcp/frontend/features/task-orchestration/components/task-status-badge.tsx";
 import type {
   CreatedTaskRecord,
   ProcessingStep,
   ProcessingStepStatus,
+  TaskLog,
   TaskPresentationStatus
 } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 
@@ -177,48 +179,140 @@ describe("TaskAssistantProgressSummary", () => {
     expect(resolveActivityLabel(label).label).toBe(expected);
   });
 
-  it("renders compact runtime activity and recent provider steps", () => {
+  it("renders only the latest runtime activity as plain response text", () => {
     render(
       <TaskAssistantProgressSummary
-        task={createRunningTask([
-          { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
-          { id: "openclaw-tool-browser", label: "Calling browser", status: "active" }
-        ])}
+        task={createRunningTask(
+          [
+            { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
+            { id: "openclaw-tool-browser", label: "Calling browser", status: "active" }
+          ],
+          [
+            {
+              id: "log-tool",
+              stepId: "openclaw-tool-browser",
+              level: "info",
+              timestamp: "2026-06-30T00:00:01.000Z",
+              message: "**Calling browser**\n\n- Open product docs\n- Capture the current release note"
+            },
+            {
+              id: "log-output-fragment",
+              stepId: "openclaw-message",
+              level: "info",
+              timestamp: "2026-06-30T00:00:02.000Z",
+              message: "This is an assistant response fragment that belongs in the final output stream."
+            }
+          ]
+        )}
       />
     );
 
-    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    const status = screen.getByLabelText("Assistant runtime status");
+    expect(status).toBeVisible();
     expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
-    expect(screen.getByText(/1\/2 steps/)).toBeVisible();
-    expect(screen.getAllByText("Calling browser").length).toBeGreaterThan(0);
-    expect(screen.getByText("Searching web")).toBeVisible();
+    expect(screen.queryByLabelText("OpenClaw runtime activity")).not.toBeInTheDocument();
+    expect(screen.queryByText(/steps/)).not.toBeInTheDocument();
+    expect(status).toHaveTextContent("Calling browser");
+    expect(status).toHaveTextContent("Open product docs");
+    expect(status).toHaveTextContent("Capture the current release note");
+    expect(status).not.toHaveTextContent("Searching web");
+    expect(status).not.toHaveTextContent("Live");
+    expect(status).not.toHaveTextContent("Done");
+    expect(status).not.toHaveTextContent("Composing response");
+    expect(status).not.toHaveTextContent("OpenClaw tool activity");
+    expect(status).not.toHaveTextContent(/assistant response fragment/);
   });
 
-  it("keeps captured provider activity visible after fast completion", () => {
+  it("keeps the latest captured provider activity visible only when no final output is rendered", () => {
     render(
       <TaskAssistantProgressSummary
         task={createTaskWithRuntimeProgress(
           [
-            { id: "openclaw-agent", label: "Agent activity", status: "completed" }
+            { id: "openclaw-web", label: "Searching web", status: "completed" }
           ],
           "succeeded"
         )}
       />
     );
 
-    expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
-    expect(screen.getAllByText("Agent activity").length).toBeGreaterThan(0);
-    expect(screen.getByText(/1\/1 steps/)).toBeVisible();
+    expect(screen.getByLabelText("Assistant runtime status")).toBeVisible();
+    expect(screen.getByText("Searching web")).toBeVisible();
+    expect(screen.queryByText(/steps/)).not.toBeInTheDocument();
+  });
+
+  it("replaces older fallback provider steps with the latest visible event", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createRunningTask([
+          { id: "openclaw-start", label: "start", status: "completed" },
+          { id: "openclaw-activity", label: "OpenClaw activity", status: "completed" },
+          { id: "openclaw-agent", label: "Agent activity", status: "completed" },
+          { id: "openclaw-agent-execution", label: "Agent Execution", status: "active" }
+        ])}
+      />
+    );
+
+    const status = screen.getByLabelText("Assistant runtime status");
+    expect(status).toHaveTextContent("Agent Execution");
+    expect(status).not.toHaveTextContent("Agent activity");
+    expect(status).not.toHaveTextContent("start");
+    expect(status).not.toHaveTextContent("OpenClaw activity");
+  });
+
+  it("hides runtime activity once the completed assistant response is available", () => {
+    render(
+      <TaskAssistantMessage
+        task={{
+          ...createTaskWithRuntimeProgress(
+            [{ id: "step-1", label: "Agent Execution", status: "completed" }],
+            "succeeded"
+          ),
+          finalizedResult: {
+            text: "Final answer",
+            finalizedAt: "2026-06-30T00:00:02.000Z"
+          }
+        }}
+        routingSummary="Auto-routing"
+        partialText=""
+        isStreaming={false}
+        shouldShowPartialResult={false}
+        clipboardWriter={{ writeText: async () => {} }}
+        onOpenDetails={() => {}}
+      />
+    );
+
+    expect(screen.queryByLabelText("Assistant runtime status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agent Execution")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Assistant final response")).toHaveTextContent("Final answer");
+  });
+
+  it("hides runtime activity once partial output starts streaming", () => {
+    render(
+      <TaskAssistantMessage
+        task={createRunningTask([{ id: "step-1", label: "Searching web", status: "active" }])}
+        routingSummary="Auto-routing"
+        partialText="Streaming answer"
+        isStreaming={true}
+        shouldShowPartialResult={true}
+        clipboardWriter={{ writeText: async () => {} }}
+        onOpenDetails={() => {}}
+      />
+    );
+
+    expect(screen.queryByLabelText("Assistant runtime status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Searching web")).not.toBeInTheDocument();
+    expect(screen.getByText("Streaming answer")).toBeVisible();
   });
 });
 
-function createRunningTask(steps: ProcessingStep[]): CreatedTaskRecord {
-  return createTaskWithRuntimeProgress(steps, "running");
+function createRunningTask(steps: ProcessingStep[], logs: TaskLog[] = []): CreatedTaskRecord {
+  return createTaskWithRuntimeProgress(steps, "running", logs);
 }
 
 function createTaskWithRuntimeProgress(
   steps: ProcessingStep[],
-  status: CreatedTaskRecord["status"]
+  status: CreatedTaskRecord["status"],
+  logs: TaskLog[] = []
 ): CreatedTaskRecord {
   return {
     taskId: "TASK-001" as import("@vcp/shared").EntityId<"taskId">,
@@ -230,7 +324,7 @@ function createTaskWithRuntimeProgress(
     processingSnapshot: {
       startedAt: "2026-06-30T00:00:00.000Z",
       steps,
-      logs: []
+      logs
     },
     streamingSnapshot: {
       phase: "idle",
