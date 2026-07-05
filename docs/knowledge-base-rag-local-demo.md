@@ -53,6 +53,7 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | `GOOGLE_DRIVE_CLIENT_SECRET` | Real Google Drive OAuth | Backend-only secret; never expose or commit it. |
 | `GOOGLE_DRIVE_REDIRECT_URI` | Real Google Drive OAuth | Must target the workspace-scoped OAuth callback route. |
 | `GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY` | Encrypted local credential storage | Backend-only secret of at least 32 characters. |
+| `APP_FRONTEND_BASE_URL` | OAuth browser return URL | Optional; defaults to `http://127.0.0.1:5173` for local development. |
 | `KNOWLEDGE_RAG_PROVIDER` | Live answers | Currently `openai-compatible`. |
 | `KNOWLEDGE_RAG_BASE_URL` | Live answers | Provider base URL. |
 | `KNOWLEDGE_RAG_API_KEY` | Live answers | Never commit this local secret. |
@@ -67,6 +68,9 @@ API keys, and make no provider calls.
 
 The Data Sources screen exposes Google Drive only. OAuth requests
 `https://www.googleapis.com/auth/drive.file` plus `openid` and `email`.
+After a browser callback, the backend redirects to
+`/knowledge-base-rag?tab=data-sources&googleDrive=connected`; clients that
+explicitly request `application/json` continue to receive a safe API envelope.
 Synchronization Scope accepts explicit folder IDs and file IDs, optional
 recursive folder traversal, allowed MIME types, and a maximum file count.
 Synchronization is manual.

@@ -66,6 +66,38 @@
   gap: 0.75rem;
 }
 
+.knowledge-base-rag-sync-scope-instructions {
+  margin-bottom: 1rem;
+  border: 1px solid #dbeafe;
+  border-radius: 0.75rem;
+  background: #eff6ff;
+  color: #334155;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  padding: 1rem;
+}
+
+.knowledge-base-rag-sync-scope-instructions p {
+  margin: 0;
+}
+
+.knowledge-base-rag-sync-scope-instructions p + p,
+.knowledge-base-rag-sync-scope-instructions ul + p {
+  margin-top: 0.75rem;
+}
+
+.knowledge-base-rag-sync-scope-instructions ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.knowledge-base-rag-sync-scope-instructions code {
+  overflow-wrap: anywhere;
+  color: #1e3a8a;
+}
+
 .knowledge-base-rag-sync-scope-config {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -79,6 +111,13 @@
   color: #334155;
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.knowledge-base-rag-sync-scope-config label > span {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .knowledge-base-rag-sync-scope-config label:has(input[type="checkbox"]) {

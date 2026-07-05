@@ -37,20 +37,25 @@ export type KnowledgeBaseDataSourcesScreenProps = {
   apiClient?: KnowledgeBaseRagApiClient;
   workspaceId?: EntityId<"workspaceId">;
   navigateToOAuth?: (url: string) => void;
+  onConfigureScope?: () => void;
 };
 
 export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesScreenProps) {
   const {
     apiClient = defaultApiClient,
     workspaceId = DEMO_WORKSPACE_ID,
-    navigateToOAuth = (url) => window.location.assign(url)
+    navigateToOAuth = (url) => window.location.assign(url),
+    onConfigureScope
   } = props;
   const [dataSources, setDataSources] = useState<KnowledgeDataSourceDto[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    getGoogleDriveCallbackMessage
+  );
   const [retryKey, setRetryKey] = useState(0);
+  const callbackErrorMessage = getGoogleDriveCallbackError();
   const metrics = useMemo(() => createDataSourceMetrics(dataSources), [dataSources]);
 
   useEffect(() => {
@@ -161,6 +166,11 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
           {successMessage}
         </div>
       ) : null}
+      {callbackErrorMessage ? (
+        <div className="knowledge-base-rag-data-sources-feedback" role="alert">
+          {callbackErrorMessage}
+        </div>
+      ) : null}
 
       <KnowledgeBaseSectionCard
         title="External data sources"
@@ -199,6 +209,7 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
                 key={source.sourceId}
                 onConnect={() => void handleConnect()}
                 onDisconnect={() => void handleDisconnect(source.sourceId)}
+                onConfigureScope={onConfigureScope}
                 onSync={() => void handleManualSync(source.sourceId)}
                 source={source}
               />
@@ -226,6 +237,7 @@ type DataSourceCardProps = {
   isConnecting: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
+  onConfigureScope?: () => void;
   onSync: () => void;
   source: KnowledgeDataSourceDto;
 };
@@ -234,12 +246,14 @@ function DataSourceCard({
   isConnecting,
   onConnect,
   onDisconnect,
+  onConfigureScope,
   onSync,
   source
 }: DataSourceCardProps) {
   const provider = mapProvider(source.provider);
   const status = mapDataSourceStatus(source.status);
   const canConnect = source.status !== "connected" && source.status !== "syncing";
+  const hasConfiguredScope = source.selectedScopeNodeCount > 0;
   const failureText = source.failure?.errorMessage;
 
   return (
@@ -266,6 +280,26 @@ function DataSourceCard({
         <p className="knowledge-base-rag-data-source-card__failure">{failureText}</p>
       ) : null}
 
+      {source.status === "connected" ? (
+        <div className="knowledge-base-rag-data-source-card__guidance">
+          {!hasConfiguredScope ? (
+            <p>
+              Google Drive is connected. Configure Synchronization Scope before
+              running sync.
+            </p>
+          ) : null}
+          <p>
+            Connect only authorizes the app. Files are imported only after you add
+            Google Drive file IDs or folder IDs in Synchronization Scope and run
+            Sync now.
+          </p>
+          <p>
+            For privacy and performance, the app does not import your entire Google
+            Drive after connection.
+          </p>
+        </div>
+      ) : null}
+
       <div className="knowledge-base-rag-data-source-card__action">
         {canConnect ? (
           <button type="button" disabled={isConnecting} onClick={onConnect}>
@@ -273,10 +307,35 @@ function DataSourceCard({
           </button>
         ) : (
           <>
-            <button type="button" disabled={isConnecting} onClick={onSync}>
+            <button
+              className="knowledge-base-rag-data-source-card__sync"
+              type="button"
+              disabled={isConnecting || !hasConfiguredScope}
+              onClick={onSync}
+              title={
+                hasConfiguredScope
+                  ? undefined
+                  : "Add at least one Google Drive file ID or folder ID in Synchronization Scope before syncing."
+              }
+            >
               {isConnecting ? "Working..." : "Sync now"}
             </button>
-            <button type="button" disabled={isConnecting} onClick={onDisconnect}>
+            {!hasConfiguredScope && onConfigureScope ? (
+              <button
+                className="knowledge-base-rag-data-source-card__configure"
+                type="button"
+                disabled={isConnecting}
+                onClick={onConfigureScope}
+              >
+                Configure scope
+              </button>
+            ) : null}
+            <button
+              className="knowledge-base-rag-data-source-card__disconnect"
+              type="button"
+              disabled={isConnecting}
+              onClick={onDisconnect}
+            >
               Disconnect
             </button>
           </>
@@ -284,6 +343,23 @@ function DataSourceCard({
       </div>
     </article>
   );
+}
+
+function getGoogleDriveCallbackMessage(): string | null {
+  if (typeof window === "undefined") return null;
+  const status = new URLSearchParams(window.location.search).get("googleDrive");
+  if (status === "connected") return "Google Drive connected successfully.";
+  if (status === "error") {
+    return null;
+  }
+  return null;
+}
+
+function getGoogleDriveCallbackError(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("googleDrive") === "error"
+    ? "Google Drive could not be connected. Try again."
+    : null;
 }
 
 function createDataSourceMetrics(dataSources: KnowledgeDataSourceDto[]) {

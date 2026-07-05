@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { KnowledgeBaseRagPage } from "@vcp/frontend/features/knowledge-base-rag/knowledge-base-rag-page.tsx";
 import type { KnowledgeBaseRagApiClient } from "@vcp/frontend/features/knowledge-base-rag/knowledge-base-rag-api-client.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.history.replaceState({}, "", "/");
+});
 
 describe("KnowledgeBaseRagPage UI", () => {
   it("uses a user-facing title and exposes Google Drive source tabs", async () => {
@@ -34,5 +37,23 @@ describe("KnowledgeBaseRagPage UI", () => {
     expect(screen.getByRole("button", { name: "Data Sources" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Synchronization Scope" })).toBeVisible();
     expect(screen.queryByText(/RAG Management/)).toBeNull();
+  });
+
+  it("opens the Data Sources tab selected by the OAuth callback query", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/knowledge-base-rag?tab=data-sources&googleDrive=connected"
+    );
+    const apiClient = {
+      listDataSources: vi.fn(async () => [])
+    } as unknown as KnowledgeBaseRagApiClient;
+
+    render(<KnowledgeBaseRagPage apiClient={apiClient} />);
+
+    expect(await screen.findByText("External data sources")).toBeVisible();
+    expect(
+      screen.getByText("Google Drive connected successfully.")
+    ).toBeVisible();
   });
 });

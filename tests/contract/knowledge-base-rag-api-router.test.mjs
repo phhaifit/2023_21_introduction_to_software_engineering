@@ -85,6 +85,16 @@ await runtime.dataSourceRepository.saveDataSource({
   createdAt: "2026-06-26T00:00:00.000Z",
   updatedAt: "2026-06-26T00:00:00.000Z"
 });
+await runtime.dataSourceRepository.saveDataSource({
+  sourceId: "source-google-drive-empty",
+  workspaceId: "workspace-a",
+  provider: "google_drive",
+  displayName: "Google Drive",
+  connectionStatus: "connected",
+  selectedScopeNodeCount: 0,
+  createdAt: "2026-06-26T00:00:00.000Z",
+  updatedAt: "2026-06-26T00:00:00.000Z"
+});
 await runtime.syncScopeRepository.saveSyncScopeNodes("workspace-a", [
   {
     scopeNodeId: "scope-node-a",
@@ -330,6 +340,22 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   assert.equal(syncJob.body.data.status, "pending");
   assertNoForbiddenPublicKeys(syncJob.body);
 
+  const noScopeSync = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/sync-jobs",
+    {
+      method: "POST",
+      body: { sourceId: "source-google-drive-empty" }
+    }
+  );
+  assert.equal(noScopeSync.status, 422);
+  assert.equal(noScopeSync.body.error.code, "validation.invalid_input");
+  assert.equal(
+    noScopeSync.body.error.message,
+    "No Google Drive sync scope is configured. Add a file ID or folder ID before syncing."
+  );
+  assertNoForbiddenPublicKeys(noScopeSync.body);
+
   const syncJobs = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/sync-jobs"
@@ -387,6 +413,27 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   assert.equal(unauthenticated.status, 401);
   assert.equal(unauthenticated.body.error.code, "auth.unauthorized");
 
+  const callbackPath =
+    "/api/workspaces/workspace-a/knowledge/data-sources/google-drive/oauth/callback?code=browser-code&state=safe-state";
+  const browserCallback = await fetch(`${baseUrl}${callbackPath}`, {
+    headers: { accept: "text/html", "x-request-id": "test-request" },
+    redirect: "manual"
+  });
+  assert.equal(browserCallback.status, 303);
+  const redirectLocation = browserCallback.headers.get("location");
+  assert.equal(
+    redirectLocation,
+    "http://127.0.0.1:5173/knowledge-base-rag?tab=data-sources&googleDrive=connected"
+  );
+  assert.equal(/browser-code|safe-state|token|secret/i.test(redirectLocation), false);
+
+  const jsonCallback = await requestJson(baseUrl, callbackPath, {
+    headers: { accept: "application/json" }
+  });
+  assert.equal(jsonCallback.status, 200);
+  assert.equal(jsonCallback.body.data.connected, true);
+  assertNoForbiddenPublicKeys(jsonCallback.body);
+
   const oldRoute = await fetch(`${baseUrl}/api/knowledge-base/documents`);
   assert.equal(oldRoute.status, 404);
 });
@@ -437,6 +484,7 @@ function createKnowledgeBaseRagRuntime() {
       syncUseCases: new KnowledgeSyncUseCases({
         syncScopeRepository,
         syncJobRepository,
+        dataSourceRepository,
         now,
         generateJobId: () => `sync-job-${++syncJobSequence}`
       }),
@@ -465,6 +513,23 @@ function createKnowledgeBaseRagRuntime() {
               }
             ],
             warnings: []
+          };
+        }
+      },
+      frontendBaseUrl: "http://127.0.0.1:5173",
+      googleDriveOAuthService: {
+        async callback() {
+          return {
+            connected: true,
+            source: {
+              sourceId: "source-google-drive",
+              workspaceId: "workspace-a",
+              provider: "google_drive",
+              displayName: "Google Drive",
+              status: "connected",
+              selectedScopeNodeCount: 0,
+              updatedAt: now()
+            }
           };
         }
       }

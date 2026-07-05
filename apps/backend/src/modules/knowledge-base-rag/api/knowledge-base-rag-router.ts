@@ -66,6 +66,7 @@ export type KnowledgeBaseRagRouterDependencies = {
   accessPolicy?: KnowledgeBaseRagAccessPolicy;
   checkoutUseCases?: CheckoutUseCases;
   googleDriveOAuthService?: GoogleDriveOAuthService;
+  frontendBaseUrl?: string;
 };
 
 export class QuotaExceededError extends Error {
@@ -134,7 +135,7 @@ export function createKnowledgeBaseRagRouter(
   router.get(
     KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthCallback,
     async (request: Request, response: Response) => {
-      await handleKnowledgeBaseRagRequest(request, response, async () => {
+      const callback = async () => {
         const { workspaceId } = enforceWorkspaceContext(request);
         return requireGoogleDriveOAuthService(dependencies).callback({
           workspaceId,
@@ -142,7 +143,28 @@ export function createKnowledgeBaseRagRouter(
           state: parseQueryString(request.query["state"]),
           error: parseQueryString(request.query["error"])
         });
-      });
+      };
+
+      if (prefersJsonResponse(request)) {
+        await handleKnowledgeBaseRagRequest(request, response, callback);
+        return;
+      }
+
+      try {
+        await callback();
+        response.redirect(
+          303,
+          googleDriveCallbackRedirectUrl(
+            dependencies.frontendBaseUrl,
+            "connected"
+          )
+        );
+      } catch {
+        response.redirect(
+          303,
+          googleDriveCallbackRedirectUrl(dependencies.frontendBaseUrl, "error")
+        );
+      }
     }
   );
 
@@ -567,11 +589,17 @@ async function handleKnowledgeBaseRagRequest<T>(
     }
 
     if (error instanceof KnowledgeBaseRagValidationError) {
+      const message =
+        error.issues.length === 1 &&
+        error.issues[0] ===
+          "No Google Drive sync scope is configured. Add a file ID or folder ID before syncing."
+          ? error.issues[0]
+          : error.message;
       sendKnowledgeBaseRagApiFailure(
         request,
         response,
         "validation.invalid_input",
-        error.message,
+        message,
         { issues: error.issues }
       );
       return;
@@ -665,6 +693,26 @@ function requireGoogleDriveOAuthService(
 
 function parseQueryString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function prefersJsonResponse(request: Request): boolean {
+  const accept = request.header("accept")?.toLowerCase() ?? "";
+  return accept.includes("application/json") && !accept.includes("text/html");
+}
+
+function googleDriveCallbackRedirectUrl(
+  frontendBaseUrl: string | undefined,
+  status: "connected" | "error"
+): string {
+  let url: URL;
+  try {
+    url = new URL("/knowledge-base-rag", frontendBaseUrl ?? "http://127.0.0.1:5173");
+  } catch {
+    url = new URL("/knowledge-base-rag", "http://127.0.0.1:5173");
+  }
+  url.searchParams.set("tab", "data-sources");
+  url.searchParams.set("googleDrive", status);
+  return url.toString();
 }
 
 function enforceWorkspaceContext(

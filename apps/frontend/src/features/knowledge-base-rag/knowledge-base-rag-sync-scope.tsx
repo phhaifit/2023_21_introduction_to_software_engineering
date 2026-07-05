@@ -67,17 +67,43 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
     setLoadState("loading");
     setErrorMessage(null);
 
-    Promise.all([
+    Promise.allSettled([
       apiClient.listDataSources(workspaceId, { provider: "google_drive" }),
       apiClient.getSyncScope(workspaceId),
       apiClient.listSyncJobs(workspaceId)
     ])
-      .then(([sources, nodes, jobs]) => {
+      .then(([sourcesResult, nodesResult, jobsResult]) => {
         if (!isActive) return;
+        if (sourcesResult.status === "rejected") {
+          throw sourcesResult.reason;
+        }
+        const sources = sourcesResult.value;
+        const nodes = nodesResult.status === "fulfilled" ? nodesResult.value : [];
+        const jobs =
+          jobsResult.status === "fulfilled"
+            ? jobsResult.value
+            : { items: [] };
         setSourceId(sources.find((source) => source.status === "connected")?.sourceId ?? null);
         setScopeNodes(nodes);
         setSelectedScopeNodeIds(new Set(nodes.filter((node) => node.selected).map((node) => node.scopeNodeId)));
+        setFolderIds(
+          nodes
+            .filter((node) => node.selected && node.nodeType === "folder")
+            .map((node) => node.externalId)
+            .join("\n")
+        );
+        setFileIds(
+          nodes
+            .filter((node) => node.selected && node.nodeType === "file")
+            .map((node) => node.externalId)
+            .join("\n")
+        );
         setSyncJobs(jobs.items);
+        if (nodesResult.status === "rejected" || jobsResult.status === "rejected") {
+          setErrorMessage(
+            "Some synchronization details could not be loaded. You can still configure Google Drive file or folder IDs."
+          );
+        }
         setLoadState("loaded");
       })
       .catch((error: unknown) => {
@@ -207,7 +233,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
       <KnowledgeBaseSectionCard
         title="Synchronization scope"
         eyebrow="Scope selection"
-        description="Enter Google Drive folder or file IDs shared with this app. Sync is manual only."
+        description="Choose which Google Drive files or folders can be imported into the Knowledge Base."
       >
         {loadState === "loading" ? (
           <div className="knowledge-base-rag-sync-scope-feedback" role="status">
@@ -235,22 +261,59 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
 
         {loadState === "loaded" && sourceId ? (
           <>
+            <div className="knowledge-base-rag-sync-scope-instructions">
+              <p>
+                For privacy and performance, the app does not import your entire
+                Google Drive after connection. Configure a file or folder scope,
+                then run manual sync.
+              </p>
+              <ul>
+                <li>
+                  Google Docs: <code>https://docs.google.com/document/d/&lt;DOCUMENT_ID&gt;/edit</code>
+                </li>
+                <li>
+                  Uploaded files: <code>https://drive.google.com/file/d/&lt;FILE_ID&gt;/view</code>
+                </li>
+                <li>
+                  Drive folders: <code>https://drive.google.com/drive/folders/&lt;FOLDER_ID&gt;</code>
+                </li>
+              </ul>
+              <p>
+                Paste only the ID part. For example,
+                <code>182d96jUaHozp6IrL8Ne55-YmSQSePagGfy85y3t2W6g</code>.
+              </p>
+              <p>
+                This local demo uses manual file/folder IDs. If Google denies
+                access, share or select the item for this app. Production should
+                use Google Picker with <code>drive.file</code>.
+              </p>
+            </div>
             <div className="knowledge-base-rag-sync-scope-config">
               <label>
                 Google Drive folder IDs
                 <textarea
+                  aria-label="Google Drive folder IDs"
                   value={folderIds}
                   onChange={(event) => setFolderIds(event.target.value)}
                   placeholder="One folder ID per line"
                 />
+                <span>
+                  Paste one ID per line. Do not include /edit, /view, or query
+                  parameters.
+                </span>
               </label>
               <label>
                 Google Drive file IDs
                 <textarea
+                  aria-label="Google Drive file IDs"
                   value={fileIds}
                   onChange={(event) => setFileIds(event.target.value)}
                   placeholder="One file ID per line"
                 />
+                <span>
+                  Paste one ID per line. Do not include /edit, /view, or query
+                  parameters.
+                </span>
               </label>
               <label>
                 <input

@@ -298,6 +298,13 @@ through a workspace-scoped public API.
 #### Scenario: Google Drive connects with least-privilege OAuth
 - **WHEN** an authorized user starts and completes Google Drive authorization
 - **THEN** the backend uses `drive.file`, `openid`, and `email`, validates one-time OAuth state, exchanges and refreshes tokens only on the backend, and returns safe connection metadata without credentials
+- **AND** browser callbacks redirect to the frontend Data Sources view with only a bounded success/error indicator, while explicit JSON clients may receive the safe API response
+
+#### Scenario: Connected Google Drive requires explicit scope
+- **WHEN** Google Drive is connected but no folder or file scope is selected
+- **THEN** the Data Sources UI explains that connection only authorizes access, disables manual sync, keeps disconnect available, and links to Synchronization Scope
+- **AND** a direct sync API request fails with a safe actionable validation error
+- **AND** the system never imports the user's whole Drive automatically
 
 #### Scenario: Google Drive scope is configured explicitly
 - **WHEN** an authorized user saves one or more Google Drive folder IDs or file IDs

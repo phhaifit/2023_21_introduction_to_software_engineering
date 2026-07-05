@@ -632,7 +632,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateAgentId: () => randomUUID()
   });
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
+  const frontendUrl =
+    process.env.APP_FRONTEND_BASE_URL ||
+    process.env.FRONTEND_URL ||
+    "http://127.0.0.1:5173";
 
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
@@ -836,7 +839,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       })
     }),
     accessPolicy: knowledgeAccessPolicy,
-    googleDriveOAuthService
+    googleDriveOAuthService,
+    frontendBaseUrl: frontendUrl
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {

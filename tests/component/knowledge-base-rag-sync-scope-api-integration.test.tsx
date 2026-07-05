@@ -123,7 +123,45 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     unmount();
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={failingClient} workspaceId={workspaceId} />);
-    expect(await screen.findByText("Sync scope API unavailable")).toBeTruthy();
+    expect(
+      await screen.findByText(/Some synchronization details could not be loaded/)
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Google Drive folder IDs")).toBeTruthy();
+  });
+
+  it("shows ID-only instructions for Google Docs, files, and folders", async () => {
+    render(
+      <KnowledgeBaseSyncScopeScreen
+        apiClient={createClient({
+          getSyncScope: vi.fn(async () => []),
+          listSyncJobs: vi.fn(async () => ({
+            items: [],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              totalItems: 0,
+              totalPages: 0,
+              hasNextPage: false,
+              hasPreviousPage: false
+            }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(
+      await screen.findByText(/Choose which Google Drive files or folders/)
+    ).toBeTruthy();
+    expect(screen.getByText(/docs\.google\.com\/document\/d/)).toBeTruthy();
+    expect(screen.getByText(/drive\.google\.com\/file\/d/)).toBeTruthy();
+    expect(screen.getByText(/drive\.google\.com\/drive\/folders/)).toBeTruthy();
+    expect(
+      screen.getByText("182d96jUaHozp6IrL8Ne55-YmSQSePagGfy85y3t2W6g")
+    ).toBeTruthy();
+    expect(
+      screen.getAllByText(/Do not include \/edit, \/view, or query parameters/)
+    ).toHaveLength(2);
   });
 
   it("saves folder and file IDs with a safe Google Drive scope payload", async () => {

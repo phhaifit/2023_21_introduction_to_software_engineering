@@ -113,10 +113,47 @@
   padding: 0.75rem;
 }
 
+.knowledge-base-rag-data-source-card__guidance {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 0.75rem;
+}
+
+.knowledge-base-rag-data-source-card__guidance p {
+  margin: 0;
+}
+
+.knowledge-base-rag-data-source-card__guidance p:first-child {
+  color: #334155;
+  font-weight: 700;
+}
+
 .knowledge-base-rag-data-source-card__action {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.knowledge-base-rag-data-source-card__action
+  .knowledge-base-rag-data-source-card__disconnect {
+  border: 1px solid #fecaca;
+  background: #ffffff;
+  color: #b91c1c;
+}
+
+.knowledge-base-rag-data-source-card__action
+  .knowledge-base-rag-data-source-card__configure {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
 }
 
 @media (max-width: 1100px) {
@@ -134,5 +171,9 @@
   .knowledge-base-rag-data-sources-feedback {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .knowledge-base-rag-data-source-card__action {
+    justify-content: flex-start;
   }
 }

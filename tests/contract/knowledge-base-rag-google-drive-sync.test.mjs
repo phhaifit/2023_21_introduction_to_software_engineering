@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import { GoogleDriveSyncRuntime } from "@vcp/backend/modules/knowledge-base-rag/application/google-drive-sync-runtime.ts";
+import { KnowledgeSyncUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { createGoogleDriveSyncJobHandler } from "@vcp/workers/jobs/document-ingestion/google-drive-sync-job.ts";
 import {
   InMemoryKnowledgeDataSourceRepository,
@@ -141,6 +142,31 @@ assert.deepEqual(completed.safeSummary, {
 const events = await syncJobRepository.listSyncJobEvents("workspace-a", "sync-job");
 assert.deepEqual(events.map((event) => event.status), ["syncing", "completed"]);
 assert.equal(JSON.stringify(completed).includes("access-value"), false);
+
+await dataSourceRepository.saveDataSource({
+  sourceId: "source-drive-empty",
+  workspaceId: "workspace-a",
+  provider: "google_drive",
+  displayName: "Empty Drive",
+  connectionStatus: "connected",
+  selectedScopeNodeCount: 0,
+  createdAt: now,
+  updatedAt: now
+});
+const syncUseCases = new KnowledgeSyncUseCases({
+  dataSourceRepository,
+  syncScopeRepository,
+  syncJobRepository,
+  now: () => now,
+  generateJobId: () => "sync-job-empty"
+});
+await assert.rejects(
+  () =>
+    syncUseCases.requestManualSync("workspace-a", "user-a", {
+      sourceId: "source-drive-empty"
+    }),
+  /No Google Drive sync scope is configured\. Add a file ID or folder ID before syncing\./
+);
 
 const workerCalls = [];
 const workerHandler = createGoogleDriveSyncJobHandler({

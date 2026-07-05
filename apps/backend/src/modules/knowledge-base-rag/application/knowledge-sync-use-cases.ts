@@ -75,6 +75,25 @@ export class KnowledgeSyncUseCases {
     if (!actorId) {
       throw new KnowledgeBaseRagValidationError(["actorId is required"]);
     }
+    if (request.sourceId && this.dependencies.dataSourceRepository) {
+      const source = await this.dependencies.dataSourceRepository.getDataSourceById(
+        workspaceId,
+        request.sourceId
+      );
+      if (source?.provider === "google_drive") {
+        const selectedScope = (
+          await this.dependencies.syncScopeRepository.getSyncScope(
+            workspaceId,
+            request.sourceId
+          )
+        ).filter((node) => node.selected);
+        if (selectedScope.length === 0) {
+          throw new KnowledgeBaseRagValidationError([
+            "No Google Drive sync scope is configured. Add a file ID or folder ID before syncing."
+          ]);
+        }
+      }
+    }
 
     const timestamp = this.dependencies.now();
     const job = await this.dependencies.syncJobRepository.saveSyncJob({

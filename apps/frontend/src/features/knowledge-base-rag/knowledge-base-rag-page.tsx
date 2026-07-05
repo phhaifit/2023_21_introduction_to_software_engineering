@@ -98,7 +98,9 @@ export type KnowledgeBaseRagPageProps = {
 
 export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
   const { apiClient = defaultApiClient, workspaceId = DEMO_WORKSPACE_ID } = props;
-  const [activeViewId, setActiveViewId] = useState<KnowledgeBaseRagViewId>("documents");
+  const [activeViewId, setActiveViewId] = useState<KnowledgeBaseRagViewId>(
+    getInitialViewId
+  );
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
 
   const activeView = useMemo(
@@ -145,7 +147,11 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
           />
         )}
         {activeView.id === "data-sources" && (
-          <KnowledgeBaseDataSourcesScreen apiClient={apiClient} workspaceId={workspaceId} />
+          <KnowledgeBaseDataSourcesScreen
+            apiClient={apiClient}
+            onConfigureScope={() => setActiveViewId("synchronization-scope")}
+            workspaceId={workspaceId}
+          />
         )}
         {activeView.id === "synchronization-scope" && (
           <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
@@ -159,4 +165,12 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
       </main>
     </section>
   );
+}
+
+function getInitialViewId(): KnowledgeBaseRagViewId {
+  if (typeof window === "undefined") return "documents";
+  const requested = new URLSearchParams(window.location.search).get("tab");
+  return knowledgeBaseViews.some((view) => view.id === requested)
+    ? (requested as KnowledgeBaseRagViewId)
+    : "documents";
 }
