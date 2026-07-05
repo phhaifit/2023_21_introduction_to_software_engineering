@@ -23,5 +23,5 @@ No existing capability requirements change in this proposal.
 - Backend module: `apps/backend/src/modules/knowledge-base-rag`
 - Frontend feature: `apps/frontend/src/features/knowledge-base-rag`
 - Worker job: `apps/workers/src/jobs/document-ingestion`
-- External boundary: Qdrant/vector database adapter and embedding adapter
+- Persistence boundary: PostgreSQL pgvector adapter and embedding adapter
 - Related modules: agents and task orchestration retrieve knowledge through public RAG contracts

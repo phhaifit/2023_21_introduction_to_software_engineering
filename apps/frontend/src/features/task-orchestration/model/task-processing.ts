@@ -110,6 +110,134 @@ export function startProcessing(
   };
 }
 
+export function startProviderProcessing(
+  snapshot: ProcessingSnapshot,
+  startedAt: string
+): ProcessingResult<ProcessingSnapshot> {
+  if (snapshot.startedAt !== undefined) {
+    return {
+      ok: false,
+      reason: "Processing has already started.",
+      snapshot
+    };
+  }
+
+  return {
+    ok: true,
+    snapshot: {
+      startedAt,
+      steps: [],
+      logs: snapshot.logs
+    }
+  };
+}
+
+export function activateProviderStep(
+  snapshot: ProcessingSnapshot,
+  step: { readonly id: string; readonly label: string; readonly startedAt: string }
+): ProcessingResult<ProcessingSnapshot> {
+  const existing = snapshot.steps.find((s) => s.id === step.id);
+  const stepsWithoutOtherActive = snapshot.steps.map((current) =>
+    current.status === "active" && current.id !== step.id
+      ? { ...current, status: "completed" as const, completedAt: step.startedAt }
+      : { ...current }
+  );
+
+  if (!existing) {
+    return {
+      ok: true,
+      snapshot: {
+        ...snapshot,
+        steps: [
+          ...stepsWithoutOtherActive,
+          {
+            id: step.id,
+            label: step.label,
+            status: "active" as const,
+            startedAt: step.startedAt
+          }
+        ]
+      }
+    };
+  }
+
+  if (existing.status === "completed") {
+    return { ok: true, snapshot };
+  }
+
+  return {
+    ok: true,
+    snapshot: {
+      ...snapshot,
+      steps: stepsWithoutOtherActive.map((current) =>
+        current.id === step.id
+          ? {
+              ...current,
+              label: step.label || current.label,
+              status: "active" as const,
+              startedAt: current.startedAt || step.startedAt
+            }
+          : current
+      )
+    }
+  };
+}
+
+export function completeProviderStep(
+  snapshot: ProcessingSnapshot,
+  step: { readonly id: string; readonly label?: string; readonly completedAt: string }
+): ProcessingResult<ProcessingSnapshot> {
+  const existing = snapshot.steps.find((s) => s.id === step.id);
+  if (!existing) {
+    return {
+      ok: true,
+      snapshot: {
+        ...snapshot,
+        steps: [
+          ...snapshot.steps,
+          {
+            id: step.id,
+            label: step.label || step.id,
+            status: "completed" as const,
+            completedAt: step.completedAt
+          }
+        ]
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    snapshot: {
+      ...snapshot,
+      steps: snapshot.steps.map((current) =>
+        current.id === step.id
+          ? {
+              ...current,
+              label: step.label || current.label,
+              status: "completed" as const,
+              completedAt: current.completedAt || step.completedAt
+            }
+          : { ...current }
+      )
+    }
+  };
+}
+
+export function completeAllProviderSteps(
+  snapshot: ProcessingSnapshot,
+  completedAt: string
+): ProcessingSnapshot {
+  return {
+    ...snapshot,
+    steps: snapshot.steps.map((step) =>
+      step.status === "active" || step.status === "waiting"
+        ? { ...step, status: "completed" as const, completedAt: step.completedAt || completedAt }
+        : { ...step }
+    )
+  };
+}
+
 // ---------------------------------------------------------------------------
 // activateNextStep
 //
@@ -276,13 +404,14 @@ export function cancelActiveStep(
 // Appends a log entry to the snapshot.
 // Invariants:
 //   - log.id must not already exist in snapshot.logs.
-//   - log.stepId must be a known step ID.
+//   - log.stepId must be a known fixed step ID or an existing provider step ID.
 // ---------------------------------------------------------------------------
 export function appendProcessingLog(
   snapshot: ProcessingSnapshot,
   log: TaskLog
 ): ProcessingResult<ProcessingSnapshot> {
-  if (!_isKnownStepId(log.stepId)) {
+  const isExistingProviderStep = snapshot.steps.some((step) => step.id === log.stepId);
+  if (!_isKnownStepId(log.stepId) && !isExistingProviderStep) {
     return {
       ok: false,
       reason: `Unknown step ID "${log.stepId}" in log "${log.id}".`,

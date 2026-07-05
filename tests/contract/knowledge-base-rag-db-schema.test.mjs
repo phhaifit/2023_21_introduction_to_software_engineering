@@ -11,15 +11,21 @@ const migrationPath = join(
   root,
   "packages/database/prisma/migrations/20260625130000_add_kb_rag_persistence_boundary/migration.sql"
 );
+const pgvectorMigrationPath = join(
+  root,
+  "packages/database/prisma/migrations/20260703100000_add_kb_rag_pgvector/migration.sql"
+);
 const docsContextPath = join(root, "docs/knowledge-base-rag-context.md");
 const designPath = join(root, "openspec/changes/implement-knowledge-base-rag/design.md");
 const databaseExportsPath = join(root, "packages/database/src/index.ts");
 
 assert.ok(existsSync(schemaPath), "Prisma schema must exist");
 assert.ok(existsSync(migrationPath), "KB/RAG persistence migration must exist");
+assert.ok(existsSync(pgvectorMigrationPath), "KB/RAG pgvector migration must exist");
 
 const schema = readFileSync(schemaPath, "utf8");
 const migration = readFileSync(migrationPath, "utf8");
+const pgvectorMigration = readFileSync(pgvectorMigrationPath, "utf8");
 const docsContext = readFileSync(docsContextPath, "utf8");
 const design = readFileSync(designPath, "utf8");
 const databaseExports = readFileSync(databaseExportsPath, "utf8");
@@ -89,6 +95,8 @@ const expectedModels = {
       contentHash: "String?",
       tokenCount: "Int?",
       embeddingStatus: "String",
+      embedding: "Unsupported(\"vector\")?",
+      embeddingDimensions: "Int?",
       vectorRef: "String?",
       sourceLocator: "String?",
       createdAt: "String",
@@ -98,6 +106,7 @@ const expectedModels = {
       ["workspaceId"],
       ["documentId"],
       ["workspaceId", "embeddingStatus"],
+      ["workspaceId", "embeddingDimensions"],
       ["workspaceId", "contentHash"]
     ],
     uniques: [["documentId", "chunkIndex"]]
@@ -399,6 +408,25 @@ for (const nonKbTable of ["users", "agents", "workflows", "tasks", "subscription
     `migration must not alter non-KB/RAG table ${nonKbTable}`
   );
 }
+
+assert.match(pgvectorMigration, /CREATE EXTENSION IF NOT EXISTS vector;/);
+assert.match(
+  pgvectorMigration,
+  /ALTER TABLE "knowledge_document_chunks"[\s\S]*ADD COLUMN "embedding" vector/
+);
+assert.match(pgvectorMigration, /ADD COLUMN "embeddingDimensions" INTEGER/);
+assert.match(
+  pgvectorMigration,
+  /vector_dims\("embedding"\) = "embeddingDimensions"/
+);
+assert.match(
+  pgvectorMigration,
+  /knowledge_document_chunks_workspaceId_embeddingDimensions_idx/
+);
+assert.doesNotMatch(
+  pgvectorMigration,
+  /DROP TABLE|DROP COLUMN|CASCADE|DATABASE_URL|password|credential|secret|token/i
+);
 
 assert.ok(
   KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS.every(({ path }) => path.startsWith("/api/workspaces/:workspaceId/knowledge/")),

@@ -14,4 +14,6 @@ export interface WorkflowRepository {
   updateExecutionStatus(workspaceId: EntityId<"workspaceId">, executionId: EntityId<"executionId">, status: import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionStatus, completedAt?: string): Promise<void>;
   createStepLog(log: import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto): Promise<void>;
   updateStepLog(logId: EntityId<"logId">, status: string, outputData?: any, errorMsg?: string, completedAt?: string): Promise<void>;
+  listExecutions(workspaceId: EntityId<"workspaceId">, options?: { limit?: number; offset?: number }): Promise<{ items: (import("@vcp/shared/contracts/workflow.ts").WorkflowExecutionDto & { workflowName: string })[]; total: number }>;
+  getExecutionLogs(workspaceId: EntityId<"workspaceId">, executionId: EntityId<"executionId">): Promise<import("@vcp/shared/contracts/workflow.ts").WorkflowStepLogDto[]>;
 }

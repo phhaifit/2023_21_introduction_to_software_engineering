@@ -4,9 +4,10 @@ import { selectAccumulatedPartialText } from "../model/task-streaming";
 
 export interface TaskFailedStateProps {
   task: CreatedTaskRecord;
+  onRetry?: () => void;
 }
 
-export function TaskFailedState({ task }: TaskFailedStateProps) {
+export function TaskFailedState({ task, onRetry }: TaskFailedStateProps) {
   if (task.status !== "failed" || !task.error) {
     return null;
   }
@@ -31,6 +32,18 @@ export function TaskFailedState({ task }: TaskFailedStateProps) {
             Partial output before failure
           </p>
           <div className="task-failed-state__body">{partialText}</div>
+        </div>
+      ) : null}
+      {onRetry ? (
+        <div className="task-failed-state__actions">
+          <button
+            type="button"
+            className="task-failed-state__retry-btn"
+            aria-label="Retry this task"
+            onClick={onRetry}
+          >
+            ↺ Retry
+          </button>
         </div>
       ) : null}
     </section>

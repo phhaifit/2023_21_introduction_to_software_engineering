@@ -209,7 +209,7 @@ Alternative considered: Next.js full-stack. It is productive, but the project ne
 
 ### Decision 11: Use Docker Compose for Local and Demo Runtime
 
-Use Docker Compose for local development and course demo deployment. Docker Compose should run PostgreSQL, Redis or a queue-compatible service, Qdrant, and OpenClaw-related runtime dependencies where practical.
+Use Docker Compose for local development and course demo deployment. Docker Compose should run PostgreSQL with pgvector, Redis or a queue-compatible service, and OpenClaw-related runtime dependencies where practical.
 
 Rationale: Docker Compose is much simpler than Kubernetes for a course project and matches the need to run OpenClaw/container-backed workspace instances locally.
 
@@ -227,11 +227,11 @@ The default path is:
 
 Rationale: subscription entitlement and upgrade flows matter to the architecture; real payment processing does not.
 
-### Decision 13: Use Qdrant and an Embedding Adapter for RAG
+### Decision 13: Use PostgreSQL pgvector and an Embedding Adapter for RAG
 
-Use Qdrant as the default vector database for local/demo use, behind a vector-store adapter. Use an embedding adapter so the team can start with mock/local embeddings and later plug in a real embedding provider.
+Use PostgreSQL pgvector in the primary application database behind a vector-store adapter. Use an embedding adapter so the team can start with mock/local embeddings and later plug in a real embedding provider.
 
-Rationale: Qdrant runs easily in Docker, has a clear vector-search model, and keeps RAG work testable without hard-wiring one model provider into the foundation.
+Rationale: pgvector keeps workspace chunks and embeddings within the existing PostgreSQL ownership and transaction boundary while preserving testability through an adapter.
 
 ### Decision 14: Implement One Representative Quick Integration First
 

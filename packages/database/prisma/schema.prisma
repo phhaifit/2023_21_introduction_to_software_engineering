@@ -34,15 +34,21 @@ model Session {
 }
 
 model Workspace {
-  workspaceId String @id
-  userId      String
-  name        String
-  status      String @default("pending")
-  createdAt   String
-  updatedAt   String
+  workspaceId    String  @id
+  userId         String
+  name           String
+  status         String  @default("pending")
+  plan           String  @default("free")
+  runtimeUrl     String?
+  containerId    String?
+  failureReason  String?
+  subscriptionId String?
+  createdAt      String
+  updatedAt      String
 
   @@index([userId])
   @@index([status])
+  @@index([userId, status])
   @@map("workspaces")
 }
 
@@ -209,7 +215,7 @@ model WorkflowStep {
   createdAt      String
   updatedAt      String
 
-  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
   logs          WorkflowStepLog[]
 
   @@index([workspaceId])
@@ -227,7 +233,7 @@ model WorkflowExecution {
   startedAt     String
   completedAt   String?
 
-  workflow      Workflow @relation(fields: [workflowId], references: [workflowId])
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
   logs          WorkflowStepLog[]
 
   @@index([workspaceId])
@@ -247,8 +253,8 @@ model WorkflowStepLog {
   startedAt       String
   completedAt     String?
 
-  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId])
-  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId])
+  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([executionId])
@@ -378,6 +384,8 @@ model KnowledgeDocumentChunk {
   contentHash    String?
   tokenCount     Int?
   embeddingStatus String @default("pending")
+  embedding       Unsupported("vector")?
+  embeddingDimensions Int?
   vectorRef      String?
   sourceLocator  String?
   createdAt      String
@@ -389,6 +397,7 @@ model KnowledgeDocumentChunk {
   @@index([workspaceId])
   @@index([documentId])
   @@index([workspaceId, embeddingStatus])
+  @@index([workspaceId, embeddingDimensions])
   @@index([workspaceId, contentHash])
   @@map("knowledge_document_chunks")
 }

@@ -10,6 +10,13 @@ export class KnowledgeBaseRagValidationError extends Error {
   }
 }
 
+export class KnowledgeFileStorageError extends Error {
+  constructor(message = "Document storage is temporarily unavailable.") {
+    super(message);
+    this.name = "KnowledgeFileStorageError";
+  }
+}
+
 export class KnowledgeDocumentNotFoundError extends Error {
   constructor(documentId: EntityId<"documentId">) {
     super(`Knowledge document not found: ${documentId}`);
@@ -38,3 +45,31 @@ export class KnowledgeSyncJobNotFoundError extends Error {
   }
 }
 
+export class KnowledgeRetrievalError extends Error {
+  readonly errorCode: string;
+
+  constructor(errorCode: string, message: string) {
+    super(message);
+    this.name = "KnowledgeRetrievalError";
+    this.errorCode = errorCode;
+  }
+}
+
+export class KnowledgeRagAnswerError extends Error {
+  readonly errorCode: string;
+
+  constructor(errorCode: string, message: string) {
+    super(message);
+    this.name = "KnowledgeRagAnswerError";
+    this.errorCode = errorCode;
+  }
+}
+
+export class KnowledgeAccessDeniedError extends Error {
+  readonly errorCode = "knowledge.access_denied";
+
+  constructor() {
+    super("Knowledge Base / RAG access denied.");
+    this.name = "KnowledgeAccessDeniedError";
+  }
+}

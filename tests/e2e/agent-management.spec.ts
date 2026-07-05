@@ -47,7 +47,14 @@ test.describe.serial('Agent Management E2E', () => {
 
     const table = page.getByRole('table', { name: 'Agents table' });
     await expect(table).toBeVisible();
-    await expect(table.getByRole('row').nth(1)).toBeVisible();
+    const firstAgentRow = table.getByRole('row').nth(1);
+    await expect(firstAgentRow).toBeVisible();
+
+    await firstAgentRow.click();
+    const infoDialog = page.getByRole('dialog').filter({ hasText: 'Agent profile' });
+    await expect(infoDialog).toBeVisible();
+    await infoDialog.getByRole('button', { name: 'Close agent information' }).click();
+    await expect(infoDialog).not.toBeVisible();
   });
 
   test('Task 1.2: create valid agent', async ({ page }) => {

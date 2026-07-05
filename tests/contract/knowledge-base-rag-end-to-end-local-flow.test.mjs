@@ -277,7 +277,7 @@ async function assertEmbeddingFailureIsSafe() {
   );
   assert.equal(document.ingestionStatus, "ready");
   assert.equal(document.indexingStatus, "failed");
-  assert.equal(job.status, "ready");
+  assert.equal(job.status, "failed");
   assertSafeResult(result);
 }
 
@@ -315,7 +315,7 @@ async function assertVectorIndexFailureIsSafe() {
   );
   assert.equal(document.ingestionStatus, "ready");
   assert.equal(document.indexingStatus, "failed");
-  assert.equal(job.status, "ready");
+  assert.equal(job.status, "failed");
   assertSafeResult(result);
 }
 
@@ -363,6 +363,7 @@ async function assertUnknownIndexingFailureIsSafe() {
   assert.equal(result.failure.errorCode, "knowledge.indexing_failed");
   assert.equal(result.failure.errorMessage, "Knowledge document indexing failed.");
   assert.equal(result.document.indexingStatus, "failed");
+  assert.equal(result.job.status, "failed");
   assertSafeResult(result);
 }
 

@@ -12,10 +12,13 @@ describe("PrismaConversationRepository", () => {
         upsert: vi.fn().mockResolvedValue({}),
         findUnique: vi.fn(),
         findMany: vi.fn().mockResolvedValue([]),
-        update: vi.fn().mockResolvedValue({})
+        update: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({})
       },
       chatMessage: {
-        create: vi.fn().mockResolvedValue({})
+        create: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockResolvedValue({}),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 })
       }
     };
     repository = new PrismaConversationRepository(mockPrisma as any);
@@ -83,7 +86,7 @@ describe("PrismaConversationRepository", () => {
     expect(list[0].conversationId).toBe("conv_1");
   });
 
-  it("should append a message and update updatedAt", async () => {
+  it("should upsert a message and update updatedAt", async () => {
     mockPrisma.conversation.findUnique.mockResolvedValue({
       conversationId: "conv_1",
       workspaceId: "ws_1"
@@ -99,7 +102,23 @@ describe("PrismaConversationRepository", () => {
 
     await repository.appendMessage("conv_1" as any, msg);
 
-    expect(mockPrisma.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.chatMessage.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.chatMessage.upsert).toHaveBeenCalledWith({
+      where: { messageId: "msg_1" },
+      create: {
+        messageId: "msg_1",
+        conversationId: "conv_1",
+        role: "user",
+        content: "Hello AI",
+        timestamp: "2026-06-27T10:05:00.000Z"
+      },
+      update: {
+        conversationId: "conv_1",
+        role: "user",
+        content: "Hello AI",
+        timestamp: "2026-06-27T10:05:00.000Z"
+      }
+    });
     expect(mockPrisma.conversation.update).toHaveBeenCalledTimes(1);
     expect(mockPrisma.conversation.update.mock.calls[0][0].data).toEqual({ updatedAt: "2026-06-27T10:05:00.000Z" });
   });
@@ -119,6 +138,29 @@ describe("PrismaConversationRepository", () => {
     expect(mockPrisma.conversation.update.mock.calls[0][0].data.associatedTarget).toEqual({
       type: "agent",
       targetId: "agent-research"
+    });
+  });
+
+  it("should delete a conversation by ID", async () => {
+    await repository.deleteConversation("conv_1" as any);
+
+    expect(mockPrisma.conversation.delete).toHaveBeenCalledWith({
+      where: { conversationId: "conv_1" }
+    });
+  });
+
+  it("should delete selected messages and touch conversation updatedAt", async () => {
+    await repository.deleteMessages("conv_1" as any, ["TASK-000001" as any, "TASK-000001-assistant" as any]);
+
+    expect(mockPrisma.chatMessage.deleteMany).toHaveBeenCalledWith({
+      where: {
+        conversationId: "conv_1",
+        messageId: { in: ["TASK-000001", "TASK-000001-assistant"] }
+      }
+    });
+    expect(mockPrisma.conversation.update).toHaveBeenCalledWith({
+      where: { conversationId: "conv_1" },
+      data: { updatedAt: expect.any(String) }
     });
   });
 });

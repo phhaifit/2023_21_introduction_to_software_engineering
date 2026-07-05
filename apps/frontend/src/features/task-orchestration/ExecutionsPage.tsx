@@ -1,20 +1,99 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
-import { mockExecutions, type ExecutionUIModel } from "../../data/executions.ts";
-import { TerminalSquare, ListTodo, History } from "lucide-react";
+import { TerminalSquare, History, Loader2 } from "lucide-react";
+import { createWorkflowManagementApiClient, type WorkflowManagementApiClient } from "../workflow-management/api/workflow-api-client.ts";
+import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
-function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClose: () => void }) {
-  const logs = [
-    `> Initializing Workflow: [${execution.workflowName}]`,
-    `> Run ID: ${execution.executionId}`,
-    `> Allocating resources... OK`,
-    execution.status === "Failed" ? `> [Error] Lost connection to server.` : `> [Completed] Step 1 - Agent finished processing.`,
-    execution.status === "Failed" ? `> [Error] Workflow was canceled.` : `> [Completed] Step 2 - Agent finished processing.`,
-    execution.status === "Success" ? `> [Success] Workflow executed all steps successfully.` : execution.status === "Canceled" ? `> [Warning] Workflow was canceled by user.` : `> [Running] Waiting for process...`,
-    execution.status === "Success" ? `> Closing connection stream.` : ``
-  ].filter(Boolean);
+function LogsModal({ 
+  execution, 
+  onClose,
+  apiClient
+}: { 
+  execution: any, 
+  onClose: () => void,
+  apiClient: WorkflowManagementApiClient
+}) {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        const [data, workflowData] = await Promise.all([
+          apiClient.getExecutionLogs(DEMO_WORKSPACE_ID, execution.executionId),
+          apiClient.getWorkflow(DEMO_WORKSPACE_ID, execution.workflowId)
+        ]);
+        
+        if (!mounted) return;
+        
+        const stepsMap = new Map<string, number>();
+        const workflowSteps = workflowData?.steps || [];
+        workflowSteps.forEach((s: any) => {
+          stepsMap.set(s.workflowStepId, s.stepOrder);
+        });
+        
+        const formattedLogs: string[] = [
+          `> Initializing Workflow: [${execution.workflowName}]`,
+          `> Run ID: ${execution.executionId}`,
+          `> Allocating resources... OK`
+        ];
+
+        let stepIndex = 1;
+        for (const step of data) {
+          const stepOrder = stepsMap.get(step.workflowStepId) || step.stepOrder || stepIndex++;
+          const stepPrefix = `Step ${stepOrder}`;
+          formattedLogs.push(`> [Running] ${stepPrefix} - Agent step ${step.workflowStepId} started...`);
+          if (step.status === "Success") {
+            formattedLogs.push(`> [Completed] ${stepPrefix} completed successfully.`);
+            if (step.outputData) {
+              const outputText = typeof step.outputData === 'object' 
+                ? (step.outputData.text || JSON.stringify(step.outputData)) 
+                : step.outputData;
+              formattedLogs.push(`> Output: ${outputText}`);
+            }
+          } else if (step.status === "Failed") {
+            formattedLogs.push(`> [Error] ${stepPrefix} failed: ${step.errorMsg || "Unknown error"}`);
+          } else {
+            formattedLogs.push(`> [Running] ${stepPrefix} in progress...`);
+          }
+        }
+
+        if (execution.status === "Success") {
+          formattedLogs.push(`> [Success] Workflow executed all steps successfully.`);
+          formattedLogs.push(`> Closing connection stream.`);
+        } else if (execution.status === "Failed") {
+          formattedLogs.push(`> [Failed] Workflow execution failed.`);
+        } else if (execution.status === "Canceled") {
+          formattedLogs.push(`> [Warning] Workflow was canceled by user.`);
+        } else {
+          formattedLogs.push(`> [Running] Waiting for process...`);
+        }
+
+        setLogs(formattedLogs);
+      } catch (err: any) {
+        if (mounted) {
+          setLogs([
+            `> Initializing Workflow: [${execution.workflowName}]`,
+            `> Run ID: ${execution.executionId}`,
+            `> [Error] Failed to load execution step logs: ${err.message || "Unknown API error"}`
+          ]);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchLogs();
+    return () => {
+      mounted = false;
+    };
+  }, [apiClient, execution]);
 
   return createPortal(
     <div
@@ -88,25 +167,33 @@ function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClos
               height: "280px",
               overflowY: "auto",
               boxShadow: "inset 0 2px 4px 0 rgba(0,0,0,0.5)",
+              display: "flex",
+              flexDirection: "column"
             }}
           >
-            {logs.map((l, i) => (
-              <div
-                key={i}
-                style={{
-                  marginBottom: "8px",
-                  color: l.includes("[Error]")
-                    ? "#f87171"
-                    : l.includes("[Success]") || l.includes("[Completed]")
-                    ? "#4ade80"
-                    : l.includes("[Warning]")
-                    ? "#facc15"
-                    : "#38bdf8",
-                }}
-              >
-                {l}
+            {loading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '8px', color: '#94a3b8' }}>
+                <Loader2 size={20} className="spin-animation" /> Fetching execution logs...
               </div>
-            ))}
+            ) : (
+              logs.map((l, i) => (
+                <div
+                  key={i}
+                  style={{
+                    marginBottom: "8px",
+                    color: l.includes("[Error]") || l.includes("[Failed]")
+                      ? "#f87171"
+                      : l.includes("[Success]") || l.includes("[Completed]")
+                      ? "#4ade80"
+                      : l.includes("[Warning]")
+                      ? "#facc15"
+                      : "#38bdf8",
+                  }}
+                >
+                  {l}
+                </div>
+              ))
+            )}
           </div>
 
           <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end" }}>
@@ -135,11 +222,36 @@ function LogsModal({ execution, onClose }: { execution: ExecutionUIModel, onClos
   );
 }
 
-export function ExecutionsPage() {
+export function ExecutionsPage({ apiClient: providedApiClient }: { apiClient?: WorkflowManagementApiClient }) {
   const [search, setSearch] = useState("");
-  const [selectedExecution, setSelectedExecution] = useState<ExecutionUIModel | null>(null);
+  const [selectedExecution, setSelectedExecution] = useState<any | null>(null);
+  const [executions, setExecutions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = mockExecutions.filter(run =>
+  const apiClient = useMemo(
+    () => providedApiClient ?? createWorkflowManagementApiClient(),
+    [providedApiClient]
+  );
+
+  const loadExecutions = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.listExecutions(DEMO_WORKSPACE_ID);
+      setExecutions(data);
+      setError(null);
+    } catch (err) {
+      setError("Failed to load run history. Please check backend connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadExecutions();
+  }, [apiClient]);
+
+  const filtered = executions.filter(run =>
     run.workflowName.toLowerCase().includes(search.toLowerCase()) ||
     run.executionId.toLowerCase().includes(search.toLowerCase())
   );
@@ -171,6 +283,12 @@ export function ExecutionsPage() {
         />
       </div>
 
+      {error && (
+        <div style={{ padding: "16px", background: "var(--bg-red-subtle)", color: "var(--red)", borderRadius: "8px" }}>
+          {error}
+        </div>
+      )}
+
       <div className="data-table-wrapper">
         <table className="data-table">
           <thead>
@@ -184,7 +302,15 @@ export function ExecutionsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} style={{ padding: "24px" }}>
+                  <div className="skeleton" style={{ height: "32px", marginBottom: "12px", borderRadius: "6px" }}></div>
+                  <div className="skeleton" style={{ height: "32px", marginBottom: "12px", borderRadius: "6px" }}></div>
+                  <div className="skeleton" style={{ height: "32px", borderRadius: "6px" }}></div>
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '64px 32px', color: 'var(--muted)' }}>
                   <History size={48} strokeWidth={1} style={{ margin: '0 auto 16px', opacity: 0.5, color: 'var(--accent)' }} />
@@ -217,7 +343,7 @@ export function ExecutionsPage() {
       </div>
 
       {selectedExecution && (
-        <LogsModal execution={selectedExecution} onClose={() => setSelectedExecution(null)} />
+        <LogsModal execution={selectedExecution} onClose={() => setSelectedExecution(null)} apiClient={apiClient} />
       )}
     </div>
   );

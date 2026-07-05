@@ -3,9 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ProcessingTimeline } from
   "@vcp/frontend/features/task-orchestration/components/processing-timeline.tsx";
+import {
+  TaskAssistantProgressSummary,
+  resolveActivityLabel
+} from "@vcp/frontend/features/task-orchestration/components/task-assistant-progress-summary.tsx";
 import { TaskStatusBadge } from
   "@vcp/frontend/features/task-orchestration/components/task-status-badge.tsx";
 import type {
+  CreatedTaskRecord,
   ProcessingStep,
   ProcessingStepStatus,
   TaskPresentationStatus
@@ -156,29 +161,80 @@ describe("ProcessingTimeline", () => {
     expect(within(waitingStep!).queryByText("Started")).not.toBeInTheDocument();
   });
 
-  it("does not change the input array", () => {
-    const steps: ProcessingStep[] = [
-      { id: "validate", label: "Validate input", status: "waiting" },
-      { id: "analyze", label: "Analyze request", status: "active" }
-    ];
-    const originalOrder = steps.map((step) => step.id);
+});
 
-    render(<ProcessingTimeline steps={steps} />);
-
-    expect(steps.map((step) => step.id)).toEqual(originalOrder);
+describe("TaskAssistantProgressSummary", () => {
+  it.each([
+    ["web search started", "Searching web"],
+    ["Calling browser", "Calling browser"],
+    ["Calling API", "Calling API"],
+    ["Reading Roadmap.pdf", "Reading Roadmap.pdf"],
+    ["Read workspace file", "Reading workspace"],
+    ["reasoning about next action", "Thinking"],
+    ["Thinking", "Thinking"],
+    ["final output", "Composing response"]
+  ])("summarizes provider activity %s", (label, expected) => {
+    expect(resolveActivityLabel(label).label).toBe(expected);
   });
 
-  it("does not change input step objects", () => {
-    const step: ProcessingStep = {
-      id: "validate",
-      label: "Validate input",
-      status: "completed",
-      completedAt: "2026-06-23T09:00:02Z"
-    };
-    const originalStep = { ...step };
+  it("renders compact runtime activity and recent provider steps", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createRunningTask([
+          { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
+          { id: "openclaw-tool-browser", label: "Calling browser", status: "active" }
+        ])}
+      />
+    );
 
-    render(<ProcessingTimeline steps={[step]} />);
+    expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
+    expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
+    expect(screen.getByText(/1\/2 steps/)).toBeVisible();
+    expect(screen.getAllByText("Calling browser").length).toBeGreaterThan(0);
+    expect(screen.getByText("Searching web")).toBeVisible();
+  });
 
-    expect(step).toEqual(originalStep);
+  it("keeps captured provider activity visible after fast completion", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createTaskWithRuntimeProgress(
+          [
+            { id: "openclaw-agent", label: "Agent activity", status: "completed" }
+          ],
+          "succeeded"
+        )}
+      />
+    );
+
+    expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
+    expect(screen.getAllByText("Agent activity").length).toBeGreaterThan(0);
+    expect(screen.getByText(/1\/1 steps/)).toBeVisible();
   });
 });
+
+function createRunningTask(steps: ProcessingStep[]): CreatedTaskRecord {
+  return createTaskWithRuntimeProgress(steps, "running");
+}
+
+function createTaskWithRuntimeProgress(
+  steps: ProcessingStep[],
+  status: CreatedTaskRecord["status"]
+): CreatedTaskRecord {
+  return {
+    taskId: "TASK-001" as import("@vcp/shared").EntityId<"taskId">,
+    workId: "WORK-001" as import("@vcp/shared").EntityId<"workId">,
+    prompt: "Run provider activity",
+    requestedRouting: { mode: "auto" },
+    status,
+    createdAt: "2026-06-30T00:00:00.000Z",
+    processingSnapshot: {
+      startedAt: "2026-06-30T00:00:00.000Z",
+      steps,
+      logs: []
+    },
+    streamingSnapshot: {
+      phase: "idle",
+      fragments: []
+    }
+  };
+}

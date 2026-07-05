@@ -32,6 +32,52 @@ bash scripts/docker/setup.sh
 
 ## 3. Quy trình Kết nối & Ranh giới Kiến trúc (Architectural Boundaries)
 
+### Routing model note
+
+Backend must keep the OpenAI-compatible request body `model` as `openclaw/default`. For `specific-agent`, Backend sends the platform agent profile as system routing context. It sends `x-openclaw-agent-id` only when the catalog provides a verified native OpenClaw agent ID that is known to exist in the Gateway; platform agent IDs must not be sent as native OpenClaw IDs because the Gateway will reject unknown agents. Selected workflows are sent as system routing context until OpenClaw exposes a documented workflow routing header or target. When the user selects `auto` routing, Backend sends the full current workspace candidate list: enabled agents and published workflows, including any verified OpenClaw references, so the OpenClaw coordinator can choose the best route.
+
+## Agent Materialization
+
+Agent Management remains the source of truth for platform agent configuration and generated `skill.md` content. It does not call OpenClaw directly.
+
+To let the backend send a native `x-openclaw-agent-id`, configure a shared OpenClaw agent workspace directory:
+
+- `OPENCLAW_AGENT_WORKSPACE_DIR`: preferred directory where Backend writes OpenClaw-facing agent artifacts.
+- `AGENT_SKILLS_DIR`: fallback directory used by the existing Agent Management skill writer and the OpenClaw materializer.
+- `OPENCLAW_AGENT_MIRROR_CONTAINER`: optional OpenClaw Gateway container name for automatic local Docker mirroring.
+- `OPENCLAW_AGENT_MIRROR_DIR`: optional destination directory inside the OpenClaw Gateway container.
+
+When one of these variables is set, the local backend materializes enabled agents on catalog lookup by writing:
+
+- `<dir>/<workspaceId>/<agentId>/skill.md`
+- `<dir>/<workspaceId>/<agentId>/agent.json`
+- `<dir>/<workspaceId>/agents.list.json`
+
+Only after this write succeeds does Task Execution treat `<agentId>` as a verified native OpenClaw agent ID and include `x-openclaw-agent-id`. If the directory is not configured or writing fails, the request still includes platform routing context, but omits the native agent header.
+
+For the local Docker Gateway setup, use:
+
+```env
+OPENCLAW_AGENT_WORKSPACE_DIR=../../openclaw-agents
+AGENT_SKILLS_DIR=../../openclaw-agents
+OPENCLAW_AGENT_MIRROR_CONTAINER=openclaw-openclaw-gateway-1
+OPENCLAW_AGENT_MIRROR_DIR=/home/node/.openclaw/workspace/openclaw-agents
+```
+
+With the mirror variables set, the backend automatically copies the generated workspace artifacts into the running Gateway container after each successful materialization. It then uses the official OpenClaw CLI in the container to register or update the native agent:
+
+```sh
+openclaw agents list --json
+openclaw agents add <materialized-agent-dir> --workspace <container-workspace-dir> --agent-dir <container-agent-dir> --model <model> --non-interactive --json
+openclaw agents set-identity --agent <native-agent-id> --name <agent-name> --json
+```
+
+Task Execution sends `x-openclaw-agent-id` only after this registration succeeds. For example, platform `agent-research` may map to native OpenClaw agent `research-agent`.
+
+### Progress side-channel note
+
+Backend keeps `/v1/chat/completions` as the execution start and result stream path. In addition, `OpenClawHttpSSETransport` may open a best-effort Gateway WebSocket side-channel for the same `x-openclaw-session-key` and subscribe to `sessions.subscribe` plus `sessions.messages.subscribe`. Session operation/tool/message events received from the Gateway are mapped into normalized progress events so the UI can show actual OpenClaw progress when the Gateway emits it. If the Gateway or Node runtime does not expose WebSocket support, execution continues through HTTP/SSE and the UI falls back to partial output.
+
 Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider**:
 
 ```text

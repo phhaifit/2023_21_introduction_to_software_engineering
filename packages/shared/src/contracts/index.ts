@@ -1,4 +1,5 @@
 export * from "./api.ts";
+export * from "./workspace-management.ts";
 export * from "./agent-management.ts";
 export * from "./capabilities.ts";
 export * from "./events.ts";

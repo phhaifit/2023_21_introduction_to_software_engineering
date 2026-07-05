@@ -1,0 +1,168 @@
+import type { CreatedTaskRecord } from "../model/task-types";
+import { toTaskPresentationStatus } from "../model/task-lifecycle";
+import { TaskStatusBadge } from "./task-status-badge";
+
+export interface TaskAssistantProgressSummaryProps {
+  task: CreatedTaskRecord;
+  /** @deprecated — use the composer Stop button instead; kept for prop-compat */
+  onCancelTask?: () => void;
+}
+
+type ActivityKind = "agent" | "search" | "tool" | "file" | "message";
+
+interface ActivityLabel {
+  readonly kind: ActivityKind;
+  readonly label: string;
+  readonly hint: string;
+}
+
+export function TaskAssistantProgressSummary({ task }: TaskAssistantProgressSummaryProps) {
+  const presentationStatus = toTaskPresentationStatus(task.status);
+  const activeStep = task.processingSnapshot.steps.find((step) => step.status === "active");
+  const completedSteps = task.processingSnapshot.steps.filter((step) => step.status === "completed");
+  const totalSteps = task.processingSnapshot.steps.length;
+  const visibleSteps = task.processingSnapshot.steps.filter(
+    (step) => step.status === "active" || step.status === "completed" || step.status === "failed"
+  );
+  const isLive = task.status === "queued" || task.status === "running";
+  const hasCapturedRuntimeProgress = visibleSteps.length > 0 || task.processingSnapshot.logs.length > 0;
+  if (!presentationStatus || (!isLive && !hasCapturedRuntimeProgress)) {
+    return null;
+  }
+
+  const recentSteps = visibleSteps.slice(-4);
+  const currentActivity = resolveActivityLabel(
+    activeStep?.label ||
+      task.processingSnapshot.logs.at(-1)?.message ||
+      recentSteps.at(-1)?.label ||
+      (task.status === "queued" ? "Queued" : "Processing")
+  );
+
+  const stepSummary =
+    task.status === "queued"
+      ? "Waiting for runtime"
+      : `${currentActivity.label} - ${completedSteps.length}/${totalSteps} steps`;
+
+  return (
+    <div className="task-assistant-progress" aria-live="polite">
+      <div className="task-assistant-progress__header">
+        <TaskStatusBadge status={presentationStatus} />
+        {task.status === "running" ? (
+          <span
+            className={`task-assistant-progress__pulse task-assistant-progress__pulse--${currentActivity.kind}`}
+            aria-hidden="true"
+          />
+        ) : null}
+        <span className="task-assistant-progress__steps">{stepSummary}</span>
+      </div>
+
+      {recentSteps.length > 0 ? (
+        <ol className="task-assistant-progress__mini-steps" aria-label="Recent runtime steps">
+          {recentSteps.map((step) => {
+            const activity = resolveActivityLabel(step.label);
+            return (
+              <li
+                key={step.id}
+                className={`task-assistant-progress__mini-step task-assistant-progress__mini-step--${step.status}`}
+              >
+                <span className="task-assistant-progress__mini-dot" aria-hidden="true" />
+                <span>{activity.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+    </div>
+  );
+}
+
+export function resolveActivityLabel(rawLabel: string): ActivityLabel {
+  const label = rawLabel.trim() || "Processing";
+  const lower = label.toLowerCase();
+
+  if (lower === "searching web") {
+    return {
+      kind: "search",
+      label,
+      hint: "OpenClaw web search activity"
+    };
+  }
+
+  if (lower.startsWith("calling ") || lower === "running command" || lower === "calling api") {
+    return {
+      kind: "tool",
+      label,
+      hint: "OpenClaw tool activity"
+    };
+  }
+
+  if (lower.startsWith("reading ")) {
+    return {
+      kind: "file",
+      label,
+      hint: "OpenClaw reading activity"
+    };
+  }
+
+  if (lower === "browsing web") {
+    return {
+      kind: "search",
+      label,
+      hint: "OpenClaw browser activity"
+    };
+  }
+
+  if (lower === "composing response") {
+    return {
+      kind: "message",
+      label,
+      hint: "OpenClaw response activity"
+    };
+  }
+
+  if (lower === "thinking" || /\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(lower)) {
+    return {
+      kind: "message",
+      label: "Thinking",
+      hint: label
+    };
+  }
+
+  if (/\b(tool|function|call|calling|execute|command|api)\b/.test(lower)) {
+    return {
+      kind: "tool",
+      label: "Calling tool",
+      hint: label
+    };
+  }
+
+  if (/\b(search|web|browser|browse|retriev|lookup|google)\b/.test(lower)) {
+    return {
+      kind: "search",
+      label: "Searching web",
+      hint: label
+    };
+  }
+
+  if (/\b(file|read|write|document|workspace|artifact)\b/.test(lower)) {
+    return {
+      kind: "file",
+      label: "Reading workspace",
+      hint: label
+    };
+  }
+
+  if (/\b(message|respond|stream|output|final)\b/.test(lower)) {
+    return {
+      kind: "message",
+      label: "Composing response",
+      hint: label
+    };
+  }
+
+  return {
+    kind: "agent",
+    label,
+    hint: "OpenClaw runtime activity"
+  };
+}

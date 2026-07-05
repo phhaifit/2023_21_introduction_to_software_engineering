@@ -3,6 +3,7 @@ import type {
   WorkspaceResourceUsageResponse,
   ValidatePromoResponse 
 } from "@vcp/shared/contracts/subscription-payment.ts";
+import { authorizedFetch } from "../../shared/api/authorized-fetch.ts";
 
 export class SubscriptionPaymentApiClient {
   private readonly baseUrl: string;
@@ -12,7 +13,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async getSubscriptionDetails(workspaceId: string): Promise<SubscriptionDetailsResponse> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/details?workspaceId=${encodeURIComponent(workspaceId)}`);
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/details?workspaceId=${encodeURIComponent(workspaceId)}`);
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
     }
@@ -22,7 +23,7 @@ export class SubscriptionPaymentApiClient {
 
   // 1. Gọi API lấy tài nguyên sử dụng động của workspace
   async getWorkspaceResourceUsage(workspaceId: string): Promise<WorkspaceResourceUsageResponse> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/usage?workspaceId=${encodeURIComponent(workspaceId)}`);
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/usage?workspaceId=${encodeURIComponent(workspaceId)}`);
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
     }
@@ -35,7 +36,7 @@ export class SubscriptionPaymentApiClient {
     subscriptionId: string;
     transactionId: string;
   }> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/checkout`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, plan, promoCode })
@@ -52,7 +53,7 @@ export class SubscriptionPaymentApiClient {
     subscriptionId: string;
     transactionId: string;
   }> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/upgrade`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/upgrade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subscriptionId, promoCode })
@@ -66,7 +67,7 @@ export class SubscriptionPaymentApiClient {
 
   // 2. Gọi API toggle bật tắt tự gia hạn
   async toggleAutoRenewal(workspaceId: string, autoRenew: boolean): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/toggle-auto-renewal`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/toggle-auto-renewal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, autoRenew })
@@ -85,7 +86,7 @@ export class SubscriptionPaymentApiClient {
     cardHolder: string,
     cardExpiry: string
   ): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/payment-method`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/payment-method`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, cardNumber, cardHolder, cardExpiry })
@@ -99,7 +100,7 @@ export class SubscriptionPaymentApiClient {
 
   // 4. Gọi API validate mã giảm giá
   async validatePromo(promoCode: string): Promise<ValidatePromoResponse> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/validate-promo`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/validate-promo`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ promoCode })
@@ -111,7 +112,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async sendMockCallback(transactionId: string, status: "success" | "failed"): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/mock-callback`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/mock-callback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transactionId, status })
@@ -124,7 +125,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async getPlans(): Promise<SubscriptionPlansResponse> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/plans`);
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/plans`);
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
     }
