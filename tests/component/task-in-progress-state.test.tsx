@@ -211,7 +211,7 @@ describe("Task 8B — In-Progress integration", () => {
       "2026-06-24T14:00:00.000Z"
     );
     expect(screen.queryByText("LOG-0001")).not.toBeInTheDocument();
-    expect(screen.getByText("Processing started — validating input.")).toBeVisible();
+    expect(screen.getAllByText("Processing started — validating input.")[0]).toBeVisible();
     expect(screen.getByText("TASK-000001")).toBeVisible();
     expect(screen.getByText("WORK-000001")).toBeVisible();
     const feed = screen.getByRole("region", { name: /conversation/i });

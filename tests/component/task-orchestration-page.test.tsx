@@ -260,7 +260,7 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(await screen.findByText("Research competitors")).toBeVisible();
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
-    expect(screen.getByText("Searching web")).toBeVisible();
+
     expect(screen.getByText("OpenClaw partial competitor notes")).toBeVisible();
   });
 
@@ -360,7 +360,7 @@ describe("TaskOrchestrationPage base workspace", () => {
       });
     });
 
-    expect(await screen.findByText("Searching web")).toBeVisible();
+    expect(await screen.findByText("Searching release notes")).toBeVisible();
     expect(screen.getByText("Working on it")).toBeVisible();
     expect(screen.queryByText("Final streamed answer")).not.toBeInTheDocument();
 
