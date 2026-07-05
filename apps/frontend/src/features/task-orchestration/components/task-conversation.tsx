@@ -1,3 +1,4 @@
+import { Bot } from "lucide-react";
 import type { CreatedTaskRecord, TaskPresentationStatus } from "../model/task-types";
 import { selectAccumulatedPartialText } from "../model/task-streaming";
 import { toTaskPresentationStatus } from "../model/task-lifecycle";
@@ -142,7 +143,7 @@ export function TaskAssistantMessage({
         className="task-conversation__avatar task-conversation__avatar--assistant"
         aria-hidden="true"
       >
-        *
+        <Bot size={18} strokeWidth={2.5} />
       </div>
       <div className="task-conversation__bubble task-conversation__bubble--assistant">
         <div className="task-conversation__turn-toolbar">
