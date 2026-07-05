@@ -14,6 +14,7 @@ const agentSource = readContractSource("agent-management.ts");
 const statusesSource = readContractSource("statuses.ts");
 const subscriptionSource = readContractSource("subscription-payment.ts");
 const taskSource = readContractSource("task-orchestration.ts");
+const taskExecutionSource = readContractSource("task-execution.ts");
 const publicExportsSource = readContractSource("index.ts");
 const {
   AUTHENTICATION_ERROR_CODES,
@@ -128,6 +129,46 @@ assert.deepEqual(
   TASK_ROUTING_MODES,
   ["auto", "specific-agent", "predefined-workflow"],
   "routing modes must be available from the public @vcp/shared boundary"
+);
+assert.deepEqual(
+  schema.taskOrchestration.runtimeActivityKinds,
+  [
+    "routing",
+    "workflow",
+    "tool",
+    "tool-call",
+    "web-search",
+    "document-read",
+    "file-read",
+    "browser",
+    "shell",
+    "api-call",
+    "sub-agent",
+    "handoff",
+    "review",
+    "aggregation",
+    "completion",
+    "message",
+    "provider-diagnostic"
+  ],
+  "task execution contracts must expose provider-neutral runtime activity kinds"
+);
+for (const activityKind of schema.taskOrchestration.runtimeActivityKinds) {
+  assert.match(
+    taskExecutionSource,
+    new RegExp(`"${escapeRegExp(activityKind)}"`),
+    `runtime activity kind must be declared in task-execution contract: ${activityKind}`
+  );
+}
+assert.match(
+  taskExecutionSource,
+  /export type RuntimeActivityType = \(typeof RUNTIME_ACTIVITY_TYPES\)\[number\];/,
+  "RuntimeActivityType must be derived from RUNTIME_ACTIVITY_TYPES"
+);
+assert.match(
+  taskExecutionSource,
+  /export type SubActivityEvent = \{[\s\S]*displayLabel\?: string;[\s\S]*summary\?: string;[\s\S]*providerEventName\?: string;[\s\S]*\} & BaseEventScoping;/,
+  "SubActivityEvent must expose safe display metadata for runtime activity projection"
 );
 assert.deepEqual(
   schema.taskOrchestration.createTaskRequestFields,

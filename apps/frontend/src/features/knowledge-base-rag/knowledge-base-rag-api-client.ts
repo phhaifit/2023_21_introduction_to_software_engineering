@@ -2,6 +2,7 @@ import type { ApiMeta, ApiPaginationMeta, ErrorCode } from "@vcp/shared/contract
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { KnowledgeIndexStatus } from "@vcp/shared/contracts/statuses.ts";
 import {
+  type AgentKnowledgeDocumentDto,
   KNOWLEDGE_BASE_RAG_API_ROUTES,
   type ConnectKnowledgeDataSourceRequest,
   type IngestionJobDto,
@@ -60,6 +61,10 @@ export type KnowledgeBaseRagApiClient = {
     workspaceId: EntityId<"workspaceId">,
     request: PrepareUploadRequest
   ): Promise<PrepareUploadResponse>;
+  uploadDocuments(
+    workspaceId: EntityId<"workspaceId">,
+    files: readonly File[]
+  ): Promise<PrepareUploadResponse>;
   listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
     filters?: KnowledgeIngestionJobListFilters
@@ -89,6 +94,20 @@ export type KnowledgeBaseRagApiClient = {
     workspaceId: EntityId<"workspaceId">,
     filters?: KnowledgeSyncJobListFilters
   ): Promise<{ items: SyncJobDto[]; pagination: ApiPaginationMeta }>;
+  listAgentKnowledgeDocuments(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentKnowledgeDocumentDto[]>;
+  assignAgentKnowledgeDocument(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    documentId: EntityId<"documentId">
+  ): Promise<AgentKnowledgeDocumentDto>;
+  revokeAgentKnowledgeDocument(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    documentId: EntityId<"documentId">
+  ): Promise<AgentKnowledgeDocumentDto>;
 };
 
 export type KnowledgeBaseRagApiClientErrorKind =
@@ -135,13 +154,14 @@ export function createKnowledgeBaseRagApiClient(input: {
 
   async function request<T>(path: string, init?: RequestInit): Promise<ApiEnvelope<T>> {
     let response: Response;
+    const hasJsonBody = typeof init?.body === "string";
 
     try {
       response = await fetchImplementation(`${baseUrl}${path}`, {
         ...init,
         headers: {
           accept: "application/json",
-          ...(init?.body ? { "content-type": "application/json" } : {}),
+          ...(hasJsonBody ? { "content-type": "application/json" } : {}),
           ...init?.headers
         }
       });
@@ -217,6 +237,17 @@ export function createKnowledgeBaseRagApiClient(input: {
         routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.prepareUploads, { workspaceId }),
         payload
       ),
+    uploadDocuments: async (workspaceId, files) => {
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append("files", file, file.name);
+      }
+
+      return requestMultipart<PrepareUploadResponse>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.uploadDocuments, { workspaceId }),
+        formData
+      );
+    },
     listIngestionJobs: async (workspaceId, filters) => {
       const response = await request<IngestionJobDto[]>(
         withQuery(routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.ingestionJobs, { workspaceId }), {
@@ -278,7 +309,32 @@ export function createKnowledgeBaseRagApiClient(input: {
         items: response.data,
         pagination: requirePagination(response.meta)
       };
-    }
+    },
+    listAgentKnowledgeDocuments: (workspaceId, agentId) =>
+      requestData<AgentKnowledgeDocumentDto[]>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocuments, {
+          workspaceId,
+          agentId
+        })
+      ),
+    assignAgentKnowledgeDocument: (workspaceId, agentId, documentId) =>
+      requestDataWithMethod<AgentKnowledgeDocumentDto>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument, {
+          workspaceId,
+          agentId,
+          documentId
+        }),
+        "POST"
+      ),
+    revokeAgentKnowledgeDocument: (workspaceId, agentId, documentId) =>
+      requestDataWithMethod<AgentKnowledgeDocumentDto>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument, {
+          workspaceId,
+          agentId,
+          documentId
+        }),
+        "DELETE"
+      )
   };
 
   async function requestData<T>(path: string): Promise<T> {
@@ -297,15 +353,36 @@ export function createKnowledgeBaseRagApiClient(input: {
       body: JSON.stringify(payload)
     })).data;
   }
+
+  async function requestMultipart<T>(path: string, body: FormData): Promise<T> {
+    return (await request<T>(path, {
+      method: "POST",
+      body
+    })).data;
+  }
+
+  async function requestDataWithMethod<T>(
+    path: string,
+    method: "POST" | "DELETE"
+  ): Promise<T> {
+    return (await request<T>(path, { method })).data;
+  }
 }
 
 function routePath(
   template: string,
-  params: { workspaceId: EntityId<"workspaceId">; sourceId?: string }
+  params: {
+    workspaceId: EntityId<"workspaceId">;
+    sourceId?: string;
+    agentId?: EntityId<"agentId">;
+    documentId?: EntityId<"documentId">;
+  }
 ): string {
   return template
     .replace(":workspaceId", encodeURIComponent(params.workspaceId))
-    .replace(":sourceId", encodeURIComponent(params.sourceId ?? ""));
+    .replace(":sourceId", encodeURIComponent(params.sourceId ?? ""))
+    .replace(":agentId", encodeURIComponent(params.agentId ?? ""))
+    .replace(":documentId", encodeURIComponent(params.documentId ?? ""));
 }
 
 function withQuery(path: string, query: {

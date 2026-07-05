@@ -100,12 +100,18 @@ export class KnowledgeBaseRagLocalFlowRunner {
         workspaceId: input.workspaceId,
         documentId: ingestion.document.documentId
       });
-      const latestJob =
-        (await this.dependencies.ingestionJobRepository.getIngestionJobById(
-          input.workspaceId,
-          input.jobId
-        )) ?? ingestion.job;
       const chunks = await this.listChunks(input.workspaceId, indexing.document.documentId);
+      const latestJob = indexing.failure
+        ? await this.markIndexingFailed(
+            input.workspaceId,
+            input.jobId,
+            ingestion.job,
+            indexing.failure
+          )
+        : (await this.dependencies.ingestionJobRepository.getIngestionJobById(
+            input.workspaceId,
+            input.jobId
+          )) ?? ingestion.job;
 
       return {
         phase: indexing.failure ? "indexing_failed" : "completed",
@@ -124,16 +130,46 @@ export class KnowledgeBaseRagLocalFlowRunner {
         indexingStatus: "failed",
         updatedAt: this.dependencies.now()
       });
+      const failedJob = await this.markIndexingFailed(
+        input.workspaceId,
+        input.jobId,
+        ingestion.job,
+        failure
+      );
 
       return {
         phase: "indexing_failed",
         document: failedDocument,
-        job: ingestion.job,
+        job: failedJob,
         chunks: await this.listChunks(input.workspaceId, failedDocument.documentId),
         ingestion,
         failure
       };
     }
+  }
+
+  private async markIndexingFailed(
+    workspaceId: EntityId<"workspaceId">,
+    jobId: EntityId<"jobId">,
+    fallbackJob: KnowledgeIngestionJob,
+    failure: SafeKnowledgeIndexingFailure
+  ): Promise<KnowledgeIngestionJob> {
+    const current =
+      (await this.dependencies.ingestionJobRepository.getIngestionJobById(
+        workspaceId,
+        jobId
+      )) ?? fallbackJob;
+    const timestamp = this.dependencies.now();
+    return this.dependencies.ingestionJobRepository.saveIngestionJob({
+      ...current,
+      status: "failed",
+      progress: Math.min(current.progress, 99),
+      completedAt: undefined,
+      failedAt: timestamp,
+      errorCode: failure.errorCode,
+      errorMessage: failure.errorMessage,
+      updatedAt: timestamp
+    });
   }
 
   private async listChunks(

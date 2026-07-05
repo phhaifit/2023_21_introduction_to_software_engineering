@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 
 import {
   AuthAlert,
@@ -34,20 +35,17 @@ export function AuthenticationPage() {
   const redirectMessage = searchParams.get("message");
 
   // Separate the authenticated and unauthenticated views.
-  if (isAuthenticated) {
-    // If we just logged in and there's a redirect target, go there immediately
-    if (redirectTarget) {
+  useEffect(() => {
+    if (isAuthenticated && redirectTarget) {
       navigate(decodeURIComponent(redirectTarget), { replace: true });
+    }
+  }, [isAuthenticated, redirectTarget, navigate]);
+
+  if (isAuthenticated) {
+    if (redirectTarget) {
       return null;
     }
-    return (
-      <AccountPanel
-        email={currentUser?.email ?? ""}
-        displayName={currentUser?.displayName}
-        isSigningOut={status === "submitting"}
-        onSignOut={() => void signOut()}
-      />
-    );
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (
@@ -65,14 +63,14 @@ export function AuthenticationPage() {
 // AccountPanel — shown when user is signed in
 // -----------------------------------------------------------------------------
 
-type AccountPanelProps = {
+export type AccountPanelProps = {
   email: string;
   displayName?: string;
   isSigningOut: boolean;
   onSignOut: () => void;
 };
 
-function AccountPanel({
+export function AccountPanel({
   email,
   displayName,
   isSigningOut,
@@ -229,9 +227,10 @@ function AuthForms({ signIn, signUp, isSubmitting, redirectTarget, redirectMessa
     if (!result.ok) {
       setFormError(getAuthErrorMessage(result.code));
     } else {
-      // Navigate to redirect target or workspaces after successful login
-      const target = redirectTarget ? decodeURIComponent(redirectTarget) : '/workspaces';
-      navigate(target, { replace: true });
+      // If redirectTarget is present, the useEffect will handle redirection once context updates.
+      if (!redirectTarget) {
+        navigate('/workspaces', { replace: true });
+      }
     }
   }
 

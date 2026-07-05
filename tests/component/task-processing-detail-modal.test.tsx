@@ -37,9 +37,8 @@ describe("Task Processing Detail Modal", () => {
 
     expect(screen.getByRole("dialog", { name: "Processing details" })).toBeInTheDocument();
     
-    // Check identifiers
-    expect(screen.getByText("TASK-001")).toBeInTheDocument();
-    expect(screen.getByText("WORK-001")).toBeInTheDocument();
+    expect(screen.getByText("TASK-001")).not.toBeVisible();
+    expect(screen.getByText("WORK-001")).not.toBeVisible();
 
     // Check status
     const statusBadge = screen.getByLabelText("Task status: Completed");
@@ -51,10 +50,10 @@ describe("Task Processing Detail Modal", () => {
     // Check duration formatting
     expect(screen.getByText("4.5s")).toBeInTheDocument();
 
-    // Check timeline and logs exist
+    // Check timeline exists while technical logs remain collapsed by default.
     expect(screen.getByText("Step 1")).toBeInTheDocument();
     expect(screen.getByText("Step 2")).toBeInTheDocument();
-    expect(screen.getByText("Initial log")).toBeInTheDocument();
+    expect(screen.getByText("Initial log")).not.toBeVisible();
   });
 
   it("handles missing duration display gracefully", () => {
@@ -79,9 +78,9 @@ describe("Task Processing Detail Modal", () => {
     expect(handleClose).toHaveBeenCalledOnce();
   });
 
-  it("does not render logs if empty but shows fallback", () => {
+  it("does not render empty log fallback copy", () => {
     const detailEmptyLogs = { ...mockDetail, logs: [] };
     render(<TaskProcessingDetailModal detail={detailEmptyLogs} onClose={vi.fn()} />);
-    expect(screen.getByText("No orchestration logs available.")).toBeInTheDocument();
+    expect(screen.queryByText("No orchestration logs available.")).not.toBeInTheDocument();
   });
 });

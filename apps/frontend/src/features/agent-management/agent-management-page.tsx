@@ -37,6 +37,11 @@ import { useToast } from "../../components/shared/Toast.tsx";
 import { Pagination } from "../../components/shared/Pagination.tsx";
 import { RenameDialog } from "./components/RenameDialog.tsx";
 import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog.tsx";
+import { AgentKnowledgeAssignmentPanel } from "./agent-knowledge-assignment-panel.tsx";
+import {
+  createKnowledgeBaseRagApiClient,
+  type KnowledgeBaseRagApiClient,
+} from "../knowledge-base-rag/knowledge-base-rag-api-client.ts";
 
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
@@ -49,6 +54,7 @@ import agentsHeroUrl from "../../assets/agent-management/agents-hero.png";
 import {
   AgentApiClientError,
   createAgentManagementApiClient,
+  type AgentEditableConfiguration,
   type AgentListItem,
   type AgentManagementApiClient,
 } from "./agent-management-api-client.ts";
@@ -66,10 +72,12 @@ type AgentManagementAccessMode = "manager" | "viewer";
 type AgentManagementPageProps = {
   workspaceId: EntityId<"workspaceId">;
   apiClient?: AgentManagementApiClient;
+  knowledgeApiClient?: KnowledgeBaseRagApiClient;
   accessMode?: AgentManagementAccessMode;
 };
 
 const defaultApiClient = createAgentManagementApiClient();
+const defaultKnowledgeApiClient = createKnowledgeBaseRagApiClient();
 
 const createFormValues: AgentFormState["values"] = {
   name: "",
@@ -119,6 +127,7 @@ const templateDraftValues: TemplateDraftState = {
 export function AgentManagementPage({
   workspaceId,
   apiClient = defaultApiClient,
+  knowledgeApiClient = defaultKnowledgeApiClient,
   accessMode = "manager",
 }: AgentManagementPageProps) {
   const [agents, setAgents] = useState<AgentListItem[]>([]);
@@ -150,6 +159,14 @@ export function AgentManagementPage({
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [isEditReady, setIsEditReady] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [infoAgentId, setInfoAgentId] =
+    useState<EntityId<"agentId"> | null>(null);
+  const [infoConfiguration, setInfoConfiguration] =
+    useState<AgentEditableConfiguration | null>(null);
+  const [infoConfigurationError, setInfoConfigurationError] =
+    useState<string | null>(null);
+  const [isInfoConfigurationLoading, setIsInfoConfigurationLoading] =
+    useState(false);
   const pendingActionRef = useRef<string | null>(null);
   const canManageAgents = accessMode === "manager";
   const { showSuccess, showError } = useToast();
@@ -315,10 +332,10 @@ export function AgentManagementPage({
     () =>
       createAgentManagementViewModel({
         agents,
-        selectedAgentId,
+        selectedAgentId: infoAgentId ?? selectedAgentId,
         form,
       }),
-    [agents, form, selectedAgentId],
+    [agents, form, infoAgentId, selectedAgentId],
   );
 
   const enabledCount = viewModel.list.rows.filter(
@@ -327,6 +344,11 @@ export function AgentManagementPage({
   const disabledCount = viewModel.list.rows.filter(
     (row) => row.status === "disabled",
   ).length;
+  const totalCount = viewModel.list.rows.length;
+  const selectedInfoRow = useMemo(
+    () => viewModel.list.rows.find((row) => row.agentId === infoAgentId) ?? null,
+    [infoAgentId, viewModel.list.rows],
+  );
   const isBusy = pendingAction !== null || isEditLoading;
 
   function showCreateForm() {
@@ -347,6 +369,82 @@ export function AgentManagementPage({
     setSkillPreviewError(null);
     setIsSkillPreviewLoading(false);
     setIsFormOpen(true);
+  }
+
+  const loadInfoConfiguration = useCallback(
+    async (agentId: EntityId<"agentId">) => {
+      setIsInfoConfigurationLoading(true);
+      setInfoConfigurationError(null);
+
+      try {
+        const configuration = await apiClient.getAgentConfiguration(
+          workspaceId,
+          agentId,
+        );
+        setInfoConfiguration(configuration);
+      } catch (error) {
+        setInfoConfiguration(null);
+        setInfoConfigurationError(
+          messageFor(error, "Unable to load agent configuration."),
+        );
+      } finally {
+        setIsInfoConfigurationLoading(false);
+      }
+    },
+    [apiClient, workspaceId],
+  );
+
+  function showAgentInfo(row: AgentRowViewModel) {
+    if (pendingActionRef.current) {
+      return;
+    }
+
+    const agentId = row.agentId as EntityId<"agentId">;
+    setInfoAgentId(agentId);
+    setSelectedAgentId(null);
+    setInfoConfiguration(null);
+    setInfoConfigurationError(null);
+    void loadInfoConfiguration(agentId);
+  }
+
+  function closeAgentInfo() {
+    if (pendingActionRef.current) {
+      return;
+    }
+
+    setInfoAgentId(null);
+    setInfoConfiguration(null);
+    setInfoConfigurationError(null);
+    setIsInfoConfigurationLoading(false);
+  }
+
+  function configureFromInfo(row: AgentRowViewModel) {
+    closeAgentInfo();
+    void showEditForm(row);
+  }
+
+  function renameFromInfo(row: AgentRowViewModel) {
+    closeAgentInfo();
+    setRenameAgentObj(row);
+    setRenameError(null);
+  }
+
+  function deleteFromInfo(row: AgentRowViewModel) {
+    closeAgentInfo();
+    setDeleteAgentObj(row);
+  }
+
+  async function duplicateFromInfo(row: AgentRowViewModel) {
+    await handleDuplicate(row);
+  }
+
+  async function lifecycleFromInfo(row: AgentRowViewModel, action: AgentRowAction) {
+    if (action.kind === "delete") {
+      deleteFromInfo(row);
+      return;
+    }
+
+    await performLifecycleAction(row, action);
   }
 
   async function showEditForm(row: AgentRowViewModel) {
@@ -594,6 +692,11 @@ export function AgentManagementPage({
           setForm(createForm());
           setIsFormOpen(false);
         }
+        if (infoAgentId === agentId) {
+          setInfoAgentId(null);
+          setInfoConfiguration(null);
+          setInfoConfigurationError(null);
+        }
       },
       (error) => showError(messageFor(error, "Unable to delete the agent.")),
     );
@@ -670,7 +773,7 @@ export function AgentManagementPage({
           <Bot size={24} aria-hidden="true" />
           <div>
             <h1 id="agent-management-title">Agents</h1>
-            <p>Configure the virtual workforce available in this workspace.</p>
+            <p>Create and tune the AI agents available in this workspace.</p>
           </div>
         </div>
         <div className="agent-topbar__actions">
@@ -693,24 +796,38 @@ export function AgentManagementPage({
         </div>
       </header>
 
-      <section className="agent-hero" aria-label="Agent automation overview">
+      <section className="agent-hero" aria-label="Agent setup overview">
         <div
           className="agent-hero__image"
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(21, 28, 39, 0.72), rgba(21, 28, 39, 0.32)), url(${agentsHeroUrl})`,
+            backgroundImage: `linear-gradient(90deg, rgba(17, 30, 36, 0.78), rgba(17, 30, 36, 0.34)), url(${agentsHeroUrl})`,
           }}
           aria-hidden="true"
         />
         <div className="agent-hero__content">
           <span className="agent-hero__eyebrow">
             <Sparkles size={16} aria-hidden="true" />
-            Agent Management
+            Agent setup
           </span>
-          <h2>Let's automate with Agents</h2>
+          <h2>Set up agents with the right role, model, and instructions.</h2>
           <p>
-            Track enabled and disabled agents, inspect configuration, and
-            control lifecycle actions from one workspace dashboard.
+            Keep each agent profile easy to scan, configure, and update while
+            the table stays close for repeated setup work.
           </p>
+          <dl className="agent-hero__stats" aria-label="Current workspace agent summary">
+            <div>
+              <dt>Total</dt>
+              <dd>{totalCount}</dd>
+            </div>
+            <div>
+              <dt>Enabled</dt>
+              <dd>{enabledCount}</dd>
+            </div>
+            <div>
+              <dt>Disabled</dt>
+              <dd>{disabledCount}</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -776,6 +893,20 @@ export function AgentManagementPage({
             <ChevronDown size={14} className="agent-toolbar__select-chevron" />
           </div>
 
+          {search.length > 0 || statusFilter !== "All" ? (
+            <button
+              type="button"
+              className="agent-filter-reset"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("All");
+                setPage(1);
+              }}
+            >
+              Clear filters
+            </button>
+          ) : null}
+
           <div className="agent-view-toggle" aria-label="View mode">
             <button
               type="button"
@@ -813,21 +944,11 @@ export function AgentManagementPage({
           <div className="agent-list__header">
             <div>
               <h2 id="agent-list-title">Agent list</h2>
-              <p>{viewModel.list.rows.length} workspace agents</p>
+              <p>
+                Showing {viewModel.list.rows.length} agent
+                {viewModel.list.rows.length === 1 ? "" : "s"} from this workspace.
+              </p>
             </div>
-            <dl
-              className="agent-management-page__stats"
-              aria-label="Agent status summary"
-            >
-              <div>
-                <dt>Enabled</dt>
-                <dd>{enabledCount}</dd>
-              </div>
-              <div>
-                <dt>Disabled</dt>
-                <dd>{disabledCount}</dd>
-              </div>
-            </dl>
           </div>
 
           {isInitialLoading ? <AgentListSkeleton /> : null}
@@ -859,6 +980,7 @@ export function AgentManagementPage({
                 rows={viewModel.list.rows}
                 disabled={isBusy}
                 canManageAgents={canManageAgents}
+                onOpenInfo={showAgentInfo}
                 onEdit={showEditForm}
                 onRename={(row) => {
                   setRenameAgentObj(row);
@@ -890,6 +1012,29 @@ export function AgentManagementPage({
             onSubmit={handleRenameSubmit}
           />
         )}
+
+        {selectedInfoRow ? (
+          <AgentInfoDialog
+            row={selectedInfoRow}
+            configuration={infoConfiguration}
+            configurationError={infoConfigurationError}
+            isConfigurationLoading={isInfoConfigurationLoading}
+            canManageAgents={canManageAgents}
+            disabled={isBusy}
+            workspaceId={workspaceId}
+            knowledgeApiClient={knowledgeApiClient}
+            onClose={closeAgentInfo}
+            onRetry={() =>
+              void loadInfoConfiguration(
+                selectedInfoRow.agentId as EntityId<"agentId">,
+              )
+            }
+            onConfigure={configureFromInfo}
+            onRename={renameFromInfo}
+            onDuplicate={(row) => void duplicateFromInfo(row)}
+            onLifecycleAction={(row, action) => void lifecycleFromInfo(row, action)}
+          />
+        ) : null}
 
         {deleteAgentObj && (
           <ConfirmDeleteDialog
@@ -1040,6 +1185,7 @@ function GuidedCreateDialog({
   onSubmit,
   onAcceptAssistantDraft,
 }: GuidedCreateDialogProps) {
+  const guidedDialogRef = useRef<HTMLDivElement>(null);
   const requiredErrors = validateTemplateDraft(draft);
   const selectedModelAvailable = models.some(
     (model) => model.modelId === draft.model,
@@ -1051,10 +1197,31 @@ function GuidedCreateDialog({
     hasBlockingDraftErrors(errors) ||
     !selectedModelAvailable ||
     Object.keys(requiredErrors).length > 0;
+  const modeSummary = {
+    template: {
+      title: "Start from a structured template",
+      description: "Fill the profile, review the generated skill.md, then create the agent.",
+    },
+    prompt: {
+      title: "Describe the agent in plain language",
+      description: "Generate an editable draft from a natural-language brief.",
+    },
+    import: {
+      title: "Import an existing skill.md",
+      description: "Analyze Markdown and turn it into an editable Agent draft.",
+    },
+  }[activeMode];
+
+  useEffect(() => {
+    if (guidedDialogRef.current) {
+      guidedDialogRef.current.scrollTop = 0;
+    }
+  }, [activeMode]);
 
   return (
     <div className="agent-modal-backdrop" role="presentation">
       <div
+        ref={guidedDialogRef}
         className="agent-modal agent-guided-modal"
         role="dialog"
         aria-modal="true"
@@ -1077,7 +1244,7 @@ function GuidedCreateDialog({
             </span>
             <div>
               <h2 id="agent-guided-title">Create agent</h2>
-              <p>Select a starting point, review the draft, then create it.</p>
+              <p>{modeSummary.description}</p>
             </div>
           </header>
 
@@ -1103,6 +1270,10 @@ function GuidedCreateDialog({
               label="Import skill.md"
               onModeChange={onModeChange}
             />
+          </div>
+          <div className="agent-guided__mode-summary">
+            <span>Current mode</span>
+            <strong>{modeSummary.title}</strong>
           </div>
 
           {activeMode === "template" ? (
@@ -1152,6 +1323,11 @@ function PromptAssistantPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [draftResult, setDraftResult] = useState<AgentCreationAssistantDraftResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const examplePrompts = [
+    "Create a research agent that summarizes competitor updates every week.",
+    "Create a support agent that drafts careful replies from product docs.",
+    "Create a content agent that turns briefs into social posts and outlines.",
+  ];
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -1181,20 +1357,55 @@ function PromptAssistantPanel({
   }
 
   return (
-    <section className="agent-guided__deferred" aria-live="polite">
-      <Brain size={24} aria-hidden="true" />
-      <h3>Prompt Assistant</h3>
-      <p>Describe the agent you want to create.</p>
-      
-      <div className="agent-form__field">
-        <textarea
-          className="agent-form__textarea"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="I need an agent that..."
-          disabled={isGenerating}
-          rows={4}
-        />
+    <section className="agent-guided__mode-panel" aria-live="polite">
+      <div className="agent-guided__mode-intro">
+        <span className="agent-guided__mode-icon" aria-hidden="true">
+          <Brain size={22} />
+        </span>
+        <div>
+          <h3>Prompt Assistant</h3>
+          <p>
+            Describe the outcome, source material, and boundaries. The assistant
+            will turn it into a draft you can inspect before creating.
+          </p>
+        </div>
+      </div>
+
+      <div className="agent-guided__assistant-layout">
+        <div className="agent-form__field">
+          <label htmlFor="agent-assistant-prompt">Agent description</label>
+          <textarea
+            id="agent-assistant-prompt"
+            className="agent-form__textarea agent-guided__large-textarea"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Example: I need an agent that monitors customer feedback, finds recurring issues, and drafts a weekly insight report."
+            disabled={isGenerating}
+            rows={8}
+          />
+          <p className="agent-form__hint">
+            Include the agent's role, decisions it can make, source material, and
+            what it should avoid.
+          </p>
+        </div>
+
+        <aside className="agent-guided__assist-card" aria-label="Prompt examples">
+          <h4>Useful starting points</h4>
+          <p>Pick an example and edit it to match your workspace.</p>
+          <div className="agent-guided__chips">
+            {examplePrompts.map((example) => (
+              <button
+                key={example}
+                type="button"
+                className="agent-helper-chip"
+                disabled={isGenerating}
+                onClick={() => setPrompt(example)}
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </aside>
       </div>
 
       {error && <p className="agent-form__error" role="alert">{error}</p>}
@@ -1210,14 +1421,17 @@ function PromptAssistantPanel({
         </div>
       )}
 
-      <button 
-        type="button" 
-        className="agent-primary-button" 
-        disabled={isGenerating || !prompt.trim()}
-        onClick={handleGenerate}
-      >
-        {isGenerating ? "Generating..." : (draftResult ? "Retry" : "Generate draft")}
-      </button>
+      <div className="agent-guided__action-row">
+        <p>{prompt.trim() ? "Ready to generate an editable draft." : "Add a short brief to continue."}</p>
+        <button
+          type="button"
+          className="agent-primary-button"
+          disabled={isGenerating || !prompt.trim()}
+          onClick={handleGenerate}
+        >
+          {isGenerating ? "Generating..." : (draftResult ? "Retry" : "Generate draft")}
+        </button>
+      </div>
     </section>
   );
 }
@@ -1286,27 +1500,46 @@ function SkillImportPanel({
   }
 
   return (
-    <section className="agent-guided__deferred" aria-live="polite">
-      <Upload size={24} aria-hidden="true" />
-      <h3>Import skill.md</h3>
-      <p>Paste Markdown or select a skill.md file to extract an editable draft.</p>
-
-      <div className="agent-form__field">
-        <label htmlFor="agent-skill-import-file">Markdown file</label>
-        <input
-          id="agent-skill-import-file"
-          type="file"
-          accept=".md,.markdown,text/markdown,text/plain"
-          disabled={isAnalyzing}
-          onChange={(event) => void handleFileChange(event)}
-        />
+    <section className="agent-guided__mode-panel" aria-live="polite">
+      <div className="agent-guided__mode-intro">
+        <span className="agent-guided__mode-icon" aria-hidden="true">
+          <Upload size={22} />
+        </span>
+        <div>
+          <h3>Import skill.md</h3>
+          <p>
+            Paste Markdown or choose a file. Nothing is created until you review
+            the extracted draft.
+          </p>
+        </div>
       </div>
 
-      <div className="agent-form__field">
+      <div className="agent-guided__import-layout">
+        <div className="agent-file-drop">
+          <FileText size={24} aria-hidden="true" />
+          <div>
+            <strong>{fileName ?? "Choose a Markdown file"}</strong>
+            <p>.md, .markdown, or plain text files are supported.</p>
+          </div>
+          <label className="agent-secondary-button" htmlFor="agent-skill-import-file">
+            Choose file
+          </label>
+          <input
+            id="agent-skill-import-file"
+            className="agent-file-drop__input"
+            type="file"
+            aria-label="Markdown file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            disabled={isAnalyzing}
+            onChange={(event) => void handleFileChange(event)}
+          />
+        </div>
+
+        <div className="agent-form__field">
         <label htmlFor="agent-skill-import-markdown">Markdown content</label>
         <textarea
           id="agent-skill-import-markdown"
-          className="agent-form__textarea"
+          className="agent-form__textarea agent-guided__large-textarea"
           value={markdown}
           onChange={(event) => {
             setMarkdown(event.target.value);
@@ -1315,8 +1548,13 @@ function SkillImportPanel({
           }}
           placeholder="# Support Agent&#10;&#10;## Role&#10;Customer support specialist"
           disabled={isAnalyzing}
-          rows={8}
+          rows={10}
         />
+          <p className="agent-form__hint">
+            Keep headings and bullet lists. The analyzer extracts identity,
+            instructions, tools, knowledge, and constraints into an editable draft.
+          </p>
+        </div>
       </div>
 
       {error ? (
@@ -1329,14 +1567,17 @@ function SkillImportPanel({
         <ClarifyingQuestions questions={draftResult.clarifyingQuestions} />
       ) : null}
 
-      <button
-        type="button"
-        className="agent-primary-button"
-        disabled={isAnalyzing}
-        onClick={handleAnalyze}
-      >
-        {isAnalyzing ? "Analyzing..." : error ? "Retry analysis" : "Analyze skill.md"}
-      </button>
+      <div className="agent-guided__action-row">
+        <p>{markdown.trim() ? "Markdown is ready to analyze." : "Paste Markdown or choose a file to continue."}</p>
+        <button
+          type="button"
+          className="agent-primary-button"
+          disabled={isAnalyzing || !markdown.trim()}
+          onClick={handleAnalyze}
+        >
+          {isAnalyzing ? "Analyzing..." : error ? "Retry analysis" : "Analyze skill.md"}
+        </button>
+      </div>
     </section>
   );
 }
@@ -1358,9 +1599,16 @@ function AssistantDraftReview({
   const provider = result.provider;
 
   return (
-    <section className="agent-guided__deferred agent-guided__prompt-review" aria-live="polite">
-      {icon}
-      <h3>{title}</h3>
+    <section className="agent-guided__mode-panel agent-guided__prompt-review" aria-live="polite">
+      <div className="agent-guided__mode-intro">
+        <span className="agent-guided__mode-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <div>
+          <h3>{title}</h3>
+          <p>Review the generated profile before editing it in Template mode.</p>
+        </div>
+      </div>
       {provider && provider.fallbackUsed ? (
         <p className="agent-warning-text">
           Note: Primary provider failed. Used fallback provider: {provider.modelId}
@@ -1368,8 +1616,16 @@ function AssistantDraftReview({
       ) : null}
       <div className="agent-draft-preview">
         <h4>{draft.name}</h4>
-        <p><strong>Role:</strong> {draft.role}</p>
-        <p><strong>Model:</strong> {draft.model}</p>
+        <dl>
+          <div>
+            <dt>Role</dt>
+            <dd>{draft.role}</dd>
+          </div>
+          <div>
+            <dt>Model</dt>
+            <dd>{draft.model}</dd>
+          </div>
+        </dl>
         {draft.requestedTools?.length ? (
           <p><strong>Requested tools:</strong> {draft.requestedTools.map((tool) => tool.name).join(", ")}</p>
         ) : null}
@@ -1393,7 +1649,8 @@ function AssistantDraftReview({
         <ClarifyingQuestions questions={result.clarifyingQuestions} />
       ) : null}
 
-      <div className="agent-form__actions">
+      <div className="agent-guided__action-row">
+        <p>Open the draft in Template mode to make final edits and create it.</p>
         <button
           type="button"
           className="agent-secondary-button"
@@ -1442,10 +1699,12 @@ function GuidedEntryButton({
   onModeChange,
 }: GuidedEntryButtonProps) {
   const isActive = mode === activeMode;
+  const labelId = `agent-guided-${mode}-tab`;
 
   return (
     <button
       type="button"
+      id={labelId}
       role="tab"
       aria-selected={isActive}
       className={`agent-guided__entry${isActive ? " agent-guided__entry--active" : ""}`}
@@ -1486,6 +1745,8 @@ function TemplateDraftForm({
   onDraftChange,
   onSubmit,
 }: TemplateDraftFormProps) {
+  const missingFields = missingTemplateDraftFields(draft);
+
   return (
     <form
       className="agent-guided__body"
@@ -1502,130 +1763,190 @@ function TemplateDraftForm({
             {errors.form}
           </p>
         ) : null}
-        <DraftField
-          field="name"
-          label="Name"
-          value={draft.name}
-          error={errors.name}
-          required
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="role"
-          label="Role"
-          value={draft.role}
-          error={errors.role}
-          required
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <div className="agent-form__field">
-          <label htmlFor="agent-template-model">Model</label>
-          {modelCatalogError ? (
-            <p className="agent-form__error" role="alert">
-              {modelCatalogError}
+        <div className="agent-guided__section">
+          <div className="agent-guided__section-header">
+            <h3>Agent identity</h3>
+            <p>Name the agent and choose the model users will configure.</p>
+          </div>
+          <div className="agent-guided__section-grid agent-guided__section-grid--two">
+            <DraftField
+              field="name"
+              label="Name"
+              value={draft.name}
+              error={errors.name}
+              required
+              disabled={disabled}
+              placeholder="Research Agent"
+              hint="Use a name users can recognize in the Agent list."
+              onDraftChange={onDraftChange}
+            />
+            <DraftField
+              field="role"
+              label="Role"
+              value={draft.role}
+              error={errors.role}
+              required
+              disabled={disabled}
+              placeholder="Market researcher"
+              hint="Describe the agent's setup role, not a task assignment."
+              onDraftChange={onDraftChange}
+            />
+          </div>
+          <div className="agent-form__field">
+            <label htmlFor="agent-template-model">Model</label>
+            {modelCatalogError ? (
+              <p className="agent-form__error" role="alert">
+                {modelCatalogError}
+              </p>
+            ) : null}
+            <select
+              id="agent-template-model"
+              name="model"
+              value={draft.model}
+              disabled={disabled || isModelCatalogLoading || models.length === 0}
+              aria-invalid={Boolean(errors.model) || Boolean(modelCatalogError)}
+              onChange={(event) => onDraftChange("model", event.target.value)}
+            >
+              {isModelCatalogLoading ? (
+                <option value={draft.model}>Loading models...</option>
+              ) : null}
+              {!isModelCatalogLoading && models.length === 0 ? (
+                <option value={draft.model}>No models available</option>
+              ) : null}
+              {models.map((model) => (
+                <option key={model.modelId} value={model.modelId}>
+                  {model.displayName}
+                </option>
+              ))}
+            </select>
+            <p className="agent-form__hint">
+              Model options come from the existing Agent Management catalog API.
             </p>
-          ) : null}
-          <select
-            id="agent-template-model"
-            name="model"
-            value={draft.model}
-            disabled={disabled || isModelCatalogLoading || models.length === 0}
-            aria-invalid={Boolean(errors.model) || Boolean(modelCatalogError)}
-            onChange={(event) => onDraftChange("model", event.target.value)}
-          >
-            {isModelCatalogLoading ? (
-              <option value={draft.model}>Loading models...</option>
+            {errors.model ? (
+              <span className="agent-form__error" role="alert">
+                {errors.model}
+              </span>
             ) : null}
-            {!isModelCatalogLoading && models.length === 0 ? (
-              <option value={draft.model}>No models available</option>
-            ) : null}
-            {models.map((model) => (
-              <option key={model.modelId} value={model.modelId}>
-                {model.displayName}
-              </option>
-            ))}
-          </select>
-          {errors.model ? (
-            <span className="agent-form__error" role="alert">
-              {errors.model}
-            </span>
-          ) : null}
+          </div>
         </div>
-        <DraftField
-          field="responsibilities"
-          label="Responsibilities"
-          value={draft.responsibilities}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="operatingContext"
-          label="Operating context"
-          value={draft.operatingContext}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="instructions"
-          label="Instructions"
-          value={draft.instructions}
-          error={errors.instructions}
-          required
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="requestedTools"
-          label="Requested tools"
-          value={draft.requestedTools}
-          error={errors.requestedTools}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="requestedKnowledge"
-          label="Requested knowledge"
-          value={draft.requestedKnowledge}
-          error={errors.requestedKnowledge}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="constraints"
-          label="Constraints"
-          value={draft.constraints}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="escalationRules"
-          label="Escalation rules"
-          value={draft.escalationRules}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
-        <DraftField
-          field="exampleTasks"
-          label="Example tasks"
-          value={draft.exampleTasks}
-          multiline
-          disabled={disabled}
-          onDraftChange={onDraftChange}
-        />
+
+        <div className="agent-guided__section">
+          <div className="agent-guided__section-header">
+            <h3>Behavior</h3>
+            <p>Define how this agent should act before it becomes selectable.</p>
+          </div>
+          <DraftField
+            field="responsibilities"
+            label="Responsibilities"
+            value={draft.responsibilities}
+            multiline
+            rows={4}
+            disabled={disabled}
+            placeholder="Track competitor launches&#10;Summarize market signals"
+            hint="One responsibility per line keeps the generated skill.md readable."
+            onDraftChange={onDraftChange}
+          />
+          <DraftField
+            field="operatingContext"
+            label="Operating context"
+            value={draft.operatingContext}
+            multiline
+            rows={4}
+            disabled={disabled}
+            placeholder="Works from public sources and uploaded workspace notes."
+            hint="Add workspace context the agent should consider during setup."
+            onDraftChange={onDraftChange}
+          />
+          <DraftField
+            field="instructions"
+            label="Instructions"
+            value={draft.instructions}
+            error={errors.instructions}
+            required
+            multiline
+            rows={5}
+            disabled={disabled}
+            placeholder="Write concise findings, cite assumptions, and ask for missing context."
+            hint="Required. This becomes the core behavior instruction."
+            onDraftChange={onDraftChange}
+          />
+        </div>
+
+        <div className="agent-guided__section">
+          <div className="agent-guided__section-header">
+            <h3>Resources and guardrails</h3>
+            <p>Record setup intent without granting tools or knowledge access.</p>
+          </div>
+          <DraftField
+            field="requestedTools"
+            label="Requested tools"
+            value={draft.requestedTools}
+            error={errors.requestedTools}
+            multiline
+            rows={4}
+            disabled={disabled}
+            placeholder="browser-search: Research public updates"
+            hint="Optional setup request only; it does not create tool assignments."
+            onDraftChange={onDraftChange}
+          />
+          <DraftField
+            field="requestedKnowledge"
+            label="Requested knowledge"
+            value={draft.requestedKnowledge}
+            error={errors.requestedKnowledge}
+            multiline
+            rows={4}
+            disabled={disabled}
+            placeholder="Product FAQ: Answer support questions"
+            hint="Optional setup request only; it does not grant knowledge access."
+            onDraftChange={onDraftChange}
+          />
+          <DraftField
+            field="constraints"
+            label="Constraints"
+            value={draft.constraints}
+            multiline
+            rows={4}
+            disabled={disabled}
+            placeholder="Do not invent pricing. Ask for review when confidence is low."
+            onDraftChange={onDraftChange}
+          />
+        </div>
+
+        <div className="agent-guided__section">
+          <div className="agent-guided__section-header">
+            <h3>Review details</h3>
+            <p>Optional examples help teammates understand the intended setup.</p>
+          </div>
+          <DraftField
+            field="escalationRules"
+            label="Escalation rules"
+            value={draft.escalationRules}
+            multiline
+            rows={3}
+            disabled={disabled}
+            placeholder="Escalate unclear compliance questions to a manager."
+            onDraftChange={onDraftChange}
+          />
+          <DraftField
+            field="exampleTasks"
+            label="Example tasks"
+            value={draft.exampleTasks}
+            multiline
+            rows={3}
+            disabled={disabled}
+            placeholder="Summarize this week's customer support themes."
+            onDraftChange={onDraftChange}
+          />
+        </div>
       </div>
 
       <aside className="agent-guided__preview" aria-label="skill.md preview">
         <div className="agent-guided__preview-header">
-          <h3>skill.md preview</h3>
+          <div>
+            <h3>skill.md preview</h3>
+            <p>Generated from the draft before any Agent is created.</p>
+          </div>
           {isSkillPreviewLoading ? <span role="status">Rendering...</span> : null}
         </div>
         {skillPreviewError ? (
@@ -1636,9 +1957,18 @@ function TemplateDraftForm({
         {skillPreviewMarkdown ? (
           <pre>{skillPreviewMarkdown}</pre>
         ) : (
-          <p className="agent-guided__preview-empty">
-            Complete name, role, model, and instructions to render the preview.
-          </p>
+          <div className="agent-guided__preview-empty">
+            <FileText size={22} aria-hidden="true" />
+            <h4>Preview is waiting for required fields</h4>
+            <p>Complete the draft to render the final Markdown.</p>
+            {missingFields.length > 0 ? (
+              <ul>
+                {missingFields.map((field) => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         )}
       </aside>
 
@@ -1665,8 +1995,11 @@ type DraftFieldProps = {
   label: string;
   value: string;
   error?: string;
+  hint?: string;
+  placeholder?: string;
   required?: boolean;
   multiline?: boolean;
+  rows?: number;
   disabled?: boolean;
   onDraftChange: (field: TemplateDraftField, value: string) => void;
 };
@@ -1676,21 +2009,29 @@ function DraftField({
   label,
   value,
   error,
+  hint,
+  placeholder,
   required = false,
   multiline = false,
+  rows,
   disabled = false,
   onDraftChange,
 }: DraftFieldProps) {
   const fieldId = `agent-template-${field}`;
   const errorId = `${fieldId}-error`;
+  const describedBy = [
+    hint ? `${fieldId}-hint` : "",
+    error ? errorId : "",
+  ].filter(Boolean).join(" ") || undefined;
   const commonProps = {
     id: fieldId,
     name: field,
     value,
     disabled,
     required,
+    placeholder,
     "aria-invalid": Boolean(error),
-    "aria-describedby": error ? errorId : undefined,
+    "aria-describedby": describedBy,
     onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onDraftChange(field, event.target.value),
   };
@@ -1698,7 +2039,16 @@ function DraftField({
   return (
     <div className="agent-form__field">
       <label htmlFor={fieldId}>{label}</label>
-      {multiline ? <textarea {...commonProps} /> : <input {...commonProps} />}
+      {hint ? (
+        <p id={`${fieldId}-hint`} className="agent-form__hint">
+          {hint}
+        </p>
+      ) : null}
+      {multiline ? (
+        <textarea {...commonProps} rows={rows} />
+      ) : (
+        <input {...commonProps} />
+      )}
       {error ? (
         <span id={errorId} className="agent-form__error" role="alert">
           {error}
@@ -1712,6 +2062,7 @@ type AgentTableProps = {
   rows: readonly AgentRowViewModel[];
   disabled: boolean;
   canManageAgents: boolean;
+  onOpenInfo: (row: AgentRowViewModel) => void;
   onEdit: (row: AgentRowViewModel) => void;
   onRename: (row: AgentRowViewModel) => void;
   onDuplicate: (row: AgentRowViewModel) => void;
@@ -1722,6 +2073,7 @@ function AgentTable({
   rows,
   disabled,
   canManageAgents,
+  onOpenInfo,
   onEdit,
   onRename,
   onDuplicate,
@@ -1748,6 +2100,7 @@ function AgentTable({
               row={row}
               disabled={disabled}
               canManageAgents={canManageAgents}
+              onOpenInfo={onOpenInfo}
               onEdit={onEdit}
               onRename={onRename}
               onDuplicate={onDuplicate}
@@ -1764,6 +2117,7 @@ type AgentRowProps = {
   row: AgentRowViewModel;
   disabled: boolean;
   canManageAgents: boolean;
+  onOpenInfo: (row: AgentRowViewModel) => void;
   onEdit: (row: AgentRowViewModel) => void;
   onRename: (row: AgentRowViewModel) => void;
   onDuplicate: (row: AgentRowViewModel) => void;
@@ -1774,21 +2128,39 @@ function AgentRow({
   row,
   disabled,
   canManageAgents,
+  onOpenInfo,
   onEdit,
   onRename,
   onDuplicate,
   onLifecycleAction,
 }: AgentRowProps) {
   const selectableLabel = row.canBeSelectedForNewWork
-    ? "Selectable for new work"
-    : "Unavailable for new work";
+    ? "Selectable in this workspace"
+    : "Not selectable in this workspace";
 
   return (
     <tr
       className={`agent-row agent-row--${row.statusTone}`}
       aria-current={row.isSelected ? "true" : undefined}
+      tabIndex={disabled ? -1 : 0}
+      aria-label={`View details for ${row.name}`}
+      onClick={() => {
+        if (!disabled) {
+          onOpenInfo(row);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (disabled) {
+          return;
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpenInfo(row);
+        }
+      }}
     >
-      <td>
+      <td data-label="Agent">
         <div className="agent-row__identity">
           <span className="agent-avatar" aria-hidden="true">
             <Bot size={17} />
@@ -1799,22 +2171,24 @@ function AgentRow({
           </div>
         </div>
       </td>
-      <td>{row.role}</td>
-      <td>{row.model}</td>
-      <td>
+      <td data-label="Role">{row.role}</td>
+      <td data-label="Model">{row.model}</td>
+      <td data-label="Status">
         <span
           className={`agent-row__status agent-row__status--${row.statusTone}`}
         >
           {row.statusLabel}
         </span>
       </td>
-      <td>{formatDate(row.updatedAt)}</td>
-      <td>{selectableLabel}</td>
+      <td data-label="Updated">{formatDate(row.updatedAt)}</td>
+      <td data-label="Availability">{selectableLabel}</td>
       {canManageAgents ? (
-        <td>
+        <td data-label="Actions">
           <div
             className="agent-row__actions"
             aria-label={`Actions for ${row.name}`}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
           >
             <button
               type="button"
@@ -1927,6 +2301,208 @@ function LifecycleButton({
   );
 }
 
+type AgentInfoDialogProps = {
+  row: AgentRowViewModel;
+  configuration: AgentEditableConfiguration | null;
+  configurationError: string | null;
+  isConfigurationLoading: boolean;
+  canManageAgents: boolean;
+  disabled: boolean;
+  workspaceId: EntityId<"workspaceId">;
+  knowledgeApiClient: KnowledgeBaseRagApiClient;
+  onClose: () => void;
+  onRetry: () => void;
+  onConfigure: (row: AgentRowViewModel) => void;
+  onRename: (row: AgentRowViewModel) => void;
+  onDuplicate: (row: AgentRowViewModel) => void;
+  onLifecycleAction: (row: AgentRowViewModel, action: AgentRowAction) => void;
+};
+
+function AgentInfoDialog({
+  row,
+  configuration,
+  configurationError,
+  isConfigurationLoading,
+  canManageAgents,
+  disabled,
+  workspaceId,
+  knowledgeApiClient,
+  onClose,
+  onRetry,
+  onConfigure,
+  onRename,
+  onDuplicate,
+  onLifecycleAction,
+}: AgentInfoDialogProps) {
+  const titleId = "agent-info-title";
+  const availableAction = row.actions.find((action) => action.kind !== "delete");
+  const deleteAction = row.actions.find((action) => action.kind === "delete");
+
+  return (
+    <div className="agent-modal-backdrop" role="presentation">
+      <article
+        className="agent-modal agent-info-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby="agent-info-summary"
+      >
+        <button
+          type="button"
+          className="agent-modal__close"
+          aria-label="Close agent information"
+          onClick={onClose}
+          disabled={disabled}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+
+        <header className="agent-info-dialog__header">
+          <span className="agent-info-dialog__avatar" aria-hidden="true">
+            <Bot size={24} />
+          </span>
+          <div>
+            <span className="agent-info-dialog__eyebrow">Agent profile</span>
+            <h2 id={titleId}>{row.name}</h2>
+            <p id="agent-info-summary">
+              Review setup details before choosing a configuration action.
+            </p>
+          </div>
+          <span
+            className={`agent-row__status agent-row__status--${row.statusTone}`}
+          >
+            {row.statusLabel}
+          </span>
+        </header>
+
+        <dl className="agent-info-dialog__summary">
+          <div>
+            <dt>Role</dt>
+            <dd>{row.role}</dd>
+          </div>
+          <div>
+            <dt>Model</dt>
+            <dd>{row.model}</dd>
+          </div>
+          <div>
+            <dt>Availability</dt>
+            <dd>
+              {row.canBeSelectedForNewWork
+                ? "Selectable in this workspace"
+                : "Not selectable in this workspace"}
+            </dd>
+          </div>
+          <div>
+            <dt>Updated</dt>
+            <dd>{formatDate(row.updatedAt)}</dd>
+          </div>
+        </dl>
+
+        <section className="agent-info-dialog__configuration" aria-live="polite">
+          <div className="agent-info-dialog__section-title">
+            <h3>Configuration</h3>
+            {isConfigurationLoading ? <span role="status">Loading...</span> : null}
+          </div>
+
+          {configurationError ? (
+            <div className="agent-info-dialog__error" role="alert">
+              <AlertCircle size={18} aria-hidden="true" />
+              <div>
+                <p>{configurationError}</p>
+                <button
+                  type="button"
+                  className="agent-secondary-button"
+                  onClick={onRetry}
+                  disabled={disabled || isConfigurationLoading}
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {!configurationError && configuration ? (
+            <div className="agent-info-dialog__instructions">
+              <p>{configuration.instructions}</p>
+            </div>
+          ) : null}
+
+          {!configurationError && !configuration && !isConfigurationLoading ? (
+            <p className="agent-info-dialog__muted">
+              Configuration details are not loaded yet.
+            </p>
+          ) : null}
+        </section>
+
+        <AgentKnowledgeAssignmentPanel
+          workspaceId={workspaceId}
+          agentId={row.agentId as EntityId<"agentId">}
+          apiClient={knowledgeApiClient}
+          canManage={canManageAgents}
+        />
+
+        {canManageAgents ? (
+          <footer className="agent-info-dialog__actions">
+            <button
+              type="button"
+              className="agent-primary-button"
+              onClick={() => onConfigure(row)}
+              disabled={disabled || isConfigurationLoading}
+            >
+              <Pencil size={17} aria-hidden="true" />
+              Configure
+            </button>
+            <button
+              type="button"
+              className="agent-secondary-button"
+              onClick={() => onRename(row)}
+              disabled={disabled}
+            >
+              <SquarePen size={17} aria-hidden="true" />
+              Rename
+            </button>
+            <button
+              type="button"
+              className="agent-secondary-button"
+              onClick={() => onDuplicate(row)}
+              disabled={disabled}
+            >
+              <Copy size={17} aria-hidden="true" />
+              Duplicate
+            </button>
+            {availableAction ? (
+              <button
+                type="button"
+                className="agent-secondary-button"
+                onClick={() => onLifecycleAction(row, availableAction)}
+                disabled={disabled}
+              >
+                {availableAction.label}
+              </button>
+            ) : null}
+            {deleteAction ? (
+              <button
+                type="button"
+                className="agent-secondary-button agent-secondary-button--danger"
+                onClick={() => onLifecycleAction(row, deleteAction)}
+                disabled={disabled}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+                Delete
+              </button>
+            ) : null}
+          </footer>
+        ) : (
+          <footer className="agent-info-dialog__viewer" role="status">
+            <ShieldCheck size={17} aria-hidden="true" />
+            Viewer mode can inspect this agent without changing configuration.
+          </footer>
+        )}
+      </article>
+    </div>
+  );
+}
+
 type AgentEmptyStateProps = {
   canManageAgents: boolean;
   onCreate: () => void;
@@ -1969,10 +2545,9 @@ function AgentEmptyState({
         <Bot size={28} />
       </div>
       <p className="empty-label">No active agents yet.</p>
-      <h3>Build your first virtual teammate</h3>
+      <h3>Build your first AI agent</h3>
       <p>
-        Agents hold role, model, and instruction settings for work inside this
-        workspace.
+        Agents hold role, model, and instruction settings for this workspace.
       </p>
       {canManageAgents ? (
         <button
@@ -2216,6 +2791,28 @@ function validateTemplateDraft(draft: TemplateDraftState): TemplateDraftErrors {
   }
 
   return errors;
+}
+
+function missingTemplateDraftFields(draft: TemplateDraftState): string[] {
+  const missing: string[] = [];
+
+  if (!draft.name.trim()) {
+    missing.push("Agent name");
+  }
+
+  if (!draft.role.trim()) {
+    missing.push("Role");
+  }
+
+  if (!draft.model.trim()) {
+    missing.push("Model");
+  }
+
+  if (!draft.instructions.trim()) {
+    missing.push("Instructions");
+  }
+
+  return missing;
 }
 
 function templateDraftErrorsFor(error: unknown): TemplateDraftErrors {

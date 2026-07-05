@@ -10,15 +10,15 @@ export interface TaskCreationClient {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
 }
 
-export interface MockTaskCreationClientOptions {
+export interface LocalTaskCreationClientOptions {
   now?: () => string;
   shouldReject?: (request: CreateTaskRequest) => boolean;
 }
 
-export function createMockTaskCreationClient({
+export function createLocalTaskCreationClient({
   now = () => "2026-06-24T12:00:00.000Z",
   shouldReject = () => false
-}: MockTaskCreationClientOptions = {}): TaskCreationClient {
+}: LocalTaskCreationClientOptions = {}): TaskCreationClient {
   return {
     async createTask(request) {
       if (shouldReject(copyCreateTaskRequest(request))) {

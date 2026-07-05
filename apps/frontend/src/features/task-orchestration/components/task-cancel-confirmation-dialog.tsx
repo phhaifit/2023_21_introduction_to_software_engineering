@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import type { CreatedTaskRecord } from "../model/task-types";
 import { TaskStatusBadge } from "./task-status-badge";
 import { toTaskPresentationStatus } from "../model/task-lifecycle";
@@ -31,6 +32,21 @@ export function TaskCancelConfirmationDialog({
   function handleCancel(event: React.SyntheticEvent<HTMLDialogElement, Event>) {
     event.preventDefault();
     onDismiss();
+  }
+
+  // Close when clicking the backdrop (outside the dialog content)
+  function handleDialogClick(event: React.MouseEvent<HTMLDialogElement>) {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    const clickedInside =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom;
+    if (!clickedInside) {
+      onDismiss();
+    }
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDialogElement>) {
@@ -81,61 +97,69 @@ export function TaskCancelConfirmationDialog({
       ref={dialogRef}
       className="task-cancel-confirmation-dialog"
       onCancel={handleCancel}
+      onClick={handleDialogClick}
       onKeyDown={handleKeyDown}
       aria-modal="true"
       aria-labelledby="cancel-dialog-title"
       aria-describedby="cancel-dialog-description"
     >
-      <header className="task-cancel-confirmation-dialog__header">
-        <h2 id="cancel-dialog-title">Cancel task?</h2>
-        <button type="button" onClick={onDismiss} aria-label="Dismiss cancellation">
-          Close
-        </button>
-      </header>
-      <div className="task-cancel-confirmation-dialog__body">
-        <p id="cancel-dialog-description" className="task-cancel-confirmation-dialog__warning">
-          Are you sure you want to cancel this task? All future processing and streaming will be permanently stopped.
-        </p>
-        {error ? (
-          <div className="task-cancel-confirmation-dialog__error" role="alert">
-            {error}
-          </div>
-        ) : null}
-        <dl className="task-cancel-confirmation-dialog__meta" aria-label="Task identifiers">
-          <div>
-            <dt>Work ID</dt>
-            <dd>{task.workId}</dd>
-          </div>
-          {presentationStatus ? (
-            <div>
-              <dt>Status</dt>
-              <dd>
-                <TaskStatusBadge status={presentationStatus} />
-              </dd>
-            </div>
-          ) : null}
-          {activeStep ? (
-            <div>
-              <dt>Active Step</dt>
-              <dd>{activeStep.label}</dd>
-            </div>
-          ) : null}
-        </dl>
-        <div className="task-cancel-confirmation-dialog__actions">
+      {/* Inner wrapper absorbs clicks inside so only backdrop clicks dismiss */}
+      <div
+        className="task-cancel-confirmation-dialog__inner"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="task-cancel-confirmation-dialog__header">
+          <h2 id="cancel-dialog-title">Cancel task?</h2>
           <button
             type="button"
-            className="task-cancel-confirmation-dialog__continue-btn"
+            className="task-cancel-confirmation-dialog__close-btn"
             onClick={onDismiss}
+            aria-label="Dismiss cancellation"
           >
-            Continue processing
+            <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="task-cancel-confirmation-dialog__confirm-btn"
-            onClick={handleConfirmClick}
-          >
-            Confirm cancellation
-          </button>
+        </header>
+        <div className="task-cancel-confirmation-dialog__body">
+          <p id="cancel-dialog-description" className="task-cancel-confirmation-dialog__warning">
+            Are you sure you want to cancel this task? All future processing and streaming will be permanently stopped.
+          </p>
+          {error ? (
+            <div className="task-cancel-confirmation-dialog__error" role="alert">
+              {error}
+            </div>
+          ) : null}
+          <dl className="task-cancel-confirmation-dialog__meta" aria-label="Task cancellation status">
+            {presentationStatus ? (
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <TaskStatusBadge status={presentationStatus} />
+                </dd>
+              </div>
+            ) : null}
+            {activeStep ? (
+              <div>
+                <dt>Active Step</dt>
+                <dd>{activeStep.label}</dd>
+              </div>
+            ) : null}
+          </dl>
+          <div className="task-cancel-confirmation-dialog__actions">
+            <button
+              type="button"
+              className="task-cancel-confirmation-dialog__continue-btn"
+              onClick={onDismiss}
+            >
+              Continue processing
+            </button>
+            <button
+              type="button"
+              className="task-cancel-confirmation-dialog__confirm-btn"
+              onClick={handleConfirmClick}
+            >
+              Confirm cancellation
+            </button>
+          </div>
         </div>
       </div>
     </dialog>

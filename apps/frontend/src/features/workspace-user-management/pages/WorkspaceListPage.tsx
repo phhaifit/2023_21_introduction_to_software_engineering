@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { WorkspaceUserManagementAPI } from '../api';
+import { decodeEmail } from '../utils/punycode';
 import { InviteMemberModal } from '../components/InviteMemberModal';
 import { useAuth } from '../../authentication/authentication-context.tsx';
 import { UserPlus, Shield, User, ArrowLeft, Bell, ShieldAlert } from 'lucide-react';
@@ -8,6 +9,19 @@ import type { WorkspaceMemberListResponse } from '@vcp/shared/contracts/index.ts
 import './WorkspaceListPage.css';
 
 const api = new WorkspaceUserManagementAPI('');
+
+const formatDate = (dateInput: any) => {
+  if (!dateInput) return 'N/A';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'N/A';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const DD = pad(d.getDate());
+  const MM = pad(d.getMonth() + 1);
+  const YYYY = d.getFullYear();
+  return `${hh}:${mm}, ${DD}/${MM}/${YYYY}`;
+};
 
 export const WorkspaceListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -139,10 +153,10 @@ export const WorkspaceListPage: React.FC = () => {
                     ) : (
                       pendingInvites.map(inv => (
                         <div className="bell-popover-item" key={inv.invitationId}>
-                          <div className="bell-popover-item-email">{inv.email}</div>
+                          <div className="bell-popover-item-email">{decodeEmail(inv.email)}</div>
                           <div className="bell-popover-item-meta">
                             <span className="role-badge">{inv.role === 'admin' ? 'Host' : inv.role}</span>
-                            <span>Invited: {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A'}</span>
+                            <span>Invited: {formatDate(inv.createdAt)}</span>
                           </div>
                         </div>
                       ))
@@ -185,7 +199,7 @@ export const WorkspaceListPage: React.FC = () => {
                         </div>
                         <div>
                           <div style={{ fontWeight: 600 }}>{member.userId}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{member.email || 'No email associated'}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{member.email ? decodeEmail(member.email) : 'No email associated'}</div>
                         </div>
                       </div>
                     </td>
@@ -200,7 +214,7 @@ export const WorkspaceListPage: React.FC = () => {
                         {member.status === 'active' ? 'Joined' : member.status}
                       </span>
                     </td>
-                    <td>{member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}</td>
+                    <td>{formatDate(member.createdAt)}</td>
                   </tr>
                 ))}
                 {(!data?.members || data.members.length === 0) && (

@@ -190,6 +190,14 @@ The system SHALL process documents into searchable vector chunks asynchronously.
 - **AND** content reader failures, empty or unsupported content, embedding failures, vector index failures, and unknown indexing failures produce safe failure code/message fields without leaking raw document content, raw embeddings, storage keys, vector DB config, provider payloads, credentials, secrets, tokens, or queue payloads
 - **AND** the local flow runner does not add production scheduling, real file storage, real embedding provider calls, real vector DB calls, retrieval, RAG answer generation, frontend UI/API client changes, backend HTTP routes, Prisma schema/migration/generated client changes, shared status changes, SDK dependencies, or external sync
 
+#### Scenario: Opt-in local upload processes through indexing
+- **WHEN** the local server enables inline ingestion and an authorized user uploads a supported document
+- **THEN** the upload use case persists the file, document, and job, invokes the existing local flow runner, persists chunks, calls the configured embedding/vector adapters, and returns ready document/job state only after indexing succeeds
+
+#### Scenario: Inline indexing failure remains consistent
+- **WHEN** parsing, embedding, or vector indexing fails during inline local processing
+- **THEN** the system persists safe failed document/job state, does not present the document as ready for retrieval, and does not expose storage, provider, vector, or stack internals
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata
@@ -205,13 +213,68 @@ The system SHALL retrieve relevant knowledge through a vector database adapter.
 - **WHEN** an authorized runtime request searches workspace knowledge
 - **THEN** the system queries the vector adapter and returns relevant document chunks through a public contract
 
+#### Scenario: Local pgvector smoke verifies real vector retrieval
+- **WHEN** a developer explicitly enables the local pgvector smoke test with `KNOWLEDGE_PGVECTOR_SMOKE=1` and provides PostgreSQL/pgvector configuration
+- **THEN** the smoke test seeds namespaced KB/RAG document and chunk records, upserts deterministic vectors through the pgvector adapter, retrieves evidence through the existing retrieval boundary, verifies workspace isolation, and cleans up inserted records
+- **AND** without the explicit smoke flag the smoke test exits successfully as skipped
+- **AND** the smoke path does not call real embedding or RAG providers, require pgvector in CI, expose raw vectors or vector references in public evidence, run benchmarks, tune indexes, or add production queue/runtime behavior
+
 ### Requirement: Agent Knowledge Access
-The system SHALL allow authorized users to assign knowledge collections or documents to specific agents.
+The system SHALL allow authorized users to assign documents to specific agents
+through a workspace-scoped public API.
 
 #### Scenario: Knowledge assigned to agent
-- **WHEN** an authorized user grants an agent access to a document or collection
+- **WHEN** an authorized user grants an agent access to a document
 - **THEN** the system allows that agent to retrieve the assigned knowledge during future tasks
+
+#### Scenario: Active assignments listed safely
+- **WHEN** an authorized workspace member lists an agent's assigned documents
+- **THEN** the system returns only active grants with safe document metadata
+
+#### Scenario: Assignment is idempotent
+- **WHEN** an authorized user assigns an already active or previously revoked document grant
+- **THEN** the system preserves one composite grant and leaves it active
+
+#### Scenario: Assignment revoked
+- **WHEN** an authorized user revokes a document grant
+- **THEN** the system marks the grant revoked and excludes the document from later assignment lists and agent retrieval
+
+#### Scenario: Assignment workspace isolation enforced
+- **WHEN** a caller targets an agent or document outside the route workspace
+- **THEN** the system safely denies the operation without disclosing cross-workspace resource existence
 
 #### Scenario: Unassigned knowledge blocked
 - **WHEN** an agent requests knowledge that has not been assigned to it
 - **THEN** the system denies access to that knowledge
+
+#### Scenario: Internal agent tool retrieves assigned evidence
+- **WHEN** an existing workspace agent invokes the internal knowledge retrieval tool with a valid query
+- **THEN** the tool delegates to the existing retrieval use case with agent context and returns only bounded citation-style evidence from active document grants
+
+#### Scenario: Agent tool short-circuits without eligible grants
+- **WHEN** an agent has no active grants after workspace and optional-filter intersection
+- **THEN** the tool returns an empty safe result before calling embedding or vector adapters
+
+#### Scenario: Non-grant references do not authorize retrieval
+- **WHEN** an agent skill or configuration references a knowledge document without an active document grant
+- **THEN** the internal retrieval tool returns no evidence from that document
+
+#### Scenario: Local agent ask returns grounded citations
+- **WHEN** an authorized workspace member asks an existing agent a question and active assigned evidence is found
+- **THEN** the system invokes the internal agent retrieval tool and returns a deterministic evidence-grounded answer with bounded safe citations
+
+#### Scenario: Local agent ask falls back without evidence
+- **WHEN** no active assigned evidence remains because the agent is ungranted, a grant is revoked, or safe filters remove all granted documents
+- **THEN** the system returns an insufficient-evidence fallback without calling the answer composer
+
+#### Scenario: Agent ask preserves module boundaries
+- **WHEN** the local-demo agent ask integration runs
+- **THEN** it does not import private Task & Orchestration code, register an OpenClaw tool, require an external LLM, or expose private retrieval/runtime fields
+
+#### Scenario: Uploaded assigned document grounds Task chat answer
+- **WHEN** a supported uploaded document is processed through local inline upload-to-index, assigned to an agent, and the user asks through Agent-mode Task chat
+- **THEN** the Task chat bridge delegates through KB/RAG retrieval and returns an answered response with bounded safe citations from the uploaded document
+
+#### Scenario: Revoked or unassigned uploaded document does not ground Task chat
+- **WHEN** the indexed uploaded document is unassigned from the selected agent or its grant is revoked
+- **THEN** the Task chat bridge returns `insufficient_evidence` without exposing private storage, vector, provider, prompt, or runtime fields
