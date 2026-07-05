@@ -1079,142 +1079,77 @@
 
 .task-assistant-progress {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   margin-bottom: 10px;
 }
 
-.task-assistant-progress__header {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.task-assistant-progress__cancel-btn {
-  background: transparent;
-  border: 1px solid #fda4af;
-  border-radius: 6px;
-  color: #be123c;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 700;
-  margin-left: auto;
-  padding: 3px 10px;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.task-assistant-progress__cancel-btn:hover {
-  background: #fff1f2;
-  border-color: #f43f5e;
-}
-
-.task-assistant-progress__cancel-btn:focus-visible {
-  outline: 3px solid #fecdd3;
-  outline-offset: 2px;
-}
-
-.task-assistant-progress__steps {
+.task-assistant-progress__summary {
   color: #475569;
   font-size: 0.82rem;
   font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.task-assistant-progress__track {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+.task-assistant-progress__activity-feed {
   display: grid;
-  gap: 10px;
-  grid-template-columns: 10px minmax(0, 1fr);
-  padding: 9px 11px;
-}
-
-.task-assistant-progress__pulse {
-  background: #6366f1;
-  border-radius: 999px;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
-  flex: none;
-  height: 8px;
-  width: 8px;
-}
-
-.task-assistant-progress__pulse--search { background: #0891b2; box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.12); }
-.task-assistant-progress__pulse--tool { background: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12); }
-.task-assistant-progress__pulse--file { background: #0f766e; box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12); }
-.task-assistant-progress__pulse--message { background: #2563eb; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12); }
-
-.task-assistant-progress__copy {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.task-assistant-progress__activity {
-  color: #0f172a;
-  font-size: 0.9rem;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.task-assistant-progress__hint {
-  color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 600;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-assistant-progress__mini-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.task-assistant-progress__mini-step {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+.task-assistant-progress__activity-item {
+  align-items: start;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 7px minmax(0, 1fr);
+  padding: 1px 0;
+}
+
+.task-assistant-progress__activity-dot {
+  background: #94a3b8;
   border-radius: 999px;
-  color: #475569;
-  display: inline-flex;
-  font-size: 0.74rem;
-  font-weight: 700;
-  gap: 6px;
-  min-height: 24px;
-  padding: 3px 8px;
+  height: 7px;
+  margin-top: 7px;
+  width: 7px;
 }
 
-.task-assistant-progress__mini-dot {
-  background: #cbd5e1;
-  border-radius: 999px;
-  height: 6px;
-  width: 6px;
+.task-assistant-progress__activity-markdown {
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.task-assistant-progress__mini-step--active {
-  border-color: #c7d2fe;
-  color: #3730a3;
+.task-assistant-progress__activity-markdown p {
+  margin: 0;
 }
 
-.task-assistant-progress__mini-step--active .task-assistant-progress__mini-dot {
-  background: #6366f1;
+.task-assistant-progress__activity-markdown p + p,
+.task-assistant-progress__activity-markdown ul,
+.task-assistant-progress__activity-markdown ol {
+  margin-top: 6px;
 }
 
-.task-assistant-progress__mini-step--completed .task-assistant-progress__mini-dot {
-  background: #16a34a;
+.task-assistant-progress__activity-item--search .task-assistant-progress__activity-dot {
+  background: #0891b2;
 }
 
-.task-assistant-progress__mini-step--failed .task-assistant-progress__mini-dot {
-  background: #dc2626;
+.task-assistant-progress__activity-item--tool .task-assistant-progress__activity-dot {
+  background: #7c3aed;
+}
+
+.task-assistant-progress__activity-item--file .task-assistant-progress__activity-dot {
+  background: #0f766e;
+}
+
+.task-assistant-progress__activity-item--thinking .task-assistant-progress__activity-dot {
+  background: #2563eb;
 }
 
 .task-conversation__message {

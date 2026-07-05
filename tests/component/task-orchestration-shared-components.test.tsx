@@ -13,6 +13,7 @@ import type {
   CreatedTaskRecord,
   ProcessingStep,
   ProcessingStepStatus,
+  TaskLog,
   TaskPresentationStatus
 } from "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 
@@ -177,21 +178,47 @@ describe("TaskAssistantProgressSummary", () => {
     expect(resolveActivityLabel(label).label).toBe(expected);
   });
 
-  it("renders compact runtime activity and recent provider steps", () => {
+  it("renders runtime activity as plain markdown text without chips or status tags", () => {
     render(
       <TaskAssistantProgressSummary
-        task={createRunningTask([
-          { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
-          { id: "openclaw-tool-browser", label: "Calling browser", status: "active" }
-        ])}
+        task={createRunningTask(
+          [
+            { id: "openclaw-web-search", label: "web search product docs", status: "completed" },
+            { id: "openclaw-tool-browser", label: "Calling browser", status: "active" }
+          ],
+          [
+            {
+              id: "log-tool",
+              stepId: "openclaw-tool-browser",
+              level: "info",
+              timestamp: "2026-06-30T00:00:01.000Z",
+              message: "**Calling browser**\n\n- Open product docs\n- Capture the current release note"
+            },
+            {
+              id: "log-output-fragment",
+              stepId: "openclaw-message",
+              level: "info",
+              timestamp: "2026-06-30T00:00:02.000Z",
+              message: "This is an assistant response fragment that belongs in the final output stream."
+            }
+          ]
+        )}
       />
     );
 
+    const activity = screen.getByLabelText("OpenClaw runtime activity");
+    expect(activity).toBeVisible();
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
     expect(screen.queryByLabelText("Runtime progress")).not.toBeInTheDocument();
     expect(screen.getByText(/1\/2 steps/)).toBeVisible();
-    expect(screen.getAllByText("Calling browser").length).toBeGreaterThan(0);
-    expect(screen.getByText("Searching web")).toBeVisible();
+    expect(within(activity).getAllByText("Calling browser")).toHaveLength(1);
+    expect(within(activity).getByText("Open product docs")).toBeVisible();
+    expect(within(activity).getByText("Capture the current release note")).toBeVisible();
+    expect(within(activity).queryByText("Live")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("Done")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("Composing response")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("OpenClaw tool activity")).not.toBeInTheDocument();
+    expect(within(activity).queryByText(/assistant response fragment/)).not.toBeInTheDocument();
   });
 
   it("keeps captured provider activity visible after fast completion", () => {
@@ -199,7 +226,7 @@ describe("TaskAssistantProgressSummary", () => {
       <TaskAssistantProgressSummary
         task={createTaskWithRuntimeProgress(
           [
-            { id: "openclaw-agent", label: "Agent activity", status: "completed" }
+            { id: "openclaw-web", label: "Searching web", status: "completed" }
           ],
           "succeeded"
         )}
@@ -207,18 +234,36 @@ describe("TaskAssistantProgressSummary", () => {
     );
 
     expect(screen.getByLabelText("Task status: Completed")).toBeVisible();
-    expect(screen.getAllByText("Agent activity").length).toBeGreaterThan(0);
+    expect(screen.getByText("Searching web")).toBeVisible();
     expect(screen.getByText(/1\/1 steps/)).toBeVisible();
+  });
+
+  it("shows real fallback provider steps while hiding generic lifecycle noise", () => {
+    render(
+      <TaskAssistantProgressSummary
+        task={createRunningTask([
+          { id: "openclaw-start", label: "start", status: "completed" },
+          { id: "openclaw-activity", label: "OpenClaw activity", status: "completed" },
+          { id: "openclaw-agent-execution", label: "Agent Execution", status: "active" }
+        ])}
+      />
+    );
+
+    const activity = screen.getByLabelText("OpenClaw runtime activity");
+    expect(within(activity).getByText("Agent Execution")).toBeVisible();
+    expect(within(activity).queryByText("start")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("OpenClaw activity")).not.toBeInTheDocument();
   });
 });
 
-function createRunningTask(steps: ProcessingStep[]): CreatedTaskRecord {
-  return createTaskWithRuntimeProgress(steps, "running");
+function createRunningTask(steps: ProcessingStep[], logs: TaskLog[] = []): CreatedTaskRecord {
+  return createTaskWithRuntimeProgress(steps, "running", logs);
 }
 
 function createTaskWithRuntimeProgress(
   steps: ProcessingStep[],
-  status: CreatedTaskRecord["status"]
+  status: CreatedTaskRecord["status"],
+  logs: TaskLog[] = []
 ): CreatedTaskRecord {
   return {
     taskId: "TASK-001" as import("@vcp/shared").EntityId<"taskId">,
@@ -230,7 +275,7 @@ function createTaskWithRuntimeProgress(
     processingSnapshot: {
       startedAt: "2026-06-30T00:00:00.000Z",
       steps,
-      logs: []
+      logs
     },
     streamingSnapshot: {
       phase: "idle",

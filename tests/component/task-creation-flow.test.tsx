@@ -239,6 +239,67 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.queryByText("Old answer replay")).not.toBeInTheDocument();
   });
 
+  it("keeps streamed final answer when completion sends a generic success message", async () => {
+    const eventSources: FakeEventSource[] = [];
+    class FakeEventSource {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor(readonly url: string) {
+        eventSources.push(this);
+      }
+      close() {}
+      emit(payload: unknown) {
+        this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+      }
+    }
+    const fetchImplementation = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tasks")) {
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          data: {
+            taskId: "TASK-STREAMED-FINAL",
+            workId: "WORK-STREAMED-FINAL",
+            status: "queued",
+            createdAt: "2026-06-24T12:00:01.000Z"
+          }
+        }));
+      }
+      if (url.includes("/executions/start")) {
+        return Promise.resolve(jsonResponse({ ok: true, data: { status: "queued" } }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: [] }));
+    });
+    vi.stubGlobal("fetch", fetchImplementation);
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    render(<TaskOrchestrationPage />);
+
+    await submitPrompt("1+1 bằng mấy");
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    eventSources[0].emit({
+      type: "partial-output-received",
+      taskId: "TASK-STREAMED-FINAL",
+      workId: "WORK-STREAMED-FINAL",
+      timestamp: "2026-06-24T12:00:02.000Z",
+      outputChunk: "1+1 bằng 2."
+    });
+
+    expect(await screen.findByLabelText("Accumulated partial result")).toHaveTextContent("1+1 bằng 2.");
+
+    eventSources[0].emit({
+      type: "execution-completed",
+      taskId: "TASK-STREAMED-FINAL",
+      workId: "WORK-STREAMED-FINAL",
+      timestamp: "2026-06-24T12:00:03.000Z",
+      finalOutput: "Execution completed successfully."
+    });
+
+    const finalResponse = await screen.findByLabelText("Assistant final response");
+    expect(finalResponse).toHaveTextContent("1+1 bằng 2.");
+    expect(finalResponse).not.toHaveTextContent("Execution completed successfully.");
+  });
+
   it("projects normalized runtime activity consistently for state replay and live SSE", async () => {
     const eventSources: FakeEventSource[] = [];
     class FakeEventSource {

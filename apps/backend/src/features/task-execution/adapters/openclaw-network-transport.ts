@@ -1,7 +1,9 @@
 import type { EntityId, NormalizedRuntimeEvent, RuntimeActivityStatus, RuntimeActivityType } from "@vcp/shared";
 import { sanitizeObservabilityPayload } from "@vcp/shared";
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import * as net from "node:net";
+import * as path from "node:path";
 import * as tls from "node:tls";
 
 // 1.4 Define raw OpenClaw provider DTOs based on OpenAI-compatible HTTP API specification.
@@ -358,8 +360,11 @@ export class OpenClawHttpSSETransport implements OpenClawNetworkTransport {
     if (!this.isCustomFetcher) {
       try {
         return await this.startControlProtocolExecution(endpoint, credentialReference, request);
-      } catch (err) {
-        // Preserve the OpenAI-compatible HTTP/SSE path when Gateway Control is not available.
+      } catch (err: any) {
+        console.warn(
+          `[OpenClaw Transport] Gateway Control unavailable; using OpenAI-compatible SSE fallback. ` +
+          `Progress events may be limited. Reason: ${sanitizeObservabilityPayload(err?.message || String(err))}`
+        );
       }
     }
 
@@ -874,7 +879,10 @@ function normalizeControlProtocolError(err: any): Error {
   }));
 }
 
-const GATEWAY_CONTROL_SCOPES = ["operator.admin", "operator.read", "operator.write", "operator.approvals", "operator.pairing"];
+const GATEWAY_CONTROL_CLIENT_ID = "vcp-backend-task-orchestration";
+const GATEWAY_CONTROL_CLIENT_MODE = "node";
+const GATEWAY_CONTROL_CLIENT_PLATFORM = "node-host";
+const GATEWAY_CONTROL_SCOPES = ["operator.read", "operator.write", "operator.approvals"];
 
 class NodeGatewayControlClient implements GatewayControlClient {
   private socket?: net.Socket | tls.TLSSocket;
@@ -893,7 +901,7 @@ class NodeGatewayControlClient implements GatewayControlClient {
     reject: (error: Error) => void;
     timer: NodeJS.Timeout;
   };
-  private deviceIdentity = createGatewayDeviceIdentity();
+  private deviceIdentity = loadGatewayDeviceIdentity();
   private readonly endpoint: string;
   private readonly credentialReference: string;
 
@@ -938,7 +946,6 @@ class NodeGatewayControlClient implements GatewayControlClient {
           "Connection: Upgrade",
           `Sec-WebSocket-Key: ${key}`,
           "Sec-WebSocket-Version: 13",
-          `Origin: ${new URL(this.endpoint).origin}`,
           "User-Agent: vcp-backend-task-orchestration",
           "\r\n"
         ].join("\r\n"));
@@ -1065,8 +1072,8 @@ class NodeGatewayControlClient implements GatewayControlClient {
     const signingPayload = [
       "v2",
       this.deviceIdentity.id,
-      "openclaw-control-ui",
-      "webchat",
+      GATEWAY_CONTROL_CLIENT_ID,
+      GATEWAY_CONTROL_CLIENT_MODE,
       "operator",
       GATEWAY_CONTROL_SCOPES.join(","),
       String(signedAt),
@@ -1082,10 +1089,10 @@ class NodeGatewayControlClient implements GatewayControlClient {
         minProtocol: 4,
         maxProtocol: 4,
         client: {
-          id: "openclaw-control-ui",
+          id: GATEWAY_CONTROL_CLIENT_ID,
           version: "vcp-backend-task-orchestration",
-          platform: "node",
-          mode: "webchat"
+          platform: GATEWAY_CONTROL_CLIENT_PLATFORM,
+          mode: GATEWAY_CONTROL_CLIENT_MODE
         },
         role: "operator",
         scopes: GATEWAY_CONTROL_SCOPES,
@@ -1136,6 +1143,51 @@ class NodeGatewayControlClient implements GatewayControlClient {
       this.pending.delete(id);
     }
   }
+}
+
+function loadGatewayDeviceIdentity(): {
+  id: string;
+  publicKey: string;
+  privateKey: crypto.KeyObject;
+} {
+  const identityPath = path.resolve(process.cwd(), ".data", "openclaw-gateway-device.json");
+  try {
+    const raw = JSON.parse(fs.readFileSync(identityPath, "utf8")) as {
+      id?: string;
+      publicKey?: string;
+      privateKeyPem?: string;
+    };
+    if (raw.id && raw.publicKey && raw.privateKeyPem) {
+      return {
+        id: raw.id,
+        publicKey: raw.publicKey,
+        privateKey: crypto.createPrivateKey(raw.privateKeyPem)
+      };
+    }
+  } catch {
+    // Missing or malformed identity falls through to one-time creation.
+  }
+
+  const identity = createGatewayDeviceIdentity();
+  try {
+    fs.mkdirSync(path.dirname(identityPath), { recursive: true });
+    fs.writeFileSync(
+      identityPath,
+      JSON.stringify(
+        {
+          id: identity.id,
+          publicKey: identity.publicKey,
+          privateKeyPem: identity.privateKey.export({ type: "pkcs8", format: "pem" })
+        },
+        null,
+        2
+      ),
+      { encoding: "utf8", mode: 0o600 }
+    );
+  } catch {
+    // Execution can continue with the in-memory identity; it just must be paired again after restart.
+  }
+  return identity;
 }
 
 function createGatewayDeviceIdentity(): {
