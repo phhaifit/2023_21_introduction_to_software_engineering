@@ -21,6 +21,6 @@
 ## 4. Verification and Handoff
 
 - [x] 4.1 Add backend tests for registration, login, logout, and unauthorized access
-- [ ] 4.2 Add frontend or integration tests for login/logout flow
+- [x] 4.2 Add frontend or integration tests for login/logout flow
 - [x] 4.3 Run OpenSpec validation and relevant test commands
 - [x] 4.4 Update module README with implemented endpoints, assumptions, and remaining limitations
