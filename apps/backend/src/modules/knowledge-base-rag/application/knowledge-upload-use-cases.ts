@@ -52,6 +52,16 @@ export type UploadedKnowledgeFile = {
   content: Uint8Array;
 };
 
+export type ExternalKnowledgeFile = {
+  sourceId: string;
+  externalId: string;
+  sourceModifiedAt: string;
+  fileName: string;
+  mediaType: string;
+  content: Uint8Array;
+  existingDocument?: KnowledgeDocument;
+};
+
 export class KnowledgeUploadUseCases {
   private readonly dependencies: KnowledgeUploadUseCaseDependencies;
 
@@ -275,6 +285,92 @@ export class KnowledgeUploadUseCases {
     };
   }
 
+  async importExternalFile(
+    workspaceId: EntityId<"workspaceId">,
+    actorId: EntityId<"userId">,
+    file: ExternalKnowledgeFile
+  ): Promise<{ document: KnowledgeDocument; job: KnowledgeIngestionJob }> {
+    if (!this.dependencies.fileStorage) throw new KnowledgeFileStorageError();
+    const normalizedMediaType =
+      file.mediaType === "text/csv" || file.mediaType === "text/markdown"
+        ? "text/plain"
+        : file.mediaType;
+    const candidate = {
+      clientFileId: file.externalId,
+      fileName: normalizeExternalFileName(file.fileName, normalizedMediaType),
+      mediaType: normalizedMediaType,
+      content: file.content
+    };
+    const issues = this.validateUploadedContent(candidate);
+    if (
+      !SUPPORTED_UPLOAD_MEDIA_TYPES.includes(normalizedMediaType as never) ||
+      issues.length > 0
+    ) {
+      throw new KnowledgeBaseRagValidationError([
+        `${file.fileName}: unsupported_or_invalid_external_file`
+      ]);
+    }
+    const now = this.dependencies.now();
+    const documentId =
+      file.existingDocument?.documentId ?? this.dependencies.generateDocumentId();
+    const stored = await this.dependencies.fileStorage.store({
+      workspaceId,
+      documentId,
+      fileName: candidate.fileName,
+      mediaType: normalizedMediaType,
+      content: candidate.content
+    });
+    if (file.existingDocument) {
+      await this.dependencies.documentRepository.deleteDocumentChunks(
+        workspaceId,
+        documentId
+      );
+    }
+    const document = await this.dependencies.documentRepository.saveDocument({
+      documentId,
+      workspaceId,
+      uploadedByUserId: actorId,
+      displayName: file.fileName,
+      fileName: candidate.fileName,
+      mimeType: normalizedMediaType,
+      fileType: inferFileType({
+        fileName: candidate.fileName,
+        mediaType: normalizedMediaType
+      }),
+      sizeBytes: stored.sizeBytes,
+      sourceType: "google_drive",
+      sourceId: file.sourceId,
+      storageKey: stored.storageKey,
+      contentHash: stored.contentHash,
+      externalId: file.externalId,
+      sourceModifiedAt: file.sourceModifiedAt,
+      lastSyncedAt: now,
+      status: "pending",
+      ingestionStatus: "pending",
+      indexingStatus: "pending",
+      chunkCount: 0,
+      indexedChunkCount: 0,
+      createdAt: file.existingDocument?.createdAt ?? now,
+      updatedAt: now
+    });
+    const job = await this.dependencies.ingestionJobRepository.saveIngestionJob({
+      jobId: this.dependencies.generateJobId(),
+      workspaceId,
+      documentId,
+      status: "pending",
+      progress: 0,
+      queuedAt: now,
+      requestedByUserId: actorId,
+      createdAt: now,
+      updatedAt: now
+    });
+    if (!this.dependencies.postUploadProcessor) return { document, job };
+    return this.dependencies.postUploadProcessor.process({
+      workspaceId,
+      jobId: job.jobId
+    });
+  }
+
   private assertWorkspaceId(workspaceId: EntityId<"workspaceId">): void {
     if (!workspaceId) {
       throw new KnowledgeBaseRagValidationError(["workspaceId is required"]);
@@ -385,6 +481,13 @@ export class KnowledgeUploadUseCases {
       // Best-effort cleanup only. The caller receives the original safe failure.
     }
   }
+}
+
+function normalizeExternalFileName(fileName: string, mediaType: string): string {
+  if (mediaType === "text/plain" && !/\.(txt|md|csv)$/i.test(fileName)) {
+    return `${fileName}.txt`;
+  }
+  return fileName;
 }
 
 function inferFileType(file: UploadCandidateFileDto): string {

@@ -5,10 +5,20 @@ Agents need workspace-specific company knowledge to answer and act with the righ
 ## What Changes
 
 - Add document upload for PDF, Word, TXT, CSV, and similar internal files.
-- Add data source sync placeholders for Google Drive, Notion, and Confluence.
+- Add a real Google Drive OAuth and scoped synchronization slice as the only
+  external data source currently supported.
 - Add document ingestion and vectorization through a worker job.
 - Store searchable chunks in a vector database through an adapter boundary.
 - Add knowledge access assignment to specific agents.
+- Add PDF and DOCX text extraction while explicitly deferring OCR, legacy DOC,
+  Google Picker, and Drive push notifications.
+- Add an opt-in PostgreSQL durable queue with atomic expiring leases and capped
+  retries for KB/RAG ingestion/indexing/sync work.
+- Add opt-in hourly/daily Google Drive scheduled polling that reuses the
+  existing sync and ingestion pipeline.
+- Consolidate Google Drive connection and scoped sync settings into one Data
+  Sync view, and add an explicit local-demo `drive.readonly` OAuth mode for
+  manual URL/ID selection while retaining `drive.file` as the default.
 
 ## Capabilities
 

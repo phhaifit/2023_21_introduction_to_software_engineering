@@ -310,6 +310,31 @@ describe("Knowledge Base / RAG API client", () => {
     ]);
   });
 
+  it("loads a Google Drive draft preview through the non-persistent route", async () => {
+    const fetchImplementation = vi.fn(async () => success([scopeNode]));
+    const client = createKnowledgeBaseRagApiClient({
+      fetchImplementation,
+      baseUrl: "https://api.test/"
+    });
+
+    const preview = await client.previewGoogleDriveScope(
+      workspaceId,
+      dataSource.sourceId,
+      {
+        folderIds: ["folder-a"],
+        fileIds: [],
+        recursive: true,
+        maxFiles: 25
+      }
+    );
+
+    expect(preview).toEqual([scopeNode]);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `https://api.test${encodedWorkspacePath}/data-sources/source%2Fa%20b/google-drive/preview`,
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
   it("rejects unsafe server-owned and private request fields before fetch", async () => {
     const fetchImplementation = vi.fn(async () => success({}));
     const client = createKnowledgeBaseRagApiClient({ fetchImplementation });

@@ -295,6 +295,120 @@ through a workspace-scoped public API.
 - **THEN** Data Sources and Synchronization Scope are hidden from the default Knowledge Base navigation or clearly marked unavailable
 - **AND** the user-facing page title and description avoid implementation-focused RAG terminology
 
+#### Scenario: Google Drive connects with least-privilege OAuth
+- **WHEN** an authorized user starts and completes Google Drive authorization
+- **THEN** the backend uses `drive.file`, `openid`, and `email`, validates one-time OAuth state, exchanges and refreshes tokens only on the backend, and returns safe connection metadata without credentials
+- **AND** browser callbacks redirect to the frontend Data Sources view with only a bounded success/error indicator, while explicit JSON clients may receive the safe API response
+
+#### Scenario: Local demo may opt into read-only Drive scope
+- **WHEN** Google Picker is unavailable and the local demo explicitly configures `GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly`
+- **THEN** new Google Drive authorization requests use `drive.readonly`, `openid`, and `email`
+- **AND** users must disconnect and reconnect after changing scope mode
+- **AND** synchronization still imports only explicitly configured file or folder scope
+
+#### Scenario: Connected Google Drive requires explicit scope
+- **WHEN** Google Drive is connected but no folder or file scope is selected
+- **THEN** the Data Sources UI explains that connection only authorizes access, disables manual sync, keeps disconnect available, and links to Synchronization Scope
+- **AND** a direct sync API request fails with a safe actionable validation error
+- **AND** the system never imports the user's whole Drive automatically
+
+#### Scenario: Google Drive scope is configured explicitly
+- **WHEN** an authorized user saves one or more Google Drive folder IDs or file IDs
+- **THEN** the system stores the selected IDs, recursive-folder preference, allowed MIME types, and maximum-file limit as synchronization scope
+- **AND** the UI does not claim Google Picker or broad Drive browsing
+
+#### Scenario: Manual Google Drive sync imports eligible content
+- **WHEN** an authorized user requests synchronization for a connected Google Drive source
+- **THEN** the HTTP request creates a sync job and delegates execution through a runtime queue boundary
+- **AND** the runtime lists scoped files, skips unchanged and unsupported files safely, downloads or exports supported files, and sends new or changed content through the existing ingestion and indexing boundaries
+- **AND** the safe sync summary records discovered, imported, updated, unchanged, unsupported, failed, chunk, and vector counts when available
+
+#### Scenario: Google Drive runtime limitations remain explicit
+- **WHEN** the current Google Drive slice is described or displayed
+- **THEN** Google Drive is the only external provider presented as supported
+- **AND** manual and opt-in hourly/daily scheduled polling are supported through process-local or explicitly enabled PostgreSQL durable queue boundaries
+- **AND** Google Picker, Drive push notifications/change tokens, legacy DOC, Google Slides, and OCR remain explicitly unsupported
+
+#### Scenario: Supported parser scope is explicit
+- **WHEN** uploaded or synchronized content reaches document text extraction
+- **THEN** strict UTF-8 TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs text export, and Google Sheets CSV export are supported
+- **AND** scanned or image-only PDFs without extractable text fail with a safe empty-content error
+- **AND** legacy DOC and image OCR remain explicitly deferred
+
+#### Scenario: Local queue and scheduler scope remains honest
+- **WHEN** ingestion, indexing, or Google Drive synchronization is queued locally
+- **THEN** the worker entrypoint, process-local asynchronous queue, and opt-in scheduled polling provide observable local and single-process execution
+- **AND** queued work is not claimed to survive process crashes or coordinate leases across multiple instances
+- **AND** durable guarantees apply only when `KNOWLEDGE_QUEUE_MODE=durable` is explicitly enabled with PostgreSQL
+
+#### Scenario: Durable runtime jobs use atomic expiring leases
+- **WHEN** durable queue mode is enabled for ingestion, indexing, or Google Drive synchronization
+- **THEN** runtime work is persisted before execution and one worker atomically claims due work with an owner and lease expiry
+- **AND** another worker cannot claim an active lease, while an expired lease can be reclaimed after a worker crash
+- **AND** transient failures use capped retries and terminal failures retain only bounded safe summaries
+- **AND** active Google Drive sync creation is idempotent per source across scheduler instances
+
+#### Scenario: Google Drive Auto Sync refreshes selected content
+- **WHEN** a connected Google Drive source has selected scope, Auto Sync enabled, and its hourly or daily schedule is due
+- **THEN** the scheduler creates one scheduled sync job through the existing queue/runtime boundary
+- **AND** it does not create another pending or syncing job for the same source
+- **AND** new and modified scoped files run through the existing import, parsing, chunking, embedding, and vector indexing pipeline while unchanged files are skipped
+
+#### Scenario: Auto Sync remains opt-in and scoped
+- **WHEN** Auto Sync is disabled, the scheduler runtime is disabled, or selected scope is empty
+- **THEN** no automatic sync job is created
+- **AND** the application never expands synchronization to the user's whole Drive
+
+#### Scenario: Drive URL input is normalized safely
+- **WHEN** a user enters a raw Drive ID, Google Docs URL, Drive file URL, Drive folder URL, or copied ID with `/edit`, `/view`, or query parameters
+- **THEN** the system extracts and validates the stable Drive item ID before persisting scope
+- **AND** empty or invalid values fail with an actionable validation error
+
+#### Scenario: Google Drive configuration has one user-facing home
+- **WHEN** a user opens Knowledge Base data synchronization
+- **THEN** one `Data Sync` tab presents Google Drive connection, selected content, schedule settings, and manual sync actions
+- **AND** detailed sync jobs are shown only in Processing Status
+- **AND** raw source, document, ingestion-job, and sync-job identifiers are not displayed in normal user-facing content or processing details
+
+#### Scenario: Drive provider failures are actionable and safe
+- **WHEN** Google Drive returns invalid credentials, insufficient permission or scope, disabled API, missing item, rate limit, server error, or a network failure
+- **THEN** the sync job records a bounded actionable message for that category
+- **AND** provider payloads, OAuth tokens, credentials, secrets, local paths, and stack traces are not exposed
+
+#### Scenario: Final knowledge UI keeps transient and detailed state in the right place
+- **WHEN** a user uploads documents, returns from Google Drive OAuth, or reviews
+  external synchronization
+- **THEN** Upload Documents omits empty summary counters while preserving file
+  selection, validation, and upload actions
+- **AND** the OAuth success notice is shown once, removes its callback query
+  marker, and dismisses automatically or on user action
+- **AND** external sync cards show a concise result summary while detailed safe
+  counters are available through View details
+- **AND** normal cards and details omit raw workspace, source, document, and job
+  identifiers
+
+#### Scenario: Saved Drive scope and processing details remain user-facing
+- **WHEN** a user saves Google Drive scope or reviews document processing details
+- **THEN** the scope input accepts only new URLs or IDs and clears after a successful save
+- **AND** the Google Drive connection card shows the saved selected-item count without duplicating a lower saved-scope summary
+- **AND** Upload and Google Drive processing details share one common status, progress, timing, chunk, indexing, and retry layout without duplicating the current step
+- **AND** Google Drive-only source metadata is grouped in a separate user-facing section without exposing internal identifiers
+
+#### Scenario: Google Drive scope materializes a selectable content tree
+- **WHEN** an authorized user saves one or more accessible Drive file or folder locations
+- **THEN** the backend resolves safe provider metadata and persists bounded file and folder scope nodes with readable names and parent relationships
+- **AND** the Data Sync UI renders collapsible roots, file/folder badges, and hierarchical checkboxes without displaying raw Drive identifiers
+- **AND** selecting or clearing a folder applies to its loaded descendants, mixed descendants produce an indeterminate folder state, and the persisted selected node IDs are the only scope consumed by manual and scheduled synchronization
+- **AND** nested traversal respects the configured recursive option and preview size limit
+- **AND** unsupported items are visible but not selectable, while provider preview failures remain safe and do not expose tokens or raw provider payloads
+
+#### Scenario: Drive draft preview does not mutate saved scope
+- **WHEN** a user enters a valid Drive file or folder URL before saving scope
+- **THEN** the UI loads a debounced safe tree preview without persisting scope nodes
+- **AND** clearing or changing the input removes stale draft state and ignores stale preview responses
+- **AND** saved scope remains internal persisted state used by manual and scheduled sync while its count is shown only in the Google Drive connection card
+- **AND** only Save scope persists the selected draft nodes
+
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants
 - **THEN** the UI explains that one or more documents may be assigned

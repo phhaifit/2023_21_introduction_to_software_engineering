@@ -5,7 +5,8 @@ import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
   IngestionJobDto,
-  KnowledgeDocumentDto
+  KnowledgeDocumentDto,
+  SyncJobDto
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 import type { KnowledgeIndexStatus } from "@vcp/shared/contracts/statuses.ts";
 
@@ -50,13 +51,17 @@ export function KnowledgeBaseProcessingStatusScreen(
     workspaceId = DEMO_WORKSPACE_ID
   } = props;
   const [jobs, setJobs] = useState<ProcessingJob[]>([]);
+  const [syncJobs, setSyncJobs] = useState<SyncJobDto[]>([]);
   const [loadState, setLoadState] =
     useState<"loading" | "loaded" | "error">("loading");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedSyncJobId, setSelectedSyncJobId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const metrics = useMemo(() => createProcessingStatusMetrics(jobs), [jobs]);
   const selectedJob =
     jobs.find((job) => job.jobId === selectedJobId) ?? null;
+  const selectedSyncJob =
+    syncJobs.find((job) => job.jobId === selectedSyncJobId) ?? null;
 
   useEffect(() => {
     let isActive = true;
@@ -64,9 +69,10 @@ export function KnowledgeBaseProcessingStatusScreen(
 
     Promise.all([
       apiClient.listIngestionJobs(workspaceId, { page: 1, pageSize: 100 }),
-      apiClient.listDocuments(workspaceId, { page: 1, pageSize: 100 })
+      apiClient.listDocuments(workspaceId, { page: 1, pageSize: 100 }),
+      apiClient.listSyncJobs(workspaceId, { page: 1, pageSize: 100 })
     ])
-      .then(([jobResponse, documentResponse]) => {
+      .then(([jobResponse, documentResponse, syncJobResponse]) => {
         if (!isActive) return;
         const documents = new Map(
           documentResponse.items.map((document) => [document.documentId, document])
@@ -76,11 +82,13 @@ export function KnowledgeBaseProcessingStatusScreen(
             toProcessingJob(job, documents.get(job.documentId))
           )
         );
+        setSyncJobs(syncJobResponse.items);
         setLoadState("loaded");
       })
       .catch(() => {
         if (!isActive) return;
         setJobs([]);
+        setSyncJobs([]);
         setLoadState("error");
       });
 
@@ -180,14 +188,266 @@ export function KnowledgeBaseProcessingStatusScreen(
         ) : null}
       </KnowledgeBaseSectionCard>
 
+      {loadState === "loaded" ? (
+        <KnowledgeBaseSectionCard
+          title="External source sync"
+          eyebrow="External source jobs"
+          description="Manual and automatic Google Drive sync lifecycle and safe import summary."
+        >
+          {syncJobs.length > 0 ? (
+            <div className="knowledge-base-rag-processing-status-list" role="list">
+              {syncJobs.map((job) => (
+                <SyncJobCard
+                  job={job}
+                  key={job.jobId}
+                  onViewDetails={() => setSelectedSyncJobId(job.jobId)}
+                />
+              ))}
+            </div>
+          ) : (
+            <KnowledgeBaseEmptyState
+              title="No Google Drive sync jobs"
+              description="Run a manual sync or enable Auto Sync after configuring Google Drive scope."
+            />
+          )}
+        </KnowledgeBaseSectionCard>
+      ) : null}
+
       {loadState === "loaded" && selectedJob ? (
         <ProcessingJobDetails
           job={selectedJob}
           onClose={() => setSelectedJobId(null)}
         />
       ) : null}
+      {loadState === "loaded" && selectedSyncJob ? (
+        <SyncJobDetails
+          job={selectedSyncJob}
+          onClose={() => setSelectedSyncJobId(null)}
+        />
+      ) : null}
     </div>
   );
+}
+
+function SyncJobCard({
+  job,
+  onViewDetails
+}: {
+  job: SyncJobDto;
+  onViewDetails: () => void;
+}) {
+  const failedBeforeScan = job.status === "failed" && job.scannedItemCount === 0;
+  const safeFailure = getSyncFailureMessage(job);
+  return (
+    <article className="knowledge-base-rag-processing-job" role="listitem">
+      <div className="knowledge-base-rag-processing-job__header">
+        <div>
+          <h3>Google Drive sync</h3>
+          <p>{syncJobType(job)}</p>
+        </div>
+        <ProcessingStatusBadge status={mapSyncStatus(job.status)} />
+      </div>
+
+      <p className="knowledge-base-rag-processing-job__summary">
+        {syncJobSummary(job)}
+      </p>
+
+      <KnowledgeBaseMetadataList
+        className="knowledge-base-rag-processing-job__metadata"
+        items={[
+          { label: "Source", value: "Google Drive" },
+          {
+            label: "Started",
+            value: job.startedAt ? formatDateTime(job.startedAt) : "Waiting to start"
+          },
+          ...(job.finishedAt
+            ? [{ label: "Completed", value: formatDateTime(job.finishedAt) }]
+            : [])
+        ]}
+      />
+
+      {safeFailure ? (
+        <p className="knowledge-base-rag-processing-job__error">{safeFailure}</p>
+      ) : null}
+      {failedBeforeScan && showLocalDemoScopeHelp(job) ? (
+        <p className="knowledge-base-rag-processing-job__hint">
+          For local demos with pasted Drive URLs, use{" "}
+          <code>GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly</code>, then disconnect
+          and reconnect Google Drive.
+        </p>
+      ) : null}
+
+      <div className="knowledge-base-rag-processing-job__actions">
+        <button type="button" onClick={onViewDetails}>
+          View details
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function SyncJobDetails({
+  job,
+  onClose
+}: {
+  job: SyncJobDto;
+  onClose: () => void;
+}) {
+  const failedBeforeScan = job.status === "failed" && job.scannedItemCount === 0;
+  return (
+    <div
+      className="knowledge-base-rag-processing-details-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sync-job-details-title"
+    >
+      <div
+        className="knowledge-base-rag-processing-details-modal__backdrop"
+        onClick={onClose}
+      />
+      <section className="knowledge-base-rag-processing-details-modal__panel">
+        <header className="knowledge-base-rag-processing-details-modal__header">
+          <div>
+            <p>External sync details</p>
+            <h2 id="sync-job-details-title">Google Drive sync</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close sync details">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="knowledge-base-rag-processing-details-modal__statuses">
+          <div>
+            <span>Status</span>
+            <ProcessingStatusBadge status={mapSyncStatus(job.status)} />
+          </div>
+          <div>
+            <span>Job type</span>
+            <strong>{syncJobType(job)}</strong>
+          </div>
+          <div>
+            <span>Current step</span>
+            <strong>{syncCurrentStep(job.status)}</strong>
+          </div>
+        </div>
+
+        <KnowledgeBaseMetadataList
+          className="knowledge-base-rag-processing-status-details__metadata"
+          items={[
+            { label: "Source", value: "Google Drive" },
+            {
+              label: "Started",
+              value: job.startedAt ? formatDateTime(job.startedAt) : "Waiting to start"
+            },
+            ...(job.finishedAt
+              ? [{ label: "Completed", value: formatDateTime(job.finishedAt) }]
+              : []),
+            { label: "Discovered", value: job.scannedItemCount },
+            { label: "Imported", value: job.importedItemCount ?? 0 },
+            { label: "Updated", value: job.updatedItemCount ?? 0 },
+            {
+              label: "Skipped unchanged",
+              value: job.skippedUnchangedItemCount ?? 0
+            },
+            {
+              label: "Skipped unsupported",
+              value: job.skippedUnsupportedItemCount ?? 0
+            },
+            { label: "Removed", value: job.removedItemCount ?? 0 },
+            { label: "Failed files", value: job.failedItemCount ?? 0 }
+          ]}
+        />
+
+        {job.failure ? (
+          <div
+            className="knowledge-base-rag-processing-status-details__error"
+            role="alert"
+          >
+            <strong>Failure reason</strong>
+            <p>{getSyncFailureMessage(job)}</p>
+          </div>
+        ) : null}
+        {failedBeforeScan ? (
+          <p className="knowledge-base-rag-processing-job__hint">
+            The sync failed before any files could be scanned, so failed file
+            count is 0.
+          </p>
+        ) : null}
+        {showLocalDemoScopeHelp(job) ? (
+          <p className="knowledge-base-rag-processing-job__hint">
+            For local demos with pasted Drive URLs, use{" "}
+            <code>GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly</code>, then disconnect
+            and reconnect Google Drive.
+          </p>
+        ) : null}
+
+        <footer>
+          <button type="button" onClick={onClose}>Close</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function syncJobType(job: SyncJobDto): string {
+  return job.syncMode === "scheduled" ? "Automatic sync" : "Manual sync";
+}
+
+function syncJobSummary(job: SyncJobDto): string {
+  if (job.status === "pending") return "Waiting to start";
+  if (job.status === "syncing") return "Sync in progress";
+  if (job.status === "failed" && job.scannedItemCount === 0) {
+    return "Sync failed before any files could be scanned.";
+  }
+  if (job.status === "failed") return "Synchronization failed";
+  const skipped =
+    (job.skippedUnchangedItemCount ?? 0) +
+    (job.skippedUnsupportedItemCount ?? 0);
+  return `Imported ${job.importedItemCount ?? 0} · Updated ${
+    job.updatedItemCount ?? 0
+  } · Skipped ${skipped}`;
+}
+
+function showLocalDemoScopeHelp(job: SyncJobDto): boolean {
+  return [
+    "google_drive.permission_denied",
+    "google_drive.insufficient_scope",
+    "google_drive.not_found"
+  ].includes(job.failure?.errorCode ?? "");
+}
+
+function getSyncFailureMessage(job: SyncJobDto): string | undefined {
+  if (!job.failure) return undefined;
+  const messages: Record<string, string> = {
+    "google_drive.permission_denied":
+      "Google Drive did not grant access to the selected file or folder. Reconnect Drive or use readonly scope for local demo.",
+    "google_drive.insufficient_scope":
+      "Google Drive OAuth scope is insufficient for this file or folder. Reconnect after updating scope settings.",
+    "google_drive.not_found":
+      "The selected Drive file or folder could not be found or is not accessible.",
+    "google_drive.api_disabled":
+      "Google Drive API is not enabled for this Google Cloud project."
+  };
+  return (
+    messages[job.failure.errorCode] ??
+    getSafeFailureMessage(job.failure.errorMessage)
+  );
+}
+
+function mapSyncStatus(status: SyncJobDto["status"]): KnowledgeBaseProcessingJobStatus {
+  if (status === "pending") return "queued";
+  if (status === "syncing") return "processing";
+  return status;
+}
+
+function syncCurrentStep(status: SyncJobDto["status"]): string {
+  const labels: Record<SyncJobDto["status"], string> = {
+    pending: "Queued for synchronization",
+    syncing: "Importing scoped Drive files",
+    completed: "Synchronization completed",
+    failed: "Synchronization failed"
+  };
+  return labels[status];
 }
 
 export function mapProcessingJobStatus(
@@ -210,7 +470,7 @@ function toProcessingJob(
   return {
     jobId: job.jobId,
     documentId: job.documentId,
-    documentName: document?.name ?? job.documentId,
+    documentName: document?.name ?? "Document processing",
     documentStatus: mapDocumentStatus(document?.status ?? job.status),
     mediaType: document?.mediaType ?? "Unknown",
     fileType: inferDocumentType(document),
@@ -231,7 +491,18 @@ function toProcessingJob(
     ...(document
       ? {
           chunkCount: document.chunkCount,
-          indexedChunkCount: document.indexedChunkCount
+          indexedChunkCount: document.indexedChunkCount,
+          ...(document.source === "google_drive"
+            ? {
+                originalDriveName: document.name,
+                ...(document.lastSyncedAt
+                  ? { lastSyncedAt: formatDateTime(document.lastSyncedAt) }
+                  : {}),
+                ...(document.sourceModifiedAt
+                  ? { sourceModifiedAt: formatDateTime(document.sourceModifiedAt) }
+                  : {})
+              }
+            : {})
         }
       : {})
   };
@@ -404,8 +675,7 @@ function createJobMetadata(job: ProcessingJob) {
     { label: "MIME / type", value: job.mediaType },
     { label: "Started", value: job.startedAt },
     ...(job.completedAt ? [{ label: "Completed", value: job.completedAt }] : []),
-    ...(job.failedAt ? [{ label: "Failed", value: job.failedAt }] : []),
-    { label: "Current step", value: job.currentStep }
+    ...(job.failedAt ? [{ label: "Failed", value: job.failedAt }] : [])
   ];
 }
 
@@ -468,15 +738,33 @@ function ProcessingJobDetails({
             ...createJobMetadata(job),
             { label: "Chunks", value: job.chunkCount ?? "Not available" },
             { label: "Indexing", value: indexingSummary },
-            {
-              label: "Retry",
-              value:
-                job.status === "failed"
-                  ? "Not implemented yet"
-                  : "Only available for failed jobs"
-            }
+            ...(job.status === "failed"
+              ? [{ label: "Retry", value: "Not implemented yet" }]
+              : [])
           ]}
         />
+
+        {job.sourceName === "Google Drive" ? (
+          <section className="knowledge-base-rag-processing-status-details__source">
+            <h3>Google Drive source</h3>
+            <KnowledgeBaseMetadataList
+              items={[
+                {
+                  label: "Original Drive name",
+                  value: job.originalDriveName ?? job.documentName
+                },
+                {
+                  label: "Last synced",
+                  value: job.lastSyncedAt ?? "Not available"
+                },
+                {
+                  label: "Source modified",
+                  value: job.sourceModifiedAt ?? "Not available"
+                }
+              ]}
+            />
+          </section>
+        ) : null}
 
         {job.safeErrorMessage ? (
           <div className="knowledge-base-rag-processing-status-details__error" role="alert">
@@ -484,14 +772,6 @@ function ProcessingJobDetails({
             <p>{job.safeErrorMessage}</p>
           </div>
         ) : null}
-
-        <details className="knowledge-base-rag-processing-details-modal__debug">
-          <summary>Debug details</summary>
-          <dl>
-            <div><dt>Job ID</dt><dd>{job.jobId}</dd></div>
-            <div><dt>Document ID</dt><dd>{job.documentId}</dd></div>
-          </dl>
-        </details>
 
         <footer>
           {job.status === "failed" ? (

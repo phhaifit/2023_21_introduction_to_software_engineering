@@ -78,6 +78,27 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
 }
 
 describe("Knowledge Base / RAG Upload API integration", () => {
+  it("keeps upload and validation controls without empty metric cards", () => {
+    render(
+      <KnowledgeBaseUploadScreen
+        apiClient={createClient()}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Drop files here or browse from your workspace"
+      })
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Selected files" })).toBeTruthy();
+    expect(screen.queryByLabelText("Upload validation summary")).toBeNull();
+    expect(screen.queryByText("Valid files")).toBeNull();
+    expect(screen.queryByText("Invalid files")).toBeNull();
+    expect(screen.queryByText("Ready for ingestion")).toBeNull();
+    expect(screen.getByRole("button", { name: "Upload valid files" })).toBeDisabled();
+  });
+
   it("validates selected files through the API client using metadata only", async () => {
     const client = createClient();
     const user = userEvent.setup();

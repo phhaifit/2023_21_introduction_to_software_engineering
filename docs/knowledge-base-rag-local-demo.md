@@ -11,9 +11,25 @@ The implementation covers file upload/storage, TXT/DOCX/text-PDF extraction,
 ingestion and indexing boundaries, pgvector retrieval, grounded answer
 generation, access control, and the API-backed Processing Status screen.
 
-It does not provide a one-click deployment, a continuously running production
-ingestion worker, external connectors/OAuth, source-level grants, a standalone
-Agent Knowledge Ask UI, or production OpenClaw/tool runtime registration.
+Google Drive is the only external data source and supports backend OAuth,
+manual synchronization, and opt-in scheduled polling. The implementation does
+not provide a one-click deployment, a durable production queue, Google Picker,
+other connectors, source-level grants, a standalone Agent Knowledge Ask UI,
+OCR, legacy DOC extraction, or production OpenClaw/tool registration.
+
+Data Sync is implemented for Google Drive. Users connect Google Drive, select
+files or folders in scope, and enable scheduled Auto Sync. The system checks
+selected Drive content for changes and updates the Knowledge Base by re-running
+parsing, chunking, embedding, and vector indexing. It does not sync the entire
+Drive or claim real-time synchronization.
+
+After a Drive file or folder URL is saved, Data Sync loads a bounded metadata
+tree from Google Drive. Users can expand folders and select the files or
+folders included in synchronization. Selecting a folder selects its loaded
+descendants; clearing a child creates a partial folder selection. `Include
+nested folders` controls whether subfolders are traversed, and the configured
+maximum-file limit bounds both preview and synchronization. Google Picker is
+still deferred.
 
 ## Prerequisites
 
@@ -47,6 +63,14 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Use `1536` for the OpenRouter web demo. Do not use `3` here. |
 | `KNOWLEDGE_VECTOR_DISTANCE` | Live retrieval | See `.env.example`. |
 | `KNOWLEDGE_PGVECTOR_SMOKE` | Local pgvector smoke test | Set to `1` only when explicitly running the opt-in smoke test. |
+| `GOOGLE_DRIVE_CLIENT_ID` | Real Google Drive OAuth | Backend-only OAuth client ID. |
+| `GOOGLE_DRIVE_CLIENT_SECRET` | Real Google Drive OAuth | Backend-only secret; never expose or commit it. |
+| `GOOGLE_DRIVE_REDIRECT_URI` | Real Google Drive OAuth | Must target the workspace-scoped OAuth callback route. |
+| `GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY` | Encrypted local credential storage | Backend-only secret of at least 32 characters. |
+| `GOOGLE_DRIVE_OAUTH_SCOPE_MODE` | Google Drive selection mode | Optional. Defaults to `file`. Set to `readonly` for a local demo that uses manually pasted Drive URLs/IDs without Google Picker; disconnect and reconnect after changing it. |
+| `APP_FRONTEND_BASE_URL` | OAuth browser return URL | Optional; defaults to `http://127.0.0.1:5173` for local development. |
+| `KNOWLEDGE_AUTO_SYNC_ENABLED` | Process-local Google Drive scheduler | Set to `true` explicitly to start scheduled polling. Disabled by default. |
+| `KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS` | Scheduler due-source check interval | Optional; defaults to `60000` and is clamped to at least 10 seconds. |
 | `KNOWLEDGE_RAG_PROVIDER` | Live answers | Currently `openai-compatible`. |
 | `KNOWLEDGE_RAG_BASE_URL` | Live answers | Provider base URL. |
 | `KNOWLEDGE_RAG_API_KEY` | Live answers | Never commit this local secret. |
@@ -56,6 +80,68 @@ Optional batch-size, timeout, and output-limit variables have safe defaults in
 `.env.example`. There is no environment switch that turns the development
 server into deterministic mode. Tests inject deterministic adapters, require no
 API keys, and make no provider calls.
+
+## Google Drive data source
+
+The Data Sync screen exposes Google Drive only. By default OAuth requests
+`https://www.googleapis.com/auth/drive.file` plus `openid` and `email`.
+After a browser callback, the backend redirects to
+`/knowledge-base-rag?tab=data-sync&googleDrive=connected`; clients that
+explicitly request `application/json` continue to receive a safe API envelope.
+Data Sync accepts raw Drive IDs or full Google Docs/Drive file and folder URLs,
+loads a bounded non-persistent preview, and saves only the confirmed selection.
+Clearing the input removes the draft preview without changing the compact saved
+scope summary. Optional subfolder traversal for future syncs, allowed MIME
+types, and a maximum file count remain configurable. Users can run sync
+manually or enable an hourly/daily schedule. The app never imports an entire
+Drive by default.
+
+Supported imports are TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs
+(exported as text), and Google Sheets (exported as CSV). Unsupported Google
+Workspace types are skipped safely. Scanned PDFs may yield no text because OCR
+is not implemented; they fail with a bounded user-facing parsing error.
+
+The local server uses an encrypted file credential store and an optional
+process-local scheduler. `KNOWLEDGE_QUEUE_MODE=process_local` remains the local
+default. `KNOWLEDGE_QUEUE_MODE=durable` persists ingestion and sync work in
+PostgreSQL, atomically claims jobs with expiring worker leases, reclaims expired
+leases, and caps transient retries. Scheduled polling
+lists only configured scope, compares Drive metadata with the existing
+document identity, imports new files, refreshes changed files, and skips
+unchanged files. A partial unique database index prevents overlapping active
+sync jobs for the same source across scheduler instances.
+
+Google Picker is deferred; full URL/ID paste is the supported fallback. Drive
+changes page tokens and push notifications are also deferred, so scheduled
+sync uses scoped metadata listing. Explicit trashed file IDs are handled;
+detecting files removed from a selected folder remains limited by Drive folder
+listing behavior. Automated tests use fake Google Drive adapters and never call
+Google APIs. A real OAuth smoke test is opt-in and requires the backend-only
+variables above.
+
+`drive.file` is the safer production default and works best with Google Picker,
+because Google must grant the app access to each selected item. With the current
+manual URL/ID fallback, a local demo may set:
+
+```env
+GOOGLE_DRIVE_OAUTH_SCOPE_MODE="readonly"
+```
+
+Then disconnect and reconnect Google Drive so the new consent scope is issued.
+`drive.readonly` allows metadata/download access but does not cause whole-Drive
+imports: the synchronization runtime still processes only the file and folder
+IDs saved in Data Sync. Production should prefer `drive.file` plus Google
+Picker.
+
+The user-facing flow is:
+
+1. **Connect Google Drive** authorizes access.
+2. **Data Sync** configures selected Drive content, Auto Sync, and Sync now.
+3. **Processing Status** is the single place to review document and external
+   sync jobs.
+4. **Documents** shows imported and indexed files.
+5. Agent document assignment controls which imported documents each agent may
+   retrieve.
 
 For local web demo uploads with OpenRouter embeddings:
 
@@ -405,17 +491,26 @@ checks workspace isolation. It does not call real embedding/RAG providers.
 - **RAG returns a provider fallback:** configure the RAG provider and ensure
   retrieval has indexed evidence.
 - **Image-only PDF fails:** OCR is not implemented.
+- **Drive sync fails before scanning:** confirm the Google Drive API is enabled,
+  the consent screen includes the configured scope, and the file/folder exists
+  and is accessible. After changing `GOOGLE_DRIVE_OAUTH_SCOPE_MODE`, disconnect
+  and reconnect. Manual URL/ID selection may require local-demo `readonly`
+  mode because `drive.file` normally relies on Google Picker/app-created files.
 - **OpenSpec validation fails:** install the approved `openspec` CLI; it is not
   currently an npm dependency.
 
 ## Known limitations
 
-- No worker daemon, scheduler, production queue, atomic multi-worker claim, or
-  retry endpoint is included.
+- Durable PostgreSQL queue claims and capped retries are available when
+  explicitly enabled. The polling loop still runs in the backend process rather
+  than a separately deployed autoscaled worker service.
 - Inline local mode composes ingestion and indexing, but the default queued
   mode still requires an external caller.
-- Google Drive, Notion, and Confluence remain placeholders; OAuth and
-  credential storage are not implemented.
+- Google Drive is implemented with backend OAuth and encrypted local credential
+  storage. Manual sync and opt-in hourly/daily polling are supported. No other
+  external connector is supported.
+- Google Picker, Drive change tokens, and push notifications are not
+  implemented. Scope accepts full Drive URLs or raw IDs.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
 - Agent grants and the current assignment UI are document-level only.

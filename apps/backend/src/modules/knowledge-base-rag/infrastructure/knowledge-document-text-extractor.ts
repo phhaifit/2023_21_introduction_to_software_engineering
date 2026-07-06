@@ -22,7 +22,9 @@ export class RuntimeKnowledgeDocumentTextExtractor
 
     try {
       const rawText =
-        mediaType === "text/plain"
+        mediaType === "text/plain" ||
+        mediaType === "text/markdown" ||
+        mediaType === "text/csv"
           ? extractTxt(input.content)
           : mediaType === DOCX_MEDIA_TYPE
             ? await extractDocx(input.content)

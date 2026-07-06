@@ -16,6 +16,9 @@ export type KnowledgeDocument = {
   sizeLabel: string;
   owner: string;
   updatedAt: string;
+  mediaType?: string;
+  lastSyncedAt?: string;
+  sourceModifiedAt?: string;
   status: KnowledgeDocumentStatus;
   chunkCount?: number;
   indexedItemCount?: number;
@@ -59,6 +62,9 @@ export type ProcessingJob = {
   chunkCount?: number;
   indexedChunkCount?: number;
   safeErrorMessage?: string;
+  originalDriveName?: string;
+  lastSyncedAt?: string;
+  sourceModifiedAt?: string;
 };
 
 export type IngestionJob = ProcessingJob;

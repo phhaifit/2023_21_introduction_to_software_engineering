@@ -17,10 +17,10 @@
 ## 2. Remaining Production Runtime Work
 
 - [x] 2.1 Implement real file/object storage upload and content-read runtime
-- [ ] 2.2 Implement real PDF/DOC/DOCX/OCR parsing beyond the current text/markdown processing boundary
-- [ ] 2.3 Implement production queue/scheduler runtime entrypoints for ingestion, indexing, and sync
-- [ ] 2.4 Implement real external provider sync for Google Drive, Notion, Confluence, or similar sources
-- [ ] 2.5 Implement real OAuth/credential handling for external providers
+- [x] 2.2 Complete supported document parsing beyond text/markdown for PDF and DOCX; legacy DOC and OCR are explicitly deferred
+- [x] 2.3 Implement local worker entrypoint, process-local async queue, and opt-in scheduled polling for ingestion/indexing/sync
+- [x] 2.4 Implement real external provider sync for Google Drive only
+- [x] 2.5 Implement real OAuth/credential handling for Google Drive only
 - [x] 2.6 Implement real embedding provider adapter integration
 - [x] 2.7 Implement real vector database adapter integration
 - [x] 2.8 Implement semantic retrieval/vector search public boundary
@@ -31,6 +31,14 @@
 - [x] 2.13 Add upload-to-Task-chat local-demo RAG integration evidence
 - [x] 2.14 Polish Knowledge Base navigation, agent/workflow labels, citation presentation, assigned-document UX, and workflow completion fallback without changing retrieval or runtime behavior
 - [x] 2.15 Add safe Processing Status details/retry presentation and compact Workflow Run History identifiers without adding runtime APIs
+- [x] 2.16 Add opt-in Google Drive automatic scoped polling, hourly/daily settings, URL/ID normalization, and focused UI/runtime tests
+- [x] 2.17 Consolidate Google Drive configuration into Data Sync, hide normal-user technical IDs, add actionable provider errors, and support explicit local-demo read-only OAuth
+- [x] 2.18 Simplify Upload status, make Google Drive OAuth feedback transient, and move external sync counters into user-facing details
+- [x] 2.19 Separate new and saved Drive scope input, hide external IDs, and align Upload/Drive processing details
+- [x] 2.20 Materialize a bounded Google Drive scope tree, persist hierarchical selection, and make sync consume only selected nodes
+- [x] 2.21 Implement durable multi-instance production queue/lease for ingestion/indexing/sync jobs
+- [x] 2.22 Add non-persistent Google Drive draft preview and separate it from saved sync scope
+- [x] 2.23 Remove the redundant lower saved-scope summary while preserving the connection-card count and persisted sync state
 
 ## 3. Remaining Verification and Handoff
 

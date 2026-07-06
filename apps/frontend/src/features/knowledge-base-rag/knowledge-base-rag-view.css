@@ -16,6 +16,11 @@
   padding: 2rem;
 }
 
+.knowledge-base-rag-data-sync {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .knowledge-base-rag-header {
   display: flex;
   align-items: flex-start;

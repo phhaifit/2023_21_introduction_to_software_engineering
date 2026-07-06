@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import express, { type Express } from "express";
@@ -87,6 +88,19 @@ import {
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
 import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
+import {
+  GoogleDriveOAuthService,
+  GoogleDriveOAuthStateStore
+} from "./modules/knowledge-base-rag/application/google-drive-oauth-service.ts";
+import { GoogleDriveSyncRuntime } from "./modules/knowledge-base-rag/application/google-drive-sync-runtime.ts";
+import { GoogleDriveAutoSyncScheduler } from "./modules/knowledge-base-rag/application/google-drive-auto-sync-scheduler.ts";
+import { EncryptedFileGoogleDriveCredentialStore } from "./modules/knowledge-base-rag/infrastructure/encrypted-google-drive-credential-store.ts";
+import { GoogleDriveApiProvider } from "./modules/knowledge-base-rag/infrastructure/google-drive-api-provider.ts";
+import { LocalKnowledgeRuntimeQueue } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-runtime-queue.ts";
+import {
+  PermanentKnowledgeRuntimeError,
+  PrismaKnowledgeRuntimeQueue
+} from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-runtime-queue.ts";
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -623,7 +637,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateAgentId: () => randomUUID()
   });
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
+  const frontendUrl =
+    process.env.APP_FRONTEND_BASE_URL ||
+    process.env.FRONTEND_URL ||
+    "http://127.0.0.1:5173";
 
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
@@ -676,8 +693,40 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const knowledgeFileStorage = new LocalKnowledgeFileStorage();
   const inlineIngestionEnabled =
     process.env.KNOWLEDGE_INGESTION_MODE?.trim().toLowerCase() === "inline";
+  const googleClientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+  const googleRedirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI;
+  const googleDriveOAuthScopeMode =
+    process.env.GOOGLE_DRIVE_OAUTH_SCOPE_MODE?.trim().toLowerCase() ===
+    "readonly"
+      ? "readonly"
+      : "file";
+  const credentialEncryptionKey =
+    process.env.GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY;
+  const googleDriveConfigured = Boolean(
+    googleClientId &&
+      googleClientSecret &&
+      googleRedirectUri &&
+      credentialEncryptionKey
+  );
+  const knowledgeQueueMode =
+    process.env.KNOWLEDGE_QUEUE_MODE?.trim().toLowerCase() === "durable"
+      ? "durable"
+      : "process_local";
   let postUploadProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
-  if (inlineIngestionEnabled) {
+  let fullIngestionProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
+  let enqueueIngestionJob:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  let googleDriveSyncHandler:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  let durableQueue: PrismaKnowledgeRuntimeQueue | undefined;
+  if (
+    inlineIngestionEnabled ||
+    (prisma && googleDriveConfigured) ||
+    (prisma && knowledgeQueueMode === "durable")
+  ) {
     if (!prisma) {
       throw new Error(
         "KNOWLEDGE_INGESTION_MODE=inline requires DATABASE_URL and PostgreSQL."
@@ -700,26 +749,207 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         `${documentId}:chunk:${chunkIndex}`,
       generateEventId: () => randomUUID() as any
     });
-    postUploadProcessor = {
+    fullIngestionProcessor = {
       async process(input) {
         const result = await inlineRunner.run(input);
         return { document: result.document, job: result.job };
       }
     };
+    if (inlineIngestionEnabled) postUploadProcessor = fullIngestionProcessor;
+    if (knowledgeQueueMode === "durable" && prisma) {
+      const leaseMs = positiveIntegerEnvironment(
+        process.env.KNOWLEDGE_QUEUE_LEASE_MS,
+        300_000
+      );
+      const maxAttempts = positiveIntegerEnvironment(
+        process.env.KNOWLEDGE_QUEUE_MAX_ATTEMPTS,
+        3
+      );
+      const pollIntervalMs = positiveIntegerEnvironment(
+        process.env.KNOWLEDGE_QUEUE_POLL_INTERVAL_MS,
+        5_000
+      );
+      durableQueue = new PrismaKnowledgeRuntimeQueue({
+        prisma,
+        leaseOwner: `knowledge-worker-${process.pid}-${randomUUID()}`,
+        leaseMs,
+        maxAttempts,
+        pollIntervalMs,
+        handlers: {
+          googleDriveSync: async (job) => {
+            if (!googleDriveSyncHandler) {
+              throw new PermanentKnowledgeRuntimeError(
+                "knowledge.google_drive_handler_unavailable",
+                "Google Drive synchronization runtime is unavailable."
+              );
+            }
+            await googleDriveSyncHandler(job);
+          },
+          documentIngestion: async (job) => {
+            const result = await inlineRunner.run(job);
+            if (result.phase !== "completed") {
+              throw new PermanentKnowledgeRuntimeError(
+                result.failure?.errorCode ?? "knowledge.ingestion_failed",
+                result.failure?.errorMessage ??
+                  "Knowledge document ingestion failed."
+              );
+            }
+          }
+        }
+      });
+      enqueueIngestionJob = (input) =>
+        durableQueue!.enqueue({ kind: "document-ingestion", ...input });
+      postUploadProcessor = {
+        async process(input) {
+          await enqueueIngestionJob!(input);
+          const job =
+            await knowledgeIngestionJobRepository.getIngestionJobById(
+              input.workspaceId,
+              input.jobId
+            );
+          const document = job?.documentId
+            ? await knowledgeDocumentRepository.getDocumentById(
+                input.workspaceId,
+                job.documentId
+              )
+            : null;
+          if (!job || !document) {
+            throw new Error("Queued knowledge ingestion state is unavailable.");
+          }
+          return { document, job };
+        }
+      };
+    }
+  }
+  const uploadUseCases = new KnowledgeUploadUseCases({
+    documentRepository: knowledgeDocumentRepository,
+    ingestionJobRepository: knowledgeIngestionJobRepository,
+    fileStorage: knowledgeFileStorage,
+    postUploadProcessor,
+    now: () => new Date().toISOString(),
+    generateDocumentId: () => randomUUID() as any,
+    generateJobId: () => randomUUID() as any
+  });
+  let googleDriveOAuthService: GoogleDriveOAuthService | undefined;
+  let googleDriveProvider: GoogleDriveApiProvider | undefined;
+  let enqueueSyncJob:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  if (
+    googleClientId &&
+    googleClientSecret &&
+    googleRedirectUri &&
+    credentialEncryptionKey &&
+    fullIngestionProcessor
+  ) {
+    const credentialStore = new EncryptedFileGoogleDriveCredentialStore({
+      rootDirectory: resolve(".data/knowledge-base-rag/google-drive-credentials"),
+      encryptionSecret: credentialEncryptionKey
+    });
+    googleDriveOAuthService = new GoogleDriveOAuthService({
+      config: {
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        redirectUri: googleRedirectUri,
+        scopeMode: googleDriveOAuthScopeMode
+      },
+      dataSourceRepository: knowledgeDataSourceRepository,
+      credentialStore,
+      stateStore: new GoogleDriveOAuthStateStore(),
+      now: () => new Date().toISOString(),
+      generateSourceId: () => `google-drive-${randomUUID()}`
+    });
+    googleDriveProvider = new GoogleDriveApiProvider();
+    const syncUploadUseCases = new KnowledgeUploadUseCases({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      fileStorage: knowledgeFileStorage,
+      postUploadProcessor: fullIngestionProcessor,
+      now: () => new Date().toISOString(),
+      generateDocumentId: () => randomUUID() as any,
+      generateJobId: () => randomUUID() as any
+    });
+    const syncRuntime = new GoogleDriveSyncRuntime({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      syncScopeRepository: knowledgeSyncScopeRepository,
+      syncJobRepository: knowledgeSyncJobRepository,
+      documentRepository: knowledgeDocumentRepository,
+      uploadUseCases: syncUploadUseCases,
+      oauthService: googleDriveOAuthService,
+      provider: googleDriveProvider,
+      now: () => new Date().toISOString(),
+      generateEventId: () => randomUUID()
+    });
+    googleDriveSyncHandler = async (job) => {
+      await syncRuntime.execute(job);
+      const completed =
+        await knowledgeSyncJobRepository.getSyncJobById(
+          job.workspaceId,
+          job.jobId
+        );
+      if (completed?.status === "failed") {
+        const permanentCodes = [
+          "credential_invalid",
+          "permission_denied",
+          "insufficient_scope",
+          "not_found",
+          "unsupported_file"
+        ];
+        const errorCode = completed.errorCode ?? "google_drive.sync_failed";
+        if (permanentCodes.some((code) => errorCode.includes(code))) {
+          throw new PermanentKnowledgeRuntimeError(
+            errorCode,
+            completed.errorMessage ?? "Google Drive synchronization failed."
+          );
+        }
+        throw new Error("Transient Google Drive synchronization failure.");
+      }
+    };
+    if (durableQueue) {
+      enqueueSyncJob = (input) =>
+        durableQueue!.enqueue({ kind: "google-drive-sync", ...input });
+    } else {
+      const queue = new LocalKnowledgeRuntimeQueue({
+        googleDriveSync: (job) => syncRuntime.execute(job)
+      });
+      enqueueSyncJob = (input) =>
+        queue.enqueue({ kind: "google-drive-sync", ...input });
+    }
+  }
+  durableQueue?.start();
+  const knowledgeSyncUseCases = new KnowledgeSyncUseCases({
+    syncScopeRepository: knowledgeSyncScopeRepository,
+    syncJobRepository: knowledgeSyncJobRepository,
+    dataSourceRepository: knowledgeDataSourceRepository,
+    googleDriveOAuthService,
+    googleDriveProvider,
+    now: () => new Date().toISOString(),
+    generateJobId: () => randomUUID() as any,
+    enqueueSyncJob
+  });
+  if (
+    process.env.KNOWLEDGE_AUTO_SYNC_ENABLED?.trim().toLowerCase() === "true" &&
+    enqueueSyncJob
+  ) {
+    const configuredPollInterval = Number(
+      process.env.KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS ?? "60000"
+    );
+    const scheduler = new GoogleDriveAutoSyncScheduler({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      syncUseCases: knowledgeSyncUseCases,
+      now: () => new Date().toISOString(),
+      pollIntervalMs:
+        Number.isFinite(configuredPollInterval) && configuredPollInterval > 0
+          ? configuredPollInterval
+          : 60_000
+    });
+    scheduler.start();
   }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
     }),
-    uploadUseCases: new KnowledgeUploadUseCases({
-      documentRepository: knowledgeDocumentRepository,
-      ingestionJobRepository: knowledgeIngestionJobRepository,
-      fileStorage: knowledgeFileStorage,
-      postUploadProcessor,
-      now: () => new Date().toISOString(),
-      generateDocumentId: () => randomUUID() as any,
-      generateJobId: () => randomUUID() as any
-    }),
+    uploadUseCases,
     ingestionUseCases: new KnowledgeIngestionUseCases({
       ingestionJobRepository: knowledgeIngestionJobRepository
     }),
@@ -727,12 +957,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       dataSourceRepository: knowledgeDataSourceRepository,
       now: () => new Date().toISOString()
     }),
-    syncUseCases: new KnowledgeSyncUseCases({
-      syncScopeRepository: knowledgeSyncScopeRepository,
-      syncJobRepository: knowledgeSyncJobRepository,
-      now: () => new Date().toISOString(),
-      generateJobId: () => randomUUID() as any
-    }),
+    syncUseCases: knowledgeSyncUseCases,
     retrievalSearchUseCase,
     ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
     agentKnowledgeAssignmentUseCase: new AgentKnowledgeAssignmentUseCase({
@@ -757,7 +982,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         }
       })
     }),
-    accessPolicy: knowledgeAccessPolicy
+    accessPolicy: knowledgeAccessPolicy,
+    googleDriveOAuthService,
+    frontendBaseUrl: frontendUrl
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
@@ -1082,6 +1309,14 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     openclawOrchestrator,
     conversationRepository
   };
+}
+
+function positiveIntegerEnvironment(
+  value: string | undefined,
+  fallback: number
+): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function seedDemoAgents(repository: AgentRepository): Promise<void> {

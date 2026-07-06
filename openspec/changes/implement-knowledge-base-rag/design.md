@@ -6,13 +6,15 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 
 **Goals:**
 - Upload and manage workspace documents.
-- Add placeholders for external data sync sources.
+- Implement Google Drive as the only external data sync source.
 - Process ingestion and vectorization asynchronously.
 - Store and query vector chunks through an adapter boundary.
 - Assign knowledge collections to specific agents.
 
 **Non-Goals:**
-- Build full Google Drive, Notion, or Confluence production integrations in V1.
+- Build connectors other than Google Drive.
+- Add Google Picker or Drive push notifications.
+- Build a separately deployed autoscaled worker control plane.
 - Implement advanced document permission inheritance.
 - Expose raw vector database implementation details to agents or task orchestration.
 
@@ -111,6 +113,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: `GET`, `POST`, and `DELETE` routes under `/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents` call a KB/RAG application use case, reuse the existing grant repository and access policy, and validate agent existence through an injected workspace-scoped lookup port.
    - Constraint: Listing requires `workspace:read`; mutations require `knowledge:manage`. Responses expose safe document metadata only. This slice does not add source/collection grants, UI, orchestration/tool integration, schema changes, worker behavior, connectors, OAuth, or new dependencies.
 
+31. Materialize Google Drive selection through existing scope-node persistence.
+   - Rationale: The existing scope node model already stores safe display names, parent relationships, and selection state, and the sync runtime already converts only selected nodes into provider scope.
+   - Boundary: Saving Google Drive locations resolves a bounded provider tree, persists safe file/folder nodes, and reuses the existing sync-scope update route for checkbox selection. No schema or new connector abstraction is added.
+   - Constraint: Folder selection applies only to loaded bounded descendants; recursive traversal and maximum-file settings bound preview expansion. Raw Drive identifiers remain internal DTO fields required by the existing sync boundary and are never rendered as normal UI text.
+
 21. Expose assigned knowledge retrieval through an internal agent tool boundary.
    - Rationale: Agent consumers need a stable, JSON-friendly boundary that reuses KB/RAG retrieval and its document-grant enforcement without duplicating vector search logic.
    - Boundary: `AgentKnowledgeRetrievalTool` validates workspace-scoped agent identity through an injected lookup, delegates to `KnowledgeRetrievalSearchUseCase` with agent context, and maps safe results to bounded citation-style evidence under the internal name `knowledge.retrieve`.
@@ -135,6 +142,27 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Rationale: The demo needs focused proof that uploaded and locally indexed documents can ground Agent-mode Task chat answers only after explicit agent assignment.
    - Boundary: A deterministic contract test composes the existing local upload-to-index runner, assignment use case, retrieval/orchestration use cases, and Task Orchestration bridge route. It verifies persisted chunks, vector-boundary upserts, answered citations, revoked assignment fallback, unassigned fallback, workspace isolation, and safe public fields.
    - Constraint: The evidence test uses fake deterministic embedding/vector/composer adapters, does not call real providers or pgvector, does not add UI, does not register `knowledge.retrieve` with the production OpenClaw/tool runtime, and does not add queue, daemon, connector, source-grant, or scheduler behavior.
+
+26. Implement Google Drive as the only external data source.
+   - Rationale: A single connector slice validates OAuth, scoped synchronization, import, parsing, indexing, and citation behavior without creating a generic connector platform.
+   - Boundary: The backend uses the `drive.file`, `openid`, and `email` OAuth scopes; stores credentials through an encrypted backend-only credential port; accepts explicit folder IDs and file IDs; downloads blob files; exports Google Docs as text and Google Sheets as CSV; and imports changed content through the existing ingestion/indexing pipeline.
+   - Runtime: Manual and scheduled sync create observable jobs and hand them to a configurable queue boundary. Process-local mode remains the local default; durable mode persists runtime work in PostgreSQL, claims it atomically with expiring worker leases, reclaims abandoned work, and applies capped retries. The durable poller is database-backed but is not a separate autoscaled worker service.
+   - Parsing: TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs, and Google Sheets are supported. Legacy DOC, Google Slides, and other unsupported Drive types are skipped safely. OCR is deferred; scanned PDFs that yield no text fail with a safe empty-content error.
+   - UI: Data Sources and Synchronization Scope become functional for Google Drive only. Scope configuration uses folder/file URLs or IDs, loads a non-persistent draft tree before confirmation, and keeps the saved sync scope separate. It does not claim Google Picker or broad Drive browsing.
+   - Security: OAuth tokens, client secrets, raw provider responses, downloaded content, local paths, embeddings, and vectors are excluded from public DTOs, events, and UI. Automated tests inject fake fetch/provider adapters and make no real Google API calls.
+
+27. Add opt-in scoped Google Drive scheduled polling.
+   - Rationale: The project requirement needs selected Drive content to refresh without requiring users to repeatedly press Sync now.
+   - Boundary: Auto Sync is disabled by default, supports only hourly or daily frequency, and is enabled only when a connected Google Drive source has selected scope. Settings are stored in the existing safe data-source metadata boundary.
+   - Runtime: A process-local scheduler, enabled explicitly with `KNOWLEDGE_AUTO_SYNC_ENABLED=true`, polls due sources at `KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS`, creates scheduled sync jobs through the existing use case/queue boundary, and prevents overlapping pending or syncing jobs per source.
+   - Change detection: Each scheduled run lists only configured folder/file scope and compares stable `(workspaceId, sourceId, externalId)` identity plus Drive `modifiedTime`. New files import, changed files replace content/chunks/vectors through the existing pipeline, and unchanged files skip. Full scoped listing is the fallback and current implementation; Drive changes page tokens and push notifications are deferred.
+   - Selection: Manual scope input accepts raw IDs, full Docs/Drive URLs, and copied `/edit` or `/view` suffixes. Google Picker is deferred and is not presented as implemented.
+   - Limitation: The scheduler timer still lives in each backend process. Durable queue mode makes job creation idempotent per source and execution multi-instance safe, but does not provide a separately deployed scheduler service.
+
+28. Consolidate Google Drive configuration and make manual-ID OAuth limitations explicit.
+   - UI: One `Data Sync` tab owns Google Drive connection, selected content, schedule settings, and manual sync actions. Detailed ingestion and sync jobs remain only in Processing Status, and normal user-facing views omit raw IDs.
+   - OAuth: `drive.file` remains the least-privilege default. Local demos may explicitly set `GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly` to request `drive.readonly` when Google Picker is unavailable and users paste URLs or IDs. Changing the mode requires disconnecting and reconnecting.
+   - Safety: Read-only mode does not broaden configured synchronization scope; the runtime still lists and downloads only selected file or folder IDs.
 
 ## Risks / Trade-offs
 

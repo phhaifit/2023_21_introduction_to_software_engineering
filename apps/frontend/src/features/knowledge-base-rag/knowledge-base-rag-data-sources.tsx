@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
@@ -14,40 +14,45 @@ import {
 import {
   KnowledgeBaseEmptyState,
   KnowledgeBaseMetadataList,
-  KnowledgeBaseMetricCard,
   KnowledgeBaseSectionCard,
   KnowledgeBaseStatusBadge
 } from "./knowledge-base-rag-components.tsx";
-import type {
-  ExternalDataSourceProvider,
-  ExternalDataSourceStatus
-} from "./knowledge-base-rag-view.ts";
+import type { ExternalDataSourceStatus } from "./knowledge-base-rag-view.ts";
 
 import "./knowledge-base-rag-data-sources.css";
 
 const defaultApiClient = createKnowledgeBaseRagApiClient();
 
-const providerLabels: Record<ExternalDataSourceProvider, string> = {
-  "google-drive": "Google Drive",
-  notion: "Notion",
-  confluence: "Confluence"
-};
-
 export type KnowledgeBaseDataSourcesScreenProps = {
   apiClient?: KnowledgeBaseRagApiClient;
   workspaceId?: EntityId<"workspaceId">;
+  navigateToOAuth?: (url: string) => void;
+  onConnectionChanged?: () => void;
 };
 
 export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesScreenProps) {
-  const { apiClient = defaultApiClient, workspaceId = DEMO_WORKSPACE_ID } = props;
+  const {
+    apiClient = defaultApiClient,
+    workspaceId = DEMO_WORKSPACE_ID,
+    navigateToOAuth = (url) => window.location.assign(url),
+    onConnectionChanged
+  } = props;
   const [dataSources, setDataSources] = useState<KnowledgeDataSourceDto[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [hiddenSuccessMessage, setHiddenSuccessMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    getGoogleDriveCallbackMessage
+  );
   const [retryKey, setRetryKey] = useState(0);
-  const metrics = useMemo(() => createDataSourceMetrics(dataSources), [dataSources]);
+  const callbackErrorMessage = getGoogleDriveCallbackError();
+
+  useEffect(() => {
+    if (!successMessage) return;
+    cleanGoogleDriveCallbackQuery();
+    const timer = window.setTimeout(() => setSuccessMessage(null), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
 
   useEffect(() => {
     let isActive = true;
@@ -59,7 +64,7 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
       .listDataSources(workspaceId)
       .then((sources) => {
         if (!isActive) return;
-        setDataSources(sources);
+        setDataSources(sources.filter((source) => source.provider === "google_drive"));
         setLoadState("loaded");
       })
       .catch((error: unknown) => {
@@ -74,24 +79,38 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
     };
   }, [apiClient, retryKey, workspaceId]);
 
-  async function handleConnect(sourceId: string) {
+  async function handleConnect() {
     if (connectingSourceId) return;
 
-    setConnectingSourceId(sourceId);
+    setConnectingSourceId("google-drive");
     setErrorMessage(null);
     setSuccessMessage(null);
-    setHiddenSuccessMessage(null);
 
     try {
-      const connectedSource = await apiClient.connectDataSource(workspaceId, sourceId);
-      setDataSources((currentSources) =>
-        currentSources.map((source) =>
-          source.sourceId === sourceId ? connectedSource : source
+      const result = await apiClient.startGoogleDriveOAuth(workspaceId, {
+        displayName: "Google Drive"
+      });
+      navigateToOAuth(result.authorizationUrl);
+    } catch (error: unknown) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setConnectingSourceId(null);
+    }
+  }
+
+  async function handleDisconnect(sourceId: string) {
+    setConnectingSourceId(sourceId);
+    setErrorMessage(null);
+    try {
+      const disconnected = await apiClient.disconnectDataSource(workspaceId, sourceId);
+      setDataSources((sources) =>
+        sources.map((source) =>
+          source.sourceId === sourceId ? disconnected : source
         )
       );
-      setSuccessMessage(`${connectedSource.displayName} connection intent recorded.`);
-      setHiddenSuccessMessage(createLegacyConnectionMessage(connectedSource.displayName));
-    } catch (error: unknown) {
+      setSuccessMessage("Google Drive disconnected.");
+      onConnectionChanged?.();
+    } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
       setConnectingSourceId(null);
@@ -100,43 +119,32 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
 
   return (
     <div className="knowledge-base-rag-data-sources">
-      <div className="knowledge-base-rag-data-sources-metrics" aria-label="Data source summary">
-        <KnowledgeBaseMetricCard
-          label="Data sources"
-          value={metrics.total}
-          helperText="External source connections"
-        />
-        <KnowledgeBaseMetricCard
-          label="Connected"
-          value={metrics.connected}
-          helperText="Sources ready for sync"
-        />
-        <KnowledgeBaseMetricCard
-          label="Syncing"
-          value={metrics.syncing}
-          helperText="Sources currently refreshing"
-        />
-        <KnowledgeBaseMetricCard
-          label="Needs attention"
-          value={metrics.failed}
-          helperText="Sources with safe failure summaries"
-        />
-      </div>
-
       {successMessage ? (
         <div
           className="knowledge-base-rag-data-sources-feedback knowledge-base-rag-data-sources-feedback--success"
           role="status"
         >
-          {successMessage}
-          {hiddenSuccessMessage ? <span hidden>{hiddenSuccessMessage}</span> : null}
+          <span>{successMessage}</span>
+          <button
+            className="knowledge-base-rag-data-sources-feedback__dismiss"
+            type="button"
+            aria-label="Dismiss Google Drive notice"
+            onClick={() => setSuccessMessage(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+      {callbackErrorMessage ? (
+        <div className="knowledge-base-rag-data-sources-feedback" role="alert">
+          {callbackErrorMessage}
         </div>
       ) : null}
 
       <KnowledgeBaseSectionCard
-        title="External data sources"
-        eyebrow="Data source connections"
-        description="Review external source connections and record safe connection intent without credentials."
+        title="Google Drive"
+        eyebrow="Connection"
+        description="Connect Google Drive to import selected files or folders into the Knowledge Base."
       >
         {loadState === "loading" ? (
           <div className="knowledge-base-rag-data-sources-feedback" role="status">
@@ -168,7 +176,8 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
               <DataSourceCard
                 isConnecting={connectingSourceId === source.sourceId}
                 key={source.sourceId}
-                onConnect={() => void handleConnect(source.sourceId)}
+                onConnect={() => void handleConnect()}
+                onDisconnect={() => void handleDisconnect(source.sourceId)}
                 source={source}
               />
             ))}
@@ -177,8 +186,13 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
 
         {loadState === "loaded" && dataSources.length === 0 ? (
           <KnowledgeBaseEmptyState
-            title="No data sources available"
-            description="Connect a source before selecting synchronization scope."
+            title="Connect Google Drive"
+            description="Connect a limited Google Drive account to import selected folders or files."
+            action={
+              <button type="button" onClick={() => void handleConnect()}>
+                Connect Google Drive
+              </button>
+            }
           />
         ) : null}
       </KnowledgeBaseSectionCard>
@@ -189,11 +203,16 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
 type DataSourceCardProps = {
   isConnecting: boolean;
   onConnect: () => void;
+  onDisconnect: () => void;
   source: KnowledgeDataSourceDto;
 };
 
-function DataSourceCard({ isConnecting, onConnect, source }: DataSourceCardProps) {
-  const provider = mapProvider(source.provider);
+function DataSourceCard({
+  isConnecting,
+  onConnect,
+  onDisconnect,
+  source
+}: DataSourceCardProps) {
   const status = mapDataSourceStatus(source.status);
   const canConnect = source.status !== "connected" && source.status !== "syncing";
   const failureText = source.failure?.errorMessage;
@@ -202,8 +221,8 @@ function DataSourceCard({ isConnecting, onConnect, source }: DataSourceCardProps
     <article className="knowledge-base-rag-data-source-card" role="listitem">
       <div className="knowledge-base-rag-data-source-card__header">
         <div>
-          <p>{providerLabels[provider]}</p>
-          <h3>{source.displayName}</h3>
+          <p>Google Drive</p>
+          <h3>{source.displayName || "Google Drive"}</h3>
         </div>
         <KnowledgeBaseStatusBadge status={status} />
       </div>
@@ -211,9 +230,27 @@ function DataSourceCard({ isConnecting, onConnect, source }: DataSourceCardProps
       <KnowledgeBaseMetadataList
         className="knowledge-base-rag-data-source-card__metadata"
         items={[
-          { label: "Selected scope", value: source.selectedScopeNodeCount.toString() },
+          { label: "Selected items", value: source.selectedScopeNodeCount.toString() },
+          { label: "Connected account", value: source.connectedAccountEmail ?? "Not available" },
+          { label: "Auto Sync", value: source.autoSyncEnabled ? "On" : "Off" },
+          {
+            label: "Frequency",
+            value: source.autoSyncEnabled
+              ? source.autoSyncFrequency === "hourly"
+                ? "Hourly"
+                : "Daily"
+              : "Not scheduled"
+          },
           { label: "Last sync", value: source.lastSyncAt ? formatDate(source.lastSyncAt) : "Not synced" },
-          { label: "Updated", value: formatDate(source.updatedAt) }
+          {
+            label: "Last result",
+            value:
+              source.lastSyncStatus === "completed"
+                ? "Completed"
+                : source.lastSyncStatus === "failed"
+                  ? "Failed"
+                  : "No result"
+          }
         ]}
       />
 
@@ -221,33 +258,67 @@ function DataSourceCard({ isConnecting, onConnect, source }: DataSourceCardProps
         <p className="knowledge-base-rag-data-source-card__failure">{failureText}</p>
       ) : null}
 
+      {source.status === "connected" ? (
+        <div className="knowledge-base-rag-data-source-card__guidance">
+          <p>
+            Connect authorizes Google Drive. Drive content chooses what to import.
+            Auto Sync keeps selected content updated on a schedule.
+          </p>
+          <p>
+            For privacy and performance, the app does not import your entire Google
+            Drive after connection.
+          </p>
+        </div>
+      ) : null}
+
       <div className="knowledge-base-rag-data-source-card__action">
-        <button type="button" disabled={!canConnect || isConnecting} onClick={onConnect}>
-          {isConnecting ? "Connecting..." : canConnect ? "Connect source" : "Connected"}
-        </button>
+        {canConnect ? (
+          <button type="button" disabled={isConnecting} onClick={onConnect}>
+            {isConnecting ? "Connecting..." : "Connect Google Drive"}
+          </button>
+        ) : (
+          <button
+            className="knowledge-base-rag-data-source-card__disconnect"
+            type="button"
+            disabled={isConnecting}
+            onClick={onDisconnect}
+          >
+            Disconnect
+          </button>
+        )}
       </div>
     </article>
   );
 }
 
-function createDataSourceMetrics(dataSources: KnowledgeDataSourceDto[]) {
-  return {
-    total: dataSources.length,
-    connected: countByStatus(dataSources, "connected"),
-    syncing: countByStatus(dataSources, "syncing"),
-    failed: countByStatus(dataSources, "failed")
-  };
+function getGoogleDriveCallbackMessage(): string | null {
+  if (typeof window === "undefined") return null;
+  const status = new URLSearchParams(window.location.search).get("googleDrive");
+  if (status === "connected") return "Google Drive connected successfully.";
+  if (status === "error") {
+    return null;
+  }
+  return null;
 }
 
-function countByStatus(
-  dataSources: KnowledgeDataSourceDto[],
-  status: KnowledgeDataSourceStatus
-): number {
-  return dataSources.filter((source) => source.status === status).length;
+function getGoogleDriveCallbackError(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("googleDrive") === "error"
+    ? "Google Drive could not be connected. Try again."
+    : null;
 }
 
-function mapProvider(provider: KnowledgeDataSourceDto["provider"]): ExternalDataSourceProvider {
-  return provider === "google_drive" ? "google-drive" : provider;
+function cleanGoogleDriveCallbackQuery(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("googleDrive")) return;
+  url.searchParams.delete("googleDrive");
+  url.searchParams.delete("sourceId");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  );
 }
 
 function mapDataSourceStatus(status: KnowledgeDataSourceStatus): ExternalDataSourceStatus {
@@ -269,8 +340,4 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "The Knowledge Base / RAG API could not be reached.";
-}
-
-function createLegacyConnectionMessage(displayName: string): string {
-  return `${displayName} connection ${["place", "holder"].join("")} recorded.`;
 }

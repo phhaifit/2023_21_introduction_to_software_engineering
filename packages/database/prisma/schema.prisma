@@ -328,6 +328,9 @@ model Document {
   sourceId         String?
   storageKey       String?
   contentHash      String?
+  externalId       String?
+  sourceModifiedAt String?
+  lastSyncedAt     String?
   status           String @default("pending")
   ingestionStatus  String @default("pending")
   indexingStatus   String @default("pending")
@@ -351,6 +354,7 @@ model Document {
   @@index([workspaceId, ingestionStatus])
   @@index([workspaceId, indexingStatus])
   @@index([workspaceId, contentHash])
+  @@unique([workspaceId, sourceId, externalId])
   @@map("documents")
 }
 
@@ -488,6 +492,7 @@ model KnowledgeSyncJob {
   failedItems       Int?
   errorCode         String?
   errorMessage      String?
+  safeSummary       Json?
   createdAt         String
   updatedAt         String
 
@@ -518,6 +523,31 @@ model KnowledgeSyncJobEvent {
   @@index([jobId])
   @@index([eventType])
   @@map("knowledge_sync_job_events")
+}
+
+model KnowledgeRuntimeJob {
+  runtimeJobId   String @id
+  workspaceId   String
+  targetJobId   String
+  kind          String
+  status        String @default("pending")
+  attemptCount  Int    @default(0)
+  leaseOwner    String?
+  leaseExpiresAt String?
+  nextAttemptAt String
+  failureCode   String?
+  failureMessage String?
+  queuedAt      String
+  startedAt     String?
+  completedAt   String?
+  createdAt     String
+  updatedAt     String
+
+  @@unique([kind, targetJobId])
+  @@index([workspaceId, status])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([leaseOwner, leaseExpiresAt])
+  @@map("knowledge_runtime_jobs")
 }
 
 model KnowledgeAccessGrant {

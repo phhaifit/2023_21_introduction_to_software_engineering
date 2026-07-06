@@ -157,8 +157,9 @@ issue. This does not replace live deployment and browser acceptance testing.
 - The existing Playwright suite covers Agent Management and Workflow
   import/export, not KB/RAG; it also cannot run in this environment until the
   matching Chromium binary is installed.
-- External Google Drive, Notion, and Confluence synchronization runtime remains
-  placeholder/deferred.
+- Google Drive is the only implemented external synchronization provider.
+  Manual sync and opt-in scheduled polling operate only on configured file or
+  folder scope. Notion and Confluence remain out of scope.
 - Agent grants are document-level. Source-level grants and a public grant
   administration API remain deferred.
 - Image-only PDFs require OCR, which remains out of scope.
