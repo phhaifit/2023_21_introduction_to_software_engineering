@@ -30,7 +30,7 @@ const createInput = {
   workspaceId,
   name: "Writer Agent",
   role: "Writer",
-  model: "gpt-4",
+  model: "openrouter/owl-alpha",
   instructions: "Write things."
 };
 
@@ -45,7 +45,7 @@ const updateInput = {
   workspaceId,
   agentId: createResult.agent.agentId,
   role: "Senior Writer",
-  model: "gpt-4-turbo",
+  model: "openrouter/owl-alpha",
   instructions: "Write better things."
 };
 
@@ -73,7 +73,7 @@ const throwingCreateInput = {
   workspaceId,
   name: "Throwing Agent",
   role: "Thrower",
-  model: "gpt-4",
+  model: "openrouter/owl-alpha",
   instructions: "Throw things."
 };
 

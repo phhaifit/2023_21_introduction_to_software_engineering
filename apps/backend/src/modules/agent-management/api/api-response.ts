@@ -4,6 +4,8 @@ import type {
   ApiFailure,
   ApiMeta,
   ApiSuccess,
+  ApiPaginatedSuccess,
+  ApiPaginationMeta,
   ErrorCode
 } from "@vcp/shared/contracts/api.ts";
 
@@ -19,6 +21,24 @@ export function sendAgentApiSuccess<T>(request: Request, response: Response, dat
     ok: true,
     data,
     meta: createApiMeta(request)
+  };
+
+  response.status(200).json(body);
+}
+
+export function sendAgentPaginatedApiSuccess<T>(
+  request: Request,
+  response: Response,
+  data: T[],
+  pagination: ApiPaginationMeta
+): void {
+  const body: ApiPaginatedSuccess<T> = {
+    ok: true,
+    data,
+    meta: {
+      ...createApiMeta(request),
+      pagination
+    }
   };
 
   response.status(200).json(body);

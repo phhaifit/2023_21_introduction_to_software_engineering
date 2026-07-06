@@ -1,9 +1,7 @@
 ## Purpose
 
 Define workspace-scoped virtual employee lifecycle management, configuration, lifecycle control, and public agent summary behavior.
-
 ## Requirements
-
 ### Requirement: Agent Listing
 The system SHALL show workspace agents with key operating information.
 
@@ -16,7 +14,7 @@ The system SHALL allow authorized users to create an agent in a workspace.
 
 #### Scenario: Agent created
 - **WHEN** an authorized user with `agents:manage` permission submits a valid name, role, model, and instructions
-- **THEN** the system creates the agent, stores its configuration, and prepares the corresponding skill configuration content
+- **THEN** the system creates the agent, stores its configuration, prepares the corresponding skill configuration content, and refreshes the paginated agent list
 
 #### Scenario: Invalid agent rejected
 - **WHEN** an authorized user submits missing or invalid agent configuration
@@ -67,3 +65,67 @@ The system SHALL verify the agent management workflows via E2E testing.
 #### Scenario: Run Playwright tests
 - **WHEN** the e2e test suite is executed
 - **THEN** all agent management tests pass
+
+### Requirement: Agent Rename
+The system SHALL allow authorized users to rename an existing agent.
+
+#### Scenario: Agent renamed
+- **WHEN** an authorized user with `agents:manage` permission submits a new name for an existing agent
+- **THEN** the system validates workspace-scoped uniqueness, persists the new name, updates the skill configuration content, and returns the updated agent summary
+
+### Requirement: Agent Duplicate
+The system SHALL allow authorized users to duplicate an agent's configuration.
+
+#### Scenario: Agent duplicated
+- **WHEN** an authorized user with `agents:manage` permission requests to duplicate an existing agent
+- **THEN** the system creates a new agent with a unique auto-generated name and cloned configuration, writes the skill configuration content, and returns the new agent's public summary
+
+### Requirement: Assistant Draft Agent Creation
+The system SHALL allow authorized managers to create agents from validated assistant drafts.
+
+#### Scenario: Assistant draft creates agent
+- **WHEN** an authorized user with `agents:manage` permission submits a valid assistant draft
+- **THEN** the system creates the agent, stores its configuration, writes the corresponding `skill.md` content, refreshes the paginated list, and returns the public summary
+
+#### Scenario: Assistant draft defaults enabled
+- **WHEN** an agent is created from a valid assistant draft
+- **THEN** the new agent has status `enabled`
+
+### Requirement: Catalog Validated Agent Model
+The system SHALL treat the agent model as a catalog-selected value instead of arbitrary free text.
+
+#### Scenario: Agent model from catalog
+- **WHEN** an authorized user creates or updates an agent
+- **THEN** the model value must match a selectable model from the workspace model catalog
+
+#### Scenario: Agent model validation failure
+- **WHEN** an authorized user submits a model not available in the workspace model catalog
+- **THEN** the system rejects the create or update request with a validation error
+
+### Requirement: Skill Intent Is Not Permission
+The system SHALL treat `skill.md` tool and knowledge sections as agent intent rather than workspace permission.
+
+#### Scenario: Skill references do not grant permission
+- **WHEN** an imported or generated `skill.md` references a tool or knowledge document
+- **THEN** the system does not grant tool access or knowledge access based on that reference alone
+
+### Requirement: Agent Knowledge Assignment UI
+The system SHALL let authorized users manage document-level KB/RAG grants from
+the existing Agent profile surface.
+
+#### Scenario: Assigned and available documents loaded
+- **WHEN** a user opens an agent profile
+- **THEN** the UI loads workspace KB/RAG documents and active grants through the typed KB/RAG API client
+- **AND** it derives assigned and available lists without runtime mock data
+
+#### Scenario: Knowledge document assigned
+- **WHEN** an authorized manager assigns an available document
+- **THEN** the UI calls the document grant API and updates the assigned and available lists
+
+#### Scenario: Knowledge document removed
+- **WHEN** an authorized manager removes an assigned document
+- **THEN** the UI revokes the document grant and updates the assigned and available lists
+
+#### Scenario: Knowledge assignment UI remains safe
+- **WHEN** loading or mutation fails
+- **THEN** the UI displays a bounded safe error without storage, vector, provider, queue, credential, secret, or stack-trace details

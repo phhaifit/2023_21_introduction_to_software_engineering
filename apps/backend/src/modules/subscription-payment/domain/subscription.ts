@@ -12,6 +12,10 @@ export type Subscription = {
   expiresAt: string;
   createdAt: string;
   updatedAt: string;
+  autoRenew: boolean;
+  cardNumber: string | null;
+  cardHolder: string | null;
+  cardExpiry: string | null;
 };
 
 export type Transaction = {
@@ -24,10 +28,14 @@ export type Transaction = {
   updatedAt: string;
 };
 
-export function createSubscription(draft: Omit<Subscription, "status" | "createdAt" | "updatedAt"> & { createdAt: string }): Subscription {
+export function createSubscription(draft: Omit<Subscription, "status" | "createdAt" | "updatedAt" | "autoRenew" | "cardNumber" | "cardHolder" | "cardExpiry"> & { createdAt: string }): Subscription {
   return {
     ...draft,
     status: "pending",
+    autoRenew: true,
+    cardNumber: null,
+    cardHolder: null,
+    cardExpiry: null,
     createdAt: draft.createdAt,
     updatedAt: draft.createdAt
   };
@@ -49,7 +57,11 @@ export function toSubscriptionPublicSummary(sub: Subscription): SubscriptionPubl
     status: sub.status,
     expiresAt: sub.expiresAt,
     createdAt: sub.createdAt,
-    updatedAt: sub.updatedAt
+    updatedAt: sub.updatedAt,
+    autoRenew: sub.autoRenew,
+    cardNumber: sub.cardNumber,
+    cardHolder: sub.cardHolder,
+    cardExpiry: sub.cardExpiry
   };
 }
 
@@ -63,4 +75,19 @@ export function toTransactionPublicSummary(tx: Transaction): TransactionPublicSu
     createdAt: tx.createdAt,
     updatedAt: tx.updatedAt
   };
+}
+
+export function calculateProratedUpgradeAmount(
+  sub: Pick<Subscription, "expiresAt">,
+  premiumPrice: number,
+  standardPrice: number,
+  nowStr: string
+): number {
+  const now = new Date(nowStr).getTime();
+  const expiresAt = new Date(sub.expiresAt).getTime();
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const remainingDays = Math.max(0, (expiresAt - now) / msPerDay);
+  const totalDays = 30;
+  const proratedAmount = (premiumPrice - standardPrice) * (remainingDays / totalDays);
+  return Math.max(0, Number(proratedAmount.toFixed(2)));
 }

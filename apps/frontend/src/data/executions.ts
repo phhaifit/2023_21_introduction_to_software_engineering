@@ -1,44 +1,49 @@
-import { Execution } from "../types/execution";
+import type { WorkflowExecutionDto } from "@vcp/shared/contracts/workflow.ts";
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
-export const mockExecutions: Execution[] = [
+export interface ExecutionUIModel extends WorkflowExecutionDto {
+  workflowName: string; // Additional field for UI display convenience
+}
+
+export const mockExecutions: ExecutionUIModel[] = [
   {
-    id: "exe-1",
-    workflowId: "wf-1",
+    executionId: "exec_alpha_001" as EntityId<"executionId">,
+    workspaceId: "ws_1" as EntityId<"workspaceId">,
+    workflowId: "wf_1" as EntityId<"workflowId">,
     workflowName: "Data Pipeline Alpha",
     status: "Running",
-    startTime: "2026-06-16 08:28:10",
-    duration: "2m 15s"
+    triggeredBy: "user_1" as EntityId<"userId">,
+    startedAt: "2026-06-24T06:30:00.000Z",
+    completedAt: null,
   },
   {
-    id: "exe-2",
-    workflowId: "wf-4",
-    workflowName: "Monthly Report Generator",
-    status: "Completed",
-    startTime: "2026-06-01 00:00:05",
-    duration: "4m 32s"
-  },
-  {
-    id: "exe-3",
-    workflowId: "wf-5",
-    workflowName: "System Health Checker",
-    status: "Failed",
-    startTime: "2026-06-16 04:59:00",
-    duration: "1m 05s"
-  },
-  {
-    id: "exe-4",
-    workflowId: "wf-2",
-    workflowName: "Customer Sync Flow",
-    status: "Completed",
-    startTime: "2026-06-15 17:40:00",
-    duration: "3m 12s"
-  },
-  {
-    id: "exe-5",
-    workflowId: "wf-1",
+    executionId: "exec_alpha_002" as EntityId<"executionId">,
+    workspaceId: "ws_1" as EntityId<"workspaceId">,
+    workflowId: "wf_1" as EntityId<"workflowId">,
     workflowName: "Data Pipeline Alpha",
+    status: "Success",
+    triggeredBy: "user_1" as EntityId<"userId">,
+    startedAt: "2026-06-23T14:00:00.000Z",
+    completedAt: "2026-06-23T14:45:12.000Z",
+  },
+  {
+    executionId: "exec_sync_001" as EntityId<"executionId">,
+    workspaceId: "ws_1" as EntityId<"workspaceId">,
+    workflowId: "wf_2" as EntityId<"workflowId">,
+    workflowName: "Customer Sync Flow",
     status: "Failed",
-    startTime: "2026-06-15 08:30:00",
-    duration: "1m 45s"
+    triggeredBy: "user_2" as EntityId<"userId">,
+    startedAt: "2026-06-23T09:15:00.000Z",
+    completedAt: "2026-06-23T09:17:05.000Z",
+  },
+  {
+    executionId: "exec_health_001" as EntityId<"executionId">,
+    workspaceId: "ws_1" as EntityId<"workspaceId">,
+    workflowId: "wf_5" as EntityId<"workflowId">,
+    workflowName: "System Health Checker",
+    status: "Canceled",
+    triggeredBy: "user_1" as EntityId<"userId">,
+    startedAt: "2026-06-16T05:00:00.000Z",
+    completedAt: "2026-06-16T05:00:45.000Z",
   }
 ];

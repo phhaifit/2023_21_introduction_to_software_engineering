@@ -1,1 +1,12 @@
-export type PageKey = "workflows" | "agents" | "billing" | "settings";
+export type PageKey =
+  | "dashboard"
+  | "workspaces"
+  | "workflows"
+  | "workflow-editor"
+  | "executions"
+  | "agents"
+  | "knowledge-base-rag"
+  | "billing"
+  | "settings"
+  | "authentication"
+  | "account";

@@ -135,9 +135,9 @@ try {
     await repository.save(agentOther);
 
     const list = await repository.listByWorkspace(workspaceA);
-    assert.equal(list.length, 2);
-    assert.equal(list[0].agentId, "persist-test-5a");
-    assert.equal(list[1].agentId, "persist-test-5b");
+    assert.equal(list.agents.length, 2);
+    assert.equal(list.agents[0].agentId, "persist-test-5a");
+    assert.equal(list.agents[1].agentId, "persist-test-5b");
     console.log("  ✓ listByWorkspace: correct workspace, ordered by createdAt asc");
   }
 
@@ -153,15 +153,15 @@ try {
     await repository.save(deletedAgent);
 
     const enabledOnly = await repository.listByWorkspace(workspaceA, { statuses: ["enabled"] });
-    assert.equal(enabledOnly.length, 1);
-    assert.equal(enabledOnly[0].agentId, "persist-test-6a");
+    assert.equal(enabledOnly.agents.length, 1);
+    assert.equal(enabledOnly.agents[0].agentId, "persist-test-6a");
 
     const activeOnly = await repository.listByWorkspace(workspaceA, {
       statuses: ["enabled", "disabled"]
     });
-    assert.equal(activeOnly.length, 2);
+    assert.equal(activeOnly.agents.length, 2);
     assert.deepEqual(
-      activeOnly.map((a) => a.agentId),
+      activeOnly.agents.map((a) => a.agentId),
       ["persist-test-6a", "persist-test-6b"]
     );
     console.log("  ✓ listByWorkspace: filter by statuses");
@@ -179,8 +179,8 @@ try {
     const result = await repository.listByWorkspace(workspaceA, {
       statuses: ["enabled", "disabled"]
     });
-    assert.equal(result.length, 1);
-    assert.equal(result[0].agentId, "persist-test-7a");
+    assert.equal(result.agents.length, 1);
+    assert.equal(result.agents[0].agentId, "persist-test-7a");
     console.log("  ✓ listByWorkspace: deleted agents excluded with active filter");
   }
 

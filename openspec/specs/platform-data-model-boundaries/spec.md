@@ -1,0 +1,159 @@
+## Purpose
+
+Define the shared database model boundaries that let feature teams align on Prisma schema ownership, tenant scoping, common references, migrations, and schema verification.
+
+## Requirements
+
+### Requirement: Platform Model Ownership
+The platform data model foundation SHALL define an ownership boundary for every shared Prisma model included in the schema skeleton.
+
+#### Scenario: Ownership boundaries are documented
+- **WHEN** a developer reviews the change design before implementation
+- **THEN** the design identifies the owning module for `User`, `Workspace`, `WorkspaceMember`, `Invitation`, `Subscription`, `Transaction`, `Agent`, `Tool`, `ToolConnection`, `AgentToolAssignment`, `Workflow`, `WorkflowStep`, `Task`, `TaskRun`, `Document`, `KnowledgeIndex`, `KnowledgeAccessGrant`, and `Job`
+
+#### Scenario: Feature team adds module-specific fields
+- **WHEN** a feature team needs fields beyond identity, ownership, status, timestamps, and cross-module references
+- **THEN** those fields are added by the owning module's OpenSpec change instead of expanding the foundation without review
+
+### Requirement: Minimum Prisma Schema Skeleton
+The database package SHALL define the minimum shared Prisma models required for cross-module alignment.
+
+#### Scenario: Required models exist
+- **WHEN** the Prisma schema is inspected
+- **THEN** it contains models named `User`, `Workspace`, `WorkspaceMember`, `Invitation`, `Subscription`, `Transaction`, `Agent`, `Tool`, `ToolConnection`, `AgentToolAssignment`, `Workflow`, `WorkflowStep`, `Task`, `TaskRun`, `Document`, `KnowledgeIndex`, `KnowledgeAccessGrant`, and `Job`
+
+#### Scenario: Existing persisted models remain available
+- **WHEN** existing Agent Management and Subscription Payment persistence code imports generated Prisma model types
+- **THEN** `Agent`, `Subscription`, and `Transaction` remain exported from the database package
+
+### Requirement: Shared Identity and Tenant Fields
+The schema skeleton SHALL use string primary keys aligned with shared `EntityId` kinds and SHALL include `workspaceId` on workspace-scoped entities.
+
+#### Scenario: Entity identifiers align with shared contracts
+- **WHEN** a skeleton model is inspected
+- **THEN** its primary identifier is a `String` field named with the matching shared ID kind such as `userId`, `workspaceId`, `memberId`, `agentId`, `toolId`, `workflowId`, `taskId`, `documentId`, `subscriptionId`, `transactionId`, or `jobId`
+
+#### Scenario: Workspace-scoped entities include tenant boundary
+- **WHEN** a workspace-scoped model is inspected
+- **THEN** the model contains a `workspaceId` field
+
+#### Scenario: Cross-module references are scalar fields
+- **WHEN** a model references an entity owned by another module
+- **THEN** the schema exposes the reference as a scalar ID field that can be used without importing private module implementation code
+
+### Requirement: Shared Lookup Indexes
+The schema skeleton SHALL include indexes for common workspace, user, status, and parent-child lookup paths.
+
+#### Scenario: Workspace lookup index exists
+- **WHEN** a model contains a `workspaceId` field
+- **THEN** the schema includes an index that supports lookup by `workspaceId`
+
+#### Scenario: User lookup index exists
+- **WHEN** a model contains a `userId` field
+- **THEN** the schema includes an index that supports lookup by `userId`
+
+#### Scenario: Status lookup index exists
+- **WHEN** a model contains a `status` field used for lifecycle filtering
+- **THEN** the schema includes an index that supports lookup by `status` or by `workspaceId` plus `status`
+
+#### Scenario: Parent lookup index exists
+- **WHEN** a model is scoped by a parent identifier such as `workflowId`, `taskId`, `documentId`, `agentId`, or `subscriptionId`
+- **THEN** the schema includes an index that supports the parent lookup
+
+### Requirement: Additive Migration
+The data model boundary change SHALL provide a generated Prisma migration for the skeleton schema.
+
+#### Scenario: Migration exists
+- **WHEN** the change is implemented
+- **THEN** `packages/database/prisma/migrations/*/migration.sql` includes additive table and index changes for the skeleton models
+
+#### Scenario: Deep cross-module cascade behavior is avoided
+- **WHEN** the migration is inspected
+- **THEN** it does not introduce broad cascading deletes across module ownership boundaries unless the design explicitly justifies the lifecycle behavior
+
+### Requirement: Schema Verification
+The data model boundary change SHALL include automated verification for the skeleton schema.
+
+#### Scenario: Prisma schema validates
+- **WHEN** Prisma validation is run with a dummy PostgreSQL `DATABASE_URL`
+- **THEN** the schema validates successfully
+
+#### Scenario: Schema contract test runs
+- **WHEN** the contract test suite runs
+- **THEN** it verifies the required model names and key fields for the platform data model skeleton
+
+#### Scenario: Full project tests run
+- **WHEN** the change is ready for review
+- **THEN** the project test suite passes without requiring a live database for schema-only contract coverage
+
+### Requirement: Shared Uniqueness Constraints
+The database schema SHALL define targeted unique constraints for cross-module records where duplicate rows are clearly invalid.
+
+#### Scenario: Workspace member uniqueness enforced
+- **WHEN** the Prisma schema is inspected
+- **THEN** `WorkspaceMember` has a uniqueness guarantee for `workspaceId` and `userId`
+
+#### Scenario: Agent workspace name uniqueness enforced
+- **WHEN** the Prisma schema is inspected
+- **THEN** `Agent` has a uniqueness guarantee that prevents duplicate agent names within the same workspace
+
+#### Scenario: Tool assignment uniqueness enforced
+- **WHEN** the Prisma schema is inspected
+- **THEN** `AgentToolAssignment` has a uniqueness guarantee that prevents assigning the same tool to the same agent more than once in a workspace
+
+#### Scenario: Workflow step ordering uniqueness enforced
+- **WHEN** the Prisma schema is inspected
+- **THEN** `WorkflowStep` has a uniqueness guarantee that prevents duplicate `stepOrder` values inside one workflow
+
+#### Scenario: Knowledge grant uniqueness enforced
+- **WHEN** the Prisma schema is inspected
+- **THEN** `KnowledgeAccessGrant` has a uniqueness guarantee that prevents duplicate document access grants for the same agent inside one workspace
+
+### Requirement: Relation and Cascade Policy
+The database foundation SHALL preserve scalar ID references as the cross-module contract and SHALL avoid broad cascading deletes across module ownership boundaries.
+
+#### Scenario: Scalar references remain available
+- **WHEN** a model references another module's entity
+- **THEN** the scalar ID field such as `workspaceId`, `userId`, `agentId`, `workflowId`, `taskId`, `documentId`, `subscriptionId`, or `jobId` remains available for module contracts
+
+#### Scenario: Unsafe cascade is rejected
+- **WHEN** a platform database migration is inspected
+- **THEN** it does not include `ON DELETE CASCADE` across module-owned tables unless the design explicitly documents the lifecycle ownership and cleanup behavior
+
+#### Scenario: Delete behavior is explicit
+- **WHEN** a module needs to delete, archive, or clean up shared database records
+- **THEN** the module defines the lifecycle behavior in its own OpenSpec change instead of relying on implicit foundation cascades
+
+### Requirement: Status and Timestamp Integrity
+The database foundation SHALL keep status and timestamp conventions explicit until a dedicated type migration is proposed.
+
+#### Scenario: Timestamp convention remains stable
+- **WHEN** the foundation schema is hardened
+- **THEN** existing `createdAt`, `updatedAt`, `startedAt`, `completedAt`, and `expiresAt` fields remain compatible with the current string timestamp mappers
+
+#### Scenario: Status fields remain intentional
+- **WHEN** a model contains a `status` field
+- **THEN** the field has a documented default or is validated by the owning module's domain logic
+
+#### Scenario: Enum conversion deferred
+- **WHEN** a developer wants Prisma enums or `DateTime` fields
+- **THEN** that conversion is proposed as a separate OpenSpec change with mapper, migration, and compatibility notes
+
+### Requirement: Migration Safety Checks
+The platform data model foundation SHALL include automated checks that protect existing persisted fields and detect unsafe migration behavior.
+
+#### Scenario: Existing persisted fields are preserved
+- **WHEN** schema contract tests run
+- **THEN** required `Agent`, `Subscription`, and `Transaction` fields from existing persistence code are still present
+
+#### Scenario: Unique constraints are verified
+- **WHEN** schema contract tests run
+- **THEN** required shared unique constraints are verified in the Prisma schema
+
+#### Scenario: Migration avoids destructive operations
+- **WHEN** migration SQL for this hardening change is inspected by tests
+- **THEN** it does not drop existing tables or columns
+
+#### Scenario: Manual rollback path is documented
+- **WHEN** a developer manually applies the hardening migration to a local database
+- **THEN** the expected rollback path is backup and restore rather than editing an already-created migration

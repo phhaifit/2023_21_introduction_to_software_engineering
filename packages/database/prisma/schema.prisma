@@ -1,9 +1,88 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/client"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  userId       String @id
+  email        String @unique
+  status       String @default("active")
+  passwordHash String
+  createdAt    String
+  updatedAt    String
+
+  @@index([status])
+  @@map("users")
+}
+
+model Session {
+  sessionId String  @id
+  userId    String
+  tokenHash String
+  createdAt String
+  expiresAt String
+  revokedAt String?
+
+  @@map("sessions")
+  @@index([userId])
+  @@index([expiresAt])
+  @@unique([tokenHash])
+}
+
+model Workspace {
+  workspaceId    String  @id
+  userId         String
+  name           String
+  status         String  @default("pending")
+  plan           String  @default("free")
+  runtimeUrl     String?
+  containerId    String?
+  failureReason  String?
+  subscriptionId String?
+  createdAt      String
+  updatedAt      String
+
+  @@index([userId])
+  @@index([status])
+  @@index([userId, status])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  memberId    String @id
+  workspaceId String
+  userId      String
+  role        String
+  status      String @default("active")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([workspaceId, status])
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Invitation {
+  invitationId    String @id
+  workspaceId     String
+  email           String
+  role            String
+  status          String @default("pending")
+  invitedByUserId String
+  createdAt       String
+  updatedAt       String
+
+  @@index([workspaceId])
+  @@index([invitedByUserId])
+  @@index([workspaceId, status])
+  @@unique([workspaceId, email, status])
+  @@map("invitations")
 }
 
 model Agent {
@@ -13,11 +92,14 @@ model Agent {
   role         String
   model        String
   instructions String
+  runtimeConfig Json?
   status       String @default("enabled")
   createdAt    String
   updatedAt    String
 
   @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@unique([workspaceId, name])
   @@map("agents")
 }
 
@@ -30,9 +112,11 @@ model Subscription {
   expiresAt      String
   createdAt      String
   updatedAt      String
+  autoRenew      Boolean? @default(true)
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([status])
   @@map("subscriptions")
 }
 
@@ -46,6 +130,484 @@ model Transaction {
   updatedAt      String
 
   @@index([subscriptionId])
+  @@index([status])
   @@map("transactions")
 }
 
+model Tool {
+  toolId      String @id
+  workspaceId String
+  name        String
+  provider    String
+  type        String
+  status      String @default("available")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@map("tools")
+}
+
+model ToolConnection {
+  toolConnectionId String @id
+  workspaceId      String
+  toolId           String
+  status           String @default("connected")
+  createdAt        String
+  updatedAt        String
+
+  @@index([workspaceId])
+  @@index([toolId])
+  @@index([workspaceId, status])
+  @@unique([workspaceId, toolId])
+  @@map("tool_connections")
+}
+
+model AgentToolAssignment {
+  assignmentId String @id
+  workspaceId  String
+  agentId      String
+  toolId       String
+  status       String @default("active")
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@index([agentId])
+  @@index([toolId])
+  @@index([workspaceId, status])
+  @@unique([workspaceId, agentId, toolId])
+  @@map("agent_tool_assignments")
+}
+
+model Workflow {
+  workflowId  String @id
+  workspaceId String
+  name        String
+  description   String?
+  status        String @default("published")
+  triggerType   String @default("manual")
+  triggerConfig Json?
+  version       Int    @default(1)
+  parentWorkflowId String?
+  createdAt     String
+  updatedAt   String
+
+  steps         WorkflowStep[]
+  executions    WorkflowExecution[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@index([parentWorkflowId])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  workflowStepId String   @id
+  workspaceId    String
+  workflowId     String
+  agentId        String?
+  stepType       String   @default("agent")
+  stepOrder      Int
+  nextSteps      Json?
+  inputMapping   Json?
+  createdAt      String
+  updatedAt      String
+
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
+  logs          WorkflowStepLog[]
+
+  @@index([workspaceId])
+  @@index([workflowId])
+  @@index([agentId])
+  @@map("workflow_steps")
+}
+
+model WorkflowExecution {
+  executionId   String   @id
+  workspaceId   String
+  workflowId    String
+  status        String   @default("Pending")
+  triggeredBy   String
+  startedAt     String
+  completedAt   String?
+
+  workflow      Workflow @relation(fields: [workflowId], references: [workflowId], onDelete: Cascade)
+  logs          WorkflowStepLog[]
+
+  @@index([workspaceId])
+  @@index([workflowId])
+  @@map("workflow_executions")
+}
+
+model WorkflowStepLog {
+  logId           String   @id
+  workspaceId     String
+  executionId     String
+  workflowStepId  String
+  status          String
+  inputData       Json?
+  outputData      Json?
+  errorMsg        String?
+  startedAt       String
+  completedAt     String?
+
+  execution     WorkflowExecution @relation(fields: [executionId], references: [executionId], onDelete: Cascade)
+  step          WorkflowStep      @relation(fields: [workflowStepId], references: [workflowStepId], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([executionId])
+  @@index([workflowStepId])
+  @@map("workflow_step_logs")
+}
+
+model Task {
+  taskId            String  @id
+  workspaceId       String
+  submittedByUserId String
+  prompt            String
+  routingMode       String
+  agentId           String?
+  workflowId        String?
+  status            String  @default("queued")
+  createdAt         String
+  updatedAt         String
+
+  runs TaskRun[]
+
+  @@unique([workspaceId, taskId])
+  @@index([workspaceId])
+  @@index([submittedByUserId])
+  @@index([agentId])
+  @@index([workflowId])
+  @@index([workspaceId, status])
+  @@map("tasks")
+}
+
+model TaskRun {
+  taskRunId          String  @id
+  workspaceId        String
+  taskId             String
+  jobId              String?
+  status             String  @default("queued")
+  attemptNumber      Int
+  resolvedAgentId    String?
+  resolvedWorkflowId String?
+  result             Json?
+  errorCode          String?
+  errorMessage       String?
+  queuedAt           String
+  startedAt          String?
+  completedAt        String?
+  createdAt          String
+  updatedAt          String
+
+  task Task @relation(fields: [workspaceId, taskId], references: [workspaceId, taskId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([taskId, attemptNumber])
+  @@unique([jobId])
+  @@index([workspaceId])
+  @@index([taskId])
+  @@index([jobId])
+  @@index([workspaceId, status])
+  @@index([workspaceId, taskId])
+  @@map("task_runs")
+}
+
+model Document {
+  documentId       String @id
+  workspaceId      String
+  uploadedByUserId String
+  displayName      String
+  fileName         String
+  mimeType         String @default("application/octet-stream")
+  fileType         String @default("unknown")
+  sizeBytes        Int    @default(0)
+  sourceType       String @default("upload")
+  sourceId         String?
+  storageKey       String?
+  contentHash      String?
+  status           String @default("pending")
+  ingestionStatus  String @default("pending")
+  indexingStatus   String @default("pending")
+  chunkCount       Int    @default(0)
+  indexedChunkCount Int   @default(0)
+  deletedAt        String?
+  createdAt        String
+  updatedAt        String
+
+  source         KnowledgeDataSource?     @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+  indexes        KnowledgeIndex[]
+  chunks         KnowledgeDocumentChunk[]
+  ingestionJobs  KnowledgeIngestionJob[]
+  accessGrants   KnowledgeAccessGrant[]
+
+  @@index([workspaceId])
+  @@index([uploadedByUserId])
+  @@index([sourceId])
+  @@index([workspaceId, sourceType])
+  @@index([workspaceId, status])
+  @@index([workspaceId, ingestionStatus])
+  @@index([workspaceId, indexingStatus])
+  @@index([workspaceId, contentHash])
+  @@map("documents")
+}
+
+model KnowledgeIndex {
+  knowledgeIndexId String @id
+  workspaceId       String
+  documentId        String
+  status            String @default("pending")
+  chunkCount        Int    @default(0)
+  indexedChunkCount Int    @default(0)
+  lastIndexedAt     String?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         String
+  updatedAt         String
+
+  document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([workspaceId, status])
+  @@map("knowledge_indexes")
+}
+
+model KnowledgeDocumentChunk {
+  chunkId         String @id
+  workspaceId    String
+  documentId     String
+  chunkIndex     Int
+  contentText    String
+  contentHash    String?
+  tokenCount     Int?
+  embeddingStatus String @default("pending")
+  embedding       Unsupported("vector")?
+  embeddingDimensions Int?
+  vectorRef      String?
+  sourceLocator  String?
+  createdAt      String
+  updatedAt      String
+
+  document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([documentId, chunkIndex])
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([workspaceId, embeddingStatus])
+  @@index([workspaceId, embeddingDimensions])
+  @@index([workspaceId, contentHash])
+  @@map("knowledge_document_chunks")
+}
+
+model KnowledgeIngestionJob {
+  jobId             String @id
+  workspaceId       String
+  documentId        String?
+  status            String @default("pending")
+  progress          Int    @default(0)
+  queuedAt          String
+  startedAt         String?
+  completedAt       String?
+  failedAt          String?
+  errorCode         String?
+  errorMessage      String?
+  requestedByUserId String?
+  createdAt         String
+  updatedAt         String
+
+  document Document? @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([requestedByUserId])
+  @@index([workspaceId, status])
+  @@map("knowledge_ingestion_jobs")
+}
+
+model KnowledgeDataSource {
+  sourceId           String @id
+  workspaceId        String
+  provider           String
+  displayName        String
+  connectionStatus   String @default("not_connected")
+  lastSyncAt         String?
+  connectedByUserId  String?
+  safeMetadata       Json?
+  createdAt          String
+  updatedAt          String
+
+  documents      Document[]
+  syncScopeNodes KnowledgeSyncScopeNode[]
+  syncJobs       KnowledgeSyncJob[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, provider])
+  @@index([workspaceId, connectionStatus])
+  @@index([connectedByUserId])
+  @@map("knowledge_data_sources")
+}
+
+model KnowledgeSyncScopeNode {
+  scopeNodeId       String @id
+  workspaceId       String
+  sourceId          String
+  parentScopeNodeId String?
+  externalId        String
+  nodeType          String
+  displayName       String
+  selected          Boolean @default(false)
+  safeMetadata      Json?
+  createdAt         String
+  updatedAt         String
+
+  dataSource KnowledgeDataSource @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([sourceId, externalId])
+  @@index([workspaceId])
+  @@index([sourceId])
+  @@index([parentScopeNodeId])
+  @@index([workspaceId, selected])
+  @@map("knowledge_sync_scope_nodes")
+}
+
+model KnowledgeSyncJob {
+  jobId             String @id
+  workspaceId       String
+  sourceId          String?
+  status            String @default("pending")
+  requestedByUserId String?
+  queuedAt          String
+  startedAt         String?
+  completedAt       String?
+  failedAt          String?
+  totalItems        Int?
+  syncedItems       Int?
+  failedItems       Int?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         String
+  updatedAt         String
+
+  dataSource KnowledgeDataSource? @relation(fields: [sourceId], references: [sourceId], onDelete: Restrict, onUpdate: NoAction)
+  events     KnowledgeSyncJobEvent[]
+
+  @@index([workspaceId])
+  @@index([sourceId])
+  @@index([requestedByUserId])
+  @@index([workspaceId, status])
+  @@map("knowledge_sync_jobs")
+}
+
+model KnowledgeSyncJobEvent {
+  syncJobEventId String @id
+  workspaceId    String
+  jobId          String
+  eventType      String
+  status         String?
+  message        String?
+  errorCode      String?
+  occurredAt     String
+  createdAt      String
+
+  syncJob KnowledgeSyncJob @relation(fields: [jobId], references: [jobId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([workspaceId])
+  @@index([jobId])
+  @@index([eventType])
+  @@map("knowledge_sync_job_events")
+}
+
+model KnowledgeAccessGrant {
+  knowledgeAccessGrantId String @id
+  workspaceId             String
+  documentId              String
+  agentId                 String
+  status                  String @default("active")
+  createdAt               String
+  updatedAt               String
+
+  document Document @relation(fields: [documentId], references: [documentId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([agentId])
+  @@index([workspaceId, status])
+  @@unique([workspaceId, documentId, agentId])
+  @@map("knowledge_access_grants")
+}
+
+model Job {
+  jobId       String  @id
+  workspaceId String?
+  userId      String?
+  type        String
+  status      String  @default("queued")
+  createdAt   String
+  updatedAt   String
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@map("jobs")
+}
+
+model PaymentMethod {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  type         String   // "card" | "momo" | "vnpay"
+  brand        String?  // "visa" | "mastercard" etc.
+  last4        String
+  holder       String
+  isDefault    Boolean  @default(false)
+  gatewayToken String?  // Token thay thế số thẻ thô
+  createdAt    String
+  updatedAt    String
+
+  @@index([workspaceId])
+  @@map("payment_methods")
+}
+
+model PromoCode {
+  promoCodeId   String  @id
+  code          String  @unique
+  discountAmount Float
+  validFrom     String
+  validUntil    String
+  maxUsages     Int     @default(0)
+  currentUsages Int     @default(0)
+  status        String  @default("active")
+  createdAt     String
+  updatedAt     String
+
+  @@index([code])
+  @@index([status])
+  @@map("promo_codes")
+}
+
+model Conversation {
+  conversationId   String        @id
+  workspaceId      String
+  title            String
+  createdAt        String
+  updatedAt        String
+  associatedTarget Json?
+  messages         ChatMessage[]
+
+  @@index([workspaceId])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  messageId      String       @id
+  conversationId String
+  role           String
+  content        String
+  timestamp      String
+  conversation   Conversation @relation(fields: [conversationId], references: [conversationId], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("chat_messages")
+}

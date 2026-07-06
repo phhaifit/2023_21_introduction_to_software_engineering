@@ -1,102 +1,147 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+
+const e2eAgentName = `Test E2E Agent ${Date.now()}`;
+
+async function openAgentManagement(page: Page) {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Agents' }).click();
+  await expect(page.getByRole('heading', { name: 'Agents', level: 1, exact: true })).toBeVisible();
+}
+
+function agentRow(page: Page, name: string) {
+  return page.getByRole('row', { name: new RegExp(name) });
+}
+
+async function openActionsFor(row: Locator) {
+  await row.getByRole('button', { name: /Open actions/ }).hover();
+}
+
+async function fillAgentDialog(
+  dialog: Locator,
+  values: { name?: string; role?: string; model?: string; instructions?: string }
+) {
+  if (values.name !== undefined) {
+    await dialog.getByLabel('Name', { exact: true }).fill(values.name);
+  }
+
+  if (values.role !== undefined) {
+    await dialog.getByLabel('Role', { exact: true }).fill(values.role);
+  }
+
+  if (values.model !== undefined) {
+    await dialog.getByLabel('Model', { exact: true }).selectOption(values.model);
+  }
+
+  if (values.instructions !== undefined) {
+    await dialog.getByLabel('Instructions', { exact: true }).fill(values.instructions);
+  }
+}
 
 test.describe.serial('Agent Management E2E', () => {
   test('Task 1.1: list agents', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
     // Verify page header
-    await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Agents', level: 1, exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Agent list' })).toBeVisible();
 
-    // Verify seeded demo agents appear
-    const researchAgent = page.locator('article.agent-row', { hasText: 'Research Agent' });
-    await expect(researchAgent).toBeVisible();
-    await expect(researchAgent.getByText('Market researcher')).toBeVisible();
+    const table = page.getByRole('table', { name: 'Agents table' });
+    await expect(table).toBeVisible();
+    const firstAgentRow = table.getByRole('row').nth(1);
+    await expect(firstAgentRow).toBeVisible();
 
-    const supportAgent = page.locator('article.agent-row', { hasText: 'Support Agent' });
-    await expect(supportAgent).toBeVisible();
-    await expect(supportAgent.getByText('Customer support')).toBeVisible();
+    await firstAgentRow.click();
+    const infoDialog = page.getByRole('dialog').filter({ hasText: 'Agent profile' });
+    await expect(infoDialog).toBeVisible();
+    await infoDialog.getByRole('button', { name: 'Close agent information' }).click();
+    await expect(infoDialog).not.toBeVisible();
   });
 
   test('Task 1.2: create valid agent', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
-    await page.getByRole('button', { name: 'New agent' }).click();
+    await page.getByRole('button', { name: 'New Agent' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Create agent' });
+    await expect(dialog).toBeVisible();
 
-    await page.getByLabel('Name').fill('Test E2E Agent');
-    await page.getByLabel('Role').fill('E2E Tester');
-    await page.getByLabel('Model').fill('gpt-4');
-    await page.getByLabel('Instructions').fill('Run playwright tests automatically.');
+    await fillAgentDialog(dialog, {
+      name: e2eAgentName,
+      role: 'E2E Tester',
+      model: 'openrouter/owl-alpha',
+      instructions: 'Run playwright tests automatically.'
+    });
 
-    await page.getByRole('button', { name: 'Create agent' }).click();
+    await dialog.getByRole('button', { name: 'Create agent' }).click();
 
     // Verify the new agent appears in the list
-    const testAgent = page.locator('article.agent-row', { hasText: 'Test E2E Agent' });
+    const testAgent = agentRow(page, e2eAgentName);
     await expect(testAgent).toBeVisible();
     await expect(testAgent.getByText('E2E Tester')).toBeVisible();
-    await expect(testAgent.getByText('gpt-4')).toBeVisible();
+    await expect(testAgent.getByText('openrouter/owl-alpha')).toBeVisible();
   });
 
   test('Task 1.3: invalid form shows errors', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
-    await page.getByRole('button', { name: 'New agent' }).click();
+    await page.getByRole('button', { name: 'New Agent' }).click();
+    await expect(page.getByRole('dialog', { name: 'Create agent' })).toBeVisible();
 
-    // Submit empty form
-    await page.getByRole('button', { name: 'Create agent' }).click();
-
-    // Assuming the backend returns 400 and the UI shows errors.
-    // We expect an alert or error message to appear.
-    // The exact error message depends on the API validation, we just look for any error.
-    const errors = page.locator('.agent-form__error');
-    await expect(errors.first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create agent' })).toBeDisabled();
   });
 
   test('Task 1.4: edit agent', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
-    const testAgent = page.locator('article.agent-row', { hasText: 'Test E2E Agent' });
-    await testAgent.getByRole('button', { name: 'Edit' }).click();
+    const testAgent = agentRow(page, e2eAgentName);
+    await openActionsFor(testAgent);
+    await testAgent.getByRole('button', { name: 'Configure' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Configure agent' });
+    await expect(dialog).toBeVisible();
 
     // We can't change name in edit mode (readonly), so we change role
-    await page.getByLabel('Role').fill('Senior E2E Tester');
+    await fillAgentDialog(dialog, { role: 'Senior E2E Tester' });
     
-    await page.getByRole('button', { name: 'Save changes' }).click();
+    await dialog.getByRole('button', { name: 'Save changes' }).click();
 
     await expect(testAgent.getByText('Senior E2E Tester')).toBeVisible();
   });
 
   test('Task 1.5: disable agent', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
-    const testAgent = page.locator('article.agent-row', { hasText: 'Test E2E Agent' });
-    await testAgent.getByRole('button', { name: 'Disable' }).click();
+    const testAgent = agentRow(page, e2eAgentName);
+    await openActionsFor(testAgent);
+    await testAgent.getByRole('button', { name: /Disable/ }).click();
 
     // Verify status changes to Disabled
-    await expect(testAgent.locator('.agent-row__status')).toHaveText('Disabled');
-    await expect(testAgent.getByRole('button', { name: 'Enable' })).toBeVisible();
+    await expect(testAgent.getByText('Disabled')).toBeVisible();
+    await expect(testAgent.getByRole('button', { name: /Enable/ })).toBeVisible();
   });
 
   test('Task 1.6: enable agent', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
-    const testAgent = page.locator('article.agent-row', { hasText: 'Test E2E Agent' });
-    await testAgent.getByRole('button', { name: 'Enable' }).click();
+    const testAgent = agentRow(page, e2eAgentName);
+    await openActionsFor(testAgent);
+    await testAgent.getByRole('button', { name: /Enable/ }).click();
 
     // Verify status changes back to Enabled
-    await expect(testAgent.locator('.agent-row__status')).toHaveText('Enabled');
-    await expect(testAgent.getByRole('button', { name: 'Disable' })).toBeVisible();
+    await expect(testAgent.getByText('Enabled')).toBeVisible();
+    await expect(testAgent.getByRole('button', { name: /Disable/ })).toBeVisible();
   });
 
   test('Task 1.7: delete agent', async ({ page }) => {
-    await page.goto('/');
+    await openAgentManagement(page);
 
-    const testAgent = page.locator('article.agent-row', { hasText: 'Test E2E Agent' });
+    const testAgent = agentRow(page, e2eAgentName);
     
-    // Set up dialog handler
-    page.on('dialog', dialog => dialog.accept());
+    await openActionsFor(testAgent);
+    await testAgent.getByRole('button', { name: /Delete/ }).click();
 
-    await testAgent.getByRole('button', { name: 'Delete' }).click();
+    // Wait for the modal and click Delete
+    const deleteModal = page.getByRole('dialog', { name: 'Delete agent' });
+    await expect(deleteModal).toBeVisible();
+    await deleteModal.getByRole('button', { name: 'Delete' }).click();
 
     // Verify agent is removed from the list
     await expect(testAgent).not.toBeVisible();

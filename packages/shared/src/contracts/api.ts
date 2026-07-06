@@ -1,4 +1,5 @@
 export const ERROR_CODES = [
+  "auth.unauthorized",
   "auth.invalid_credentials",
   "auth.session_expired",
   "auth.forbidden",
@@ -17,15 +18,45 @@ export const ERROR_CODES = [
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
+export const AUTHENTICATION_ERROR_CODES = [
+  "auth.unauthorized",
+  "auth.invalid_credentials",
+  "auth.session_expired"
+] as const satisfies readonly ErrorCode[];
+
+export const AUTHORIZATION_ERROR_CODES = [
+  "auth.forbidden"
+] as const satisfies readonly ErrorCode[];
+
+export type AuthenticationErrorCode = (typeof AUTHENTICATION_ERROR_CODES)[number];
+export type AuthorizationErrorCode = (typeof AUTHORIZATION_ERROR_CODES)[number];
+
+export type ApiValidationIssue = {
+  path: string;
+  message: string;
+  code?: string;
+};
+
 export type ApiError = {
   code: ErrorCode;
   message: string;
   details?: Record<string, unknown>;
+  issues?: ApiValidationIssue[];
+};
+
+export type ApiPaginationMeta = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 };
 
 export type ApiMeta = {
   requestId: string;
   timestamp: string;
+  pagination?: ApiPaginationMeta;
 };
 
 export type ApiSuccess<T> = {
@@ -41,3 +72,9 @@ export type ApiFailure = {
 };
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
+
+export type ApiPaginatedSuccess<T> = ApiSuccess<T[]> & {
+  meta: ApiMeta & {
+    pagination: ApiPaginationMeta;
+  };
+};

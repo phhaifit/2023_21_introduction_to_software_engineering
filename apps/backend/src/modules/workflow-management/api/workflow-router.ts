@@ -1,0 +1,367 @@
+import { Router, type Request, type Response } from "express";
+
+import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import type { WorkflowStatus } from "@vcp/shared/contracts/statuses.ts";
+import { WorkflowUseCases } from "../application/workflow-use-cases.ts";
+import { sendWorkflowApiFailure, sendWorkflowApiSuccess, sendWorkflowApiPaginatedSuccess } from "./api-response.ts";
+import type { RequestContext } from "../../../shared/auth/request-context.ts";
+import { canPerform } from "../../../shared/rbac/permissions.ts";
+import { WorkflowValidationError, WorkflowGraphError } from "../domain/workflow-validation.ts";
+
+import type { EventBus } from "../../../shared/events/event-bus.ts";
+
+export type WorkflowManagementRouterDependencies = {
+  useCases: WorkflowUseCases;
+  eventBus: EventBus;
+};
+
+class AuthenticationError extends Error {}
+class AuthorizationError extends Error {}
+class WorkflowNotFoundError extends Error {}
+
+function getRequestContext(request: Request): RequestContext {
+  return (request as any).context || { requestId: "unknown" };
+}
+
+function enforceAuth(context: RequestContext) {
+  if (!context.user) {
+    throw new AuthenticationError("User is not authenticated");
+  }
+  if (!context.workspace) {
+    throw new AuthorizationError("Workspace context required");
+  }
+}
+
+function enforcePermission(context: RequestContext, permission: "workflows:manage") {
+  enforceAuth(context);
+  const role = context.workspace!.role;
+  const decision = canPerform(role, permission);
+  if (!decision.allowed) {
+    throw new AuthorizationError(decision.reason || "Forbidden");
+  }
+}
+
+export function createWorkflowManagementRouter(
+  dependencies: WorkflowManagementRouterDependencies
+): Router {
+  const router = Router({ mergeParams: true });
+
+  router.get("/", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      const limit = Number(request.query.limit) || 50;
+      const offset = Number(request.query.offset) || 0;
+
+      const result = await dependencies.useCases.listWorkflows(context.workspace!.workspaceId, limit, offset);
+      return sendWorkflowApiPaginatedSuccess(request, response, result.items, result.total, offset, limit);
+    });
+  });
+
+  router.post("/", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      const payload = request.body || {};
+      
+      if (!payload.name || typeof payload.name !== "string") {
+        throw new WorkflowValidationError(["name is required"]);
+      }
+
+      if (payload.steps && !Array.isArray(payload.steps)) {
+        throw new WorkflowValidationError(["steps must be an array"]);
+      }
+
+      const result = await dependencies.useCases.createWorkflow({
+        workspaceId: context.workspace!.workspaceId,
+        name: payload.name,
+        description: payload.description,
+        status: payload.status as any,
+        triggerType: payload.triggerType,
+        triggerConfig: payload.triggerConfig,
+        steps: payload.steps || []
+      });
+
+      sendWorkflowApiSuccess(request, response, result);
+    });
+  });
+
+  router.get("/executions", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      const limit = Number(request.query.limit) || 50;
+      const offset = Number(request.query.offset) || 0;
+
+      const result = await dependencies.useCases.listExecutions(
+        context.workspace!.workspaceId,
+        limit,
+        offset
+      );
+
+      sendWorkflowApiPaginatedSuccess(request, response, result.items, result.total, offset, limit);
+    });
+  });
+
+  router.get("/executions/:executionId/logs", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      const result = await dependencies.useCases.getExecutionLogs(
+        context.workspace!.workspaceId,
+        request.params.executionId as EntityId<"executionId">
+      );
+
+      sendWorkflowApiSuccess(request, response, result);
+    });
+  });
+
+  router.get("/:workflowId", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforceAuth(context);
+
+      const result = await dependencies.useCases.getWorkflow(
+        context.workspace!.workspaceId,
+        request.params.workflowId as EntityId<"workflowId">
+      );
+
+      if (!result) {
+        throw new WorkflowNotFoundError();
+      }
+
+      sendWorkflowApiSuccess(request, response, result);
+    });
+  });
+
+  router.patch("/:workflowId", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      const payload = request.body || {};
+
+      try {
+        const result = await dependencies.useCases.updateWorkflow({
+          workspaceId: context.workspace!.workspaceId,
+          workflowId: request.params.workflowId as EntityId<"workflowId">,
+          name: payload.name,
+          description: payload.description,
+          status: payload.status as WorkflowStatus,
+          triggerType: payload.triggerType,
+          triggerConfig: payload.triggerConfig,
+          steps: payload.steps
+        });
+
+        sendWorkflowApiSuccess(request, response, result);
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        throw err;
+      }
+    });
+  });
+
+  router.post("/:workflowId/execute", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      const payload = request.body || {};
+
+      try {
+        const { executionId } = await dependencies.useCases.executeWorkflow({
+          workspaceId: context.workspace!.workspaceId,
+          workflowId: request.params.workflowId as EntityId<"workflowId">,
+          triggeredBy: context.user!.userId,
+          inputData: payload.inputData
+        });
+
+        response.status(202).json({
+          ok: true,
+          data: { status: "handed-off", executionId }
+        });
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        if (err.message === "Cannot execute inactive workflow" || err.message === "Cannot execute workflow with no steps") {
+          return sendWorkflowApiFailure(request, response, {
+            statusCode: 400,
+            code: "validation_error",
+            message: err.message
+          });
+        }
+        throw err;
+      }
+    });
+  });
+
+  router.get("/:workflowId/execute/stream", async (request, response) => {
+    const context = getRequestContext(request);
+    try {
+      enforcePermission(context, "workflows:manage");
+      
+      const workflowId = request.params.workflowId as EntityId<"workflowId">;
+      const executionId = request.query.executionId as string;
+
+      if (!executionId) {
+        response.status(400).json({ error: "executionId query param is required" });
+        return;
+      }
+
+      const workflow = await dependencies.useCases.getWorkflow(context.workspace!.workspaceId, workflowId);
+      if (!workflow) {
+        response.status(404).end();
+        return;
+      }
+
+      response.setHeader("Content-Type", "text/event-stream");
+      response.setHeader("Cache-Control", "no-cache");
+      response.setHeader("Connection", "keep-alive");
+      response.flushHeaders();
+
+      const totalSteps = workflow.steps?.length || 0;
+      response.write(`data: ${JSON.stringify({ type: "workflow_started", totalSteps })}\n\n`);
+
+      const unsubscribe1 = dependencies.eventBus.subscribe("workflow.step_started", (event: any) => {
+        if (event.payload.executionId === executionId) {
+          response.write(`data: ${JSON.stringify({ type: "step_started", stepOrder: event.payload.stepOrder, agentId: event.payload.agentId })}\n\n`);
+        }
+      });
+      
+      const unsubscribe2 = dependencies.eventBus.subscribe("workflow.step_completed", (event: any) => {
+        if (event.payload.executionId === executionId) {
+          response.write(`data: ${JSON.stringify({ type: "step_completed", stepOrder: event.payload.stepOrder, agentId: event.payload.agentId, outputData: event.payload.outputData })}\n\n`);
+        }
+      });
+
+      const unsubscribe3 = dependencies.eventBus.subscribe("workflow.step_failed", (event: any) => {
+        if (event.payload.executionId === executionId) {
+          response.write(`data: ${JSON.stringify({ type: "step_failed", stepOrder: event.payload.stepOrder, errorMsg: event.payload.errorMsg })}\n\n`);
+        }
+      });
+
+      const unsubscribe4 = dependencies.eventBus.subscribe("workflow.execution_completed", (event: any) => {
+        if (event.payload.executionId === executionId) {
+          response.write(`data: ${JSON.stringify({ type: "workflow_completed" })}\n\n`);
+          cleanup();
+          response.end();
+        }
+      });
+
+      const unsubscribe5 = dependencies.eventBus.subscribe("workflow.execution_failed", (event: any) => {
+        if (event.payload.executionId === executionId) {
+          response.write(`data: ${JSON.stringify({ type: "workflow_failed", errorMsg: event.payload.errorMsg })}\n\n`);
+          cleanup();
+          response.end();
+        }
+      });
+
+      const cleanup = () => {
+        unsubscribe1(); unsubscribe2(); unsubscribe3(); unsubscribe4(); unsubscribe5();
+      };
+
+      request.on("close", () => {
+        cleanup();
+      });
+
+    } catch (err: any) {
+      if (!response.headersSent) {
+        response.status(401).end();
+      }
+    }
+  });
+
+  router.delete("/:workflowId", async (request, response) => {
+    await handleWorkflowApiRequest(request, response, async () => {
+      const context = getRequestContext(request);
+      enforcePermission(context, "workflows:manage");
+
+      try {
+        await dependencies.useCases.deleteWorkflow(
+          context.workspace!.workspaceId,
+          request.params.workflowId as EntityId<"workflowId">
+        );
+        response.status(204).send();
+      } catch (err: any) {
+        if (err.message === "Workflow not found") {
+          throw new WorkflowNotFoundError();
+        }
+        throw err;
+      }
+    });
+  });
+
+  return router;
+}
+
+async function handleWorkflowApiRequest(
+  request: Request,
+  response: Response,
+  action: () => Promise<void>
+): Promise<void> {
+  try {
+    await action();
+  } catch (error: any) {
+    if (error instanceof AuthenticationError) {
+      sendWorkflowApiFailure(request, response, {
+        code: "auth.unauthorized",
+        message: error.message,
+        statusCode: 401
+      });
+      return;
+    }
+
+    if (error instanceof AuthorizationError) {
+      sendWorkflowApiFailure(request, response, {
+        code: "auth.forbidden",
+        message: error.message,
+        statusCode: 403
+      });
+      return;
+    }
+
+    if (error instanceof WorkflowValidationError) {
+      sendWorkflowApiFailure(request, response, {
+        code: "validation.invalid_input",
+        message: error.message,
+        details: { 
+          missingAgents: error.missingAgents, 
+          disabledAgents: error.disabledAgents 
+        },
+        statusCode: 400
+      });
+      return;
+    }
+
+    if (error instanceof WorkflowGraphError) {
+      sendWorkflowApiFailure(request, response, {
+        code: "validation.invalid_graph",
+        message: error.message,
+        statusCode: 400
+      });
+      return;
+    }
+
+    if (error instanceof WorkflowNotFoundError) {
+      sendWorkflowApiFailure(request, response, {
+        code: "resource.not_found",
+        message: "Workflow not found in this workspace.",
+        statusCode: 404
+      });
+      return;
+    }
+
+    sendWorkflowApiFailure(request, response, {
+      code: "system.unexpected_error",
+      message: error?.message || "Unexpected Workflow API error.",
+      statusCode: 500
+    });
+  }
+}

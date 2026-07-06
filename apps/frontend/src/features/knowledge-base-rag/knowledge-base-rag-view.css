@@ -1,0 +1,132 @@
+.knowledge-base-rag-shell {
+  display: block;
+  min-height: 720px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.knowledge-base-rag-nav {
+  margin-bottom: 1.25rem;
+}
+
+.knowledge-base-rag-main {
+  min-width: 0;
+  padding: 2rem;
+}
+
+.knowledge-base-rag-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.knowledge-base-rag-header h1 {
+  margin: 0.25rem 0 0;
+  color: #0f172a;
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.knowledge-base-rag-header p {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 0.925rem;
+  max-width: 720px;
+}
+
+.knowledge-base-rag-kicker {
+  margin: 0;
+  color: #4f46e5 !important;
+  font-size: 0.75rem !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.knowledge-base-rag-content-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.knowledge-base-rag-content-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.knowledge-base-rag-content-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.knowledge-base-rag-content-header h2 {
+  margin: 0.25rem 0 0;
+  color: #0f172a;
+  font-size: 1.375rem;
+}
+
+.knowledge-base-rag-content-description {
+  color: #475569;
+  margin: 0 0 1.25rem;
+  font-size: 0.925rem;
+}
+
+.knowledge-base-rag-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.knowledge-base-rag-summary-item {
+  min-height: 8rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.knowledge-base-rag-summary-item span {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: #eef2ff;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.knowledge-base-rag-summary-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .knowledge-base-rag-main {
+    padding: 1.25rem;
+  }
+
+  .knowledge-base-rag-header,
+  .knowledge-base-rag-content-header {
+    flex-direction: column;
+  }
+
+  .knowledge-base-rag-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

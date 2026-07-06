@@ -14,7 +14,7 @@ const summary = {
   workspaceId,
   name: "Research Agent",
   role: "Researcher",
-  model: "gpt-4.1-mini",
+  model: "gemini-2.5-flash",
   status: "enabled" as const,
   updatedAt: "2026-06-20T00:00:00.000Z"
 };
@@ -34,19 +34,90 @@ function success(data: unknown): Response {
   });
 }
 
+function paginatedSuccess(data: unknown[], pagination: unknown): Response {
+  return response({
+    ok: true,
+    data,
+    meta: { requestId: "test", timestamp: "2026-06-20T00:00:00.000Z", pagination }
+  });
+}
+
 describe("Agent Management API client", () => {
   it("lists workspace agents and parses successful data", async () => {
     const fetchImplementation = vi.fn(async () =>
-      success([{ ...summary, createdAt: "2026-06-19T00:00:00.000Z" }])
+      paginatedSuccess(
+        [{ ...summary, createdAt: "2026-06-19T00:00:00.000Z" }],
+        { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false }
+      )
     );
     const client = createAgentManagementApiClient({ fetchImplementation });
 
-    const agents = await client.listAgents(workspaceId);
+    const result = await client.listAgents(workspaceId);
 
-    expect(agents[0].agentId).toBe(agentId);
+    expect(result.items[0].agentId).toBe(agentId);
+    expect(result.pagination.totalItems).toBe(1);
     expect(fetchImplementation).toHaveBeenCalledWith(
       "/api/workspaces/workspace-a/agents",
       expect.objectContaining({ headers: expect.objectContaining({ accept: "application/json" }) })
+    );
+  });
+
+  it("lists workspace agents with query parameters", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      paginatedSuccess([], { page: 2, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: true })
+    );
+    const client = createAgentManagementApiClient({ fetchImplementation });
+
+    await client.listAgents(workspaceId, { search: "test", page: 2, pageSize: 10, sortOrder: "desc" });
+
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/agents?search=test&sortOrder=desc&page=2&pageSize=10",
+      expect.any(Object)
+    );
+  });
+
+  it("creates an assistant draft with a prompt payload", async () => {
+    const fetchImplementation = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ ok: true, data: { draft: null, warnings: [], clarifyingQuestions: [] }, meta: {} })
+    });
+
+    const client = createAgentManagementApiClient({ fetchImplementation });
+    const payload = { prompt: "Help me write code" };
+
+    await client.createAssistantDraft(workspaceId, payload);
+
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `/api/workspaces/${workspaceId}/agents/assistant/draft`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
+    );
+  });
+
+  it("analyzes a skill markdown import payload", async () => {
+    const draftResponse = {
+      draft: null,
+      warnings: [],
+      clarifyingQuestions: ["Which model should this use?"],
+      provider: { providerId: "mock", modelId: "mock-model", fallbackUsed: false }
+    };
+    const fetchImplementation = vi.fn(async () => success(draftResponse));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+    const payload = {
+      markdown: "# Imported Agent\n\n## Role\nSupport",
+      fileName: "skill.md"
+    };
+
+    const result = await client.analyzeSkillImport(workspaceId, payload);
+
+    expect(result).toEqual(draftResponse);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `/api/workspaces/${workspaceId}/agents/assistant/import-skill`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
     );
   });
 
@@ -56,7 +127,7 @@ describe("Agent Management API client", () => {
     const payload = {
       name: "Research Agent",
       role: "Researcher",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Prepare research."
     };
 
@@ -65,6 +136,59 @@ describe("Agent Management API client", () => {
     expect(fetchImplementation).toHaveBeenCalledWith(
       "/api/workspaces/workspace-a/agents",
       expect.objectContaining({ method: "POST", body: JSON.stringify(payload) })
+    );
+  });
+
+  it("lists selectable agent models from the workspace catalog", async () => {
+    const models = [
+      {
+        providerId: "gemini",
+        modelId: "gemini-2.5-flash",
+        displayName: "Gemini 2.5 Flash",
+        capabilities: ["text-generation", "structured-output"],
+        tier: "demo",
+        enabled: true
+      }
+    ];
+    const fetchImplementation = vi.fn(async () => success(models));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+
+    const result = await client.listAgentModels(workspaceId);
+
+    expect(result).toEqual(models);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/agents/models",
+      expect.objectContaining({ headers: expect.objectContaining({ accept: "application/json" }) })
+    );
+  });
+
+  it("previews skill markdown from a template draft", async () => {
+    const preview = {
+      markdown: "# Planning Agent\n\n## Role\n\nPlanner",
+      fileName: "skill.md"
+    };
+    const fetchImplementation = vi.fn(async () => success(preview));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+    const payload = {
+      name: "Planning Agent",
+      role: "Planner",
+      model: "gemini-2.5-flash",
+      instructions: "Create execution plans.",
+      responsibilities: ["Break goals into steps"],
+      constraints: ["Ask before changing scope"],
+      escalationRules: ["Escalate blocked work"],
+      exampleTasks: ["Build a weekly plan"]
+    };
+
+    const result = await client.previewSkillMarkdown(workspaceId, payload);
+
+    expect(result).toEqual(preview);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "/api/workspaces/workspace-a/agents/skill-preview",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload)
+      })
     );
   });
 
@@ -79,7 +203,7 @@ describe("Agent Management API client", () => {
     await client.getAgentConfiguration(workspaceId, agentId);
     await client.updateAgent(workspaceId, agentId, {
       role: "Analyst",
-      model: "gpt-4.1",
+      model: "gemini-2.5-flash-lite",
       instructions: "Prepare analysis."
     });
 
@@ -107,6 +231,23 @@ describe("Agent Management API client", () => {
     ]);
   });
 
+  it("calls rename and duplicate with expected methods and paths", async () => {
+    const fetchImplementation = vi.fn(async () => success(summary));
+    const client = createAgentManagementApiClient({ fetchImplementation });
+
+    await client.renameAgent(workspaceId, agentId, "New Name");
+    await client.duplicateAgent(workspaceId, agentId);
+
+    expect(fetchImplementation.mock.calls[0]).toEqual([
+      "/api/workspaces/workspace-a/agents/agent-a/name",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "New Name" }) })
+    ]);
+    expect(fetchImplementation.mock.calls[1]).toEqual([
+      "/api/workspaces/workspace-a/agents/agent-a/duplicate",
+      expect.objectContaining({ method: "POST" })
+    ]);
+  });
+
   it("preserves API validation details", async () => {
     const fetchImplementation = vi.fn(async () =>
       response(
@@ -127,7 +268,7 @@ describe("Agent Management API client", () => {
     await expect(client.createAgent(workspaceId, {
       name: "Agent",
       role: "",
-      model: "gpt-4.1-mini",
+      model: "gemini-2.5-flash",
       instructions: "Work."
     })).rejects.toMatchObject({
       code: "validation.invalid_input",
@@ -139,17 +280,52 @@ describe("Agent Management API client", () => {
 
   it("normalizes malformed and network failures", async () => {
     const malformedClient = createAgentManagementApiClient({
-      fetchImplementation: vi.fn(async () => response({ value: [] }))
+      fetchImplementation: vi.fn(async () => response({ ok: true, data: [] }))
     });
     const networkClient = createAgentManagementApiClient({
       fetchImplementation: vi.fn(async () => {
         throw new Error("offline");
       })
     });
+    const errorClient = createAgentManagementApiClient({
+      fetchImplementation: vi.fn(async () =>
+        response(
+          {
+            ok: false,
+            error: {
+              code: "auth.unauthorized",
+              message: "User is not authenticated"
+            },
+            meta: { requestId: "test", timestamp: "2026-06-20T00:00:00.000Z" }
+          },
+          401
+        )
+      )
+    });
 
     await expect(malformedClient.listAgents(workspaceId)).rejects.toMatchObject({
       kind: "malformed-response",
       code: "system.unexpected_error"
+    });
+    await expect(malformedClient.listAgentModels(workspaceId)).rejects.toMatchObject({
+      kind: "malformed-response",
+      code: "system.unexpected_error"
+    });
+    await expect(
+      malformedClient.previewSkillMarkdown(workspaceId, {
+        name: "Agent",
+        role: "Role",
+        model: "gemini-2.5-flash",
+        instructions: "Work."
+      })
+    ).rejects.toMatchObject({
+      kind: "malformed-response",
+      code: "system.unexpected_error"
+    });
+    await expect(errorClient.listAgentModels(workspaceId)).rejects.toMatchObject({
+      kind: "api",
+      code: "auth.unauthorized",
+      status: 401
     });
     await expect(networkClient.listAgents(workspaceId)).rejects.toEqual(
       expect.objectContaining<Partial<AgentApiClientError>>({

@@ -13,12 +13,14 @@
   ],
   "idKinds": [
     "userId",
+    "sessionId",
     "workspaceId",
     "memberId",
     "agentId",
     "toolId",
     "workflowId",
     "taskId",
+    "workId",
     "documentId",
     "subscriptionId",
     "transactionId",
@@ -108,12 +110,41 @@
     "task.submitted": ["eventId", "occurredAt", "workspaceId", "taskId", "submittedBy"],
     "task.completed": ["eventId", "occurredAt", "workspaceId", "taskId", "status"],
     "knowledge.document_uploaded": ["eventId", "occurredAt", "workspaceId", "documentId", "uploadedBy"],
-    "knowledge.index_ready": ["eventId", "occurredAt", "workspaceId", "documentId", "status"]
+    "knowledge.index_ready": ["eventId", "occurredAt", "workspaceId", "documentId", "status"],
+    "knowledge.document.uploadValidated": ["eventId", "occurredAt", "eventType", "workspaceId", "actorId", "status", "acceptedCount", "rejectedCount"],
+    "knowledge.document.ingestionQueued": ["eventId", "occurredAt", "eventType", "workspaceId", "actorId", "documentId", "jobId", "status"],
+    "knowledge.document.ingestionStarted": ["eventId", "occurredAt", "eventType", "workspaceId", "documentId", "jobId", "status"],
+    "knowledge.document.ingestionCompleted": ["eventId", "occurredAt", "eventType", "workspaceId", "documentId", "jobId", "status", "chunkCount", "indexedChunkCount"],
+    "knowledge.document.ingestionFailed": ["eventId", "occurredAt", "eventType", "workspaceId", "documentId", "jobId", "status", "errorCode", "errorMessage"],
+    "knowledge.dataSource.connected": ["eventId", "occurredAt", "eventType", "workspaceId", "actorId", "sourceId", "status"],
+    "knowledge.dataSource.connectionFailed": ["eventId", "occurredAt", "eventType", "workspaceId", "actorId", "sourceId", "status", "errorCode", "errorMessage"],
+    "knowledge.sync.scopeUpdated": ["eventId", "occurredAt", "eventType", "workspaceId", "actorId", "sourceId", "selectedScopeNodeCount"],
+    "knowledge.sync.requested": ["eventId", "occurredAt", "eventType", "workspaceId", "actorId", "jobId", "sourceId", "status"],
+    "knowledge.sync.started": ["eventId", "occurredAt", "eventType", "workspaceId", "jobId", "sourceId", "status"],
+    "knowledge.sync.completed": ["eventId", "occurredAt", "eventType", "workspaceId", "jobId", "sourceId", "status", "scannedItemCount", "changedItemCount"],
+    "knowledge.sync.failed": ["eventId", "occurredAt", "eventType", "workspaceId", "jobId", "sourceId", "status", "errorCode", "errorMessage"]
   },
   "api": {
     "successShape": ["ok", "data", "meta"],
     "errorShape": ["ok", "error", "meta"],
+    "metaShape": ["requestId", "timestamp"],
+    "paginationShape": [
+      "page",
+      "pageSize",
+      "totalItems",
+      "totalPages",
+      "hasNextPage",
+      "hasPreviousPage"
+    ],
+    "validationIssueShape": ["path", "message", "code"],
+    "authenticationErrorCodes": [
+      "auth.unauthorized",
+      "auth.invalid_credentials",
+      "auth.session_expired"
+    ],
+    "authorizationErrorCodes": ["auth.forbidden"],
     "errorCodes": [
+      "auth.unauthorized",
       "auth.invalid_credentials",
       "auth.session_expired",
       "auth.forbidden",
@@ -128,6 +159,216 @@
       "task.execution_failed",
       "knowledge.access_denied",
       "system.unexpected_error"
+    ]
+  },
+  "contractConventions": {
+    "sharedContractScope": [
+      "ids",
+      "roles",
+      "statuses",
+      "plans",
+      "events",
+      "api",
+      "publicSummaries",
+      "crossModuleRequests"
+    ],
+    "requestBodyForbiddenFields": [
+      "workspaceId",
+      "submittedByUserId",
+      "userId",
+      "createdAt",
+      "updatedAt",
+      "status",
+      "taskId",
+      "workId"
+    ],
+    "secretFieldNameFragments": [
+      "secret",
+      "password",
+      "token",
+      "credential",
+      "privateKey",
+      "hash",
+      "apiKey"
+    ],
+    "forbiddenSharedContractImports": [
+      "@vcp/backend",
+      "@vcp/database",
+      "@vcp/workers",
+      "apps/backend",
+      "apps/frontend",
+      "apps/workers",
+      "packages/database",
+      "@prisma",
+      "PrismaClient",
+      "express",
+      "react"
+    ],
+    "forbiddenFrontendCrossModuleImports": [
+      "@vcp/backend",
+      "@vcp/database",
+      "@vcp/workers",
+      "apps/backend",
+      "apps/workers",
+      "packages/database",
+      "@prisma",
+      "PrismaClient"
+    ]
+  },
+  "taskOrchestration": {
+    "routingModes": [
+      "auto",
+      "specific-agent",
+      "predefined-workflow"
+    ],
+    "runtimeActivityKinds": [
+      "routing",
+      "workflow",
+      "tool",
+      "tool-call",
+      "web-search",
+      "document-read",
+      "file-read",
+      "browser",
+      "shell",
+      "api-call",
+      "sub-agent",
+      "handoff",
+      "review",
+      "aggregation",
+      "completion",
+      "message",
+      "provider-diagnostic"
+    ],
+    "createTaskRequestFields": ["prompt", "routing"],
+    "createTaskResponseFields": [
+      "taskId",
+      "workId",
+      "status",
+      "createdAt"
+    ]
+  },
+  "workspaceManagement": {
+    "dtoExports": [
+      "WorkspaceSummaryDto",
+      "WorkspaceDetailDto",
+      "CreateWorkspaceRequest",
+      "WorkspaceDeleteAckDto"
+    ],
+    "routes": [
+      { "method": "GET",    "path": "/api/workspaces",                "auth": "authenticated" },
+      { "method": "POST",   "path": "/api/workspaces",                "auth": "authenticated" },
+      { "method": "GET",    "path": "/api/workspaces/:workspaceId",   "auth": "workspace-member" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId",   "auth": "workspace:delete" }
+    ],
+    "domainEvents": [
+      "workspace.provisioning_requested",
+      "workspace.running",
+      "workspace.deleted"
+    ]
+  },
+  "agentManagement": {
+    "skillMarkdownSections": [
+      "Role",
+      "Model",
+      "Responsibilities",
+      "Operating Context",
+      "Instructions",
+      "Requested Tools",
+      "Requested Knowledge",
+      "Constraints",
+      "Escalation Rules",
+      "Example Tasks"
+    ],
+    "dtoExports": [
+      "AgentPublicSummary",
+      "AgentSkillDraftInput",
+      "AgentSkillPreviewRequest",
+      "AgentSkillPreviewResponse",
+      "AgentSkillImportAnalysisRequest",
+      "AgentSkillImportValidationResponse",
+      "AgentModelCatalogEntry",
+      "AgentDraftProviderMetadata",
+      "AgentDraftValidationWarning",
+      "AgentCreationAssistantDraft",
+      "AgentCreationAssistantDraftRequest",
+      "AgentCreationAssistantDraftResponse",
+      "AgentRuntimeConfiguration",
+      "AgentRuntimeMaterializationHints",
+      "AgentRuntimeProfile"
+    ],
+    "requestDtoExports": [
+      "AgentSkillPreviewRequest",
+      "AgentSkillImportAnalysisRequest",
+      "AgentCreationAssistantDraftRequest"
+    ]
+  },
+  "knowledgeBaseRag": {
+    "routes": [
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/validate" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/prepare" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/ingestion-jobs" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/data-sources" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
+      { "method": "PUT", "path": "/api/workspaces/:workspaceId/knowledge/sync-scope" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/sync-jobs" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/retrieval/search" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/rag/answer" },
+      { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId" },
+      { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask" }
+    ],
+    "dtoExports": [
+      "KnowledgeDocumentDto",
+      "KnowledgeDocumentChunkDto",
+      "UploadCandidateFileDto",
+      "UploadValidationRequest",
+      "UploadValidationResponse",
+      "PrepareUploadRequest",
+      "PrepareUploadResponse",
+      "IngestionJobDto",
+      "KnowledgeDataSourceDto",
+      "SyncScopeNodeDto",
+      "SyncJobDto",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeEvidenceDto",
+      "KnowledgeRetrievalSearchResponse",
+      "KnowledgeRagAnswerRequest",
+      "KnowledgeRagAnswerCitationDto",
+      "KnowledgeRagAnswerResponse",
+      "AgentKnowledgeDocumentDto",
+      "AgentKnowledgeAskRequest",
+      "AgentKnowledgeAskResponse",
+      "KnowledgeBaseApiError"
+    ],
+    "requestDtoExports": [
+      "UploadValidationRequest",
+      "PrepareUploadRequest",
+      "ConnectKnowledgeDataSourceRequest",
+      "UpdateSyncScopeRequest",
+      "RequestKnowledgeSyncJobRequest",
+      "KnowledgeRetrievalSearchRequest",
+      "KnowledgeRagAnswerRequest",
+      "AgentKnowledgeAskRequest"
+    ],
+    "domainEvents": [
+      "knowledge.document.uploadValidated",
+      "knowledge.document.ingestionQueued",
+      "knowledge.document.ingestionStarted",
+      "knowledge.document.ingestionCompleted",
+      "knowledge.document.ingestionFailed",
+      "knowledge.dataSource.connected",
+      "knowledge.dataSource.connectionFailed",
+      "knowledge.sync.scopeUpdated",
+      "knowledge.sync.requested",
+      "knowledge.sync.started",
+      "knowledge.sync.completed",
+      "knowledge.sync.failed"
     ]
   }
 }

@@ -1,0 +1,10 @@
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "disabled"
+personality = "pragmatic"
+
+[sandbox_workspace_write]
+network_access = false
+
+[windows]
+sandbox = "elevated"
