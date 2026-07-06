@@ -191,10 +191,15 @@ export class KnowledgeDocumentProcessingPipeline {
 
     if (
       mimeType === "text/plain" ||
+      mimeType === "text/csv" ||
+      mimeType === "text/markdown" ||
       mimeType === "application/pdf" ||
       mimeType ===
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       fileType === "txt" ||
+      fileType === "csv" ||
+      fileType === "md" ||
+      fileType === "markdown" ||
       fileType === "pdf" ||
       fileType === "docx"
     ) {

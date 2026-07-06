@@ -97,6 +97,52 @@ describe("Knowledge Base / RAG Upload API integration", () => {
     expect(screen.queryByText("Invalid files")).toBeNull();
     expect(screen.queryByText("Ready for ingestion")).toBeNull();
     expect(screen.getByRole("button", { name: "Upload valid files" })).toBeDisabled();
+    expect(screen.getByText(/PDF, DOCX, TXT, CSV, Markdown/)).toBeTruthy();
+    const fileInput = screen.getByLabelText("Choose documents to validate");
+    expect(fileInput).toHaveAttribute("accept", expect.stringContaining(".csv"));
+    expect(fileInput).toHaveAttribute("accept", expect.stringContaining(".md"));
+    expect(fileInput).toHaveAttribute("accept", expect.stringContaining(".markdown"));
+    expect(fileInput).toHaveAttribute("accept", expect.stringContaining("text/csv"));
+    expect(fileInput).toHaveAttribute("accept", expect.stringContaining("text/markdown"));
+  });
+
+  it("submits CSV and Markdown metadata for API validation", async () => {
+    const validateUploadCandidates = vi.fn(async (_workspaceId, request) => ({
+      results: request.files.map((file) => ({
+        clientFileId: file.clientFileId,
+        fileName: file.fileName,
+        status: "accepted" as const
+      })),
+      acceptedCount: request.files.length,
+      rejectedCount: 0
+    }));
+    const client = createClient({ validateUploadCandidates });
+    const user = userEvent.setup();
+
+    render(<KnowledgeBaseUploadScreen apiClient={client} workspaceId={workspaceId} />);
+
+    await user.upload(screen.getByLabelText("Choose documents to validate"), [
+      new File(["name,status\nLaptop,approved"], "equipment.csv", {
+        type: "text/csv"
+      }),
+      new File(["# Handbook"], "handbook.markdown", {
+        type: "text/markdown"
+      })
+    ]);
+
+    await waitFor(() => expect(validateUploadCandidates).toHaveBeenCalledTimes(1));
+    expect(validateUploadCandidates.mock.calls[0][1].files).toEqual([
+      expect.objectContaining({
+        fileName: "equipment.csv",
+        mediaType: "text/csv"
+      }),
+      expect.objectContaining({
+        fileName: "handbook.markdown",
+        mediaType: "text/markdown"
+      })
+    ]);
+    expect((await screen.findAllByText("CSV")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("MD")).length).toBeGreaterThan(0);
   });
 
   it("validates selected files through the API client using metadata only", async () => {
@@ -146,8 +192,14 @@ describe("Knowledge Base / RAG Upload API integration", () => {
     );
 
     await user.upload(screen.getByLabelText("Choose documents to validate"), [
-      new File(["pdf"], "Runbook.pdf", { type: "application/pdf", lastModified: 1 }),
-      new File(["exe"], "Installer.exe", { type: "application/octet-stream", lastModified: 2 })
+      new File(["pdf"], "Runbook.pdf", {
+        type: "application/pdf",
+        lastModified: 1
+      }),
+      new File(["notes"], "Notes.txt", {
+        type: "text/plain",
+        lastModified: 2
+      })
     ]);
 
     expect(await screen.findByText("Accepted by API")).toBeTruthy();
@@ -164,7 +216,7 @@ describe("Knowledge Base / RAG Upload API integration", () => {
       type: "application/pdf",
       size: 3
     });
-    expect(files.map((file) => file.name)).not.toContain("Installer.exe");
+    expect(files.map((file) => file.name)).not.toContain("Notes.txt");
     expect(await screen.findByText("Uploaded 1 document for ingestion.")).toBeTruthy();
     expect(onUploadPrepared).toHaveBeenCalledWith({
       documents: [preparedDocument],

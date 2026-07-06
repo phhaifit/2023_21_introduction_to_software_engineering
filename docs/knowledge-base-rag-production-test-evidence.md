@@ -63,6 +63,7 @@ environment above. `Not executed` is intentionally not presented as passing.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | KB-E2E-001 | Upload | Supported TXT upload | Automated | Run contract suite | Bytes stored; pending document/job DTOs returned | Accepted and persisted through storage port | Passed | application use cases; production E2E | Public DTO excludes storage key |
 | KB-E2E-002 | Upload | Supported PDF/DOCX signatures | Automated | Run contract suite | Supported formats accepted | PDF and DOCX candidates accepted | Passed | application use cases | Parsing covered separately |
+| KB-E2E-002A | Upload | Supported CSV/Markdown upload | Automated | Run contract suite | Browser MIME aliases are normalized and text reaches ingestion/indexing | CSV and Markdown uploads become ready with indexed chunks | Passed | application use cases; local upload-to-index | `.csv`, `.md`, and `.markdown` covered |
 | KB-E2E-003 | Upload | Unsupported type | Automated | Run contract suite | Safe validation rejection | Unsupported media rejected | Passed | application use cases; API router | No storage side effect |
 | KB-E2E-004 | Upload | Oversized file | Automated | Run contract suite | Safe validation rejection | Oversized input rejected | Passed | application use cases; API router | Configured limit enforced |
 | KB-E2E-005 | Upload | Missing file | Automated | Run contract suite | Safe validation rejection | Empty upload rejected | Passed | application use cases; API router | Multipart missing-file behavior covered |

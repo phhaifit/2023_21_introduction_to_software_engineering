@@ -374,10 +374,13 @@ returning a safe API failure.
 
 `KnowledgeDocumentTextExtractor` keeps parser implementation details behind a
 backend-only boundary. `RuntimeKnowledgeDocumentTextExtractor` uses strict
-UTF-8 `TextDecoder` behavior for TXT, `mammoth` for DOCX, and `pdf-parse` for
-text-based PDF content. Extracted text is normalized before downstream
-processing, and internal attribution retains only workspace ID, document ID,
-original filename, and media type.
+UTF-8 `TextDecoder` behavior for TXT, CSV, and Markdown, `mammoth` for DOCX,
+and `pdf-parse` for text-based PDF content. Manual upload accepts `.pdf`,
+`.docx`, `.txt`, `.csv`, `.md`, and `.markdown`; browser-provided plain-text
+or octet-stream MIME aliases are accepted only when paired with one of those
+extensions. Extracted text is normalized before downstream processing, and
+internal attribution retains only workspace ID, document ID, original
+filename, and media type.
 
 Corrupt, unreadable, and empty documents produce controlled parser errors.
 Storage keys, local paths, parser stack traces, raw XML/PDF data, and dependency

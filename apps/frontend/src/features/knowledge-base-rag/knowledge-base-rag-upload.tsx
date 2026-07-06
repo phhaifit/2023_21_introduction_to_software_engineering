@@ -27,7 +27,26 @@ import type {
 
 import "./knowledge-base-rag-upload.css";
 
-const supportedFileTypes: KnowledgeDocumentType[] = ["pdf", "docx", "txt"];
+const supportedFileTypes: KnowledgeDocumentType[] = [
+  "pdf",
+  "docx",
+  "txt",
+  "csv",
+  "markdown"
+];
+const acceptedUploadTypes = [
+  ".pdf",
+  ".docx",
+  ".txt",
+  ".csv",
+  ".md",
+  ".markdown",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+  "text/csv",
+  "text/markdown"
+].join(",");
 const defaultApiClient = createKnowledgeBaseRagApiClient();
 
 type UploadValidationDisplayStatus = UploadValidationStatus | "pending";
@@ -142,10 +161,14 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
         <div className="knowledge-base-rag-upload-zone__icon" aria-hidden="true" />
         <div>
           <h2 id="kb-rag-upload-title">Drop files here or browse from your workspace</h2>
-          <p>Supported formats: PDF, DOCX, TXT. Files are reviewed before ingestion.</p>
+          <p>
+            Supported formats: PDF, DOCX, TXT, CSV, Markdown. Files are reviewed
+            before ingestion.
+          </p>
         </div>
         <input
           ref={fileInputRef}
+          accept={acceptedUploadTypes}
           aria-label="Choose documents to validate"
           className="knowledge-base-rag-upload-zone__input"
           multiple
@@ -357,6 +380,10 @@ function inferMediaType(fileName: string): string {
     return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   }
   if (normalizedName.endsWith(".txt")) return "text/plain";
+  if (normalizedName.endsWith(".csv")) return "text/csv";
+  if (normalizedName.endsWith(".md") || normalizedName.endsWith(".markdown")) {
+    return "text/markdown";
+  }
 
   return "application/octet-stream";
 }
@@ -372,6 +399,16 @@ function inferDocumentType(mediaType: string, fileName: string): KnowledgeDocume
     normalizedName.endsWith(".docx")
   ) {
     return "docx";
+  }
+  if (normalizedMediaType.includes("csv") || normalizedName.endsWith(".csv")) {
+    return "csv";
+  }
+  if (
+    normalizedMediaType.includes("markdown") ||
+    normalizedName.endsWith(".md") ||
+    normalizedName.endsWith(".markdown")
+  ) {
+    return "markdown";
   }
   if (normalizedMediaType.includes("text") || normalizedName.endsWith(".txt")) return "txt";
 

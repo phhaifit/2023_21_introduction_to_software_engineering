@@ -240,11 +240,14 @@ async function assertEmptyContentFailure() {
 async function assertUnsupportedContentFailure() {
   const result = await runFailingPipeline({
     document: createDocument({
-      documentId: "document-csv",
-      mimeType: "text/csv",
-      fileType: "csv"
+      documentId: "document-legacy-doc",
+      mimeType: "application/msword",
+      fileType: "doc"
     }),
-    job: createJob({ jobId: "job-csv", documentId: "document-csv" }),
+    job: createJob({
+      jobId: "job-legacy-doc",
+      documentId: "document-legacy-doc"
+    }),
     reader: async () => "Unsupported content."
   });
 

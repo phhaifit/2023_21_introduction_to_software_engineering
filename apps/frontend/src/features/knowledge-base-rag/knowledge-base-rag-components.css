@@ -37,7 +37,8 @@
 
 .kb-rag-status-badge--pending,
 .kb-rag-status-badge--not-connected,
-.kb-rag-file-type-badge--txt {
+.kb-rag-file-type-badge--txt,
+.kb-rag-file-type-badge--markdown {
   background: #f8fafc;
   border-color: #cbd5e1;
   color: #334155;

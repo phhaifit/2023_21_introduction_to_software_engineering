@@ -199,6 +199,46 @@ assert.equal(
   "validation must not create ingestion jobs"
 );
 
+const textFormatValidation = await uploadUseCases.validateUploadCandidates(workspaceA, {
+  files: [
+    {
+      clientFileId: "csv-file",
+      fileName: "equipment.csv",
+      mediaType: "application/csv",
+      sizeBytes: 64
+    },
+    {
+      clientFileId: "markdown-file",
+      fileName: "handbook.md",
+      mediaType: "text/x-markdown",
+      sizeBytes: 64
+    },
+    {
+      clientFileId: "octet-markdown-file",
+      fileName: "notes.markdown",
+      mediaType: "application/octet-stream",
+      sizeBytes: 64
+    },
+    {
+      clientFileId: "legacy-doc-file",
+      fileName: "legacy.doc",
+      mediaType: "application/msword",
+      sizeBytes: 64
+    },
+    {
+      clientFileId: "image-file",
+      fileName: "photo.png",
+      mediaType: "image/png",
+      sizeBytes: 64
+    }
+  ]
+});
+assert.equal(textFormatValidation.acceptedCount, 3);
+assert.deepEqual(
+  textFormatValidation.results.map((result) => result.reasonCode ?? "accepted"),
+  ["accepted", "accepted", "accepted", "unsupported_media_type", "unsupported_media_type"]
+);
+
 const prepared = await uploadUseCases.prepareUpload(workspaceA, actorId, {
   files: [
     {
@@ -244,13 +284,35 @@ const uploaded = await uploadUseCases.uploadDocuments(workspaceA, actorId, [
     fileName: "Notes.txt",
     mediaType: "text/plain",
     content: new TextEncoder().encode("plain text")
+  },
+  {
+    clientFileId: "real-file-4",
+    fileName: "Equipment.csv",
+    mediaType: "application/csv",
+    content: new TextEncoder().encode("name,status\nLaptop,approved")
+  },
+  {
+    clientFileId: "real-file-5",
+    fileName: "Handbook.markdown",
+    mediaType: "application/octet-stream",
+    content: new TextEncoder().encode("# Employee handbook")
   }
 ]);
 
-assert.equal(uploaded.documents.length, 3);
+assert.equal(uploaded.documents.length, 5);
 assert.deepEqual(
   uploaded.documents.map((document) => document.name),
-  ["Policy.pdf", "Guide.docx", "Notes.txt"]
+  ["Policy.pdf", "Guide.docx", "Notes.txt", "Equipment.csv", "Handbook.markdown"]
+);
+assert.deepEqual(
+  uploaded.documents.map((document) => document.mediaType),
+  [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+    "text/csv",
+    "text/markdown"
+  ]
 );
 assert.equal(uploaded.documents[0].workspaceId, workspaceA);
 assertSafePublicShape(uploaded);
@@ -273,6 +335,32 @@ await assert.rejects(
     ]),
   KnowledgeBaseRagValidationError,
   "real upload rejects unsupported files"
+);
+await assert.rejects(
+  () =>
+    uploadUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "legacy-doc",
+        fileName: "legacy.doc",
+        mediaType: "application/msword",
+        content: new Uint8Array([1])
+      }
+    ]),
+  KnowledgeBaseRagValidationError,
+  "real upload keeps legacy DOC unsupported"
+);
+await assert.rejects(
+  () =>
+    uploadUseCases.uploadDocuments(workspaceA, actorId, [
+      {
+        clientFileId: "image-file",
+        fileName: "photo.png",
+        mediaType: "image/png",
+        content: new Uint8Array([137, 80, 78, 71])
+      }
+    ]),
+  KnowledgeBaseRagValidationError,
+  "real upload rejects image files"
 );
 await assert.rejects(
   () =>
