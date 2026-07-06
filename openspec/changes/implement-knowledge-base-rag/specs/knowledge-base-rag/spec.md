@@ -390,7 +390,7 @@ through a workspace-scoped public API.
 #### Scenario: Saved Drive scope and processing details remain user-facing
 - **WHEN** a user saves Google Drive scope or reviews document processing details
 - **THEN** the scope input accepts only new URLs or IDs and clears after a successful save
-- **AND** saved Drive content is listed separately using provider titles when available or generic file and folder labels without exposing full external identifiers
+- **AND** the Google Drive connection card shows the saved selected-item count without duplicating a lower saved-scope summary
 - **AND** Upload and Google Drive processing details share one common status, progress, timing, chunk, indexing, and retry layout without duplicating the current step
 - **AND** Google Drive-only source metadata is grouped in a separate user-facing section without exposing internal identifiers
 
@@ -406,7 +406,7 @@ through a workspace-scoped public API.
 - **WHEN** a user enters a valid Drive file or folder URL before saving scope
 - **THEN** the UI loads a debounced safe tree preview without persisting scope nodes
 - **AND** clearing or changing the input removes stale draft state and ignores stale preview responses
-- **AND** saved scope remains a separate compact summary used by manual and scheduled sync
+- **AND** saved scope remains internal persisted state used by manual and scheduled sync while its count is shown only in the Google Drive connection card
 - **AND** only Save scope persists the selected draft nodes
 
 #### Scenario: Agent knowledge assignments communicate grant behavior

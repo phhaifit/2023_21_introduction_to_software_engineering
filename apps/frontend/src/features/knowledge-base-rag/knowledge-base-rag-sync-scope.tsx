@@ -553,44 +553,6 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
               </div>
             ) : null}
 
-            <div className="knowledge-base-rag-sync-scope-saved">
-              <div className="knowledge-base-rag-sync-scope-section">
-                <h3>Current sync scope</h3>
-                <p>Saved Drive content used by manual and automatic sync.</p>
-              </div>
-              {selectedScopeNodeIds.size > 0 ? (
-                <div className="knowledge-base-rag-sync-scope-current-summary">
-                  <strong>
-                    {selectedScopeNodeIds.size}{" "}
-                    {selectedScopeNodeIds.size === 1 ? "item" : "items"} saved for
-                    sync
-                  </strong>
-                  <ul>
-                    {scopeNodes
-                      .filter(
-                        (node) =>
-                          selectedScopeNodeIds.has(node.scopeNodeId) &&
-                          !node.parentScopeNodeId &&
-                          !isGenericScopeNodeName(node)
-                      )
-                      .slice(0, 5)
-                      .map((node) => (
-                        <li key={node.scopeNodeId}>
-                          {getScopeNodeDisplayName(node)}
-                          <span>
-                            {node.nodeType === "folder" ? "Folder" : "File"}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              ) : (
-                <p className="knowledge-base-rag-sync-scope-saved__empty">
-                  No Drive content saved for sync yet.
-                </p>
-              )}
-            </div>
-
             <div className="knowledge-base-rag-sync-scope-section">
               <h3>Sync settings</h3>
               <p>

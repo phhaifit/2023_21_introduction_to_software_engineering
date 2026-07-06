@@ -266,37 +266,6 @@
   margin: 0;
 }
 
-.knowledge-base-rag-sync-scope-current-summary {
-  display: grid;
-  gap: 0.625rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  background: #f8fafc;
-  padding: 0.875rem;
-}
-
-.knowledge-base-rag-sync-scope-current-summary ul {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.knowledge-base-rag-sync-scope-current-summary li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  color: #334155;
-  font-size: 0.8125rem;
-}
-
-.knowledge-base-rag-sync-scope-current-summary li span {
-  color: #64748b;
-  font-size: 0.75rem;
-}
-
 .knowledge-base-rag-sync-scope-preview-unavailable {
   display: grid;
   gap: 0.5rem;

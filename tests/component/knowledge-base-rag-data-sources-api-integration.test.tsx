@@ -168,6 +168,8 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     );
 
     expect(await screen.findByText("Hourly")).toBeTruthy();
+    expect(screen.getByText("Selected items")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("Completed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Sync now" })).toBeNull();
   });

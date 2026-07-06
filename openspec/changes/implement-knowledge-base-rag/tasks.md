@@ -38,6 +38,7 @@
 - [x] 2.20 Materialize a bounded Google Drive scope tree, persist hierarchical selection, and make sync consume only selected nodes
 - [x] 2.21 Implement durable multi-instance production queue/lease for ingestion/indexing/sync jobs
 - [x] 2.22 Add non-persistent Google Drive draft preview and separate it from saved sync scope
+- [x] 2.23 Remove the redundant lower saved-scope summary while preserving the connection-card count and persisted sync state
 
 ## 3. Remaining Verification and Handoff
 
