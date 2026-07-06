@@ -95,6 +95,14 @@ function inferSafeExtension(fileName: string, mediaType: string): string {
   ) {
     return ".docx";
   }
+  if (lowerName.endsWith(".csv") || mediaType === "text/csv") return ".csv";
+  if (
+    lowerName.endsWith(".markdown") ||
+    lowerName.endsWith(".md") ||
+    mediaType === "text/markdown"
+  ) {
+    return lowerName.endsWith(".markdown") ? ".markdown" : ".md";
+  }
   if (lowerName.endsWith(".txt") || mediaType === "text/plain") return ".txt";
   return ".bin";
 }

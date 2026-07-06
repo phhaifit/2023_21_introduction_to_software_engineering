@@ -6,7 +6,13 @@ export type KnowledgeDocumentSource =
   | "notion"
   | "confluence";
 
-export type KnowledgeDocumentType = "pdf" | "docx" | "txt" | "csv" | "page";
+export type KnowledgeDocumentType =
+  | "pdf"
+  | "docx"
+  | "txt"
+  | "csv"
+  | "markdown"
+  | "page";
 
 export type KnowledgeDocument = {
   id: string;

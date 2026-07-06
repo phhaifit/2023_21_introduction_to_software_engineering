@@ -335,6 +335,12 @@ through a workspace-scoped public API.
 - **AND** scanned or image-only PDFs without extractable text fail with a safe empty-content error
 - **AND** legacy DOC and image OCR remain explicitly deferred
 
+#### Scenario: Manual upload accepts supported text document formats
+- **WHEN** a user manually uploads `.csv`, `.md`, or `.markdown` content with its canonical MIME type or a browser-provided plain-text/octet-stream alias
+- **THEN** validation matches both the MIME type and supported extension, persists a canonical CSV or Markdown media type, and sends the UTF-8 content through the existing ingestion and indexing pipeline
+- **AND** PDF, DOCX, and TXT upload behavior remains supported
+- **AND** legacy DOC, images, unsupported extensions, invalid UTF-8 text, and image-only PDF content remain rejected safely without adding OCR
+
 #### Scenario: Local queue and scheduler scope remains honest
 - **WHEN** ingestion, indexing, or Google Drive synchronization is queued locally
 - **THEN** the worker entrypoint, process-local asynchronous queue, and opt-in scheduled polling provide observable local and single-process execution

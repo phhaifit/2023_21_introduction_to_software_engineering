@@ -39,6 +39,7 @@
 - [x] 2.21 Implement durable multi-instance production queue/lease for ingestion/indexing/sync jobs
 - [x] 2.22 Add non-persistent Google Drive draft preview and separate it from saved sync scope
 - [x] 2.23 Remove the redundant lower saved-scope summary while preserving the connection-card count and persisted sync state
+- [x] 2.24 Support manual CSV and Markdown uploads through MIME-and-extension validation and the existing text ingestion pipeline
 
 ## 3. Remaining Verification and Handoff
 

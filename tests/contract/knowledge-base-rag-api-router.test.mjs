@@ -196,7 +196,19 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
       mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       content: "PK\u0003\u0004"
     },
-    { fileName: "Runtime.txt", mediaType: "text/plain", content: "runtime text" }
+    { fileName: "Runtime.txt", mediaType: "text/plain", content: "runtime text" },
+    {
+      fileName: "Runtime.csv",
+      mediaType: "application/csv",
+      content: "name,status\nLaptop,approved",
+      expectedMediaType: "text/csv"
+    },
+    {
+      fileName: "Runtime.markdown",
+      mediaType: "application/octet-stream",
+      content: "# Runtime handbook",
+      expectedMediaType: "text/markdown"
+    }
   ]) {
     const uploaded = await requestMultipart(
       baseUrl,
@@ -207,6 +219,10 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
     assert.equal(uploaded.body.data.documents.length, 1);
     assert.equal(uploaded.body.data.documents[0].workspaceId, "workspace-a");
     assert.equal(uploaded.body.data.documents[0].name, uploadCase.fileName);
+    assert.equal(
+      uploaded.body.data.documents[0].mediaType,
+      uploadCase.expectedMediaType ?? uploadCase.mediaType
+    );
     assertNoForbiddenPublicKeys(uploaded.body);
   }
 
@@ -255,14 +271,14 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
     documents.body.data.some((document) => document.name === "Runtime.pdf"),
     "real uploaded document is listed"
   );
-  assert.equal(documents.body.meta.pagination.totalItems, 4);
+  assert.equal(documents.body.meta.pagination.totalItems, 6);
 
   const ingestionJobs = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/ingestion-jobs"
   );
   assert.equal(ingestionJobs.status, 200);
-  assert.equal(ingestionJobs.body.data.length, 4);
+  assert.equal(ingestionJobs.body.data.length, 6);
   assert.ok(
     ingestionJobs.body.data.every((job) => job.status === "pending"),
     "prepared and uploaded documents queue pending ingestion metadata"

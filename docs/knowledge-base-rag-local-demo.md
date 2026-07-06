@@ -96,10 +96,11 @@ types, and a maximum file count remain configurable. Users can run sync
 manually or enable an hourly/daily schedule. The app never imports an entire
 Drive by default.
 
-Supported imports are TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs
-(exported as text), and Google Sheets (exported as CSV). Unsupported Google
-Workspace types are skipped safely. Scanned PDFs may yield no text because OCR
-is not implemented; they fail with a bounded user-facing parsing error.
+Manual upload supports TXT, Markdown (`.md` and `.markdown`), CSV, text-bearing
+PDF, and DOCX. Google Drive imports additionally support Google Docs (exported
+as text) and Google Sheets (exported as CSV). Unsupported Google Workspace
+types are skipped safely. Scanned PDFs may yield no text because OCR is not
+implemented; they fail with a bounded user-facing parsing error.
 
 The local server uses an encrypted file credential store and an optional
 process-local scheduler. `KNOWLEDGE_QUEUE_MODE=process_local` remains the local
