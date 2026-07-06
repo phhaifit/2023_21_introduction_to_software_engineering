@@ -19,7 +19,6 @@ export interface TaskProcessingDetailModalProps {
 
 export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const hasLogs = detail.logs.length > 0;
   const hasTechnicalDetails = Boolean(detail.taskId || detail.workId || detail.startedAt || detail.error);
 
@@ -145,57 +144,7 @@ export function TaskProcessingDetailModal({ detail, onClose }: TaskProcessingDet
             />
           </section>
 
-          {hasTechnicalDetails || hasLogs ? (
-            <section aria-labelledby="modal-advanced-title" className="task-advanced-section">
-              <button
-                type="button"
-                id="modal-advanced-title"
-                className="task-advanced-section__toggle"
-                onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                aria-expanded={isAdvancedOpen}
-                aria-label={isAdvancedOpen ? "Hide Advanced details" : "Show Advanced details"}
-              >
-                {isAdvancedOpen ? "Hide Advanced details" : "Show Advanced details"}
-                <span className="task-advanced-section__toggle-hint" aria-hidden="true">Technical</span>
-              </button>
 
-              <div
-                className={`task-advanced-section__content${isAdvancedOpen ? " task-advanced-section__content--open" : ""}`}
-                hidden={!isAdvancedOpen}
-              >
-                <dl className="task-processing-detail-modal__meta" aria-label="Processing identifiers">
-                  <div>
-                    <dt>Task ID</dt>
-                    <dd title={detail.taskId}>{formatCompactIdentifier(detail.taskId)}</dd>
-                  </div>
-                  <div>
-                    <dt>Work ID</dt>
-                    <dd title={detail.workId}>{formatCompactIdentifier(detail.workId)}</dd>
-                  </div>
-                  <div>
-                    <dt>{detail.startedAt ? "Started" : "Created"}</dt>
-                    <dd>{formatCompactTimestamp(detail.startedAt ?? detail.createdAt)}</dd>
-                  </div>
-                  {detail.error ? (
-                    <div>
-                      <dt>Error code</dt>
-                      <dd>{detail.error.code}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-
-                {hasLogs ? (
-                  <section aria-labelledby="modal-logs-title">
-                    <h3 id="modal-logs-title" className="task-processing-detail-modal__section-title">Runtime log</h3>
-                    <p className="task-processing-detail-modal__helper">
-                      Sanitized provider activity only. Raw payloads and credentials are excluded.
-                    </p>
-                    <SanitizedRuntimeLogList logs={detail.logs} ariaLabel="Processing log details" />
-                  </section>
-                ) : null}
-              </div>
-            </section>
-          ) : null}
         </div>
       </div>
     </dialog>

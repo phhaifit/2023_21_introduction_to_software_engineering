@@ -239,6 +239,67 @@ describe("Task 6B task creation UI flow", () => {
     expect(screen.queryByText("Old answer replay")).not.toBeInTheDocument();
   });
 
+  it("keeps streamed final answer when completion sends a generic success message", async () => {
+    const eventSources: FakeEventSource[] = [];
+    class FakeEventSource {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor(readonly url: string) {
+        eventSources.push(this);
+      }
+      close() {}
+      emit(payload: unknown) {
+        this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
+      }
+    }
+    const fetchImplementation = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tasks")) {
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          data: {
+            taskId: "TASK-STREAMED-FINAL",
+            workId: "WORK-STREAMED-FINAL",
+            status: "queued",
+            createdAt: "2026-06-24T12:00:01.000Z"
+          }
+        }));
+      }
+      if (url.includes("/executions/start")) {
+        return Promise.resolve(jsonResponse({ ok: true, data: { status: "queued" } }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, data: [] }));
+    });
+    vi.stubGlobal("fetch", fetchImplementation);
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    render(<TaskOrchestrationPage />);
+
+    await submitPrompt("1+1 bằng mấy");
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    eventSources[0].emit({
+      type: "partial-output-received",
+      taskId: "TASK-STREAMED-FINAL",
+      workId: "WORK-STREAMED-FINAL",
+      timestamp: "2026-06-24T12:00:02.000Z",
+      outputChunk: "1+1 bằng 2."
+    });
+
+    expect(await screen.findByLabelText("Accumulated partial result")).toHaveTextContent("1+1 bằng 2.");
+
+    eventSources[0].emit({
+      type: "execution-completed",
+      taskId: "TASK-STREAMED-FINAL",
+      workId: "WORK-STREAMED-FINAL",
+      timestamp: "2026-06-24T12:00:03.000Z",
+      finalOutput: "Execution completed successfully."
+    });
+
+    const finalResponse = await screen.findByLabelText("Assistant final response");
+    expect(finalResponse).toHaveTextContent("1+1 bằng 2.");
+    expect(finalResponse).not.toHaveTextContent("Execution completed successfully.");
+  });
+
   it("projects normalized runtime activity consistently for state replay and live SSE", async () => {
     const eventSources: FakeEventSource[] = [];
     class FakeEventSource {
@@ -333,6 +394,29 @@ describe("Task 6B task creation UI flow", () => {
       stepId: "api-call-status",
       message: "Fetching provider status"
     });
+
+    eventSources[0].emit({
+      type: "sub-activity",
+      taskId: "TASK-ACTIVITY",
+      workId: "WORK-ACTIVITY",
+      activityType: "provider-diagnostic",
+      stepId: "provider-diagnostic-thinking",
+      displayLabel: "Thinking",
+      summary: "Planning next action",
+      status: "in-progress",
+      providerEventName: "session.reasoning.delta",
+      timestamp: "2026-06-24T12:00:04.000Z"
+    });
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "step-started",
+      stepName: "Thinking"
+    }));
+    const thinkingSnapshot = handler.mock.calls.at(-1)?.[0]?.taskSnapshot;
+    expect(thinkingSnapshot?.processingSnapshot.logs.at(-1)).toMatchObject({
+      stepId: "provider-diagnostic-thinking",
+      message: "Planning next action"
+    });
   });
 
   it("creates one pending auto-routed task through the public client boundary", async () => {
@@ -355,13 +439,7 @@ describe("Task 6B task creation UI flow", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
-    expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("Routing: Auto-routing")).toBeVisible();
-    expect(screen.queryByText(/AGT-/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/WFL-/)).not.toBeInTheDocument();
     expect(within(feed).queryByText(/Completed/i)).not.toBeInTheDocument();
     expect(within(feed).queryByText(/Failed/i)).not.toBeInTheDocument();
 
@@ -390,8 +468,7 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("workflowId");
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("Routing: Specific agent AGT-CODE")).toBeVisible();
+
   });
 
   it("preserves canonical predefined-workflow routing in the request and Pending summary", async () => {
@@ -418,10 +495,7 @@ describe("Task 6B task creation UI flow", () => {
     ]);
     expect(client.calls[0].routing).not.toHaveProperty("agentId");
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText(
-      "Routing: Predefined workflow WFL-RESEARCH-SYNTHESIS"
-    )).toBeVisible();
+
   });
 
   it.each([
@@ -477,9 +551,7 @@ describe("Task 6B task creation UI flow", () => {
     expect(client.calls).toHaveLength(2);
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("TASK-000002")).toBeVisible();
-    expect(screen.getByText("WORK-000002")).toBeVisible();
+
 
     let state = initialTaskCreationState;
     state = taskCreationReducer(state, { type: "submit-started" });

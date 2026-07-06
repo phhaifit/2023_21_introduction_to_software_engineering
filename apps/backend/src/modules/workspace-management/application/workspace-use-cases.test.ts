@@ -98,6 +98,49 @@ describe("WorkspaceUseCases.listWorkspaces", () => {
   });
 });
 
+describe("WorkspaceUseCases.resolveActiveMembership", () => {
+  it("returns the exact membership yielded by repository (e.g. single active or most recent)", async () => {
+    const membership = {
+      workspaceId: WS_ID,
+      memberId: "mem_001" as EntityId<"memberId">,
+      role: "owner"
+    };
+    const { useCases, repo } = makeUseCases({
+      findActiveMembershipByUser: vi.fn().mockResolvedValue(membership)
+    });
+    const result = await useCases.resolveActiveMembership(USER_ID);
+    expect(result).toEqual(membership);
+    expect(repo.findActiveMembershipByUser).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it("returns null without throwing when repository yields no active membership", async () => {
+    const { useCases, repo } = makeUseCases({
+      findActiveMembershipByUser: vi.fn().mockResolvedValue(null)
+    });
+    const result = await useCases.resolveActiveMembership(USER_ID);
+    expect(result).toBeNull();
+    expect(repo.findActiveMembershipByUser).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it("prevents membership leakage by strictly querying the provided userId", async () => {
+    const otherUserId = "user_999" as EntityId<"userId">;
+    const membership = {
+      workspaceId: WS_ID,
+      memberId: "mem_002" as EntityId<"memberId">,
+      role: "member"
+    };
+    const { useCases, repo } = makeUseCases({
+      findActiveMembershipByUser: vi.fn().mockResolvedValue(membership)
+    });
+    
+    const result = await useCases.resolveActiveMembership(otherUserId);
+    expect(result).toEqual(membership);
+    expect(repo.findActiveMembershipByUser).toHaveBeenCalledWith(otherUserId);
+    expect(repo.findActiveMembershipByUser).not.toHaveBeenCalledWith(USER_ID);
+  });
+});
+
+
 describe("WorkspaceUseCases.getWorkspaceDetail", () => {
   it("returns detail DTO with aggregate counts", async () => {
     const ws = makeWorkspace();

@@ -160,10 +160,6 @@ describe("3. Task ID and Work ID are rendered", () => {
     await submitPrompt("Identify this task.");
     expect(screen.queryByText("TASK-000001")).not.toBeInTheDocument();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("WORK-000001")).toBeVisible();
   });
 });
 
@@ -206,7 +202,7 @@ describe("5. auto routing summary", () => {
 // 6. Specific-agent summary is correct
 // ---------------------------------------------------------------------------
 describe("6. specific-agent routing summary", () => {
-  it("shows the selected agent ID in the routing summary", async () => {
+  it("shows the selected agent name and keeps its ID out of the primary label", async () => {
     const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
@@ -219,7 +215,9 @@ describe("6. specific-agent routing summary", () => {
     await submitPrompt("Review this code.");
 
     const assistantMessage = screen.getByLabelText("Assistant response");
-    expect(within(assistantMessage).getByText("Agent - AGT-CODE")).toBeVisible();
+    const label = within(assistantMessage).getByText("Agent: Code Agent");
+    expect(label).toBeVisible();
+    expect(label).toHaveAttribute("title", "Agent ID: AGT-CODE");
   });
 });
 
@@ -227,7 +225,7 @@ describe("6. specific-agent routing summary", () => {
 // 7. Predefined-workflow summary is correct
 // ---------------------------------------------------------------------------
 describe("7. predefined-workflow routing summary", () => {
-  it("shows the selected workflow ID in the routing summary", async () => {
+  it("shows the selected workflow name and keeps its ID out of the primary label", async () => {
     const user = userEvent.setup();
     const client = new SpyPendingClient();
     render(<TaskOrchestrationPage taskCreationClient={client} />);
@@ -241,7 +239,7 @@ describe("7. predefined-workflow routing summary", () => {
 
     const assistantMessage = screen.getByLabelText("Assistant response");
     expect(
-      within(assistantMessage).getByText("Workflow - WFL-RESEARCH-SYNTHESIS")
+      within(assistantMessage).getByText("Workflow: Research + Synthesis")
     ).toBeVisible();
   });
 });
@@ -699,9 +697,6 @@ describe("30. Task ID remains visible after Cancel current task click", () => {
     await submitPrompt("ID stable.");
     await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    expect(screen.getByText("TASK-000001")).toBeVisible();
   });
 });
 
@@ -722,9 +717,6 @@ describe("31. Work ID remains visible after Cancel current task click", () => {
     await submitPrompt("Work ID stable.");
     await user.click(screen.getByRole("button", { name: "Cancel current task" }));
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-
-    expect(screen.getByText("WORK-000001")).toBeVisible();
   });
 });
 

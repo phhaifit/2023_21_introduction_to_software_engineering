@@ -3,17 +3,17 @@
 ## Purpose and scope
 
 This guide describes the Knowledge Base / RAG behavior that can be run and
-verified locally in the current TypeScript/Node NPM Workspaces repository. It
-provides a repeatable foundation for later Agent Management and Agent
-Orchestration integration without adding either integration here.
+verified locally in the current TypeScript/Node NPM Workspaces repository. For
+the final presentation walkthrough, use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](demo/kb-rag/final-local-rag-demo-script.md).
 
 The implementation covers file upload/storage, TXT/DOCX/text-PDF extraction,
 ingestion and indexing boundaries, pgvector retrieval, grounded answer
 generation, access control, and the API-backed Processing Status screen.
 
-It does not provide a one-click deployment, a continuously running ingestion
-worker, external connectors/OAuth, a public grant-management API, a chatbot, or
-Agent/Orchestration integration.
+It does not provide a one-click deployment, a continuously running production
+ingestion worker, external connectors/OAuth, source-level grants, a standalone
+Agent Knowledge Ask UI, or production OpenClaw/tool runtime registration.
 
 ## Prerequisites
 
@@ -37,14 +37,16 @@ The backend loads the repository-root `.env`. Review these KB/RAG values:
 | --- | --- | --- |
 | `DATABASE_URL` | Persistent API data and pgvector | Use local PostgreSQL. |
 | `KNOWLEDGE_FILE_STORAGE_DIR` | Optional upload location | Defaults to `.data/knowledge-base-rag/uploads`; keep it private. |
-| `KNOWLEDGE_EMBEDDING_PROVIDER` | Live embedding/retrieval | Currently `openai-compatible`. |
-| `KNOWLEDGE_EMBEDDING_BASE_URL` | Live embedding/retrieval | Provider base URL. |
-| `KNOWLEDGE_EMBEDDING_API_KEY` | Live embedding/retrieval | Never commit this local secret. |
-| `KNOWLEDGE_EMBEDDING_MODEL` | Live embedding/retrieval | Provider model name. |
-| `KNOWLEDGE_EMBEDDING_DIMENSIONS` | Live embedding/pgvector | Must match provider output. |
+| `KNOWLEDGE_INGESTION_MODE` | Optional local upload processing | Set to `inline` to parse, chunk, embed, and index before upload returns. Requires PostgreSQL and provider/vector config. |
+| `KNOWLEDGE_EMBEDDING_PROVIDER` | Live embedding/retrieval | Use `openrouter` for the local web demo. |
+| `KNOWLEDGE_EMBEDDING_BASE_URL` | Live embedding/retrieval | For OpenRouter use `https://openrouter.ai/api/v1`; this is also the default for provider `openrouter`. |
+| `KNOWLEDGE_EMBEDDING_MODEL` | Live embedding/retrieval | For OpenRouter use `openai/text-embedding-3-small`; this is also the default for provider `openrouter`. |
+| `KNOWLEDGE_EMBEDDING_DIMENSIONS` | Live embedding/pgvector | Use `1536` for `openai/text-embedding-3-small`. |
+| `OPENROUTER_API_KEY` | OpenRouter embedding and prompt assistant | Never commit this local secret. |
 | `KNOWLEDGE_VECTOR_PROVIDER` | Live vector operations | Currently `pgvector`. |
-| `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Must match embedding dimensions. |
+| `KNOWLEDGE_VECTOR_DIMENSIONS` | Live vector operations | Use `1536` for the OpenRouter web demo. Do not use `3` here. |
 | `KNOWLEDGE_VECTOR_DISTANCE` | Live retrieval | See `.env.example`. |
+| `KNOWLEDGE_PGVECTOR_SMOKE` | Local pgvector smoke test | Set to `1` only when explicitly running the opt-in smoke test. |
 | `KNOWLEDGE_RAG_PROVIDER` | Live answers | Currently `openai-compatible`. |
 | `KNOWLEDGE_RAG_BASE_URL` | Live answers | Provider base URL. |
 | `KNOWLEDGE_RAG_API_KEY` | Live answers | Never commit this local secret. |
@@ -54,6 +56,24 @@ Optional batch-size, timeout, and output-limit variables have safe defaults in
 `.env.example`. There is no environment switch that turns the development
 server into deterministic mode. Tests inject deterministic adapters, require no
 API keys, and make no provider calls.
+
+For local web demo uploads with OpenRouter embeddings:
+
+```env
+KNOWLEDGE_INGESTION_MODE="inline"
+KNOWLEDGE_EMBEDDING_PROVIDER="openrouter"
+KNOWLEDGE_EMBEDDING_BASE_URL="https://openrouter.ai/api/v1"
+KNOWLEDGE_EMBEDDING_MODEL="openai/text-embedding-3-small"
+KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+OPENROUTER_API_KEY=
+
+KNOWLEDGE_VECTOR_PROVIDER="pgvector"
+KNOWLEDGE_VECTOR_DIMENSIONS=1536
+KNOWLEDGE_VECTOR_DISTANCE="cosine"
+```
+
+Do not use `KNOWLEDGE_VECTOR_DIMENSIONS=3` for the real web demo. The
+3-dimensional vector config is only for the opt-in pgvector smoke test.
 
 ## Install and database setup
 
@@ -143,10 +163,70 @@ node tests/contract/knowledge-base-rag-end-to-end-local-flow.test.mjs
 
 Run all repository tests with `npm test`.
 
+## Local pgvector smoke test
+
+The normal contract tests use deterministic in-memory or mocked adapters so CI
+does not need PostgreSQL or pgvector. To prove the real local pgvector path,
+run the opt-in smoke test against a local PostgreSQL database after migrations:
+
+```bash
+npm run prisma -- migrate deploy
+
+KNOWLEDGE_PGVECTOR_SMOKE=1 \
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_company_dev" \
+KNOWLEDGE_VECTOR_PROVIDER=pgvector \
+KNOWLEDGE_VECTOR_DIMENSIONS=3 \
+KNOWLEDGE_VECTOR_DISTANCE=cosine \
+npm run smoke:kb-rag:pgvector
+```
+
+Expected success output:
+
+```txt
+knowledge-base-rag pgvector smoke checks passed
+```
+
+Without `KNOWLEDGE_PGVECTOR_SMOKE=1`, the same command exits successfully with:
+
+```txt
+KNOWLEDGE_PGVECTOR_SMOKE not set — skipping KB/RAG pgvector smoke test
+```
+
+The smoke test verifies this path:
+
+```txt
+PostgreSQL + pgvector
+→ KB/RAG schema with vector column
+→ chunk/vector persistence through PgvectorKnowledgeVectorIndexAdapter
+→ pgvector-backed retrieval through KnowledgeRetrievalSearchUseCase
+→ safe evidence returned from indexed chunks
+```
+
+It seeds records whose IDs start with `kb-rag-pgvector-smoke-`, uses
+deterministic 3-dimensional vectors, verifies workspace isolation, asserts the
+public evidence does not expose raw vectors or vector refs, and deletes its
+records in cleanup. It does not call a real embedding provider or RAG provider.
+
+Common failures:
+
+- `knowledge.vector_schema_unavailable`: run migrations and confirm the
+  database user can execute `CREATE EXTENSION IF NOT EXISTS vector`.
+- `Knowledge vector database is unavailable`: check `DATABASE_URL`, PostgreSQL
+  availability, and network access.
+- `KB/RAG pgvector smoke test expects KNOWLEDGE_VECTOR_DIMENSIONS=3`: use the
+  smoke-test dimensions above. Live provider demos can use a different
+  dimension, but the deterministic smoke test uses `3`.
+
+This smoke test is not a benchmark, load test, ANN/HNSW/IVFFlat tuning task,
+production queue check, or production readiness claim.
+
 ## Sample document
 
 Use [the fictional company policy](demo/kb-rag/sample-company-policy.txt) for
-TXT upload. Useful questions include:
+general TXT upload. Use
+[the equipment policy sample](demo/kb-rag/sample-equipment-policy.txt) with
+[the final local RAG demo script](demo/kb-rag/final-local-rag-demo-script.md)
+for the upload-to-Task-chat walkthrough. Useful questions include:
 
 - How many business days does equipment approval take?
 - Who reviews reimbursement requests?
@@ -154,7 +234,7 @@ TXT upload. Useful questions include:
 
 ## Manual demo flow
 
-The browser supports upload and status inspection, but the current flow is not
+Without inline mode, the browser supports upload and status inspection, but the flow is not
 one-click end to end:
 
 1. Configure `.env`, apply migrations, then run `npm run dev`.
@@ -187,10 +267,25 @@ contain only safe evidence and citation IDs, never storage paths, raw vectors,
 provider payloads, or credentials.
 
 Steps 6 and 8 are integration boundaries, not checked-in CLI commands. There is
-no worker daemon, polling loop, public process-next endpoint, or simple manual
-indexing command. For a reliable demo today, use the deterministic production
-test for the complete upload-to-answer proof and the browser for upload,
-document listing, and queued Processing Status.
+no worker daemon, polling loop, or public process-next endpoint.
+
+For a real local upload-to-index demo, configure `DATABASE_URL`, the embedding
+settings, pgvector settings, and:
+
+```bash
+KNOWLEDGE_INGESTION_MODE=inline
+```
+
+Then a supported upload runs storage, extraction, chunk persistence, embedding,
+vector upsert, and status updates before the upload response returns. Refresh
+**Processing Status** to confirm the job is completed/ready. Failed parsing,
+embedding, or vector indexing appears as failed with a safe error summary.
+
+For deterministic verification without PostgreSQL or provider credentials:
+
+```bash
+node tests/contract/knowledge-base-rag-local-upload-to-index.test.mjs
+```
 
 ## Agent document assignment
 
@@ -214,10 +309,10 @@ curl -sS -X DELETE \
 
 Replace the example IDs with existing workspace-scoped agent and document IDs.
 Assign/revoke require `knowledge:manage`; listing requires `workspace:read`.
-Assignments are document-level only. Source/collection grants, Agent Retrieval
-Tool registry wiring, and Agent Orchestration answer integration remain
-follow-ups. This UI assigns access but does not make the agent answer from the
-documents yet.
+Assignments are document-level only. Source/collection grants and production
+OpenClaw tool registry wiring remain follow-ups. Assigned documents can ground
+the local-demo agent ask route and Agent-mode Task chat path after the document
+has been indexed.
 
 ## Internal agent retrieval tool
 
@@ -256,13 +351,53 @@ require a RAG/LLM provider.
 This is not a chatbot UI or production OpenClaw tool registration. Skill/config
 references still do not grant document access.
 
+## Task chat demo
+
+1. Start the backend/frontend with local inline ingestion enabled when using
+   live uploads:
+
+   ```bash
+   KNOWLEDGE_INGESTION_MODE=inline
+   ```
+
+2. Upload a supported TXT document in **Knowledge**.
+3. Refresh **Processing Status** and confirm the document/job is
+   completed/ready.
+4. Open **Agents** and assign the document to an enabled agent.
+5. Open **Tasks**, choose **Agent**, and select that agent.
+6. Ask a question covered by the assigned document.
+7. Confirm the existing assistant turn shows the grounded answer and citations.
+8. Revoke the document assignment in **Agents**.
+9. Ask again and confirm the assistant returns the insufficient-evidence
+   fallback without citations.
+
+Task chat calls the Task backend bridge, which delegates to the KB/RAG
+`AgentKnowledgeOrchestrationUseCase`; it does not query pgvector from the
+browser. Deterministic tests use fake adapters/ports. A real local demo requires
+the document to be indexed and the existing embedding/pgvector retrieval
+configuration to be available.
+
+The cross-feature automated evidence is deterministic and local:
+
+```bash
+node tests/contract/upload-to-task-chat-rag-integration.test.mjs
+```
+
+It uploads TXT content through the local upload-to-index flow, verifies persisted
+chunks and vector-boundary upserts, assigns the indexed document to an agent,
+asks through `POST /api/workspaces/:workspaceId/tasks/agent-knowledge/ask`, and
+checks that the answer includes bounded citations. The same test revokes the
+assignment, verifies `insufficient_evidence`, checks an unassigned agent, and
+checks workspace isolation. It does not call real embedding/RAG providers.
+
 ## Troubleshooting
 
 - **Backend reports a missing `.env`:** copy `.env.example` to `.env`.
 - **Ports are busy:** run `lsof -nP -iTCP:3001 -sTCP:LISTEN` and the equivalent
   command for port `5173`.
-- **Upload stays queued:** expected until a caller invokes the module-local
-  worker runtime; the development server does not poll jobs.
+- **Upload stays queued:** enable `KNOWLEDGE_INGESTION_MODE=inline` with the
+  required database/provider/vector configuration, or invoke the module-local
+  worker runtime explicitly. The development server does not poll jobs.
 - **Status does not change automatically:** select **Refresh status**. Polling,
   SSE, and WebSocket updates are not implemented.
 - **Retrieval adapter is unavailable:** configure both embedding and vector
@@ -277,15 +412,15 @@ references still do not grant document access.
 
 - No worker daemon, scheduler, production queue, atomic multi-worker claim, or
   retry endpoint is included.
-- The ingestion runtime extracts and chunks but does not compose the separate
-  embedding/vector indexing pipeline.
+- Inline local mode composes ingestion and indexing, but the default queued
+  mode still requires an external caller.
 - Google Drive, Notion, and Confluence remain placeholders; OAuth and
   credential storage are not implemented.
 - Live retrieval needs PostgreSQL/pgvector and a real embedding provider.
 - Live answers need a real answer provider.
 - Agent grants and the current assignment UI are document-level only.
-- The internal tool is invoked by the local-demo ask route but is not registered
-  as a production OpenClaw/Agent Orchestration tool.
+- The internal tool is invoked by the local-demo ask route and Agent-mode Task
+  chat, but is not registered as a production OpenClaw tool.
 - Processing Status refresh is manual.
 - Image-only PDFs require future OCR.
 - There is no chatbot UI or FastAPI implementation.

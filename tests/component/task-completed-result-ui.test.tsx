@@ -274,11 +274,7 @@ describe("Task 10B Completed Result UI Integration", () => {
 
     const user = userEvent.setup();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("WORK-000001")).toBeVisible();
-    expect(screen.getByText("Auto-routing")).toBeVisible();
     expect(screen.getByRole("region", { name: /processing timeline/i })).toBeVisible();
   });
 

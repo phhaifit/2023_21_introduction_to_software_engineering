@@ -27,7 +27,7 @@ export function TaskComposer({
 }: TaskComposerProps) {
   const promptId = useId();
   const errorId = `${promptId}-error`;
-  const attachmentDescriptionId = `${promptId}-attachment-description`;
+
   const [invalidSubmitAttempted, setInvalidSubmitAttempted] = useState(false);
   const promptIsValid = prompt.trim().length > 0;
   const interactionIsDisabled = isDisabled || isSubmitting;
@@ -108,16 +108,7 @@ export function TaskComposer({
           }}
         />
 
-        <button
-          type="button"
-          className="task-composer__attachment-btn"
-          disabled
-          aria-label="Add attachment"
-          aria-describedby={attachmentDescriptionId}
-          title="Attachments are not supported in this prototype"
-        >
-          📎
-        </button>
+
 
         {primaryIsCancel ? (
           <button
@@ -140,10 +131,6 @@ export function TaskComposer({
           </button>
         )}
       </div>
-
-      <p className="task-composer__attachment-note" id={attachmentDescriptionId}>
-        Attachments are not supported in this prototype.
-      </p>
 
       <p
         className="task-composer__error"

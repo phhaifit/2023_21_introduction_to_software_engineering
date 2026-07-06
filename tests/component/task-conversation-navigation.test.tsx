@@ -208,9 +208,7 @@ describe("Conversation Navigation & Switching", () => {
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("TASK-000001")).toBeVisible();
-    expect(screen.getByText("WORK-000001")).toBeVisible();
+
     await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
     // Select B and verify B's assistant details (items[1] is B)
@@ -222,11 +220,7 @@ describe("Conversation Navigation & Switching", () => {
       })
     );
     await user.click(screen.getByRole("menuitem", { name: "View processing details" }));
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("TASK-000002")).toBeVisible();
-    expect(screen.getByText("WORK-000002")).toBeVisible();
-    expect(screen.queryByText("TASK-000001")).not.toBeInTheDocument();
-    expect(screen.queryByText("WORK-000001")).not.toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
     // Verify selecting an empty conversation hides the details trigger

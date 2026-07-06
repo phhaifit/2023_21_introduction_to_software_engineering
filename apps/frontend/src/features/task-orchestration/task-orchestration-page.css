@@ -475,6 +475,106 @@
   overflow-wrap: anywhere;
 }
 
+.task-knowledge-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-knowledge-citation {
+  position: relative;
+}
+
+.task-knowledge-citation summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  background: #f0f9ff;
+  color: #075985;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 9px;
+  list-style: none;
+}
+
+.task-knowledge-citation summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-knowledge-citation summary:hover,
+.task-knowledge-citation summary:focus-visible {
+  border-color: #7dd3fc;
+  background: #e0f2fe;
+}
+
+.task-knowledge-citation__details {
+  width: min(360px, calc(100vw - 64px));
+  margin-top: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 14%);
+  padding: 12px;
+}
+
+.task-knowledge-citation__details dl,
+.task-knowledge-citation__details p {
+  margin: 0;
+}
+
+.task-knowledge-citation__details dl {
+  display: grid;
+  gap: 5px;
+}
+
+.task-knowledge-citation__details dl > div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.task-knowledge-citation__details dt {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.task-knowledge-citation__details dd {
+  margin: 0;
+  color: #334155;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.task-knowledge-citation__details p {
+  margin-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.task-workflow-completion {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #166534;
+  padding: 12px 14px;
+}
+
+.task-workflow-completion span {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
 .task-workspace__cancel-btn {
   background: #fff1f2;
   border: 1px solid #fecdd3;
@@ -1078,143 +1178,40 @@
 }
 
 .task-assistant-progress {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.task-assistant-progress__header {
-  align-items: center;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
 }
 
-.task-assistant-progress__cancel-btn {
-  background: transparent;
-  border: 1px solid #fda4af;
-  border-radius: 6px;
-  color: #be123c;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 700;
-  margin-left: auto;
-  padding: 3px 10px;
-  transition: background 0.15s, border-color 0.15s;
+.task-assistant-progress__icon {
+  color: #6366f1;
+  flex: none;
+  margin-top: 2px;
 }
 
-.task-assistant-progress__cancel-btn:hover {
-  background: #fff1f2;
-  border-color: #f43f5e;
-}
-
-.task-assistant-progress__cancel-btn:focus-visible {
-  outline: 3px solid #fecdd3;
-  outline-offset: 2px;
-}
-
-.task-assistant-progress__steps {
-  color: #475569;
-  font-size: 0.82rem;
-  font-weight: 600;
+.task-assistant-progress__text {
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.task-assistant-progress__track {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 10px minmax(0, 1fr);
-  padding: 9px 11px;
-}
-
-.task-assistant-progress__pulse {
-  background: #6366f1;
-  border-radius: 999px;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
-  flex: none;
-  height: 8px;
-  width: 8px;
-}
-
-.task-assistant-progress__pulse--search { background: #0891b2; box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.12); }
-.task-assistant-progress__pulse--tool { background: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12); }
-.task-assistant-progress__pulse--file { background: #0f766e; box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12); }
-.task-assistant-progress__pulse--message { background: #2563eb; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12); }
-
-.task-assistant-progress__copy {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.task-assistant-progress__activity {
-  color: #0f172a;
-  font-size: 0.9rem;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.task-assistant-progress__hint {
-  color: #64748b;
-  font-size: 0.76rem;
-  font-weight: 600;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-assistant-progress__mini-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  list-style: none;
+.task-assistant-progress__text p {
   margin: 0;
-  padding: 0;
 }
 
-.task-assistant-progress__mini-step {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  color: #475569;
-  display: inline-flex;
-  font-size: 0.74rem;
-  font-weight: 700;
-  gap: 6px;
-  min-height: 24px;
-  padding: 3px 8px;
-}
-
-.task-assistant-progress__mini-dot {
-  background: #cbd5e1;
-  border-radius: 999px;
-  height: 6px;
-  width: 6px;
-}
-
-.task-assistant-progress__mini-step--active {
-  border-color: #c7d2fe;
-  color: #3730a3;
-}
-
-.task-assistant-progress__mini-step--active .task-assistant-progress__mini-dot {
-  background: #6366f1;
-}
-
-.task-assistant-progress__mini-step--completed .task-assistant-progress__mini-dot {
-  background: #16a34a;
-}
-
-.task-assistant-progress__mini-step--failed .task-assistant-progress__mini-dot {
-  background: #dc2626;
+.task-assistant-progress__text p + p,
+.task-assistant-progress__text ul,
+.task-assistant-progress__text ol {
+  margin-top: 6px;
 }
 
 .task-conversation__message {
@@ -1746,6 +1743,8 @@
   pointer-events: none;
   transition: opacity 0.15s ease;
   width: 28px;
+  position: relative;
+  z-index: 5;
 }
 
 .task-conversation-navigation__item-row:hover .task-conversation-navigation__item-menu-btn,

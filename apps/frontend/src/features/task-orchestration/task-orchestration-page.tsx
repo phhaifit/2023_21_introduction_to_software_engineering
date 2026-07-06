@@ -8,7 +8,8 @@ import { TaskComposer } from "./components/task-composer";
 import {
   createTaskRoutingOptions,
   DEFAULT_TASK_RUNTIME_TIMINGS,
-  SUGGESTED_TASK_PROMPTS
+  SUGGESTED_TASK_PROMPTS,
+  type TaskRoutingOptions
 } from "./data/task-routing-options";
 import {
   createTaskRoutingCatalogClient,
@@ -359,6 +360,7 @@ export function TaskOrchestrationPage({
   }
 
   function handleDeleteConversationRequest(conversationId: string): void {
+    console.log("Delete requested for conversation:", conversationId);
     // Always allow deletion — user can force-delete even stuck/running conversations
     setDeleteConversationTargetId(conversationId);
   }
@@ -391,13 +393,18 @@ export function TaskOrchestrationPage({
           DEMO_WORKSPACE_ID,
           deleteConversationTargetId
         );
-      } catch {
-        dispatchTaskAction({
-          type: "submission-failed",
-          message: "Conversation could not be deleted. Try again after sync completes."
-        });
-        setDeleteConversationTargetId(null);
-        return;
+      } catch (err: any) {
+        if (err.message && err.message.toLowerCase().includes("not found")) {
+          // If the server says it's not found, it's already deleted (e.g. after a memory reset), so we can proceed with local deletion.
+          console.warn("Conversation not found on backend, proceeding with local deletion.");
+        } else {
+          dispatchTaskAction({
+            type: "submission-failed",
+            message: "Conversation could not be deleted. Try again after sync completes."
+          });
+          setDeleteConversationTargetId(null);
+          return;
+        }
       }
     }
 
@@ -825,7 +832,11 @@ export function TaskOrchestrationPage({
                   >
                     <TaskConversation
                       task={task}
-                      routingSummary={formatCompactRoutingSummary(task.requestedRouting)}
+                      routingSummary={formatCompactRoutingSummary(
+                        task.requestedRouting,
+                        routingOptions
+                      )}
+                      routingDebugLabel={formatRoutingDebugLabel(task.requestedRouting)}
                       clipboardWriter={completionRuntimeRef.current.clipboard}
                       onOpenDetails={() => setDetailModalTaskId(task.taskId as string)}
                       onCancelTask={
@@ -988,14 +999,35 @@ export function formatRoutingSummary(routing: TaskRoutingSelection): string {
   return "Routing: Auto-routing";
 }
 
-export function formatCompactRoutingSummary(routing: TaskRoutingSelection): string {
+export function formatCompactRoutingSummary(
+  routing: TaskRoutingSelection,
+  catalog?: Pick<TaskRoutingOptions, "agents" | "workflows">
+): string {
   if (routing.mode === "specific-agent") {
-    return `Agent - ${routing.agentId}`;
+    const name = catalog?.agents.find((agent) => agent.id === routing.agentId)?.name;
+    return name ? `Agent: ${name}` : `Agent ${shortId(routing.agentId)}`;
   }
 
   if (routing.mode === "predefined-workflow") {
-    return `Workflow - ${routing.workflowId}`;
+    const name = catalog?.workflows.find(
+      (workflow) => workflow.id === routing.workflowId
+    )?.name;
+    return name ? `Workflow: ${name}` : `Workflow ${shortId(routing.workflowId)}`;
   }
 
   return "Auto-routing";
+}
+
+export function formatRoutingDebugLabel(routing: TaskRoutingSelection): string | undefined {
+  if (routing.mode === "specific-agent") {
+    return `Agent ID: ${routing.agentId}`;
+  }
+  if (routing.mode === "predefined-workflow") {
+    return `Workflow ID: ${routing.workflowId}`;
+  }
+  return undefined;
+}
+
+function shortId(id: string): string {
+  return id.length > 12 ? id.slice(0, 8) : id;
 }

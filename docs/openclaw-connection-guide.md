@@ -76,7 +76,9 @@ Task Execution sends `x-openclaw-agent-id` only after this registration succeeds
 
 ### Progress side-channel note
 
-Backend keeps `/v1/chat/completions` as the execution start and result stream path. In addition, `OpenClawHttpSSETransport` may open a best-effort Gateway WebSocket side-channel for the same `x-openclaw-session-key` and subscribe to `sessions.subscribe` plus `sessions.messages.subscribe`. Session operation/tool/message events received from the Gateway are mapped into normalized progress events so the UI can show actual OpenClaw progress when the Gateway emits it. If the Gateway or Node runtime does not expose WebSocket support, execution continues through HTTP/SSE and the UI falls back to partial output.
+Backend keeps `/v1/chat/completions` as the execution start and result stream path. In addition, `OpenClawHttpSSETransport` may open a best-effort Gateway WebSocket side-channel for the same `x-openclaw-session-key` and subscribe to `sessions.subscribe` plus `sessions.messages.subscribe`. Session operation/tool/message events received from the Gateway are mapped into normalized progress events so the UI can show actual OpenClaw activity when the Gateway emits it.
+
+In the chat assistant bubble, runtime activity is intentionally minimal: the UI renders only the latest safe, displayable activity as plain assistant message text. A newer activity replaces the previous one, and visible log feeds, step counters, chips, tags, or boxed progress rows are not shown in the chat response. When assistant output chunks arrive, the transient activity text is replaced by the normal streaming answer. If the Gateway or Node runtime does not expose WebSocket support, execution continues through HTTP/SSE and the UI falls back to partial/final output.
 
 Luồng kết nối tuân thủ chặt chẽ nguyên tắc **Consumer - Provider**:
 

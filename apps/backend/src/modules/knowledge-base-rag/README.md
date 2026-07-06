@@ -4,6 +4,8 @@ See
 [`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
 for local setup, runnable commands, deterministic verification, and current
 worker/indexing limitations.
+For the final upload-to-Task-chat presentation flow, use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](../../../../../docs/demo/kb-rag/final-local-rag-demo-script.md).
 
 Owner: Member 9
 
@@ -30,6 +32,30 @@ deterministic tests.
 It still does not contain OCR or external queue/worker daemon infrastructure.
 Live retrieval uses the existing PostgreSQL/pgvector and embedding adapters;
 deterministic tests use injected adapters.
+
+For local demos, `KNOWLEDGE_INGESTION_MODE=inline` wires real multipart uploads
+to the existing local flow runner. The upload response waits for stored-file
+text extraction, chunk persistence, embedding, vector upsert, and final
+document/job state. This mode requires PostgreSQL plus configured embedding and
+pgvector adapters; it is not enabled by default and is not a production queue.
+
+For local pgvector verification, run the opt-in smoke test:
+
+```bash
+KNOWLEDGE_PGVECTOR_SMOKE=1 \
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/virtual_company_dev" \
+KNOWLEDGE_VECTOR_PROVIDER=pgvector \
+KNOWLEDGE_VECTOR_DIMENSIONS=3 \
+KNOWLEDGE_VECTOR_DISTANCE=cosine \
+npm run smoke:kb-rag:pgvector
+```
+
+The smoke test seeds namespaced KB/RAG document/chunk records, uses
+deterministic vectors, upserts through `PgvectorKnowledgeVectorIndexAdapter`,
+retrieves evidence through `KnowledgeRetrievalSearchUseCase`, verifies
+workspace isolation, and cleans up its records. Without
+`KNOWLEDGE_PGVECTOR_SMOKE=1`, it exits successfully as skipped. This is not a
+benchmark, load test, queue runtime, or production readiness gate.
 
 The frontend prototype already contains a base layout, shared KB/RAG UI
 components, local mock data/types, a Documents screen, and an Upload Documents
@@ -170,6 +196,26 @@ grant/evidence remains, it returns `insufficient_evidence` without calling a
 response composer. Missing/cross-workspace agents are denied safely. This path
 does not call a real LLM, change Task & Orchestration, register an OpenClaw
 tool, or provide a chatbot UI.
+
+The existing Task chat consumes this use case through Task Orchestration's
+injected `AgentKnowledgeAskPort`. This adapter preserves the KB/RAG-owned grant
+and retrieval boundary; Task Orchestration does not access repositories,
+embeddings, or vector storage directly.
+
+Cross-feature local-demo evidence is covered by:
+
+```bash
+node tests/contract/upload-to-task-chat-rag-integration.test.mjs
+```
+
+The test uploads TXT content through the local upload-to-index flow, verifies
+persisted chunks and vector-boundary upserts, assigns the indexed document to an
+agent, asks through the Task chat bridge route, verifies answer citations,
+revokes the assignment, and confirms the same prompt falls back to
+`insufficient_evidence`. It also checks an unassigned agent, workspace
+isolation, and safe public response fields. The test uses deterministic
+embedding/vector/composer adapters; real local retrieval through pgvector is
+covered separately by the opt-in smoke script.
 
 The public contract uses workspace-scoped routes under
 `/api/workspaces/:workspaceId/knowledge/...`:
@@ -401,19 +447,28 @@ indexing pipeline, batches requests deterministically, restores provider results
 to input order, and validates result count, numeric values, and configured
 dimensions before handing vectors to `KnowledgeVectorIndexAdapter`.
 
-Required runtime configuration:
+OpenRouter embedding configuration for the local web demo:
 
 ```text
-KNOWLEDGE_EMBEDDING_PROVIDER=openai-compatible
-KNOWLEDGE_EMBEDDING_BASE_URL=https://provider.example/v1
-KNOWLEDGE_EMBEDDING_API_KEY=<secret>
-KNOWLEDGE_EMBEDDING_MODEL=<provider-model>
-KNOWLEDGE_EMBEDDING_DIMENSIONS=<positive integer>
+KNOWLEDGE_EMBEDDING_PROVIDER=openrouter
+KNOWLEDGE_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1
+KNOWLEDGE_EMBEDDING_MODEL=openai/text-embedding-3-small
+KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+OPENROUTER_API_KEY=
 ```
 
+For provider `openrouter`, `KNOWLEDGE_EMBEDDING_BASE_URL` defaults to
+`https://openrouter.ai/api/v1`, `KNOWLEDGE_EMBEDDING_MODEL` defaults to
+`openai/text-embedding-3-small`, and the adapter reads `OPENROUTER_API_KEY`
+with `KNOWLEDGE_EMBEDDING_API_KEY` as a compatibility fallback. Keep
+`KNOWLEDGE_VECTOR_DIMENSIONS=1536` for this model; `3` is only for the opt-in
+pgvector smoke test.
+
+The existing `openai-compatible` provider remains supported with
+`KNOWLEDGE_EMBEDDING_API_KEY`, explicit base URL, model, and dimensions.
 `KNOWLEDGE_EMBEDDING_BATCH_SIZE` defaults to `32`, and
-`KNOWLEDGE_EMBEDDING_TIMEOUT_MS` defaults to `30000`. Configuration and
-provider failures use fixed safe errors; API keys, authorization headers, raw
+`KNOWLEDGE_EMBEDDING_TIMEOUT_MS` defaults to `30000`. Configuration and provider
+failures use fixed safe errors; API keys, authorization headers, raw
 requests/responses, and raw embeddings are not persisted or mapped publicly.
 Tests retain deterministic inline adapters and use injected mock fetch
 implementations, never real provider calls.

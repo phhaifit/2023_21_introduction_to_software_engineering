@@ -21,6 +21,15 @@ Partial output SHALL stop when the task reaches a terminal state.
 * **THEN** the system SHALL append the chunks to the partial result
 * **AND** the system SHALL display a processing indication
 
+#### Scenario: Prefer output streaming over transient runtime status
+
+* **GIVEN** a task is In-Progress
+* **AND** the UI is displaying a transient provider runtime status in the assistant response
+* **WHEN** the first partial output chunk becomes available
+* **THEN** the system SHALL replace the transient runtime status with the streaming assistant output
+* **AND** subsequent output chunks SHALL continue appending to the assistant output stream
+* **AND** the system SHALL NOT show the previous runtime status as a visible chat log
+
 #### Scenario: Do not stream for Pending task
 
 * **GIVEN** a task is Pending

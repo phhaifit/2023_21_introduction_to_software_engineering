@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
@@ -56,7 +56,7 @@ export function KnowledgeBaseProcessingStatusScreen(
   const [refreshKey, setRefreshKey] = useState(0);
   const metrics = useMemo(() => createProcessingStatusMetrics(jobs), [jobs]);
   const selectedJob =
-    jobs.find((job) => job.jobId === selectedJobId) ?? jobs[0] ?? null;
+    jobs.find((job) => job.jobId === selectedJobId) ?? null;
 
   useEffect(() => {
     let isActive = true;
@@ -181,38 +181,10 @@ export function KnowledgeBaseProcessingStatusScreen(
       </KnowledgeBaseSectionCard>
 
       {loadState === "loaded" && selectedJob ? (
-        <KnowledgeBaseSectionCard
-          title="Job details"
-          eyebrow="Selected document"
-          description="Review the selected job status, timing, and current processing step."
-          className="knowledge-base-rag-processing-status-details"
-        >
-          <div className="knowledge-base-rag-processing-status-details__header">
-            <div>
-              <h3>{selectedJob.documentName}</h3>
-              <p>{selectedJob.currentStep}</p>
-            </div>
-            <ProcessingStatusBadge status={selectedJob.status} />
-          </div>
-
-          <ProcessingProgressBar
-            label="Progress"
-            status={selectedJob.status}
-            value={selectedJob.progress}
-            className="knowledge-base-rag-processing-status-details__progress"
-          />
-
-          <KnowledgeBaseMetadataList
-            className="knowledge-base-rag-processing-status-details__metadata"
-            items={createJobMetadata(selectedJob)}
-          />
-
-          {selectedJob.safeErrorMessage ? (
-            <p className="knowledge-base-rag-processing-status-details__error">
-              {selectedJob.safeErrorMessage}
-            </p>
-          ) : null}
-        </KnowledgeBaseSectionCard>
+        <ProcessingJobDetails
+          job={selectedJob}
+          onClose={() => setSelectedJobId(null)}
+        />
       ) : null}
     </div>
   );
@@ -237,7 +209,10 @@ function toProcessingJob(
   const status = mapProcessingJobStatus(job.status);
   return {
     jobId: job.jobId,
+    documentId: job.documentId,
     documentName: document?.name ?? job.documentId,
+    documentStatus: mapDocumentStatus(document?.status ?? job.status),
+    mediaType: document?.mediaType ?? "Unknown",
     fileType: inferDocumentType(document),
     sourceName: document ? formatSourceName(document.source) : "Workspace",
     status,
@@ -252,8 +227,24 @@ function toProcessingJob(
       : {}),
     ...(status === "failed"
       ? { safeErrorMessage: getSafeFailureMessage(job.failure?.errorMessage) }
+      : {}),
+    ...(document
+      ? {
+          chunkCount: document.chunkCount,
+          indexedChunkCount: document.indexedChunkCount
+        }
       : {})
   };
+}
+
+function mapDocumentStatus(status: KnowledgeIndexStatus): ProcessingJob["documentStatus"] {
+  const statuses: Record<KnowledgeIndexStatus, ProcessingJob["documentStatus"]> = {
+    pending: "pending",
+    ingesting: "processing",
+    ready: "ready",
+    failed: "failed"
+  };
+  return statuses[status];
 }
 
 function mapProgress(
@@ -376,9 +367,15 @@ function ProcessingJobCard({ isSelected, job, onViewDetails }: ProcessingJobCard
         <button type="button" onClick={onViewDetails}>
           View details
         </button>
-        <button type="button" disabled>
-          Retry failed job
-        </button>
+        {job.status === "failed" ? (
+          <button
+            type="button"
+            disabled
+            title="Retry is not implemented yet."
+          >
+            Retry failed job
+          </button>
+        ) : null}
       </div>
     </article>
   );
@@ -404,11 +401,119 @@ function countJobsByStatus(
 function createJobMetadata(job: ProcessingJob) {
   return [
     { label: "Source", value: job.sourceName },
+    { label: "MIME / type", value: job.mediaType },
     { label: "Started", value: job.startedAt },
     ...(job.completedAt ? [{ label: "Completed", value: job.completedAt }] : []),
     ...(job.failedAt ? [{ label: "Failed", value: job.failedAt }] : []),
     { label: "Current step", value: job.currentStep }
   ];
+}
+
+function ProcessingJobDetails({
+  job,
+  onClose
+}: {
+  job: ProcessingJob;
+  onClose: () => void;
+}) {
+  const indexingSummary =
+    job.chunkCount === undefined
+      ? "Not available"
+      : `${job.indexedChunkCount ?? 0} of ${job.chunkCount} chunks indexed`;
+
+  return (
+    <div
+      className="knowledge-base-rag-processing-details-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="processing-job-details-title"
+    >
+      <div className="knowledge-base-rag-processing-details-modal__backdrop" onClick={onClose} />
+      <section className="knowledge-base-rag-processing-details-modal__panel">
+        <header className="knowledge-base-rag-processing-details-modal__header">
+          <div>
+            <p>Processing job details</p>
+            <h2 id="processing-job-details-title">{job.documentName}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close processing job details">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="knowledge-base-rag-processing-details-modal__statuses">
+          <div>
+            <span>Document status</span>
+            <strong>{formatDocumentStatus(job.documentStatus)}</strong>
+          </div>
+          <div>
+            <span>Processing job status</span>
+            <ProcessingStatusBadge status={job.status} />
+          </div>
+          <div>
+            <span>Current step</span>
+            <strong>{job.currentStep}</strong>
+          </div>
+        </div>
+
+        <ProcessingProgressBar
+          label="Processing progress"
+          status={job.status}
+          value={job.progress}
+          className="knowledge-base-rag-processing-status-details__progress"
+        />
+
+        <KnowledgeBaseMetadataList
+          className="knowledge-base-rag-processing-status-details__metadata"
+          items={[
+            ...createJobMetadata(job),
+            { label: "Chunks", value: job.chunkCount ?? "Not available" },
+            { label: "Indexing", value: indexingSummary },
+            {
+              label: "Retry",
+              value:
+                job.status === "failed"
+                  ? "Not implemented yet"
+                  : "Only available for failed jobs"
+            }
+          ]}
+        />
+
+        {job.safeErrorMessage ? (
+          <div className="knowledge-base-rag-processing-status-details__error" role="alert">
+            <strong>Failure reason</strong>
+            <p>{job.safeErrorMessage}</p>
+          </div>
+        ) : null}
+
+        <details className="knowledge-base-rag-processing-details-modal__debug">
+          <summary>Debug details</summary>
+          <dl>
+            <div><dt>Job ID</dt><dd>{job.jobId}</dd></div>
+            <div><dt>Document ID</dt><dd>{job.documentId}</dd></div>
+          </dl>
+        </details>
+
+        <footer>
+          {job.status === "failed" ? (
+            <button type="button" disabled title="Retry is not implemented yet.">
+              Retry failed job
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose}>Close</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function formatDocumentStatus(status: ProcessingJob["documentStatus"]): string {
+  const labels: Record<ProcessingJob["documentStatus"], string> = {
+    pending: "Pending",
+    processing: "Processing",
+    ready: "Ready",
+    failed: "Failed"
+  };
+  return labels[status];
 }
 
 function ProcessingStatusBadge({ status }: { status: KnowledgeBaseProcessingJobStatus }) {

@@ -7,8 +7,16 @@ import type {
   WorkspaceDeleteAckDto
 } from "@vcp/shared/contracts/workspace-management.ts";
 import type { DomainEvent } from "@vcp/shared/contracts/events.ts";
+
+// ---------------------------------------------------------------------------
+// DTO — internal to workspace-management (not exposed via @vcp/shared)
+// ---------------------------------------------------------------------------
+
+/** Returned by resolveActiveMembership — contains the three fields required
+ *  to populate context.workspace in the auth middleware. */
+export type ActiveMembershipDto = MembershipRecord;
 import type { EventBus } from "../../../shared/events/event-bus.ts";
-import type { WorkspaceRepository } from "./workspace-repository.ts";
+import type { WorkspaceRepository, MembershipRecord } from "./workspace-repository.ts";
 import {
   createWorkspace,
   isWorkspaceDeletable,
@@ -83,6 +91,16 @@ export class WorkspaceUseCases {
   async listWorkspaces(userId: EntityId<"userId">): Promise<WorkspaceSummaryDto[]> {
     const workspaces = await this.deps.repository.listAccessibleByUser(userId);
     return workspaces.map(toWorkspaceSummaryDto);
+  }
+
+  // ── Membership resolution ──────────────────────────────────────────────────
+
+  /** Returns the most recently created active membership for the given user,
+   *  or null when the user has no active memberships. */
+  async resolveActiveMembership(
+    userId: EntityId<"userId">
+  ): Promise<ActiveMembershipDto | null> {
+    return this.deps.repository.findActiveMembershipByUser(userId);
   }
 
   // ── Detail ────────────────────────────────────────────────────────────────

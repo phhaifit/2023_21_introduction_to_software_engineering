@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkflowEditorPage } from "@vcp/frontend/features/workflow-management/WorkflowEditorPage.tsx";
 import type { WorkflowManagementApiClient } from "@vcp/frontend/features/workflow-management/api/workflow-api-client.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import { ToastProvider } from "@vcp/frontend/components/shared/Toast.tsx";
 
 afterEach(() => {
   cleanup();
@@ -57,7 +58,7 @@ describe("WorkflowEditorPage agent catalog", () => {
     const apiClient = createApiClient();
     vi.spyOn(window, "alert").mockImplementation(() => {});
 
-    render(<WorkflowEditorPage apiClient={apiClient} />);
+    render(<ToastProvider><WorkflowEditorPage apiClient={apiClient} /></ToastProvider>);
 
     await screen.findByRole("option", { name: "Enabled Workflow Agent (Researcher)" });
     expect(screen.queryByText("Research Agent")).toBeNull();

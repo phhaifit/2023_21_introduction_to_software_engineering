@@ -190,6 +190,14 @@ The system SHALL process documents into searchable vector chunks asynchronously.
 - **AND** content reader failures, empty or unsupported content, embedding failures, vector index failures, and unknown indexing failures produce safe failure code/message fields without leaking raw document content, raw embeddings, storage keys, vector DB config, provider payloads, credentials, secrets, tokens, or queue payloads
 - **AND** the local flow runner does not add production scheduling, real file storage, real embedding provider calls, real vector DB calls, retrieval, RAG answer generation, frontend UI/API client changes, backend HTTP routes, Prisma schema/migration/generated client changes, shared status changes, SDK dependencies, or external sync
 
+#### Scenario: Opt-in local upload processes through indexing
+- **WHEN** the local server enables inline ingestion and an authorized user uploads a supported document
+- **THEN** the upload use case persists the file, document, and job, invokes the existing local flow runner, persists chunks, calls the configured embedding/vector adapters, and returns ready document/job state only after indexing succeeds
+
+#### Scenario: Inline indexing failure remains consistent
+- **WHEN** parsing, embedding, or vector indexing fails during inline local processing
+- **THEN** the system persists safe failed document/job state, does not present the document as ready for retrieval, and does not expose storage, provider, vector, or stack internals
+
 #### Scenario: Ingestion succeeds
 - **WHEN** the document ingestion worker parses, chunks, embeds, and stores a document
 - **THEN** the system marks the document indexed and records vector metadata
@@ -204,6 +212,12 @@ The system SHALL retrieve relevant knowledge through a vector database adapter.
 #### Scenario: Knowledge searched
 - **WHEN** an authorized runtime request searches workspace knowledge
 - **THEN** the system queries the vector adapter and returns relevant document chunks through a public contract
+
+#### Scenario: Local pgvector smoke verifies real vector retrieval
+- **WHEN** a developer explicitly enables the local pgvector smoke test with `KNOWLEDGE_PGVECTOR_SMOKE=1` and provides PostgreSQL/pgvector configuration
+- **THEN** the smoke test seeds namespaced KB/RAG document and chunk records, upserts deterministic vectors through the pgvector adapter, retrieves evidence through the existing retrieval boundary, verifies workspace isolation, and cleans up inserted records
+- **AND** without the explicit smoke flag the smoke test exits successfully as skipped
+- **AND** the smoke path does not call real embedding or RAG providers, require pgvector in CI, expose raw vectors or vector references in public evidence, run benchmarks, tune indexes, or add production queue/runtime behavior
 
 ### Requirement: Agent Knowledge Access
 The system SHALL allow authorized users to assign documents to specific agents
@@ -256,3 +270,49 @@ through a workspace-scoped public API.
 #### Scenario: Agent ask preserves module boundaries
 - **WHEN** the local-demo agent ask integration runs
 - **THEN** it does not import private Task & Orchestration code, register an OpenClaw tool, require an external LLM, or expose private retrieval/runtime fields
+
+#### Scenario: Uploaded assigned document grounds Task chat answer
+- **WHEN** a supported uploaded document is processed through local inline upload-to-index, assigned to an agent, and the user asks through Agent-mode Task chat
+- **THEN** the Task chat bridge delegates through KB/RAG retrieval and returns an answered response with bounded safe citations from the uploaded document
+
+#### Scenario: Revoked or unassigned uploaded document does not ground Task chat
+- **WHEN** the indexed uploaded document is unassigned from the selected agent or its grant is revoked
+- **THEN** the Task chat bridge returns `insufficient_evidence` without exposing private storage, vector, provider, prompt, or runtime fields
+
+#### Scenario: Task chat presents assigned evidence as compact citations
+- **WHEN** Agent-mode Task chat receives an answer with bounded safe citations
+- **THEN** the answer remains readable while each citation is rendered as a compact reference using the document title
+- **AND** the evidence excerpt and optional source locator are hidden until the citation is expanded
+- **AND** raw source locators are not rendered as normal answer text
+
+#### Scenario: Task chat presents external routing metadata with display names
+- **WHEN** Task chat renders a selected agent or workflow and its catalog display name is available
+- **THEN** the primary chat label uses the display name instead of the full entity identifier
+- **AND** identifiers remain optional debugging metadata rather than the primary label
+
+#### Scenario: Knowledge management UI does not overclaim placeholder integrations
+- **WHEN** external connector runtimes are not enabled in the local demo
+- **THEN** Data Sources and Synchronization Scope are hidden from the default Knowledge Base navigation or clearly marked unavailable
+- **AND** the user-facing page title and description avoid implementation-focused RAG terminology
+
+#### Scenario: Agent knowledge assignments communicate grant behavior
+- **WHEN** an authorized user manages an agent's document grants
+- **THEN** the UI explains that one or more documents may be assigned
+- **AND** document readiness is visible for assigned and available documents
+- **AND** the empty state explains that the agent cannot retrieve workspace knowledge without an assignment
+
+#### Scenario: Processing status exposes safe useful job details
+- **WHEN** a user opens details for a document processing job
+- **THEN** the UI displays distinct document and processing statuses, safe timing, progress, current step, source, media type, and available chunk/indexing summary
+- **AND** failed jobs display only a bounded safe failure reason and retry availability
+- **AND** raw stack traces, local paths, provider payloads, embeddings, vectors, credentials, and secrets are not displayed
+
+#### Scenario: Processing retry does not overclaim unavailable behavior
+- **WHEN** a processing job is completed, queued, or processing
+- **THEN** the UI does not present an active retry action
+- **AND** when a failed job has no reviewed retry endpoint, the retry action is disabled and explains that retry is not implemented yet
+
+#### Scenario: Workflow run history prioritizes readable run references
+- **WHEN** workflow run history is rendered
+- **THEN** the primary table displays a short run reference instead of the full execution identifier
+- **AND** the full identifier remains available through a tooltip, copy action, full-ID search, and run-log metadata

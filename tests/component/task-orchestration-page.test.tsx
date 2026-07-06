@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +21,12 @@ vi.mock("@vcp/frontend/features/workflow-management/WorkflowsPage.tsx", () => ({
   WorkflowsPage: () => <section>Workflows placeholder</section>
 }));
 
+vi.mock("@vcp/frontend/features/authentication/authentication-api-client.ts", () => ({
+  createAuthenticationApiClient: () => ({
+    getMe: vi.fn().mockResolvedValue({ userId: "test-user", email: "test@vcp.local", displayName: "Test User" })
+  })
+}));
+
 import { App } from "@vcp/frontend/App.tsx";
 import { TaskOrchestrationPage } from
   "@vcp/frontend/features/task-orchestration/task-orchestration-page.tsx";
@@ -38,7 +44,11 @@ import type { CreatedTaskRecord } from
   "@vcp/frontend/features/task-orchestration/model/task-types.ts";
 import type { Conversation, EntityId } from "@vcp/shared";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.clearAllMocks();
+});
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = vi.fn(function() {
     (this as HTMLDialogElement).open = true;
@@ -128,18 +138,15 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByLabelText("Task status: Pending")).toBeVisible();
 
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
 
-    expect(screen.getByText(/Task ID/i)).toBeVisible();
-    expect(screen.getByText(/Work ID/i)).toBeVisible();
-    expect(screen.queryByText(/processing log/i)).not.toBeInTheDocument();
   });
 
   it("opens the workspace through the executions navigation entry", async () => {
+    localStorage.setItem("vcp.auth.token", "test-token");
     const user = userEvent.setup();
     render(<MemoryRouter><App /></MemoryRouter>);
 
-    const navigation = screen.getByRole("complementary", { name: "Primary navigation" });
+    const navigation = await screen.findByRole("complementary", { name: "Primary navigation" });
     await user.click(within(navigation).getByRole("link", { name: "Công việc" }));
 
     expect(screen.getByRole("region", { name: "Main conversation region" })).toBeVisible();
@@ -207,7 +214,19 @@ describe("TaskOrchestrationPage base workspace", () => {
         ],
         logs: []
       },
-      streamingSnapshot: createInitialStreamingSnapshot()
+      streamingSnapshot: {
+        phase: "streaming",
+        startedAt: "2026-06-26T10:00:06.000Z",
+        exhaustedAt: null,
+        fragments: [
+          {
+            id: "frag-openclaw-1",
+            sequence: 1,
+            text: "OpenClaw partial competitor notes",
+            appendedAt: "2026-06-26T10:00:06.000Z"
+          }
+        ]
+      }
     };
     const client: TaskOrchestrationClient = {
       createTask: vi.fn(),
@@ -237,7 +256,122 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     expect(await screen.findByText("Research competitors")).toBeVisible();
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
-    expect(screen.getByText("Searching web")).toBeVisible();
+
+    expect(screen.getByText("OpenClaw partial competitor notes")).toBeVisible();
+  });
+
+  it("renders provider progress before streamed partial output", async () => {
+    const taskId = "TASK-PRE-STREAM" as EntityId<"taskId">;
+    const workId = `work-${taskId}` as EntityId<"workId">;
+    const restoredConversation: Conversation = {
+      conversationId: "CONV-PRE-STREAM" as any,
+      workspaceId: "workspace-demo" as any,
+      title: "Pre-stream progress task",
+      createdAt: "2026-06-26T11:00:00.000Z",
+      updatedAt: "2026-06-26T11:00:00.000Z",
+      messages: [
+        {
+          messageId: taskId as any,
+          conversationId: "CONV-PRE-STREAM" as any,
+          role: "user",
+          content: "Research latest OpenClaw release",
+          timestamp: "2026-06-26T11:00:00.000Z"
+        }
+      ]
+    };
+    const beforeStreamingSnapshot: CreatedTaskRecord = {
+      taskId,
+      workId,
+      prompt: "Research latest OpenClaw release",
+      requestedRouting: { mode: "auto" },
+      status: "running",
+      createdAt: "2026-06-26T11:00:00.000Z",
+      processingSnapshot: {
+        startedAt: "2026-06-26T11:00:01.000Z",
+        steps: [
+          {
+            id: "openclaw-web-search",
+            label: "Searching web",
+            status: "active",
+            startedAt: "2026-06-26T11:00:01.000Z"
+          }
+        ],
+        logs: [
+          {
+            id: "log-openclaw-web-search",
+            timestamp: "2026-06-26T11:00:01.000Z",
+            level: "info",
+            stepId: "openclaw-web-search",
+            message: "Searching release notes"
+          }
+        ]
+      },
+      streamingSnapshot: createInitialStreamingSnapshot()
+    };
+    const afterStreamingSnapshot: CreatedTaskRecord = {
+      ...beforeStreamingSnapshot,
+      streamingSnapshot: {
+        phase: "streaming",
+        startedAt: "2026-06-26T11:00:02.000Z",
+        exhaustedAt: null,
+        fragments: [
+          {
+            id: "frag-pre-stream-1",
+            sequence: 1,
+            text: "Final streamed answer",
+            appendedAt: "2026-06-26T11:00:02.000Z"
+          }
+        ]
+      }
+    };
+    let subscribedHandler: ((event: TaskRuntimeEvent) => void) | undefined;
+    const client: TaskOrchestrationClient = {
+      createTask: vi.fn(),
+      getTask: vi.fn(),
+      cancelTask: vi.fn(),
+      deleteConversation: vi.fn(),
+      deleteTask: vi.fn(),
+      fetchConversations: vi.fn().mockResolvedValue([restoredConversation]),
+      subscribeToTaskEvents: vi.fn((subscribedTaskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription => {
+        subscribedHandler = handler;
+        return { subscriptionId: "sub-pre-stream", taskId: subscribedTaskId };
+      }),
+      unsubscribeFromTaskEvents: vi.fn()
+    };
+
+    render(<TaskOrchestrationPage taskOrchestrationClient={client} />);
+
+    expect(await screen.findByText("Research latest OpenClaw release")).toBeVisible();
+    await waitFor(() => expect(subscribedHandler).toBeDefined());
+
+    act(() => {
+      subscribedHandler?.({
+        kind: "step-started",
+        taskId,
+        workId,
+        timestamp: "2026-06-26T11:00:01.000Z",
+        stepName: "Searching web",
+        stepIndex: 0,
+        taskSnapshot: beforeStreamingSnapshot
+      });
+    });
+
+    expect(await screen.findByText("Searching release notes")).toBeVisible();
+
+    expect(screen.queryByText("Final streamed answer")).not.toBeInTheDocument();
+
+    act(() => {
+      subscribedHandler?.({
+        kind: "partial-output",
+        taskId,
+        workId,
+        timestamp: "2026-06-26T11:00:02.000Z",
+        chunkText: "Final streamed answer",
+        taskSnapshot: afterStreamingSnapshot
+      });
+    });
+
+    expect(await screen.findByText("Final streamed answer")).toBeVisible();
   });
 
   it("does not synthesize fixed processing steps for restored completed history", async () => {

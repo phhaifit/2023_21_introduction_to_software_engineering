@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 import type { TaskPresentationStatus } from "../model/task-types";
 
 export interface TaskConversationNavigationItem {
@@ -55,8 +55,7 @@ function ConversationItemMenu({
   title,
   canDelete,
   deleteDisabledReason,
-  onDelete,
-  onOpenChange
+  onDelete
 }: {
   conversationId: string;
   title: string;
@@ -65,76 +64,29 @@ function ConversationItemMenu({
   onDelete?: (conversationId: string) => void;
   onOpenChange?: (open: boolean) => void;
 }) {
-  const menuId = useId();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const menuLabel = `More actions for conversation ${title}`;
-
-  useEffect(() => {
-    onOpenChange?.(isOpen);
-  }, [isOpen, onOpenChange]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    function handlePointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [isOpen]);
+  const menuLabel = `Delete conversation ${title}`;
 
   if (!onDelete) {
     return null;
   }
 
   return (
-    <div className="task-conversation-navigation__item-menu" ref={containerRef}>
+    <div className="task-conversation-navigation__item-menu">
       <button
         type="button"
-        className="task-conversation-navigation__item-menu-btn task-conversation-navigation__more-button"
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-controls={menuId}
+        className="task-conversation-navigation__item-menu-btn task-conversation-navigation__delete-btn-direct"
         aria-label={menuLabel}
-        title={menuLabel}
+        title={!canDelete ? deleteDisabledReason : "Delete conversation"}
+        disabled={!canDelete}
         onClick={(event) => {
           event.stopPropagation();
-          setIsOpen((open) => !open);
+          if (canDelete) {
+            onDelete(conversationId);
+          }
         }}
       >
-        <MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.9} />
+        <Trash2 aria-hidden="true" size={16} strokeWidth={1.9} />
       </button>
-      {isOpen ? (
-        <ul
-          id={menuId}
-          className="task-conversation-navigation__item-menu-list"
-          role="menu"
-          aria-label={menuLabel}
-        >
-          <li role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className="task-conversation-navigation__delete-btn"
-              disabled={!canDelete}
-              title={!canDelete ? deleteDisabledReason : undefined}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (canDelete) {
-                  onDelete(conversationId);
-                  setIsOpen(false);
-                }
-              }}
-            >
-              Delete conversation
-            </button>
-          </li>
-        </ul>
-      ) : null}
     </div>
   );
 }
@@ -152,13 +104,9 @@ function ConversationNavigationItem({
   onSelectConversation: (conversationId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
     <li
-      className={`task-conversation-navigation__item${
-        menuOpen ? " task-conversation-navigation__item--menu-open" : ""
-      }`}
+      className="task-conversation-navigation__item"
     >
       <div
         className={`task-conversation-navigation__item-row${
@@ -197,7 +145,6 @@ function ConversationNavigationItem({
           canDelete={item.canDelete}
           deleteDisabledReason={item.deleteDisabledReason}
           onDelete={onDeleteConversation}
-          onOpenChange={setMenuOpen}
         />
       </div>
     </li>

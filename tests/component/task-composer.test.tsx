@@ -124,14 +124,7 @@ describe("TaskComposer", () => {
     expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
   });
 
-  it("keeps attachment upload explicitly unavailable", () => {
-    renderComposer();
 
-    expect(screen.getByRole("button", { name: "Add attachment" })).toBeDisabled();
-    expect(
-      screen.getByText("Attachments are not supported in this prototype.")
-    ).toBeInTheDocument();
-  });
 
   it("shows Stop as primary action when a task is cancellable", async () => {
     const user = userEvent.setup();

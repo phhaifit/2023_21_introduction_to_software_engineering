@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
-import { KnowledgeBaseDataSourcesScreen } from "./knowledge-base-rag-data-sources.tsx";
 import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
 import {
   createKnowledgeBaseRagApiClient,
@@ -11,15 +10,12 @@ import {
 } from "./knowledge-base-rag-api-client.ts";
 import { KnowledgeBaseTabs } from "./knowledge-base-rag-components.tsx";
 import { KnowledgeBaseProcessingStatusScreen } from "./knowledge-base-rag-processing-status.tsx";
-import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
 
 type KnowledgeBaseRagViewId =
   | "documents"
   | "upload-documents"
-  | "data-sources"
-  | "synchronization-scope"
   | "processing-status";
 
 type KnowledgeBaseRagView = {
@@ -56,31 +52,6 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
       "Upload supported knowledge files from the workspace.",
       "Review selected files before adding them to the knowledge base.",
       "Prepare documents for ingestion and indexing."
-    ]
-  },
-  {
-    id: "data-sources",
-    label: "Data Sources",
-    eyebrow: "External knowledge sources",
-    title: "Data Sources",
-    description: "Manage external knowledge sources connected to the workspace.",
-    summaryItems: [
-      "Review available sources such as Google Drive, Notion, and Confluence.",
-      "Check connection status for each external source.",
-      "Prepare source content for synchronization."
-    ]
-  },
-  {
-    id: "synchronization-scope",
-    label: "Synchronization Scope",
-    eyebrow: "Sync scope selection",
-    title: "Synchronization Scope",
-    description:
-      "Select which external folders, pages, or spaces should be included in synchronization.",
-    summaryItems: [
-      "Choose the content areas that belong in the workspace knowledge base.",
-      "Review selected synchronization scope before syncing.",
-      "Keep external knowledge sources organized by workspace needs."
     ]
   },
   {
@@ -122,16 +93,13 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
   );
 
   return (
-    <section className="knowledge-base-rag-shell" aria-label="Knowledge Base RAG Management">
+    <section className="knowledge-base-rag-shell" aria-label="Knowledge Base">
       <main className="knowledge-base-rag-main">
         <header className="knowledge-base-rag-header">
           <div>
             <p className="knowledge-base-rag-kicker">Workspace Knowledge</p>
-            <h1>Knowledge Base / RAG Management</h1>
-            <p>
-              Manage internal documents and synchronized knowledge sources before they
-              are used by RAG-enabled agents.
-            </p>
+            <h1>Knowledge Base</h1>
+            <p>Manage internal documents and knowledge sources used by agents.</p>
           </div>
         </header>
 
@@ -155,12 +123,6 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
             onUploadPrepared={() => setDocumentsRefreshKey((current) => current + 1)}
             workspaceId={workspaceId}
           />
-        )}
-        {activeView.id === "data-sources" && (
-          <KnowledgeBaseDataSourcesScreen apiClient={apiClient} workspaceId={workspaceId} />
-        )}
-        {activeView.id === "synchronization-scope" && (
-          <KnowledgeBaseSyncScopeScreen apiClient={apiClient} workspaceId={workspaceId} />
         )}
         {activeView.id === "processing-status" && (
           <KnowledgeBaseProcessingStatusScreen

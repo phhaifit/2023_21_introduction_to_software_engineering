@@ -4,6 +4,9 @@ See
 [`docs/knowledge-base-rag-local-demo.md`](../../../../../docs/knowledge-base-rag-local-demo.md)
 for the local browser flow, Processing Status verification, sample document,
 and current end-to-end limitations.
+Use
+[`docs/demo/kb-rag/final-local-rag-demo-script.md`](../../../../../docs/demo/kb-rag/final-local-rag-demo-script.md)
+for the final upload-to-Task-chat demo checklist.
 
 Owner: Member 9
 
@@ -229,7 +232,11 @@ Known limitations:
 - Data-source connection and manual sync screens display safe API-backed intent/status; production provider/runtime execution is outside this frontend UI scope.
 - API-backed screens may display loading or error states when the backend API is unavailable.
 - Upload Documents sends selected supported files to the KB/RAG upload runtime,
-  which stores bytes server-side and returns only safe document/job DTOs.
+  which stores bytes server-side and returns only safe document/job DTOs. Local
+  servers configured with `KNOWLEDGE_INGESTION_MODE=inline` return final
+  ready/failed state after the existing ingestion/indexing flow completes.
+- Processing Status remains refresh-based and displays the persisted final job
+  state; no polling or worker daemon is added.
 
 Recommendation:
 

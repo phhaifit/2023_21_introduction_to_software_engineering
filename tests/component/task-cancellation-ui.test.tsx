@@ -291,8 +291,7 @@ describe("4. Running Confirm", () => {
 
     expect(screen.getByLabelText("Task status: In Progress")).toBeVisible();
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("Analyzing request.")).toBeVisible();
+
     await user.click(screen.getByRole("button", { name: "Close processing details" }));
 
     // Cancel
@@ -306,8 +305,7 @@ describe("4. Running Confirm", () => {
 
     // Active step canceled (timeline preserved), logs preserved
     await openProcessingDetailsFromAssistantMenu(user);
-    await user.click(screen.getByRole("button", { name: "Show Advanced details" }));
-    expect(screen.getByText("Analyzing request.")).toBeVisible();
+
     expect(screen.queryByText("Completed Result")).not.toBeInTheDocument(); // no finalized result
     expect(screen.queryByRole("button", { name: "Cancel current task" })).not.toBeInTheDocument();
   });

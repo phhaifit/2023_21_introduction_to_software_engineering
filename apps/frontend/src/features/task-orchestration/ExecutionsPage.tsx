@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { StatusBadge } from "../../components/shared/StatusBadge.tsx";
 import { SearchBar } from "../../components/shared/SearchBar.tsx";
-import { TerminalSquare, History, Loader2 } from "lucide-react";
+import { Check, Copy, TerminalSquare, History, Loader2 } from "lucide-react";
 import { createWorkflowManagementApiClient, type WorkflowManagementApiClient } from "../workflow-management/api/workflow-api-client.ts";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 
@@ -17,6 +17,16 @@ function LogsModal({
 }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const copyRunId = async () => {
+    try {
+      await navigator.clipboard.writeText(execution.executionId);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -42,8 +52,9 @@ function LogsModal({
           `> Allocating resources... OK`
         ];
 
+        let stepIndex = 1;
         for (const step of data) {
-          const stepOrder = stepsMap.get(step.workflowStepId) || step.stepOrder || "?";
+          const stepOrder = stepsMap.get(step.workflowStepId) || step.stepOrder || stepIndex++;
           const stepPrefix = `Step ${stepOrder}`;
           formattedLogs.push(`> [Running] ${stepPrefix} - Agent step ${step.workflowStepId} started...`);
           if (step.status === "Success") {
@@ -156,6 +167,41 @@ function LogsModal({
         <div style={{ padding: "20px", display: "flex", flexDirection: "column" }}>
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              marginBottom: "12px",
+              color: "#cbd5e1",
+              fontSize: "12px"
+            }}
+          >
+            <span>
+              Full run ID: <code>{execution.executionId}</code>
+            </span>
+            <button
+              type="button"
+              aria-label={`Copy full run ID ${execution.executionId}`}
+              title="Copy full run ID"
+              onClick={() => void copyRunId()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                border: "1px solid #475569",
+                borderRadius: "6px",
+                background: "#1e293b",
+                color: "#e2e8f0",
+                cursor: "pointer",
+                padding: "6px 9px"
+              }}
+            >
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <div
+            style={{
               background: "#020617",
               borderRadius: "8px",
               padding: "16px",
@@ -250,10 +296,16 @@ export function ExecutionsPage({ apiClient: providedApiClient }: { apiClient?: W
     loadExecutions();
   }, [apiClient]);
 
-  const filtered = executions.filter(run =>
-    run.workflowName.toLowerCase().includes(search.toLowerCase()) ||
-    run.executionId.toLowerCase().includes(search.toLowerCase())
-  );
+  const normalizedSearch = search.trim().toLowerCase();
+  const filtered = executions.filter(run => {
+    const shortId = formatShortRunId(run.executionId).toLowerCase();
+    return (
+      run.workflowName.toLowerCase().includes(normalizedSearch) ||
+      run.executionId.toLowerCase().includes(normalizedSearch) ||
+      shortId.includes(normalizedSearch) ||
+      shortId.slice(1).includes(normalizedSearch.replace(/^#/, ""))
+    );
+  });
 
   const formatDuration = (startedAt: string, completedAt: string | null) => {
     if (!completedAt) return "Running...";
@@ -276,7 +328,7 @@ export function ExecutionsPage({ apiClient: providedApiClient }: { apiClient?: W
     <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <SearchBar
-          placeholder="Search by Name or Run ID..."
+          placeholder="Search by workflow or run ID..."
           value={search}
           onChange={setSearch}
         />
@@ -292,7 +344,7 @@ export function ExecutionsPage({ apiClient: providedApiClient }: { apiClient?: W
         <table className="data-table">
           <thead>
             <tr>
-              <th>Run ID</th>
+              <th>Run</th>
               <th>Workflow Name</th>
               <th>Status</th>
               <th>Duration</th>
@@ -320,7 +372,15 @@ export function ExecutionsPage({ apiClient: providedApiClient }: { apiClient?: W
             ) : (
               filtered.map(run => (
                 <tr key={run.executionId}>
-                  <td style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{run.executionId}</td>
+                  <td style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
+                    <span
+                      title={run.executionId}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                    >
+                      <code>{formatShortRunId(run.executionId)}</code>
+                      <CopyRunIdButton executionId={run.executionId} />
+                    </span>
+                  </td>
                   <td style={{ fontWeight: 600 }}>{run.workflowName}</td>
                   <td><StatusBadge status={run.status.toLowerCase() as any} /></td>
                   <td>{formatDuration(run.startedAt, run.completedAt)}</td>
@@ -345,5 +405,41 @@ export function ExecutionsPage({ apiClient: providedApiClient }: { apiClient?: W
         <LogsModal execution={selectedExecution} onClose={() => setSelectedExecution(null)} apiClient={apiClient} />
       )}
     </div>
+  );
+}
+
+export function formatShortRunId(executionId: string): string {
+  const uuidPrefix = executionId.match(
+    /([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+  )?.[1];
+  if (uuidPrefix) return `#${uuidPrefix.toLowerCase()}`;
+
+  const normalized = executionId.replace(/^(?:wfe_task_|wfe_|exec_)/i, "");
+  return `#${normalized.slice(0, 8) || executionId.slice(0, 8)}`;
+}
+
+function CopyRunIdButton({ executionId }: { executionId: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(executionId);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="secondary-action"
+      aria-label={`Copy full run ID ${executionId}`}
+      title={copied ? "Copied full run ID" : "Copy full run ID"}
+      onClick={() => void copy()}
+      style={{ display: "inline-grid", width: "28px", height: "28px", placeItems: "center", padding: 0 }}
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+    </button>
   );
 }

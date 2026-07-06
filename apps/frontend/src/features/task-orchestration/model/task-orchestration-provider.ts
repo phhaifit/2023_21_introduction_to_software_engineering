@@ -10,6 +10,7 @@ import { createBrowserTaskCompletionRuntime, DEFAULT_TASK_COMPLETION_DELAYS, typ
 import type { TaskCancellationCoordinator } from "./task-cancellation-coordinator";
 import { DEFAULT_TASK_RUNTIME_TIMINGS } from "../data/task-routing-options";
 import { isTerminalTaskStatus } from "./task-lifecycle";
+import { selectAccumulatedPartialText } from "./task-streaming";
 
 export interface TaskRuntimeEventBase {
   readonly taskId: EntityId<"taskId">;
@@ -358,7 +359,9 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   private tasks = new Map<string, CreatedTaskRecord>();
   private eventSources = new Map<string, EventSource>();
   private subscriptionHandlers = new Map<string, { taskId: string; handler: (event: TaskRuntimeEvent) => void }>();
+  private knowledgeTaskIds = new Set<string>();
   private subIdCounter = 1;
+  private replayedTasks = new Set<string>();
 
   constructor(config: { readonly type: "http"; readonly baseUrl: string; readonly timeoutMs?: number }) {
     if (!config.baseUrl) {
@@ -375,8 +378,63 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     const response = await this.createRemoteTask(input);
     const task = createTaskRecord(input, response);
     this.tasks.set(task.taskId as string, task);
-    void this.startRemoteExecution(input, response, options?.conversationId);
+    if (input.routing.mode === "specific-agent") {
+      this.knowledgeTaskIds.add(task.taskId as string);
+      void this.startAgentKnowledgeExecution(input, response);
+    } else {
+      void this.startRemoteExecution(input, response, options?.conversationId);
+    }
     return task;
+  }
+
+  private async startAgentKnowledgeExecution(
+    input: import("@vcp/shared").CreateTaskRequest,
+    identity: RemoteTaskIdentity
+  ): Promise<void> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/tasks/agent-knowledge/ask`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: input.routing.mode === "specific-agent"
+              ? input.routing.agentId
+              : undefined,
+            message: input.prompt,
+            topK: 5
+          })
+        }
+      );
+      const payload = await response.json().catch(() => undefined);
+      if (!response.ok || payload?.ok === false || !isAgentKnowledgeResponse(payload?.data)) {
+        throw new Error("Unable to answer from assigned knowledge right now.");
+      }
+      if (
+        payload.data.status !== "answered" &&
+        payload.data.status !== "insufficient_evidence"
+      ) {
+        throw new Error("Unable to answer from assigned knowledge right now.");
+      }
+
+      const timestamp = new Date().toISOString();
+      const event = this.applyRuntimeEventData(identity.taskId as string, {
+        type: "execution-completed",
+        timestamp,
+        finalOutput: payload.data.answer,
+        knowledgeStatus: payload.data.status,
+        citations: payload.data.citations,
+        warnings: payload.data.warnings
+      });
+      if (event) {
+        setTimeout(() => this.emitLocalEvent(event), 0);
+      }
+    } catch {
+      this.failTaskStart(
+        identity.taskId as string,
+        "Unable to answer from assigned knowledge right now."
+      );
+    }
   }
 
   private async createRemoteTask(
@@ -454,16 +512,17 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       isSubmitting: false,
       conversationSequence: 1
     };
+    const safeError = {
+      code: "execution-start-rejected",
+      stepId: "execution-start",
+      title: "Execution start failed",
+      message,
+      occurredAt: timestamp
+    };
     const nextState = taskCreationReducer(state, {
       type: "task-failed",
       taskId: task.taskId,
-      error: {
-        code: "execution-start-rejected",
-        stepId: "execution-start",
-        title: "Execution start failed",
-        message,
-        occurredAt: timestamp
-      }
+      error: safeError
     });
     const updatedTask = nextState.tasks[0];
     if (!updatedTask) {
@@ -475,7 +534,7 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       workId: updatedTask.workId,
       timestamp,
       kind: "task-failed",
-      error: updatedTask.error!,
+      error: updatedTask.error ?? safeError,
       taskSnapshot: updatedTask
     });
   }
@@ -501,6 +560,11 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     taskId: string,
     handler: (event: TaskRuntimeEvent) => void
   ): Promise<void> {
+    if (this.replayedTasks.has(taskId)) {
+      return;
+    }
+    this.replayedTasks.add(taskId);
+
     try {
       const res = await fetch(
         `${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/state`
@@ -756,7 +820,6 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
     }
 
     if (data.type === "execution-completed") {
-      const finalOutput = data.finalOutput || "Completed successfully.";
       ensureProviderProcessingStarted();
       const latestTask = this.tasks.get(taskId);
       const activeStep = latestTask?.processingSnapshot.steps.find((s) => s.status === "active");
@@ -791,15 +854,33 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       } else if (taskBeforeComplete?.streamingSnapshot?.phase === "streaming") {
         this.applyTaskAction(taskId, { type: "streaming-exhausted", taskId: subscribedTask.taskId, exhaustedAt: timestamp });
       }
+      const finalTask = this.tasks.get(taskId) ?? taskBeforeComplete;
+      const streamedOutput = finalTask ? selectAccumulatedPartialText(finalTask.streamingSnapshot).trim() : "";
+      const eventFinalOutput = typeof data.finalOutput === "string" ? data.finalOutput.trim() : "";
+      const finalOutput = shouldUseStreamedFinalOutput(eventFinalOutput, streamedOutput)
+        ? streamedOutput
+        : eventFinalOutput || "Completed successfully.";
       snapshot = this.applyTaskAction(taskId, {
         type: "task-completed",
         taskId: subscribedTask.taskId,
-        result: { text: finalOutput, finalizedAt: timestamp, artifacts: [], followUpPromptSuggestions: [] } as any
+        result: {
+          text: finalOutput,
+          finalizedAt: timestamp,
+          ...(data.knowledgeStatus ? { knowledgeStatus: data.knowledgeStatus } : {}),
+          ...(Array.isArray(data.citations) ? { citations: data.citations } : {}),
+          ...(Array.isArray(data.warnings) ? { warnings: data.warnings } : {})
+        }
       });
       return {
         ...base,
         kind: "task-completed",
-        finalResult: { text: finalOutput, artifacts: [], followUpPromptSuggestions: [] } as any,
+        finalResult: {
+          text: finalOutput,
+          finalizedAt: timestamp,
+          ...(data.knowledgeStatus ? { knowledgeStatus: data.knowledgeStatus } : {}),
+          ...(Array.isArray(data.citations) ? { citations: data.citations } : {}),
+          ...(Array.isArray(data.warnings) ? { warnings: data.warnings } : {})
+        },
         taskSnapshot: snapshot
       };
     }
@@ -900,6 +981,9 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
   subscribeToTaskEvents(taskId: string, handler: (event: TaskRuntimeEvent) => void): TaskEventSubscription {
     const subscriptionId = `sub-http-${this.subIdCounter++}`;
     this.subscriptionHandlers.set(subscriptionId, { taskId, handler });
+    if (this.knowledgeTaskIds.has(taskId)) {
+      return { subscriptionId, taskId };
+    }
     void this.replayExecutionState(taskId, handler);
     try {
       const es = new EventSource(`${this.baseUrl}/api/workspaces/${DEMO_WORKSPACE_ID}/executions/${taskId}/stream`);
@@ -937,6 +1021,45 @@ export class HttpTaskOrchestrationProvider implements TaskOrchestrationClient {
       }
     }
   }
+}
+
+function isAgentKnowledgeResponse(value: unknown): value is import("@vcp/shared").AgentKnowledgeAskResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    /storageKey|filePath|absolutePath|localPath|privateUrl|queuePayload|workerPayload|vectorRef|rawVector|rawEmbedding|providerPayload|rawPrompt|systemPrompt|developerPrompt|stackTrace|credential|toolRuntime/i.test(
+      JSON.stringify(value)
+    )
+  ) {
+    return false;
+  }
+  return (
+    [
+      "answered",
+      "insufficient_evidence",
+      "unauthorized",
+      "invalid_request",
+      "error"
+    ].includes(String(candidate.status)) &&
+    typeof candidate.answer === "string" &&
+    Array.isArray(candidate.citations) &&
+    Array.isArray(candidate.warnings) &&
+    candidate.citations.every((citation) => {
+      if (!citation || typeof citation !== "object") {
+        return false;
+      }
+      const item = citation as Record<string, unknown>;
+      return (
+        typeof item.citationId === "string" &&
+        typeof item.documentId === "string" &&
+        typeof item.documentTitle === "string" &&
+        typeof item.snippet === "string" &&
+        item.snippet.length <= 400
+      );
+    })
+  );
 }
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig =
@@ -986,6 +1109,7 @@ function resolveRuntimeActivityProjection(data: any): {
 
 function inferLegacyActivityType(data: any): string {
   const type = String(data.type || "").toLowerCase();
+  if (/\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(type)) return "provider-diagnostic";
   if (type.includes("search")) return "web-search";
   if (type.includes("tool")) return "tool-call";
   if (type.includes("reading") || type.includes("read")) return "document-read";
@@ -1018,7 +1142,11 @@ function labelForActivityType(activityType: string, data: any): string {
     case "sub-agent":
       return "Agent activity";
     case "provider-diagnostic":
-      return "Provider diagnostic";
+      return /\b(reasoning|thinking|thought|planning|deliberat|reflect)\b/.test(
+        String(data.providerEventName || data.summary || data.details || "").toLowerCase()
+      )
+        ? "Thinking"
+        : "Provider diagnostic";
     default:
       return "OpenClaw activity";
   }
@@ -1041,6 +1169,18 @@ function toStepId(value: unknown): string | undefined {
     return undefined;
   }
   return text.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || undefined;
+}
+
+function shouldUseStreamedFinalOutput(eventFinalOutput: string, streamedOutput: string): boolean {
+  if (!streamedOutput) {
+    return false;
+  }
+  const normalizedEventOutput = eventFinalOutput.trim().replace(/\s+/g, " ").toLowerCase();
+  return (
+    !normalizedEventOutput ||
+    normalizedEventOutput === "completed successfully." ||
+    normalizedEventOutput === "execution completed successfully."
+  );
 }
 
 function isSyntheticRestoredWorkId(task: CreatedTaskRecord): boolean {
