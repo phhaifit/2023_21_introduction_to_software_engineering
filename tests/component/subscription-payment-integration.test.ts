@@ -62,6 +62,15 @@ describe("Subscription & Payment Integration Flow", () => {
       expect(checkoutRes.checkoutUrl).toContain("plan=standard");
     });
 
+    it("nên khởi tạo VNPay checkout thành công và trả về URL thanh toán VNPay Sandbox thực tế", async () => {
+      const checkoutRes = await (client as any).initiateVnPayCheckout("workspace-test-id", "standard");
+      expect(checkoutRes).toHaveProperty("checkoutUrl");
+      expect(checkoutRes).toHaveProperty("subscriptionId");
+      expect(checkoutRes).toHaveProperty("transactionId");
+      expect(checkoutRes.checkoutUrl).toContain("sandbox.vnpayment.vn");
+      expect(checkoutRes.checkoutUrl).toContain("vnp_TmnCode");
+    });
+
     it("nên đối soát thanh toán thành công qua mock-callback và kích hoạt subscription", async () => {
       // Khởi tạo giao dịch mới
       const checkoutRes = await client.initiateCheckout("workspace-test-id", "standard");
