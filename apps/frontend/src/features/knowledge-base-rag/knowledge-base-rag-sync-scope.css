@@ -59,11 +59,6 @@
   box-shadow: none;
 }
 
-.knowledge-base-rag-sync-scope-tree {
-  display: grid;
-  gap: 0.75rem;
-}
-
 .knowledge-base-rag-sync-scope-instructions {
   margin-bottom: 1rem;
   border: 1px solid #dbeafe;
@@ -174,33 +169,50 @@
   resize: vertical;
 }
 
-.knowledge-base-rag-sync-scope-node {
+.knowledge-base-rag-sync-scope-saved {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.knowledge-base-rag-sync-scope-saved__list {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.knowledge-base-rag-sync-scope-saved__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
   background: #ffffff;
   padding: 0.875rem;
 }
 
-.knowledge-base-rag-sync-scope-node label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.625rem;
+.knowledge-base-rag-sync-scope-saved__item > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.knowledge-base-rag-sync-scope-saved__item strong {
   color: #0f172a;
-  cursor: pointer;
   font-size: 0.9375rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
-.knowledge-base-rag-sync-scope-node input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #4f46e5;
+.knowledge-base-rag-sync-scope-saved__item div > span,
+.knowledge-base-rag-sync-scope-saved__empty {
+  color: #64748b;
+  font-size: 0.8125rem;
 }
 
-.knowledge-base-rag-sync-scope-node__type {
+.knowledge-base-rag-sync-scope-saved__type {
   display: inline-flex;
   width: fit-content;
-  margin-left: 0.75rem;
   border-radius: 999px;
   background: #f8fafc;
   color: #475569;
@@ -209,12 +221,8 @@
   padding: 0.25rem 0.5rem;
 }
 
-.knowledge-base-rag-sync-scope-node__children {
-  display: grid;
-  gap: 0.625rem;
-  margin-top: 0.75rem;
-  padding-left: 1rem;
-  border-left: 2px solid #e5e7eb;
+.knowledge-base-rag-sync-scope-saved__empty {
+  margin: 0;
 }
 
 .knowledge-base-rag-sync-scope-actions {

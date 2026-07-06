@@ -368,6 +368,13 @@ through a workspace-scoped public API.
 - **AND** normal cards and details omit raw workspace, source, document, and job
   identifiers
 
+#### Scenario: Saved Drive scope and processing details remain user-facing
+- **WHEN** a user saves Google Drive scope or reviews document processing details
+- **THEN** the scope input accepts only new URLs or IDs and clears after a successful save
+- **AND** saved Drive content is listed separately using provider titles when available or generic file and folder labels without exposing full external identifiers
+- **AND** Upload and Google Drive processing details share one common status, progress, timing, chunk, indexing, and retry layout without duplicating the current step
+- **AND** Google Drive-only source metadata is grouped in a separate user-facing section without exposing internal identifiers
+
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants
 - **THEN** the UI explains that one or more documents may be assigned

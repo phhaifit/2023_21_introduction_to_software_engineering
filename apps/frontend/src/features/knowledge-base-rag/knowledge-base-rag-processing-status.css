@@ -251,6 +251,18 @@
   margin-bottom: 1rem;
 }
 
+.knowledge-base-rag-processing-status-details__source {
+  margin-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+}
+
+.knowledge-base-rag-processing-status-details__source h3 {
+  margin: 0 0 0.75rem;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
 .knowledge-base-rag-processing-details-modal {
   position: fixed;
   z-index: 1000;

@@ -375,8 +375,19 @@ describe("Knowledge Base / RAG Processing Status", () => {
     expect(
       within(readyDialog).getByText("Ready for retrieval", { selector: "strong" })
     ).toBeVisible();
+    expect(within(readyDialog).getAllByText("Current step")).toHaveLength(1);
+    expect(within(readyDialog).getAllByText("Ready for retrieval")).toHaveLength(1);
+    expect(within(readyDialog).getByText("Source")).toBeVisible();
+    expect(within(readyDialog).getByText("Upload")).toBeVisible();
+    expect(within(readyDialog).getByText("MIME / type")).toBeVisible();
+    expect(within(readyDialog).getByText("Started")).toBeVisible();
+    expect(within(readyDialog).getByText("Chunks")).toBeVisible();
+    expect(within(readyDialog).getByText("Indexing")).toBeVisible();
     expect(within(readyDialog).getByText("application/pdf")).toBeVisible();
     expect(within(readyDialog).getByText("4 of 4 chunks indexed")).toBeVisible();
+    expect(
+      within(readyDialog).queryByRole("heading", { name: "Google Drive source" })
+    ).toBeNull();
     expect(within(readyDialog).queryByText("Retry failed job")).toBeNull();
     expect(within(readyDialog).queryByText("Debug details")).toBeNull();
     expect(within(readyDialog).queryByText("Job ID")).toBeNull();
@@ -449,10 +460,20 @@ describe("Knowledge Base / RAG Processing Status", () => {
     await user.click(within(card!).getByRole("button", { name: "View details" }));
     const dialog = screen.getByRole("dialog", { name: "Equipment policy.pdf" });
     expect(within(dialog).getByText("Google Drive")).toBeTruthy();
+    expect(
+      within(dialog).getByRole("heading", { name: "Google Drive source" })
+    ).toBeTruthy();
     expect(within(dialog).getByText("Original Drive name")).toBeTruthy();
     expect(within(dialog).getByText("Last synced")).toBeTruthy();
     expect(within(dialog).getByText("Source modified")).toBeTruthy();
     expect(within(dialog).getByText("3 of 3 chunks indexed")).toBeTruthy();
+    expect(within(dialog).getAllByText("Current step")).toHaveLength(1);
+    expect(within(dialog).getAllByText("Ready for retrieval")).toHaveLength(1);
+    expect(within(dialog).getByText("MIME / type")).toBeTruthy();
+    expect(within(dialog).getByText("Started")).toBeTruthy();
+    expect(within(dialog).getByText("Completed", { selector: "dt" })).toBeTruthy();
+    expect(within(dialog).getByText("Chunks")).toBeTruthy();
+    expect(within(dialog).getByText("Indexing")).toBeTruthy();
     expect(within(dialog).queryByText("document-drive-private-id")).toBeNull();
     expect(within(dialog).queryByText("job-drive-private-id")).toBeNull();
   });

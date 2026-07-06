@@ -675,8 +675,7 @@ function createJobMetadata(job: ProcessingJob) {
     { label: "MIME / type", value: job.mediaType },
     { label: "Started", value: job.startedAt },
     ...(job.completedAt ? [{ label: "Completed", value: job.completedAt }] : []),
-    ...(job.failedAt ? [{ label: "Failed", value: job.failedAt }] : []),
-    { label: "Current step", value: job.currentStep }
+    ...(job.failedAt ? [{ label: "Failed", value: job.failedAt }] : [])
   ];
 }
 
@@ -737,26 +736,35 @@ function ProcessingJobDetails({
           className="knowledge-base-rag-processing-status-details__metadata"
           items={[
             ...createJobMetadata(job),
-            ...(job.originalDriveName
-              ? [{ label: "Original Drive name", value: job.originalDriveName }]
-              : []),
-            ...(job.lastSyncedAt
-              ? [{ label: "Last synced", value: job.lastSyncedAt }]
-              : []),
-            ...(job.sourceModifiedAt
-              ? [{ label: "Source modified", value: job.sourceModifiedAt }]
-              : []),
             { label: "Chunks", value: job.chunkCount ?? "Not available" },
             { label: "Indexing", value: indexingSummary },
-            {
-              label: "Retry",
-              value:
-                job.status === "failed"
-                  ? "Not implemented yet"
-                  : "Only available for failed jobs"
-            }
+            ...(job.status === "failed"
+              ? [{ label: "Retry", value: "Not implemented yet" }]
+              : [])
           ]}
         />
+
+        {job.sourceName === "Google Drive" ? (
+          <section className="knowledge-base-rag-processing-status-details__source">
+            <h3>Google Drive source</h3>
+            <KnowledgeBaseMetadataList
+              items={[
+                {
+                  label: "Original Drive name",
+                  value: job.originalDriveName ?? job.documentName
+                },
+                {
+                  label: "Last synced",
+                  value: job.lastSyncedAt ?? "Not available"
+                },
+                {
+                  label: "Source modified",
+                  value: job.sourceModifiedAt ?? "Not available"
+                }
+              ]}
+            />
+          </section>
+        ) : null}
 
         {job.safeErrorMessage ? (
           <div className="knowledge-base-rag-processing-status-details__error" role="alert">
