@@ -9,11 +9,15 @@ import { LocalKnowledgeFileStorage } from "@vcp/backend/modules/knowledge-base-r
 import { StoredKnowledgeDocumentContentReader } from "@vcp/backend/modules/knowledge-base-rag/infrastructure/stored-knowledge-document-content-reader.ts";
 
 const TXT = "text/plain";
+const MARKDOWN = "text/markdown";
+const CSV = "text/csv";
+const LEGACY_DOC = "application/msword";
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const PDF = "application/pdf";
 const extractor = new RuntimeKnowledgeDocumentTextExtractor();
 
 await testTxtExtraction();
+await testMarkdownAndCsvExtraction();
 await testDocxExtraction();
 await testPdfExtraction();
 await testSafeFailures();
@@ -42,6 +46,22 @@ async function testTxtExtraction() {
   await assertParserFailure(TXT, "invalid.txt", Buffer.from([0xc3, 0x28]), "invalid");
 }
 
+async function testMarkdownAndCsvExtraction() {
+  const markdown = await extract(
+    MARKDOWN,
+    "guide.md",
+    Buffer.from("# Guide\r\n\r\nUse the supported parser.")
+  );
+  assert.equal(markdown.text, "# Guide\n\nUse the supported parser.");
+
+  const csv = await extract(
+    CSV,
+    "equipment.csv",
+    Buffer.from("name,status\r\nLaptop,approved")
+  );
+  assert.equal(csv.text, "name,status\nLaptop,approved");
+}
+
 async function testDocxExtraction() {
   const result = await extract(
     DOCX,
@@ -63,6 +83,12 @@ async function testPdfExtraction() {
 }
 
 async function testSafeFailures() {
+  await assertParserFailure(
+    LEGACY_DOC,
+    "legacy.doc",
+    Buffer.from("legacy Word binary"),
+    "unsupported"
+  );
   await assertParserFailure(
     "application/octet-stream",
     "../../private.bin",

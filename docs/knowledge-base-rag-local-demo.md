@@ -89,7 +89,7 @@ After a browser callback, the backend redirects to
 `/knowledge-base-rag?tab=data-sync&googleDrive=connected`; clients that
 explicitly request `application/json` continue to receive a safe API envelope.
 Data Sync accepts raw Drive IDs or full Google Docs/Drive file and folder URLs,
-optional recursive folder traversal, allowed MIME types, and a
+optional subfolder traversal for future syncs, allowed MIME types, and a
 maximum file count. Users can run sync manually or enable an hourly/daily
 schedule. The app never imports an entire Drive by default.
 

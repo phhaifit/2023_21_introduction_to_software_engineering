@@ -59,6 +59,21 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
     () => scopeNodes.filter((node) => !node.parentScopeNodeId),
     [scopeNodes]
   );
+  const hasFolderRoot = savedRootNodes.some(
+    (node) => node.nodeType === "folder"
+  );
+  const hasExpandableFolder = useMemo(
+    () => tree.some(hasExpandableTreeNode),
+    [tree]
+  );
+  const previewUnavailable =
+    tree.length > 0 &&
+    tree.every(
+      (node) =>
+        isGenericScopeNodeName(node) &&
+        node.children.length === 0 &&
+        !node.hasMoreChildren
+    );
   const isBusy = operationState !== "idle";
   const hasScopeCandidate =
     savedRootNodes.length > 0 || scopeInput.trim().length > 0;
@@ -349,26 +364,33 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                   in Knowledge Base sync.
                 </p>
               </div>
-              {tree.length > 0 ? (
+              {tree.length > 0 && !previewUnavailable ? (
                 <>
                   <div className="knowledge-base-rag-sync-scope-tree-actions">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedNodeIds(
-                          new Set(
-                            scopeNodes
-                              .filter((node) => node.nodeType === "folder")
-                              .map((node) => node.scopeNodeId)
-                          )
-                        )
-                      }
-                    >
-                      Expand all
-                    </button>
-                    <button type="button" onClick={() => setExpandedNodeIds(new Set())}>
-                      Collapse all
-                    </button>
+                    {hasExpandableFolder ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedNodeIds(
+                              new Set(
+                                scopeNodes
+                                  .filter((node) => node.nodeType === "folder")
+                                  .map((node) => node.scopeNodeId)
+                              )
+                            )
+                          }
+                        >
+                          Expand all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedNodeIds(new Set())}
+                        >
+                          Collapse all
+                        </button>
+                      </>
+                    ) : null}
                     <button type="button" onClick={handleSelectAll}>Select all</button>
                     <button type="button" onClick={handleClearSelection}>
                       Clear selection
@@ -395,11 +417,23 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                   </div>
                   {tree.some((node) => isGenericScopeNodeName(node)) ? (
                     <p className="knowledge-base-rag-sync-scope-note" role="status">
-                      Drive content preview is unavailable for some saved items.
-                      Saved scope can still be synced.
+                      Drive preview is unavailable. Saved items can still be synced.
                     </p>
                   ) : null}
                 </>
+              ) : previewUnavailable ? (
+                <div className="knowledge-base-rag-sync-scope-preview-unavailable">
+                  <strong>{formatSelectedDriveItemCount(scopeNodes, selectedScopeNodeIds)}</strong>
+                  <p role="status">
+                    Drive preview is unavailable. Saved items can still be synced.
+                  </p>
+                  <div className="knowledge-base-rag-sync-scope-tree-actions">
+                    <button type="button" onClick={handleSelectAll}>Select all</button>
+                    <button type="button" onClick={handleClearSelection}>
+                      Clear selection
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <p className="knowledge-base-rag-sync-scope-saved__empty">
                   No Drive content selected yet. Paste a Drive file or folder URL
@@ -416,17 +450,26 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
               </p>
             </div>
             <div className="knowledge-base-rag-sync-scope-config">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={recursive}
-                  onChange={(event) => {
-                    setRecursive(event.target.checked);
-                    setHasUnsavedChanges(true);
-                  }}
-                />
-                Include nested folders
-              </label>
+              {hasFolderRoot ? (
+                <label>
+                  <span className="knowledge-base-rag-sync-scope-checkbox-label">
+                    <input
+                      type="checkbox"
+                      aria-label="Include subfolders in future sync"
+                      checked={recursive}
+                      onChange={(event) => {
+                        setRecursive(event.target.checked);
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                    Include subfolders in future sync
+                  </span>
+                  <span>
+                    When enabled, new files added inside subfolders of selected
+                    folders will be included during future syncs.
+                  </span>
+                </label>
+              ) : null}
               <label>
                 Maximum files per sync
                 <input
@@ -491,14 +534,19 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                     selectedScopeNodeIds.size === 0 ||
                     hasUnsavedChanges
                   }
+                  title={
+                    hasUnsavedChanges
+                      ? "Save selection and settings before syncing."
+                      : selectedScopeNodeIds.size === 0
+                        ? "Select at least one Drive file or folder before syncing."
+                        : undefined
+                  }
                   onClick={() => void handleRequestManualSync()}
                 >
                   {operationState === "syncing" ? "Syncing..." : "Sync now"}
                 </button>
                 {selectedScopeNodeIds.size === 0 ? (
                   <span>Select at least one Drive file or folder before syncing.</span>
-                ) : hasUnsavedChanges ? (
-                  <span>Save selection and settings before syncing.</span>
                 ) : null}
               </div>
             </div>
@@ -679,6 +727,25 @@ function getScopeNodeDisplayName(node: SyncScopeNodeDto): string {
 
 function isGenericScopeNodeName(node: SyncScopeNodeDto): boolean {
   return getScopeNodeDisplayName(node).startsWith("Google Drive ");
+}
+
+function hasExpandableTreeNode(node: SyncScopeTreeNode): boolean {
+  return (
+    (node.nodeType === "folder" &&
+      (node.children.length > 0 || node.hasMoreChildren === true)) ||
+    node.children.some(hasExpandableTreeNode)
+  );
+}
+
+function formatSelectedDriveItemCount(
+  nodes: SyncScopeNodeDto[],
+  selectedIds: Set<string>
+): string {
+  const selected = nodes.filter((node) => selectedIds.has(node.scopeNodeId));
+  if (selected.length !== 1) return `${selected.length} Drive items selected`;
+  return selected[0]?.nodeType === "folder"
+    ? "1 Drive folder selected"
+    : "1 Drive file selected";
 }
 
 function getErrorMessage(error: unknown): string {

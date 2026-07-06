@@ -514,8 +514,9 @@ distance ordering rather than creating an ANN index tied to one dimension.
 Adding a production ANN index requires selecting and fixing a model dimension
 in a later migration.
 
-Legacy DOC parsing, OCR, and external synchronization remain outside this
-runtime slice.
+Legacy DOC parsing and OCR remain outside the supported parser scope. Google
+Drive synchronization imports supported scoped content through this same
+ingestion and indexing pipeline.
 
 ## Retrieval/Search API
 

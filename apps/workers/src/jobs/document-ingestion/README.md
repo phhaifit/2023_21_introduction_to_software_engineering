@@ -6,19 +6,20 @@ The Knowledge Base / RAG module owns document metadata and permissions.
 
 Current status:
 
-- Queue entrypoint/context only in this app folder.
+- Queue entrypoints exist for document ingestion and Google Drive sync.
 - KB/RAG now has a module-local handoff and deterministic text processing
   pipeline under `apps/backend/src/modules/knowledge-base-rag/worker`.
-- Full worker app registration, object storage readers, PDF/DOC/DOCX parsing,
-  OCR, embedding, and vector indexing remain future scope.
+- The local server composes real object storage reads, TXT/Markdown/CSV,
+  text-bearing PDF and DOCX extraction, embedding, and pgvector adapters through
+  a process-local asynchronous queue.
+- OCR, legacy DOC parsing, a durable worker daemon, and multi-instance queue
+  leasing remain future scope.
 
 Future async responsibilities:
 
 - Connect the app worker queue to the KB/RAG module-local handoff.
-- Add object storage readers for uploaded or synchronized files.
-- Add real PDF/DOC/DOCX/OCR extraction adapters.
-- Generate embeddings through an embedding adapter.
-- Write chunk/vector metadata through a vector database adapter.
+- Add durable queue delivery, leasing, capped retries, and restart-safe claims.
+- Add OCR only through a separately reviewed parser/runtime change.
 - Update ingestion status to pending, ingesting, ready, or failed.
 - Process external source sync ingestion after a sync job creates source file
   references.

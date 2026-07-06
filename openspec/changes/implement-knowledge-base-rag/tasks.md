@@ -17,8 +17,8 @@
 ## 2. Remaining Production Runtime Work
 
 - [x] 2.1 Implement real file/object storage upload and content-read runtime
-- [ ] 2.2 Complete document parsing beyond text/markdown (PDF and DOCX extraction implemented; legacy DOC and OCR explicitly deferred)
-- [ ] 2.3 Implement a durable production queue/scheduler runtime (worker entrypoint, process-local async queue, and opt-in scheduled polling implemented; durable multi-instance queue/lease remains)
+- [x] 2.2 Complete supported document parsing beyond text/markdown for PDF and DOCX; legacy DOC and OCR are explicitly deferred
+- [x] 2.3 Implement local worker entrypoint, process-local async queue, and opt-in scheduled polling for ingestion/indexing/sync
 - [x] 2.4 Implement real external provider sync for Google Drive only
 - [x] 2.5 Implement real OAuth/credential handling for Google Drive only
 - [x] 2.6 Implement real embedding provider adapter integration
@@ -36,6 +36,7 @@
 - [x] 2.18 Simplify Upload status, make Google Drive OAuth feedback transient, and move external sync counters into user-facing details
 - [x] 2.19 Separate new and saved Drive scope input, hide external IDs, and align Upload/Drive processing details
 - [x] 2.20 Materialize a bounded Google Drive scope tree, persist hierarchical selection, and make sync consume only selected nodes
+- [ ] 2.21 Implement durable multi-instance production queue/lease for ingestion/indexing/sync jobs
 
 ## 3. Remaining Verification and Handoff
 

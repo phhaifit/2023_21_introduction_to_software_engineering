@@ -329,6 +329,18 @@ through a workspace-scoped public API.
 - **AND** manual and opt-in hourly/daily scheduled polling are supported through process-local non-durable runtime boundaries
 - **AND** Google Picker, Drive push notifications/change tokens, legacy DOC, Google Slides, OCR, and a durable distributed scheduler remain explicitly unsupported
 
+#### Scenario: Supported parser scope is explicit
+- **WHEN** uploaded or synchronized content reaches document text extraction
+- **THEN** strict UTF-8 TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs text export, and Google Sheets CSV export are supported
+- **AND** scanned or image-only PDFs without extractable text fail with a safe empty-content error
+- **AND** legacy DOC and image OCR remain explicitly deferred
+
+#### Scenario: Local queue and scheduler scope remains honest
+- **WHEN** ingestion, indexing, or Google Drive synchronization is queued locally
+- **THEN** the worker entrypoint, process-local asynchronous queue, and opt-in scheduled polling provide observable local and single-process execution
+- **AND** queued work is not claimed to survive process crashes or coordinate leases across multiple instances
+- **AND** durable multi-instance queue delivery, leasing, and capped transient retries remain separate production work
+
 #### Scenario: Google Drive Auto Sync refreshes selected content
 - **WHEN** a connected Google Drive source has selected scope, Auto Sync enabled, and its hourly or daily schedule is due
 - **THEN** the scheduler creates one scheduled sync job through the existing queue/runtime boundary
