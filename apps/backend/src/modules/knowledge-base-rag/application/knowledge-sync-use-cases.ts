@@ -1,6 +1,7 @@
 import type {
   RequestKnowledgeSyncJobRequest,
   GoogleDriveAutoSyncSettingsRequest,
+  GoogleDriveScopePreviewRequest,
   GoogleDriveSyncScopeRequest,
   SyncJobDto,
   SyncScopeNodeDto,
@@ -102,7 +103,13 @@ export class KnowledgeSyncUseCases {
     actorId: EntityId<"userId">,
     request: RequestKnowledgeSyncJobRequest = {}
   ): Promise<SyncJobDto> {
-    return this.requestSync(workspaceId, actorId, request, "manual");
+    const job = await this.requestSync(workspaceId, actorId, request, "manual");
+    if (!job) {
+      throw new KnowledgeBaseRagValidationError([
+        "A Google Drive sync is already queued or running."
+      ]);
+    }
+    return job;
   }
 
   async requestScheduledSync(input: {
@@ -185,7 +192,7 @@ export class KnowledgeSyncUseCases {
     actorId: EntityId<"userId">,
     request: RequestKnowledgeSyncJobRequest,
     syncMode: "manual" | "scheduled"
-  ): Promise<SyncJobDto> {
+  ): Promise<SyncJobDto | null> {
     if (!actorId) {
       throw new KnowledgeBaseRagValidationError(["actorId is required"]);
     }
@@ -210,7 +217,7 @@ export class KnowledgeSyncUseCases {
     }
 
     const timestamp = this.dependencies.now();
-    const job = await this.dependencies.syncJobRepository.saveSyncJob({
+    const pendingJob = {
       jobId: this.dependencies.generateJobId(),
       workspaceId,
       sourceId: request.sourceId,
@@ -223,7 +230,14 @@ export class KnowledgeSyncUseCases {
       safeSummary: { syncMode },
       createdAt: timestamp,
       updatedAt: timestamp
-    });
+    } as const;
+    const job =
+      request.sourceId
+        ? await this.dependencies.syncJobRepository.createSyncJobIfNoActiveSource(
+            pendingJob
+          )
+        : await this.dependencies.syncJobRepository.saveSyncJob(pendingJob);
+    if (!job) return null;
     if (this.dependencies.enqueueSyncJob) {
       await this.dependencies.enqueueSyncJob({
         workspaceId,
@@ -385,6 +399,63 @@ export class KnowledgeSyncUseCases {
       }
     }
     return saved.map(toSyncScopeNodeDto);
+  }
+
+  async previewGoogleDriveScope(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string,
+    request: GoogleDriveScopePreviewRequest
+  ): Promise<SyncScopeNodeDto[]> {
+    await this.requireGoogleDriveSource(workspaceId, sourceId);
+    if (
+      !this.dependencies.googleDriveOAuthService ||
+      !this.dependencies.googleDriveProvider
+    ) {
+      throw new KnowledgeBaseRagValidationError([
+        "Google Drive preview is unavailable."
+      ]);
+    }
+    const folderIds = uniqueSafeIds(request.folderIds ?? []);
+    const fileIds = uniqueSafeIds(request.fileIds ?? []);
+    if (folderIds.length + fileIds.length === 0) {
+      throw new KnowledgeBaseRagValidationError([
+        "At least one Google Drive folder ID or file ID is required"
+      ]);
+    }
+    const maxFiles = Math.min(500, Math.max(1, request.maxFiles ?? 100));
+    const allowedMimeTypes = [
+      ...new Set(
+        (request.allowedMimeTypes ?? []).map((value) => value.trim()).filter(Boolean)
+      )
+    ].slice(0, 20);
+    const accessToken =
+      await this.dependencies.googleDriveOAuthService.getAccessToken(
+        workspaceId,
+        sourceId
+      );
+    const tree = await this.dependencies.googleDriveProvider.listScopeTree(
+      accessToken,
+      {
+        folderIds,
+        fileIds,
+        recursive: request.recursive === true,
+        allowedMimeTypes,
+        maxFiles
+      }
+    );
+    return materializeScopeTree({
+      workspaceId,
+      sourceId,
+      tree,
+      existing: [],
+      rootExternalIds: new Set([...folderIds, ...fileIds]),
+      config: {
+        recursive: request.recursive === true,
+        allowedMimeTypes,
+        maxFiles
+      },
+      now: this.dependencies.now()
+    }).map(toSyncScopeNodeDto);
   }
 
   private async updateSelectedScopeCount(

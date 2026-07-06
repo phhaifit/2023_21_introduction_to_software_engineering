@@ -36,7 +36,8 @@
 - [x] 2.18 Simplify Upload status, make Google Drive OAuth feedback transient, and move external sync counters into user-facing details
 - [x] 2.19 Separate new and saved Drive scope input, hide external IDs, and align Upload/Drive processing details
 - [x] 2.20 Materialize a bounded Google Drive scope tree, persist hierarchical selection, and make sync consume only selected nodes
-- [ ] 2.21 Implement durable multi-instance production queue/lease for ingestion/indexing/sync jobs
+- [x] 2.21 Implement durable multi-instance production queue/lease for ingestion/indexing/sync jobs
+- [x] 2.22 Add non-persistent Google Drive draft preview and separate it from saved sync scope
 
 ## 3. Remaining Verification and Handoff
 

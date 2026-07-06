@@ -22,6 +22,7 @@ import {
   type GoogleDriveOAuthStartRequest,
   type GoogleDriveOAuthStartResponse,
   type GoogleDriveAutoSyncSettingsRequest,
+  type GoogleDriveScopePreviewRequest,
   type GoogleDriveSyncScopeRequest
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 
@@ -94,6 +95,11 @@ export type KnowledgeBaseRagApiClient = {
     workspaceId: EntityId<"workspaceId">,
     sourceId: string,
     request: GoogleDriveSyncScopeRequest
+  ): Promise<SyncScopeNodeDto[]>;
+  previewGoogleDriveScope(
+    workspaceId: EntityId<"workspaceId">,
+    sourceId: string,
+    request: GoogleDriveScopePreviewRequest
   ): Promise<SyncScopeNodeDto[]>;
   configureGoogleDriveAutoSync(
     workspaceId: EntityId<"workspaceId">,
@@ -323,6 +329,14 @@ export function createKnowledgeBaseRagApiClient(input: {
         }),
         payload,
         "PUT"
+      ),
+    previewGoogleDriveScope: (workspaceId, sourceId, payload) =>
+      requestJson<SyncScopeNodeDto[]>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.googleDrivePreview, {
+          workspaceId,
+          sourceId
+        }),
+        payload
       ),
     configureGoogleDriveAutoSync: (workspaceId, sourceId, payload) =>
       requestJson<KnowledgeDataSourceDto>(

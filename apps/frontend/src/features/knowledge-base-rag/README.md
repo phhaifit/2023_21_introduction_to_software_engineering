@@ -31,7 +31,8 @@ synchronization.
 - `knowledge-base-rag-data-sources.tsx`: Google Drive connection section wired
   to safe OAuth connect/disconnect calls.
 - `knowledge-base-rag-sync-scope.tsx`: Drive content, schedule settings, and
-  sync actions used by the combined Data Sync view.
+  sync actions used by the combined Data Sync view. Draft Drive previews are
+  debounced and non-persistent until Save scope is confirmed.
 - `knowledge-base-rag-components.tsx`: shared presentational components such as
   status badges, metric cards, section cards, metadata lists, progress bars,
   empty states, and tabs.

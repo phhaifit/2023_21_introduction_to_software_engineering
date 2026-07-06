@@ -33,6 +33,7 @@ const expectedDtoExports = [
   "GoogleDriveOAuthStartResponse",
   "GoogleDriveOAuthCallbackResponse",
   "GoogleDriveSyncScopeRequest",
+  "GoogleDriveScopePreviewRequest",
   "GoogleDriveAutoSyncSettingsRequest",
   "KnowledgeRetrievalSearchRequest",
   "KnowledgeEvidenceDto",
@@ -81,6 +82,7 @@ const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/knowledge/data-sources/google-drive/oauth/callback"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/disconnect"],
   ["PUT", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/scope"],
+  ["POST", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/preview"],
   ["PUT", "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/auto-sync"],
   ["GET", "/api/workspaces/:workspaceId/knowledge/sync-jobs/:jobId"]
 ];

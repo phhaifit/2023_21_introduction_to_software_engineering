@@ -326,8 +326,8 @@ through a workspace-scoped public API.
 #### Scenario: Google Drive runtime limitations remain explicit
 - **WHEN** the current Google Drive slice is described or displayed
 - **THEN** Google Drive is the only external provider presented as supported
-- **AND** manual and opt-in hourly/daily scheduled polling are supported through process-local non-durable runtime boundaries
-- **AND** Google Picker, Drive push notifications/change tokens, legacy DOC, Google Slides, OCR, and a durable distributed scheduler remain explicitly unsupported
+- **AND** manual and opt-in hourly/daily scheduled polling are supported through process-local or explicitly enabled PostgreSQL durable queue boundaries
+- **AND** Google Picker, Drive push notifications/change tokens, legacy DOC, Google Slides, and OCR remain explicitly unsupported
 
 #### Scenario: Supported parser scope is explicit
 - **WHEN** uploaded or synchronized content reaches document text extraction
@@ -339,7 +339,14 @@ through a workspace-scoped public API.
 - **WHEN** ingestion, indexing, or Google Drive synchronization is queued locally
 - **THEN** the worker entrypoint, process-local asynchronous queue, and opt-in scheduled polling provide observable local and single-process execution
 - **AND** queued work is not claimed to survive process crashes or coordinate leases across multiple instances
-- **AND** durable multi-instance queue delivery, leasing, and capped transient retries remain separate production work
+- **AND** durable guarantees apply only when `KNOWLEDGE_QUEUE_MODE=durable` is explicitly enabled with PostgreSQL
+
+#### Scenario: Durable runtime jobs use atomic expiring leases
+- **WHEN** durable queue mode is enabled for ingestion, indexing, or Google Drive synchronization
+- **THEN** runtime work is persisted before execution and one worker atomically claims due work with an owner and lease expiry
+- **AND** another worker cannot claim an active lease, while an expired lease can be reclaimed after a worker crash
+- **AND** transient failures use capped retries and terminal failures retain only bounded safe summaries
+- **AND** active Google Drive sync creation is idempotent per source across scheduler instances
 
 #### Scenario: Google Drive Auto Sync refreshes selected content
 - **WHEN** a connected Google Drive source has selected scope, Auto Sync enabled, and its hourly or daily schedule is due
@@ -394,6 +401,13 @@ through a workspace-scoped public API.
 - **AND** selecting or clearing a folder applies to its loaded descendants, mixed descendants produce an indeterminate folder state, and the persisted selected node IDs are the only scope consumed by manual and scheduled synchronization
 - **AND** nested traversal respects the configured recursive option and preview size limit
 - **AND** unsupported items are visible but not selectable, while provider preview failures remain safe and do not expose tokens or raw provider payloads
+
+#### Scenario: Drive draft preview does not mutate saved scope
+- **WHEN** a user enters a valid Drive file or folder URL before saving scope
+- **THEN** the UI loads a debounced safe tree preview without persisting scope nodes
+- **AND** clearing or changing the input removes stale draft state and ignores stale preview responses
+- **AND** saved scope remains a separate compact summary used by manual and scheduled sync
+- **AND** only Save scope persists the selected draft nodes
 
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants

@@ -356,6 +356,32 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   );
   assertNoForbiddenPublicKeys(noScopeSync.body);
 
+  const drivePreview = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/preview",
+    {
+      method: "POST",
+      body: {
+        fileIds: ["1DRIVEFILE123"],
+        recursive: false,
+        maxFiles: 25
+      }
+    }
+  );
+  assert.equal(drivePreview.status, 200);
+  assert.equal(drivePreview.body.data[0].name, "Equipment Policy.txt");
+  assert.equal(
+    (
+      await runtime.syncScopeRepository.getSyncScope(
+        "workspace-a",
+        "source-google-drive-empty"
+      )
+    ).length,
+    0,
+    "preview route must not persist scope"
+  );
+  assertNoForbiddenPublicKeys(drivePreview.body);
+
   const configuredDriveScope = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/scope",
@@ -515,6 +541,29 @@ function createKnowledgeBaseRagRuntime() {
         syncScopeRepository,
         syncJobRepository,
         dataSourceRepository,
+        googleDriveOAuthService: {
+          async getAccessToken() {
+            return "safe-test-access-value";
+          }
+        },
+        googleDriveProvider: {
+          async listScopeTree() {
+            return [
+              {
+                file: {
+                  fileId: "1DRIVEFILE123",
+                  name: "Equipment Policy.txt",
+                  mimeType: "text/plain",
+                  modifiedTime: now(),
+                  trashed: false,
+                  canDownload: true
+                },
+                children: [],
+                hasMoreChildren: false
+              }
+            ];
+          }
+        },
         now,
         generateJobId: () => `sync-job-${++syncJobSequence}`
       }),

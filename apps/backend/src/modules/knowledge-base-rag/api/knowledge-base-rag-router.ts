@@ -42,6 +42,7 @@ import {
   parseConnectDataSourceRequest,
   parseGoogleDriveAutoSyncSettingsRequest,
   parseGoogleDriveOAuthStartRequest,
+  parseGoogleDriveScopePreviewRequest,
   parseGoogleDriveSyncScopeRequest,
   parseListQuery,
   parseKnowledgeRetrievalSearchRequest,
@@ -199,6 +200,24 @@ export function createKnowledgeBaseRagRouter(
           workspaceId,
           requirePathParam(request, "sourceId"),
           parseGoogleDriveSyncScopeRequest(request.body)
+        );
+      });
+    }
+  );
+
+  router.post(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.googleDrivePreview,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "sync-scope:manage"
+        );
+        return dependencies.syncUseCases.previewGoogleDriveScope(
+          workspaceId,
+          requirePathParam(request, "sourceId"),
+          parseGoogleDriveScopePreviewRequest(request.body)
         );
       });
     }

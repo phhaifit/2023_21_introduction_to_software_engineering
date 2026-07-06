@@ -246,6 +246,30 @@ const treeUseCases = new KnowledgeSyncUseCases({
   now: () => now,
   generateJobId: () => "scope-tree-job"
 });
+const persistedBeforePreview = await syncScopeRepository.getSyncScope(
+  "workspace-a",
+  "source-drive"
+);
+const preview = await treeUseCases.previewGoogleDriveScope(
+  "workspace-a",
+  "source-drive",
+  {
+    folderIds: ["folder-1"],
+    recursive: true,
+    maxFiles: 10,
+    allowedMimeTypes: []
+  }
+);
+assert.equal(preview.find((node) => node.name === "HR Policies")?.nodeType, "folder");
+assert.equal(
+  preview.find((node) => node.name === "Equipment Policy.txt")?.nodeType,
+  "file"
+);
+assert.deepEqual(
+  await syncScopeRepository.getSyncScope("workspace-a", "source-drive"),
+  persistedBeforePreview,
+  "Drive preview must not persist scope nodes"
+);
 const materialized = await treeUseCases.configureGoogleDriveScope(
   "workspace-a",
   "source-drive",

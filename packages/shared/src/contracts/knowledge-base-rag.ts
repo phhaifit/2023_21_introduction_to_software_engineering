@@ -28,6 +28,8 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
     "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/disconnect",
   googleDriveScope:
     "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/scope",
+  googleDrivePreview:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/preview",
   googleDriveAutoSync:
     "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/auto-sync",
   syncJob:
@@ -56,6 +58,7 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthCallback },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.disconnectDataSource },
   { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveScope },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDrivePreview },
   { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveAutoSync },
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJob }
 ] as const;
@@ -110,6 +113,7 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "GoogleDriveOAuthStartResponse",
   "GoogleDriveOAuthCallbackResponse",
   "GoogleDriveSyncScopeRequest",
+  "GoogleDriveScopePreviewRequest",
   "GoogleDriveAutoSyncSettingsRequest",
   "KnowledgeRetrievalSearchRequest",
   "KnowledgeEvidenceDto",
@@ -318,6 +322,14 @@ export type GoogleDriveOAuthCallbackResponse = {
 };
 
 export type GoogleDriveSyncScopeRequest = {
+  folderIds?: string[];
+  fileIds?: string[];
+  recursive?: boolean;
+  allowedMimeTypes?: string[];
+  maxFiles?: number;
+};
+
+export type GoogleDriveScopePreviewRequest = {
   folderIds?: string[];
   fileIds?: string[];
   recursive?: boolean;

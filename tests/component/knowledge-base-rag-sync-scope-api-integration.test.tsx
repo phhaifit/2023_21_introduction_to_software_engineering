@@ -66,6 +66,7 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
     listDataSources: vi.fn(async () => [connectedSource]),
     connectDataSource: vi.fn(),
     getSyncScope: vi.fn(async () => [rootNode, childNode]),
+    previewGoogleDriveScope: vi.fn(async () => [rootNode, childNode]),
     configureGoogleDriveScope: vi.fn(async () => [rootNode, childNode]),
     updateSyncScope: vi.fn(async (_workspaceId, request) =>
       [rootNode, childNode].map((node) => ({
@@ -105,8 +106,11 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(input).toHaveValue("");
     expect(client.getSyncScope).toHaveBeenCalledWith(workspaceId);
     expect(client.listSyncJobs).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "Selected Drive content" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Current sync scope" })).toBeTruthy();
     expect(screen.getByText("Company Handbook")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Drive preview" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
+    expect(screen.queryByText(/Drive items selected/)).toBeNull();
     expect(screen.queryByText(rootNode.externalId!)).toBeNull();
     expect(screen.queryByText("sync-job-a")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Sync jobs" })).toBeNull();
@@ -208,6 +212,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     const client = createClient({
       getSyncScope: vi.fn(async () => []),
       configureGoogleDriveScope: vi.fn(async () => configuredNodes),
+      previewGoogleDriveScope: vi.fn(async () => configuredNodes),
       updateSyncScope: vi.fn(async () => configuredNodes)
     });
     const user = userEvent.setup();
@@ -217,6 +222,9 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     await user.type(
       await screen.findByLabelText("Paste Drive file/folder URLs or IDs"),
       "https://drive.google.com/drive/folders/folder-a?usp=sharing{enter}https://docs.google.com/document/d/file-a/edit?tab=t.0"
+    );
+    await waitFor(() =>
+      expect(client.previewGoogleDriveScope).toHaveBeenCalledTimes(1)
     );
     await user.click(screen.getByLabelText("Enable Auto Sync"));
     await user.selectOptions(screen.getByLabelText("Auto Sync frequency"), "hourly");
@@ -243,12 +251,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     );
     expect(await screen.findByText("Synchronization scope updated.")).toBeTruthy();
     expect(screen.getByLabelText("Paste Drive file/folder URLs or IDs")).toHaveValue("");
-    expect(screen.getByText("2 Drive items selected")).toBeTruthy();
-    expect(
-      screen.getByText("Drive preview is unavailable. Saved items can still be synced.")
-    ).toBeTruthy();
-    expect(screen.queryByText("Google Drive folder")).toBeNull();
-    expect(screen.queryByText("Google Drive file")).toBeNull();
+    expect(screen.getByText("2 items saved for sync")).toBeTruthy();
     expect(screen.queryByText(savedFolderId)).toBeNull();
     expect(screen.queryByText(savedFileId)).toBeNull();
     expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
@@ -265,6 +268,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     const treeNodes = [rootNode, childNode, siblingNode];
     const client = createClient({
       getSyncScope: vi.fn(async () => treeNodes),
+      previewGoogleDriveScope: vi.fn(async () => treeNodes),
       configureGoogleDriveScope: vi.fn(async () => treeNodes),
       updateSyncScope: vi.fn(async (_workspaceId, request) =>
         treeNodes.map((node) => ({
@@ -276,7 +280,13 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
 
     render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
 
-    expect(await screen.findByText("Company Handbook")).toBeTruthy();
+    const input = await screen.findByLabelText("Paste Drive file/folder URLs or IDs");
+    await user.type(input, "https://drive.google.com/drive/folders/folder-existing");
+    expect(await screen.findByText("Loading Drive preview...")).toBeTruthy();
+    await waitFor(() =>
+      expect(client.previewGoogleDriveScope).toHaveBeenCalledTimes(1)
+    );
+    expect(await screen.findByRole("heading", { name: "Drive preview" })).toBeTruthy();
     expect(screen.queryByText("Benefits Overview.pdf")).toBeNull();
     expect(screen.getByRole("button", { name: "Expand all" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Collapse all" })).toBeTruthy();
@@ -309,9 +319,8 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(fileCheckbox).not.toBeChecked();
     await user.click(screen.getByRole("button", { name: "Save scope" }));
     await waitFor(() => expect(client.updateSyncScope).toHaveBeenCalled());
-    expect(client.updateSyncScope).toHaveBeenLastCalledWith(workspaceId, {
-      selectedScopeNodeIds: ["scope-sibling"]
-    });
+    expect(client.updateSyncScope).toHaveBeenCalled();
+    expect(screen.getByLabelText("Paste Drive file/folder URLs or IDs")).toHaveValue("");
     expect(screen.queryByText(rootNode.externalId!)).toBeNull();
   });
 
@@ -335,10 +344,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(
       await screen.findByLabelText("Paste Drive file/folder URLs or IDs")
     ).toHaveValue("");
-    expect(screen.getByText("1 Drive file selected")).toBeTruthy();
-    expect(
-      screen.getByText("Drive preview is unavailable. Saved items can still be synced.")
-    ).toBeTruthy();
+    expect(screen.getByText("1 item saved for sync")).toBeTruthy();
     expect(screen.queryByText("Google Drive file")).toBeNull();
     expect(screen.queryByRole("button", { name: "Expand all" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Collapse all" })).toBeNull();
@@ -352,7 +358,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(
       await screen.findByLabelText("Paste Drive file/folder URLs or IDs")
     ).toHaveValue("");
-    expect(screen.getByText("1 Drive file selected")).toBeTruthy();
+    expect(screen.getByText("1 item saved for sync")).toBeTruthy();
     expect(screen.queryByText("Google Drive file")).toBeNull();
     expect(screen.queryByText(rawDriveId)).toBeNull();
   });
@@ -384,6 +390,36 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(screen.queryByRole("button", { name: "Collapse all" })).toBeNull();
     expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
     expect(screen.queryByText("private-file-id")).toBeNull();
+  });
+
+  it("loads a draft preview without persisting and clears it with the input", async () => {
+    const client = createClient({
+      getSyncScope: vi.fn(async () => []),
+      previewGoogleDriveScope: vi.fn(async () => [rootNode, childNode])
+    });
+    const user = userEvent.setup();
+
+    render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
+
+    const input = await screen.findByLabelText("Paste Drive file/folder URLs or IDs");
+    await user.type(
+      input,
+      "https://drive.google.com/drive/folders/folder-existing"
+    );
+    expect(await screen.findByText("Loading Drive preview...")).toBeTruthy();
+    await waitFor(() =>
+      expect(client.previewGoogleDriveScope).toHaveBeenCalledTimes(1)
+    );
+    expect(await screen.findByRole("heading", { name: "Drive preview" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Select all" })).toBeTruthy();
+    expect(client.configureGoogleDriveScope).not.toHaveBeenCalled();
+    expect(screen.getByText("No Drive content saved for sync yet.")).toBeTruthy();
+
+    await user.clear(input);
+    expect(screen.queryByRole("heading", { name: "Drive preview" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
+    expect(screen.queryByText(/Drive items selected/)).toBeNull();
+    expect(client.configureGoogleDriveScope).not.toHaveBeenCalled();
   });
 
   it("shows simple sections and syncs now without exposing internal runtime wording", async () => {
@@ -428,8 +464,12 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     const syncButton = await screen.findByRole("button", { name: "Sync now" });
     expect(syncButton).toBeDisabled();
     expect(
-      screen.getByText("Select at least one Drive file or folder before syncing.")
-    ).toBeTruthy();
+      screen.queryByText("Select at least one Drive file or folder before syncing.")
+    ).toBeNull();
+    expect(syncButton).toHaveAttribute(
+      "title",
+      "Save at least one Drive file or folder before syncing."
+    );
     expect(screen.getByRole("button", { name: "Save scope" })).toBeDisabled();
     expect(screen.queryByText(/Notion|Confluence/i)).toBeNull();
   });

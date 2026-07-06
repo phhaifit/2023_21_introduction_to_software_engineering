@@ -11,7 +11,9 @@ Agents need workspace-specific company knowledge to answer and act with the righ
 - Store searchable chunks in a vector database through an adapter boundary.
 - Add knowledge access assignment to specific agents.
 - Add PDF and DOCX text extraction while explicitly deferring OCR, legacy DOC,
-  Google Picker, Drive push notifications, and a durable distributed queue.
+  Google Picker, and Drive push notifications.
+- Add an opt-in PostgreSQL durable queue with atomic expiring leases and capped
+  retries for KB/RAG ingestion/indexing/sync work.
 - Add opt-in hourly/daily Google Drive scheduled polling that reuses the
   existing sync and ingestion pipeline.
 - Consolidate Google Drive connection and scoped sync settings into one Data

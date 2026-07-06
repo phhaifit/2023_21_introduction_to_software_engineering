@@ -173,6 +173,9 @@ export function parseGoogleDriveSyncScopeRequest(
   };
 }
 
+export const parseGoogleDriveScopePreviewRequest =
+  parseGoogleDriveSyncScopeRequest;
+
 export function parseGoogleDriveAutoSyncSettingsRequest(
   body: unknown
 ): GoogleDriveAutoSyncSettingsRequest {

@@ -17,6 +17,15 @@ import { parseGoogleDriveScopeInput } from "./google-drive-id.ts";
 import "./knowledge-base-rag-sync-scope.css";
 
 const defaultApiClient = createKnowledgeBaseRagApiClient();
+const GOOGLE_DRIVE_ALLOWED_MIME_TYPES = [
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.google-apps.document",
+  "application/vnd.google-apps.spreadsheet"
+];
 
 export type KnowledgeBaseSyncScopeScreenProps = {
   apiClient?: KnowledgeBaseRagApiClient;
@@ -39,6 +48,14 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
   const [scopeNodes, setScopeNodes] = useState<SyncScopeNodeDto[]>([]);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [scopeInput, setScopeInput] = useState("");
+  const [draftPreviewNodes, setDraftPreviewNodes] = useState<SyncScopeNodeDto[]>([]);
+  const [draftSelectedNodeIds, setDraftSelectedNodeIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [previewState, setPreviewState] = useState<
+    "idle" | "loading" | "loaded" | "unavailable"
+  >("idle");
+  const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [recursive, setRecursive] = useState(false);
   const [maxFiles, setMaxFiles] = useState(100);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
@@ -50,25 +67,27 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [selectionDirty, setSelectionDirty] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   const [retryKey, setRetryKey] = useState(0);
 
-  const tree = useMemo(() => buildScopeTree(scopeNodes), [scopeNodes]);
+  const draftTree = useMemo(
+    () => buildScopeTree(draftPreviewNodes),
+    [draftPreviewNodes]
+  );
   const savedRootNodes = useMemo(
     () => scopeNodes.filter((node) => !node.parentScopeNodeId),
     [scopeNodes]
   );
-  const hasFolderRoot = savedRootNodes.some(
-    (node) => node.nodeType === "folder"
-  );
+  const hasFolderRoot =
+    draftTree.some((node) => node.nodeType === "folder") ||
+    savedRootNodes.some((node) => node.nodeType === "folder");
   const hasExpandableFolder = useMemo(
-    () => tree.some(hasExpandableTreeNode),
-    [tree]
+    () => draftTree.some(hasExpandableTreeNode),
+    [draftTree]
   );
   const previewUnavailable =
-    tree.length > 0 &&
-    tree.every(
+    draftTree.length > 0 &&
+    draftTree.every(
       (node) =>
         isGenericScopeNodeName(node) &&
         node.children.length === 0 &&
@@ -77,6 +96,12 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
   const isBusy = operationState !== "idle";
   const hasScopeCandidate =
     savedRootNodes.length > 0 || scopeInput.trim().length > 0;
+  const draftInputValid =
+    !scopeInput.trim() ||
+    previewState === "loaded" ||
+    (previewState === "unavailable" &&
+      !previewMessage?.startsWith("Enter a valid"));
+  const previewRequestSequence = useRef(0);
 
   useEffect(() => {
     let isActive = true;
@@ -104,7 +129,6 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         setSelectedScopeNodeIds(new Set(nodes.filter((node) => node.selected).map((node) => node.scopeNodeId)));
         setScopeInput("");
         setHasUnsavedChanges(false);
-        setSelectionDirty(false);
         setExpandedNodeIds(new Set());
         if (nodesResult.status === "rejected") {
           setNoticeMessage(
@@ -126,6 +150,71 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
     };
   }, [apiClient, retryKey, workspaceId]);
 
+  useEffect(() => {
+    const input = scopeInput.trim();
+    const requestSequence = ++previewRequestSequence.current;
+    if (!input || !sourceId) {
+      setDraftPreviewNodes([]);
+      setDraftSelectedNodeIds(new Set());
+      setExpandedNodeIds(new Set());
+      setPreviewState("idle");
+      setPreviewMessage(null);
+      return;
+    }
+
+    let parsedScope: ReturnType<typeof parseGoogleDriveScopeInput>;
+    try {
+      parsedScope = parseGoogleDriveScopeInput(input);
+    } catch {
+      setDraftPreviewNodes([]);
+      setDraftSelectedNodeIds(new Set());
+      setExpandedNodeIds(new Set());
+      setPreviewState("unavailable");
+      setPreviewMessage("Enter a valid Google Drive file or folder URL.");
+      return;
+    }
+
+    setPreviewState("loading");
+    setPreviewMessage(null);
+    const timer = window.setTimeout(() => {
+      void apiClient
+        .previewGoogleDriveScope(workspaceId, sourceId, {
+          folderIds: parsedScope
+            .filter((item) => item.kind === "folder")
+            .map((item) => item.id),
+          fileIds: parsedScope
+            .filter((item) => item.kind === "file")
+            .map((item) => item.id),
+          recursive,
+          maxFiles,
+          allowedMimeTypes: GOOGLE_DRIVE_ALLOWED_MIME_TYPES
+        })
+        .then((nodes) => {
+          if (previewRequestSequence.current !== requestSequence) return;
+          setDraftPreviewNodes(nodes);
+          setDraftSelectedNodeIds(
+            new Set(
+              nodes.filter((node) => node.selected).map((node) => node.scopeNodeId)
+            )
+          );
+          setExpandedNodeIds(new Set());
+          setPreviewState("loaded");
+        })
+        .catch(() => {
+          if (previewRequestSequence.current !== requestSequence) return;
+          setDraftPreviewNodes([]);
+          setDraftSelectedNodeIds(new Set());
+          setExpandedNodeIds(new Set());
+          setPreviewState("unavailable");
+          setPreviewMessage(
+            "Drive preview is unavailable. You can still save and sync the selected Drive location."
+          );
+        });
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [apiClient, maxFiles, recursive, scopeInput, sourceId, workspaceId]);
+
   async function handleSaveScope() {
     if (isBusy) return;
 
@@ -136,13 +225,14 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
     try {
       if (!sourceId) throw new Error("Connect Google Drive before saving scope.");
       const parsedScope = parseGoogleDriveScopeInput(scopeInput);
+      const hasDraftPreview = scopeInput.trim().length > 0;
       const savedItems = savedRootNodes.flatMap((node) =>
         node.externalId && (node.nodeType === "folder" || node.nodeType === "file")
           ? [{ id: node.externalId, kind: node.nodeType }]
           : []
       );
       const requestedItems = new Map(
-        [...savedItems, ...parsedScope].map((item) => [
+        [...(hasDraftPreview ? [] : savedItems), ...parsedScope].map((item) => [
           `${item.kind}:${item.id}`,
           item
         ])
@@ -156,27 +246,24 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
           fileIds: nextScope.filter((item) => item.kind === "file").map((item) => item.id),
           recursive,
           maxFiles,
-          allowedMimeTypes: [
-            "text/plain",
-            "text/markdown",
-            "text/csv",
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.google-apps.document",
-            "application/vnd.google-apps.spreadsheet"
-          ]
+          allowedMimeTypes: GOOGLE_DRIVE_ALLOWED_MIME_TYPES
         }
       );
-      const knownNodeIds = new Set(scopeNodes.map((node) => node.scopeNodeId));
-      const nextSelectedIds = selectionDirty
-        ? new Set([
-            ...[...selectedScopeNodeIds].filter((id) =>
-              configuredNodes.some((node) => node.scopeNodeId === id)
-            ),
-            ...configuredNodes
-              .filter((node) => !knownNodeIds.has(node.scopeNodeId) && node.selected)
+      const draftSelectedExternalIds = new Set(
+        draftPreviewNodes
+          .filter((node) => draftSelectedNodeIds.has(node.scopeNodeId))
+          .map((node) => node.externalId)
+      );
+      const nextSelectedIds = hasDraftPreview
+        ? new Set(
+            configuredNodes
+              .filter((node) =>
+                draftPreviewNodes.length === 0
+                  ? node.selected
+                  : draftSelectedExternalIds.has(node.externalId ?? "")
+              )
               .map((node) => node.scopeNodeId)
-          ])
+          )
         : new Set(
             configuredNodes
               .filter((node) => node.selected)
@@ -192,8 +279,11 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
         autoSyncFrequency: autoSyncEnabled ? autoSyncFrequency : undefined
       });
       setScopeInput("");
+      setDraftPreviewNodes([]);
+      setDraftSelectedNodeIds(new Set());
+      setPreviewState("idle");
+      setPreviewMessage(null);
       setHasUnsavedChanges(false);
-      setSelectionDirty(false);
       setSuccessMessage("Synchronization scope updated.");
       onScopeSaved?.();
     } catch (error: unknown) {
@@ -205,37 +295,38 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
 
   function handleToggleNode(node: SyncScopeTreeNode) {
     if (!node.selectable || isBusy) return;
-    setSelectedScopeNodeIds((current) => {
+    setDraftSelectedNodeIds((current) => {
       const next = new Set(current);
       const descendantIds = collectNodeIds(node);
       const shouldSelect = !isTreeNodeFullySelected(node, current);
       for (const id of descendantIds) {
-        const candidate = scopeNodes.find((item) => item.scopeNodeId === id);
+        const candidate = draftPreviewNodes.find(
+          (item) => item.scopeNodeId === id
+        );
         if (!candidate?.selectable) continue;
         if (shouldSelect) next.add(id);
         else next.delete(id);
       }
-      normalizeFolderSelections(tree, next);
-      if (next.size === 0) setAutoSyncEnabled(false);
+      normalizeFolderSelections(draftTree, next);
       return next;
     });
-    setSelectionDirty(true);
     setHasUnsavedChanges(true);
     setSuccessMessage(null);
   }
 
   function handleSelectAll() {
-    setSelectedScopeNodeIds(
-      new Set(scopeNodes.filter((node) => node.selectable).map((node) => node.scopeNodeId))
+    setDraftSelectedNodeIds(
+      new Set(
+        draftPreviewNodes
+          .filter((node) => node.selectable)
+          .map((node) => node.scopeNodeId)
+      )
     );
-    setSelectionDirty(true);
     setHasUnsavedChanges(true);
   }
 
   function handleClearSelection() {
-    setSelectedScopeNodeIds(new Set());
-    setAutoSyncEnabled(false);
-    setSelectionDirty(true);
+    setDraftSelectedNodeIds(new Set());
     setHasUnsavedChanges(true);
   }
 
@@ -356,15 +447,41 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                 use Google Picker with <code>drive.file</code>.
               </p>
             </details>
-            <div className="knowledge-base-rag-sync-scope-saved">
-              <div className="knowledge-base-rag-sync-scope-section">
-                <h3>Selected Drive content</h3>
-                <p>
-                  Choose which saved Google Drive files and folders are included
-                  in Knowledge Base sync.
-                </p>
-              </div>
-              {tree.length > 0 && !previewUnavailable ? (
+            <p className="knowledge-base-rag-sync-scope-note">
+              To sync a folder, paste a Google Drive folder URL. You can select
+              the folder or individual files from the preview.
+            </p>
+
+            {scopeInput.trim() ? (
+              <div className="knowledge-base-rag-sync-scope-saved">
+                <div className="knowledge-base-rag-sync-scope-section">
+                  <h3>Drive preview</h3>
+                  <p>
+                    Select the files and folders to include before saving scope.
+                  </p>
+                </div>
+                {previewState === "loading" ? (
+                  <p role="status">Loading Drive preview...</p>
+                ) : null}
+                {previewState === "unavailable" ? (
+                  <div className="knowledge-base-rag-sync-scope-preview-unavailable">
+                    <strong>
+                      {previewMessage?.startsWith("Enter")
+                        ? "Invalid Drive location"
+                        : `${parsePreviewInputCount(scopeInput)} Drive ${
+                            parsePreviewInputCount(scopeInput) === 1
+                              ? "location"
+                              : "locations"
+                          } detected`}
+                    </strong>
+                    <p role={previewMessage?.startsWith("Enter") ? "alert" : "status"}>
+                      {previewMessage}
+                    </p>
+                  </div>
+                ) : null}
+                {previewState === "loaded" &&
+                draftTree.length > 0 &&
+                !previewUnavailable ? (
                 <>
                   <div className="knowledge-base-rag-sync-scope-tree-actions">
                     {hasExpandableFolder ? (
@@ -374,7 +491,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                           onClick={() =>
                             setExpandedNodeIds(
                               new Set(
-                                scopeNodes
+                                draftPreviewNodes
                                   .filter((node) => node.nodeType === "folder")
                                   .map((node) => node.scopeNodeId)
                               )
@@ -397,7 +514,7 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                     </button>
                   </div>
                   <div className="knowledge-base-rag-sync-scope-tree" role="tree">
-                    {tree.map((node) => (
+                    {draftTree.map((node) => (
                       <SyncScopeTreeItem
                         expandedNodeIds={expandedNodeIds}
                         key={node.scopeNodeId}
@@ -411,33 +528,65 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                             return next;
                           })
                         }
-                        selectedScopeNodeIds={selectedScopeNodeIds}
+                        selectedScopeNodeIds={draftSelectedNodeIds}
                       />
                     ))}
                   </div>
-                  {tree.some((node) => isGenericScopeNodeName(node)) ? (
+                  {draftTree.some((node) => isGenericScopeNodeName(node)) ? (
                     <p className="knowledge-base-rag-sync-scope-note" role="status">
-                      Drive preview is unavailable. Saved items can still be synced.
+                      Drive preview is unavailable. You can still save and sync the
+                      selected Drive location.
                     </p>
                   ) : null}
                 </>
-              ) : previewUnavailable ? (
+                ) : previewState === "loaded" && previewUnavailable ? (
                 <div className="knowledge-base-rag-sync-scope-preview-unavailable">
-                  <strong>{formatSelectedDriveItemCount(scopeNodes, selectedScopeNodeIds)}</strong>
+                  <strong>
+                    {parsePreviewInputCount(scopeInput)} Drive location detected
+                  </strong>
                   <p role="status">
-                    Drive preview is unavailable. Saved items can still be synced.
+                    Drive preview is unavailable. You can still save and sync the
+                    selected Drive location.
                   </p>
-                  <div className="knowledge-base-rag-sync-scope-tree-actions">
-                    <button type="button" onClick={handleSelectAll}>Select all</button>
-                    <button type="button" onClick={handleClearSelection}>
-                      Clear selection
-                    </button>
-                  </div>
+                </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="knowledge-base-rag-sync-scope-saved">
+              <div className="knowledge-base-rag-sync-scope-section">
+                <h3>Current sync scope</h3>
+                <p>Saved Drive content used by manual and automatic sync.</p>
+              </div>
+              {selectedScopeNodeIds.size > 0 ? (
+                <div className="knowledge-base-rag-sync-scope-current-summary">
+                  <strong>
+                    {selectedScopeNodeIds.size}{" "}
+                    {selectedScopeNodeIds.size === 1 ? "item" : "items"} saved for
+                    sync
+                  </strong>
+                  <ul>
+                    {scopeNodes
+                      .filter(
+                        (node) =>
+                          selectedScopeNodeIds.has(node.scopeNodeId) &&
+                          !node.parentScopeNodeId &&
+                          !isGenericScopeNodeName(node)
+                      )
+                      .slice(0, 5)
+                      .map((node) => (
+                        <li key={node.scopeNodeId}>
+                          {getScopeNodeDisplayName(node)}
+                          <span>
+                            {node.nodeType === "folder" ? "Folder" : "File"}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
                 </div>
               ) : (
                 <p className="knowledge-base-rag-sync-scope-saved__empty">
-                  No Drive content selected yet. Paste a Drive file or folder URL
-                  above, then save scope.
+                  No Drive content saved for sync yet.
                 </p>
               )}
             </div>
@@ -484,19 +633,25 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                 />
               </label>
               <label>
-                <input
-                  type="checkbox"
-                  checked={autoSyncEnabled}
-                  onChange={(event) => {
-                    setAutoSyncEnabled(event.target.checked);
-                    setHasUnsavedChanges(true);
-                  }}
-                  disabled={
-                    selectedScopeNodeIds.size === 0 &&
-                    scopeInput.trim().length === 0
-                  }
-                />
-                Enable Auto Sync
+                <span className="knowledge-base-rag-sync-scope-checkbox-label">
+                  <input
+                    type="checkbox"
+                    aria-label="Enable Auto Sync"
+                    checked={autoSyncEnabled}
+                    onChange={(event) => {
+                      setAutoSyncEnabled(event.target.checked);
+                      setHasUnsavedChanges(true);
+                    }}
+                    disabled={
+                      selectedScopeNodeIds.size === 0 &&
+                      draftSelectedNodeIds.size === 0
+                    }
+                  />
+                  Enable Auto Sync
+                </span>
+                <span>
+                  Automatically refresh selected Drive content on schedule.
+                </span>
               </label>
               <label>
                 Frequency
@@ -521,7 +676,16 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
             <div className="knowledge-base-rag-sync-scope-actions" aria-label="Sync scope actions">
               <button
                 type="button"
-                disabled={isBusy || !hasUnsavedChanges || !hasScopeCandidate}
+                disabled={
+                  isBusy ||
+                  !hasUnsavedChanges ||
+                  !hasScopeCandidate ||
+                  !draftInputValid ||
+                  previewState === "loading" ||
+                  (scopeInput.trim().length > 0 &&
+                    previewState === "loaded" &&
+                    draftSelectedNodeIds.size === 0)
+                }
                 onClick={() => void handleSaveScope()}
               >
                 {operationState === "saving" ? "Saving..." : "Save scope"}
@@ -536,18 +700,15 @@ export function KnowledgeBaseSyncScopeScreen(props: KnowledgeBaseSyncScopeScreen
                   }
                   title={
                     hasUnsavedChanges
-                      ? "Save selection and settings before syncing."
+                      ? "Save the current selection before syncing."
                       : selectedScopeNodeIds.size === 0
-                        ? "Select at least one Drive file or folder before syncing."
+                        ? "Save at least one Drive file or folder before syncing."
                         : undefined
                   }
                   onClick={() => void handleRequestManualSync()}
                 >
                   {operationState === "syncing" ? "Syncing..." : "Sync now"}
                 </button>
-                {selectedScopeNodeIds.size === 0 ? (
-                  <span>Select at least one Drive file or folder before syncing.</span>
-                ) : null}
               </div>
             </div>
           </>
@@ -737,15 +898,12 @@ function hasExpandableTreeNode(node: SyncScopeTreeNode): boolean {
   );
 }
 
-function formatSelectedDriveItemCount(
-  nodes: SyncScopeNodeDto[],
-  selectedIds: Set<string>
-): string {
-  const selected = nodes.filter((node) => selectedIds.has(node.scopeNodeId));
-  if (selected.length !== 1) return `${selected.length} Drive items selected`;
-  return selected[0]?.nodeType === "folder"
-    ? "1 Drive folder selected"
-    : "1 Drive file selected";
+function parsePreviewInputCount(input: string): number {
+  try {
+    return parseGoogleDriveScopeInput(input).length;
+  } catch {
+    return 0;
+  }
 }
 
 function getErrorMessage(error: unknown): string {

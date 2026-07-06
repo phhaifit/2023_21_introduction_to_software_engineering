@@ -525,6 +525,31 @@ model KnowledgeSyncJobEvent {
   @@map("knowledge_sync_job_events")
 }
 
+model KnowledgeRuntimeJob {
+  runtimeJobId   String @id
+  workspaceId   String
+  targetJobId   String
+  kind          String
+  status        String @default("pending")
+  attemptCount  Int    @default(0)
+  leaseOwner    String?
+  leaseExpiresAt String?
+  nextAttemptAt String
+  failureCode   String?
+  failureMessage String?
+  queuedAt      String
+  startedAt     String?
+  completedAt   String?
+  createdAt     String
+  updatedAt     String
+
+  @@unique([kind, targetJobId])
+  @@index([workspaceId, status])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@index([leaseOwner, leaseExpiresAt])
+  @@map("knowledge_runtime_jobs")
+}
+
 model KnowledgeAccessGrant {
   knowledgeAccessGrantId String @id
   workspaceId             String

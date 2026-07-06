@@ -15,6 +15,10 @@ const pgvectorMigrationPath = join(
   root,
   "packages/database/prisma/migrations/20260703100000_add_kb_rag_pgvector/migration.sql"
 );
+const durableQueueMigrationPath = join(
+  root,
+  "packages/database/prisma/migrations/20260706150000_add_kb_rag_durable_runtime_queue/migration.sql"
+);
 const docsContextPath = join(root, "docs/knowledge-base-rag-context.md");
 const designPath = join(root, "openspec/changes/implement-knowledge-base-rag/design.md");
 const databaseExportsPath = join(root, "packages/database/src/index.ts");
@@ -22,14 +26,57 @@ const databaseExportsPath = join(root, "packages/database/src/index.ts");
 assert.ok(existsSync(schemaPath), "Prisma schema must exist");
 assert.ok(existsSync(migrationPath), "KB/RAG persistence migration must exist");
 assert.ok(existsSync(pgvectorMigrationPath), "KB/RAG pgvector migration must exist");
+assert.ok(
+  existsSync(durableQueueMigrationPath),
+  "KB/RAG durable queue migration must exist"
+);
 
 const schema = readFileSync(schemaPath, "utf8");
 const migration = readFileSync(migrationPath, "utf8");
 const pgvectorMigration = readFileSync(pgvectorMigrationPath, "utf8");
+const durableQueueMigration = readFileSync(durableQueueMigrationPath, "utf8");
 const docsContext = readFileSync(docsContextPath, "utf8");
 const design = readFileSync(designPath, "utf8");
 const databaseExports = readFileSync(databaseExportsPath, "utf8");
 const models = parseModels(schema);
+
+const runtimeJobModel = models.get("KnowledgeRuntimeJob");
+assert.ok(runtimeJobModel, "KnowledgeRuntimeJob model must exist");
+for (const fieldName of [
+  "runtimeJobId",
+  "workspaceId",
+  "targetJobId",
+  "kind",
+  "status",
+  "attemptCount",
+  "leaseOwner",
+  "leaseExpiresAt",
+  "nextAttemptAt",
+  "failureCode",
+  "failureMessage",
+  "queuedAt",
+  "startedAt",
+  "completedAt",
+  "createdAt",
+  "updatedAt"
+]) {
+  assert.ok(
+    runtimeJobModel.fields.has(fieldName),
+    `KnowledgeRuntimeJob missing ${fieldName}`
+  );
+}
+assert.ok(hasUnique(runtimeJobModel, ["kind", "targetJobId"]));
+assert.ok(
+  hasIndex(runtimeJobModel, ["status", "nextAttemptAt", "leaseExpiresAt"])
+);
+assert.match(durableQueueMigration, /CREATE TABLE "knowledge_runtime_jobs"/);
+assert.match(durableQueueMigration, /"leaseOwner" TEXT/);
+assert.match(durableQueueMigration, /"leaseExpiresAt" TEXT/);
+assert.match(durableQueueMigration, /"attemptCount" INTEGER NOT NULL DEFAULT 0/);
+assert.doesNotMatch(
+  durableQueueMigration,
+  /DROP TABLE|DROP COLUMN|CASCADE|credential|secret|token|queuePayload/i
+);
 
 const expectedModels = {
   Document: {

@@ -45,16 +45,29 @@ export class PrismaKnowledgeSyncScopeRepository
     workspaceId: EntityId<"workspaceId">,
     nodes: readonly KnowledgeSyncScopeNode[]
   ): Promise<KnowledgeSyncScopeNode[]> {
-    const records = await this.prisma.$transaction(
-      nodes.map((node) => {
+    const sourceIds = [...new Set(nodes.map((node) => node.sourceId))];
+    const scopeNodeIds = nodes.map((node) => node.scopeNodeId);
+    const records = await this.prisma.$transaction(async (transaction) => {
+      for (const sourceId of sourceIds) {
+        await transaction.knowledgeSyncScopeNode.deleteMany({
+          where: {
+            workspaceId,
+            sourceId,
+            ...(scopeNodeIds.length > 0
+              ? { scopeNodeId: { notIn: scopeNodeIds } }
+              : {})
+          }
+        });
+      }
+      return Promise.all(nodes.map((node) => {
         const data = toKnowledgeSyncScopeNodePrisma({ ...node, workspaceId });
-        return this.prisma.knowledgeSyncScopeNode.upsert({
+        return transaction.knowledgeSyncScopeNode.upsert({
           where: { scopeNodeId: node.scopeNodeId },
           create: data,
           update: data
         });
-      })
-    );
+      }));
+    });
 
     return records.map(toKnowledgeSyncScopeNodeDomain);
   }
@@ -111,6 +124,40 @@ export class PrismaKnowledgeSyncJobRepository implements KnowledgeSyncJobReposit
     });
 
     return toKnowledgeSyncJobDomain(record);
+  }
+
+  async createSyncJobIfNoActiveSource(
+    job: KnowledgeSyncJob
+  ): Promise<KnowledgeSyncJob | null> {
+    if (!job.sourceId) return this.saveSyncJob(job);
+    const rows = await this.prisma.$queryRawUnsafe<
+      Parameters<typeof toKnowledgeSyncJobDomain>[0][]
+    >(
+      `INSERT INTO "knowledge_sync_jobs"
+        ("jobId", "workspaceId", "sourceId", "status", "requestedByUserId",
+         "queuedAt", "startedAt", "completedAt", "failedAt", "totalItems",
+         "syncedItems", "failedItems", "errorCode", "errorMessage",
+         "safeSummary", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, NULL, $7, $8, $9,
+               NULL, NULL, $10::jsonb, $11, $12)
+       ON CONFLICT ("sourceId")
+         WHERE "sourceId" IS NOT NULL AND "status" IN ('pending', 'syncing')
+       DO NOTHING
+       RETURNING *`,
+      job.jobId,
+      job.workspaceId,
+      job.sourceId,
+      job.status,
+      job.requestedByUserId ?? null,
+      job.queuedAt,
+      job.totalItems ?? null,
+      job.syncedItems ?? null,
+      job.failedItems ?? null,
+      JSON.stringify(job.safeSummary ?? null),
+      job.createdAt,
+      job.updatedAt
+    );
+    return rows[0] ? toKnowledgeSyncJobDomain(rows[0]) : null;
   }
 
   async appendSyncJobEvent(

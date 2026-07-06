@@ -89,22 +89,27 @@ After a browser callback, the backend redirects to
 `/knowledge-base-rag?tab=data-sync&googleDrive=connected`; clients that
 explicitly request `application/json` continue to receive a safe API envelope.
 Data Sync accepts raw Drive IDs or full Google Docs/Drive file and folder URLs,
-optional subfolder traversal for future syncs, allowed MIME types, and a
-maximum file count. Users can run sync manually or enable an hourly/daily
-schedule. The app never imports an entire Drive by default.
+loads a bounded non-persistent preview, and saves only the confirmed selection.
+Clearing the input removes the draft preview without changing the compact saved
+scope summary. Optional subfolder traversal for future syncs, allowed MIME
+types, and a maximum file count remain configurable. Users can run sync
+manually or enable an hourly/daily schedule. The app never imports an entire
+Drive by default.
 
 Supported imports are TXT, Markdown, CSV, text-bearing PDF, DOCX, Google Docs
 (exported as text), and Google Sheets (exported as CSV). Unsupported Google
 Workspace types are skipped safely. Scanned PDFs may yield no text because OCR
 is not implemented; they fail with a bounded user-facing parsing error.
 
-The local server uses an encrypted file credential store, a process-local
-asynchronous queue, and an optional process-local scheduler. Scheduled polling
+The local server uses an encrypted file credential store and an optional
+process-local scheduler. `KNOWLEDGE_QUEUE_MODE=process_local` remains the local
+default. `KNOWLEDGE_QUEUE_MODE=durable` persists ingestion and sync work in
+PostgreSQL, atomically claims jobs with expiring worker leases, reclaims expired
+leases, and caps transient retries. Scheduled polling
 lists only configured scope, compares Drive metadata with the existing
 document identity, imports new files, refreshes changed files, and skips
-unchanged files. It prevents overlapping pending/running jobs in the local
-process. This runtime is non-durable and is not safe for multi-instance
-production coordination.
+unchanged files. A partial unique database index prevents overlapping active
+sync jobs for the same source across scheduler instances.
 
 Google Picker is deferred; full URL/ID paste is the supported fallback. Drive
 changes page tokens and push notifications are also deferred, so scheduled
@@ -496,8 +501,9 @@ checks workspace isolation. It does not call real embedding/RAG providers.
 
 ## Known limitations
 
-- No durable worker daemon, production queue, atomic multi-worker scheduling
-  claim, or retry endpoint is included. The opt-in scheduler is process-local.
+- Durable PostgreSQL queue claims and capped retries are available when
+  explicitly enabled. The polling loop still runs in the backend process rather
+  than a separately deployed autoscaled worker service.
 - Inline local mode composes ingestion and indexing, but the default queued
   mode still requires an external caller.
 - Google Drive is implemented with backend OAuth and encrypted local credential

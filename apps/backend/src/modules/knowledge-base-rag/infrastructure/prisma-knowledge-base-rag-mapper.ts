@@ -263,6 +263,10 @@ export function toKnowledgeSyncJobDomain(record: PrismaKnowledgeSyncJob): Knowle
     failedItems: record.failedItems ?? undefined,
     errorCode: record.errorCode ?? undefined,
     errorMessage: record.errorMessage ?? undefined,
+    safeSummary:
+      record.safeSummary === null
+        ? undefined
+        : (record.safeSummary as SafeJsonValue),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
   };
@@ -284,6 +288,7 @@ export function toKnowledgeSyncJobPrisma(job: KnowledgeSyncJob) {
     failedItems: job.failedItems ?? null,
     errorCode: job.errorCode ?? null,
     errorMessage: job.errorMessage ?? null,
+    safeSummary: job.safeSummary as never,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt
   };

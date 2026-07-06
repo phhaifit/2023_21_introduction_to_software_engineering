@@ -71,8 +71,9 @@ The backend now has an internal module foundation under
 
 Remaining production runtime gaps include:
 
-- A durable production queue/daemon and multi-instance scheduler lease. Manual
-  and scheduled Google Drive sync currently use process-local adapters.
+- A separately deployed autoscaled worker daemon. PostgreSQL durable mode now
+  provides multi-instance atomic claims, expiring leases, abandoned-job
+  reclaim, and capped retries; process-local mode remains the default.
 - OCR and legacy DOC parsing. PDF and DOCX text extraction are implemented;
   scanned PDFs with no extractable text fail safely.
 - Google Picker. Current scope configuration accepts raw IDs and full
@@ -82,10 +83,10 @@ Remaining production runtime gaps include:
 
 The queue boundary reserves document ingestion and Google Drive sync job
 kinds. The current local server can run Google Drive sync through a
-process-local asynchronous queue, opt-in hourly/daily scheduler, and the
-existing ingestion/indexing pipeline. PDF and DOCX text extraction are
-implemented; OCR is not. Durable queue delivery, a worker daemon, and
-multi-instance scheduler coordination remain separate production work.
+process-local asynchronous queue or an explicitly enabled PostgreSQL durable
+queue, opt-in hourly/daily scheduler, and the existing ingestion/indexing
+pipeline. PDF and DOCX text extraction are implemented; OCR is not. A
+separately deployed worker service remains future deployment work.
 
 ## Modular Monolith Alignment
 

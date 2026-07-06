@@ -324,6 +324,17 @@ export class InMemoryKnowledgeSyncScopeRepository
     nodes: readonly KnowledgeSyncScopeNode[]
   ): Promise<KnowledgeSyncScopeNode[]> {
     const saved = nodes.map((node) => ({ ...node, workspaceId }));
+    const sourceIds = new Set(saved.map((node) => node.sourceId));
+    const retainedIds = new Set(saved.map((node) => node.scopeNodeId));
+    for (const [scopeNodeId, node] of this.nodes) {
+      if (
+        node.workspaceId === workspaceId &&
+        sourceIds.has(node.sourceId) &&
+        !retainedIds.has(scopeNodeId)
+      ) {
+        this.nodes.delete(scopeNodeId);
+      }
+    }
 
     for (const node of saved) {
       this.nodes.set(node.scopeNodeId, copySyncScopeNode(node));
@@ -372,6 +383,18 @@ export class InMemoryKnowledgeSyncJobRepository
   ): Promise<KnowledgeSyncJob | null> {
     const job = this.jobs.get(jobId);
     return job && job.workspaceId === workspaceId ? copySyncJob(job) : null;
+  }
+
+  async createSyncJobIfNoActiveSource(
+    job: KnowledgeSyncJob
+  ): Promise<KnowledgeSyncJob | null> {
+    const active = [...this.jobs.values()].some(
+      (candidate) =>
+        candidate.sourceId === job.sourceId &&
+        (candidate.status === "pending" || candidate.status === "syncing")
+    );
+    if (active) return null;
+    return this.saveSyncJob(job);
   }
 
   async saveSyncJob(job: KnowledgeSyncJob) {

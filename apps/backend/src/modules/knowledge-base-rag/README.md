@@ -29,7 +29,10 @@ indexing adapter boundary for persisted chunks. It also has a local end-to-end
 flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
-It still does not contain OCR or external queue/worker daemon infrastructure.
+It still does not contain OCR or a separately deployed worker daemon.
+`KNOWLEDGE_QUEUE_MODE=durable` enables PostgreSQL-backed runtime job claims,
+expiring leases, abandoned-job reclaim, and capped retries; process-local mode
+remains the default.
 Live retrieval uses the existing PostgreSQL/pgvector and embedding adapters;
 deterministic tests use injected adapters.
 
@@ -417,10 +420,10 @@ completed   -> ready
 failed      -> failed
 ```
 
-Retry remains deferred because there is no reviewed public reset/retry contract.
-Queued-job selection is deterministic but is not an atomic cross-process lease;
-deployments with multiple worker processes require a future repository claim or
-approved queue boundary before concurrent polling is enabled.
+Public user-triggered retry remains deferred because there is no reviewed reset
+endpoint. Durable runtime retries are internal and capped. PostgreSQL durable
+mode atomically claims queued work with `FOR UPDATE SKIP LOCKED`, prevents a
+second worker from taking an active lease, and reclaims expired leases.
 
 The document processing pipeline is the first real ingestion processor boundary.
 It reads extracted text through an injected content reader, supports TXT, DOCX,
