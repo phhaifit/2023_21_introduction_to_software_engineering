@@ -54,7 +54,7 @@
 Để các nhân viên ảo (Agent) làm việc đúng với bối cảnh của từng công ty, chúng cần được tiếp cận với tài liệu và quy trình nội bộ. Phân hệ này ứng dụng công nghệ RAG (Retrieval-Augmented Generation) để cung cấp "bộ não" cho workspace.
 
 * **Quản lý Tài liệu (Document Upload):** Cho phép người dùng tải lên các tài liệu nội bộ (PDF, Word, TXT, CSV...) như sổ tay nhân viên, báo cáo tài chính, mô tả sản phẩm.
-* **Đồng bộ Dữ liệu tự động (Data Sync):** Tích hợp với các nguồn lưu trữ của công ty như Google Drive, Notion, Confluence để tự động cập nhật kiến thức khi có thay đổi.
+* **Đồng bộ Dữ liệu tự động (Data Sync):** Phạm vi triển khai hiện tại hỗ trợ Google Drive. Người dùng chọn file hoặc thư mục cụ thể và có thể bật lịch đồng bộ tự động để cập nhật Knowledge Base khi nội dung đã chọn thay đổi. Hệ thống không đồng bộ toàn bộ Drive; Notion và Confluence nằm ngoài phạm vi triển khai này.
 * **Vector hóa & Lưu trữ:** Hệ thống tự động xử lý và lưu trữ dữ liệu vào Vector Database để tối ưu hóa quá trình tìm kiếm ngữ nghĩa cho Agent.
 * **Phân quyền truy cập tri thức:** Quản trị viên có thể cấu hình để chỉ định chính xác Agent nào được phép truy cập vào bộ tài liệu nào (ví dụ: Agent Nhân sự chỉ được đọc chính sách công ty, Agent Sales được đọc báo giá).
 

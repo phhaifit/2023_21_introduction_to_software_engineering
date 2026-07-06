@@ -48,6 +48,13 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
   const callbackErrorMessage = getGoogleDriveCallbackError();
 
   useEffect(() => {
+    if (!successMessage) return;
+    cleanGoogleDriveCallbackQuery();
+    const timer = window.setTimeout(() => setSuccessMessage(null), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
+
+  useEffect(() => {
     let isActive = true;
 
     setLoadState("loading");
@@ -117,7 +124,15 @@ export function KnowledgeBaseDataSourcesScreen(props: KnowledgeBaseDataSourcesSc
           className="knowledge-base-rag-data-sources-feedback knowledge-base-rag-data-sources-feedback--success"
           role="status"
         >
-          {successMessage}
+          <span>{successMessage}</span>
+          <button
+            className="knowledge-base-rag-data-sources-feedback__dismiss"
+            type="button"
+            aria-label="Dismiss Google Drive notice"
+            onClick={() => setSuccessMessage(null)}
+          >
+            ×
+          </button>
         </div>
       ) : null}
       {callbackErrorMessage ? (
@@ -291,6 +306,19 @@ function getGoogleDriveCallbackError(): string | null {
   return new URLSearchParams(window.location.search).get("googleDrive") === "error"
     ? "Google Drive could not be connected. Try again."
     : null;
+}
+
+function cleanGoogleDriveCallbackQuery(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("googleDrive")) return;
+  url.searchParams.delete("googleDrive");
+  url.searchParams.delete("sourceId");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  );
 }
 
 function mapDataSourceStatus(status: KnowledgeDataSourceStatus): ExternalDataSourceStatus {

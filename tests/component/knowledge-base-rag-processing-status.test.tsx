@@ -172,6 +172,7 @@ describe("Knowledge Base / RAG Processing Status", () => {
   });
 
   it("labels scheduled Google Drive jobs as automatic sync", async () => {
+    const user = userEvent.setup();
     const scheduledJob: SyncJobDto = {
       jobId: "sync-scheduled" as EntityId<"jobId">,
       workspaceId,
@@ -212,12 +213,25 @@ describe("Knowledge Base / RAG Processing Status", () => {
     );
 
     expect(await screen.findByText("Automatic sync")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Google Drive sync · Automatic" })).toBeTruthy();
+    const syncCard = screen.getByRole("heading", { name: "Google Drive sync" }).closest("article");
+    expect(syncCard).not.toBeNull();
+    expect(within(syncCard!).getByText("Imported 1 · Updated 1 · Skipped 2")).toBeTruthy();
+    expect(within(syncCard!).queryByText("Discovered")).toBeNull();
+    expect(within(syncCard!).queryByText("Removed")).toBeNull();
     expect(screen.queryByText("sync-scheduled")).toBeNull();
-    expect(screen.getByText("Removed")).toBeTruthy();
+
+    await user.click(
+      within(syncCard!).getByRole("button", { name: "View details" })
+    );
+    const details = screen.getByRole("dialog", { name: "Google Drive sync" });
+    expect(within(details).getByText("Discovered")).toBeTruthy();
+    expect(within(details).getByText("Skipped unchanged")).toBeTruthy();
+    expect(within(details).getByText("Removed")).toBeTruthy();
+    expect(within(details).queryByText("sync-scheduled")).toBeNull();
   });
 
   it("explains provider failures that happen before Drive scanning", async () => {
+    const user = userEvent.setup();
     const failedSync: SyncJobDto = {
       jobId: "ca39c5dc-4144-433c-bf1b-60e0c682845f" as EntityId<"jobId">,
       workspaceId,
@@ -249,7 +263,7 @@ describe("Knowledge Base / RAG Processing Status", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Google Drive sync · Manual" })
+      await screen.findByRole("heading", { name: "Google Drive sync" })
     ).toBeTruthy();
     expect(
       screen.getByText("Sync failed before any files could be scanned.")
@@ -259,7 +273,24 @@ describe("Knowledge Base / RAG Processing Status", () => {
         "The selected Drive file or folder could not be found or is not accessible."
       )
     ).toBeTruthy();
+    expect(
+      screen.getByText(/GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly/)
+    ).toBeTruthy();
     expect(screen.queryByText(failedSync.jobId)).toBeNull();
+
+    const failedSyncCard = screen
+      .getByRole("heading", { name: "Google Drive sync" })
+      .closest("article");
+    await user.click(
+      within(failedSyncCard!).getByRole("button", { name: "View details" })
+    );
+    const details = screen.getByRole("dialog", { name: "Google Drive sync" });
+    expect(
+      within(details).getByText(
+        "The sync failed before any files could be scanned, so failed file count is 0."
+      )
+    ).toBeTruthy();
+    expect(within(details).getByText("Failed files")).toBeTruthy();
   });
 
   it("shows a safe unavailable state and retries without rendering raw errors", async () => {
@@ -370,5 +401,59 @@ describe("Knowledge Base / RAG Processing Status", () => {
       within(failedDialog).getByText("The document could not be processed.")
     ).toBeVisible();
     expect(within(failedDialog).getByText("Not implemented yet")).toBeVisible();
+  });
+
+  it("shows safe Google Drive document metadata without internal IDs", async () => {
+    const driveDocument: KnowledgeDocumentDto = {
+      ...createDocument(
+        "document-drive-private-id",
+        "Equipment policy.pdf",
+        "application/pdf"
+      ),
+      source: "google_drive",
+      status: "ready",
+      lastSyncedAt: "2026-07-05T02:00:00.000Z",
+      sourceModifiedAt: "2026-07-05T01:30:00.000Z",
+      chunkCount: 3,
+      indexedChunkCount: 3
+    };
+    const driveJob = {
+      ...createJob(
+        "job-drive-private-id",
+        "document-drive-private-id",
+        "ready",
+        100
+      ),
+      currentStep: "Ready for retrieval",
+      finishedAt: "2026-07-05T02:00:00.000Z"
+    };
+    const user = userEvent.setup();
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({
+          listDocuments: vi.fn(async () => ({
+            items: [driveDocument],
+            pagination: { ...pagination, totalItems: 1 }
+          })),
+          listIngestionJobs: vi.fn(async () => ({
+            items: [driveJob],
+            pagination: { ...pagination, totalItems: 1 }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const card = (await screen.findByText("Equipment policy.pdf")).closest("article");
+    await user.click(within(card!).getByRole("button", { name: "View details" }));
+    const dialog = screen.getByRole("dialog", { name: "Equipment policy.pdf" });
+    expect(within(dialog).getByText("Google Drive")).toBeTruthy();
+    expect(within(dialog).getByText("Original Drive name")).toBeTruthy();
+    expect(within(dialog).getByText("Last synced")).toBeTruthy();
+    expect(within(dialog).getByText("Source modified")).toBeTruthy();
+    expect(within(dialog).getByText("3 of 3 chunks indexed")).toBeTruthy();
+    expect(within(dialog).queryByText("document-drive-private-id")).toBeNull();
+    expect(within(dialog).queryByText("job-drive-private-id")).toBeNull();
   });
 });

@@ -21,6 +21,12 @@ The feature currently has API-backed Documents, Upload, Data Sync, and
 Processing Status views, plus local mock fixtures
 for isolated tests:
 
+Document upload, Google Drive scoped automatic sync, chunking, embedding,
+vector indexing, semantic retrieval, and agent citation-based answers are
+implemented. Data Sync checks only selected Drive files and folders through
+opt-in scheduled polling; it does not provide real-time, webhook, or whole-Drive
+synchronization.
+
 - `knowledge-base-rag-page.tsx`: base shell and local navigation.
 - `knowledge-base-rag-data-sources.tsx`: Google Drive connection section wired
   to safe OAuth connect/disconnect calls.

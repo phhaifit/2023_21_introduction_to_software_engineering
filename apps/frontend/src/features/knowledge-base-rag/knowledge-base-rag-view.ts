@@ -62,6 +62,9 @@ export type ProcessingJob = {
   chunkCount?: number;
   indexedChunkCount?: number;
   safeErrorMessage?: string;
+  originalDriveName?: string;
+  lastSyncedAt?: string;
+  sourceModifiedAt?: string;
 };
 
 export type IngestionJob = ProcessingJob;

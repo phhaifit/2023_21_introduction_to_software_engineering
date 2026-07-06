@@ -356,6 +356,18 @@ through a workspace-scoped public API.
 - **THEN** the sync job records a bounded actionable message for that category
 - **AND** provider payloads, OAuth tokens, credentials, secrets, local paths, and stack traces are not exposed
 
+#### Scenario: Final knowledge UI keeps transient and detailed state in the right place
+- **WHEN** a user uploads documents, returns from Google Drive OAuth, or reviews
+  external synchronization
+- **THEN** Upload Documents omits empty summary counters while preserving file
+  selection, validation, and upload actions
+- **AND** the OAuth success notice is shown once, removes its callback query
+  marker, and dismisses automatically or on user action
+- **AND** external sync cards show a concise result summary while detailed safe
+  counters are available through View details
+- **AND** normal cards and details omit raw workspace, source, document, and job
+  identifiers
+
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants
 - **THEN** the UI explains that one or more documents may be assigned

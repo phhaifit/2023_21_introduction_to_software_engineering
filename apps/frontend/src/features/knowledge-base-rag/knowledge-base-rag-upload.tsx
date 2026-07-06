@@ -17,7 +17,6 @@ import {
   KnowledgeBaseEmptyState,
   KnowledgeBaseFileTypeBadge,
   KnowledgeBaseMetadataList,
-  KnowledgeBaseMetricCard,
   KnowledgeBaseSectionCard,
   KnowledgeBaseStatusBadge
 } from "./knowledge-base-rag-components.tsx";
@@ -71,7 +70,6 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
     () => getAcceptedCandidates(candidateFiles, validationResponse),
     [candidateFiles, validationResponse]
   );
-  const metrics = useMemo(() => createUploadMetrics(candidateFileViews), [candidateFileViews]);
   const isBusy = operationState !== "idle";
 
   function handleBrowseClick() {
@@ -174,29 +172,6 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
         </div>
       ) : null}
 
-      <div className="knowledge-base-rag-upload-metrics" aria-label="Upload validation summary">
-        <KnowledgeBaseMetricCard
-          label="Selected files"
-          value={metrics.total}
-          helperText="Files staged for review"
-        />
-        <KnowledgeBaseMetricCard
-          label="Valid files"
-          value={metrics.valid}
-          helperText="Files ready for ingestion"
-        />
-        <KnowledgeBaseMetricCard
-          label="Invalid files"
-          value={metrics.invalid}
-          helperText="Files requiring changes"
-        />
-        <KnowledgeBaseMetricCard
-          label="Ready for ingestion"
-          value={metrics.readyForIngestion}
-          helperText="Valid files in the current selection"
-        />
-      </div>
-
       <KnowledgeBaseSectionCard
         title="Selected files"
         eyebrow="Validation review"
@@ -224,7 +199,10 @@ export function KnowledgeBaseUploadScreen(props: KnowledgeBaseUploadScreenProps)
 
       <section className="knowledge-base-rag-upload-action" aria-label="Upload preparation">
         <div>
-          <h2>{metrics.readyForIngestion} files ready to prepare</h2>
+          <h2>
+            {validCandidateFiles.length}{" "}
+            {validCandidateFiles.length === 1 ? "file" : "files"} ready to upload
+          </h2>
           <p>Only valid files are included when preparing documents for ingestion.</p>
         </div>
         <button
@@ -280,25 +258,6 @@ function UploadFileTypeBadge({ type }: { type: string }) {
   }
 
   return <span className="knowledge-base-rag-upload-file__unsupported">Unsupported</span>;
-}
-
-function createUploadMetrics(files: UploadCandidateFileView[]) {
-  const valid = countFilesByStatus(files, "valid");
-  const invalid = countFilesByStatus(files, "invalid");
-
-  return {
-    total: files.length,
-    valid,
-    invalid,
-    readyForIngestion: valid
-  };
-}
-
-function countFilesByStatus(
-  files: UploadCandidateFileView[],
-  status: UploadValidationStatus
-): number {
-  return files.filter((file) => file.validationStatus === status).length;
 }
 
 function getValidationLabel(status: UploadValidationDisplayStatus): string {

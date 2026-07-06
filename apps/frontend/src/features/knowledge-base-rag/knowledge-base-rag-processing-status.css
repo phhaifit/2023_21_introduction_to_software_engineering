@@ -229,6 +229,19 @@
   font-size: 0.8125rem;
 }
 
+.knowledge-base-rag-processing-job__summary {
+  margin: 0 0 1rem;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.knowledge-base-rag-processing-job__hint code {
+  color: #475569;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 .knowledge-base-rag-processing-job__actions {
   justify-content: flex-end;
   margin-top: 1rem;

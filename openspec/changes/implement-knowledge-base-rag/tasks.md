@@ -33,6 +33,7 @@
 - [x] 2.15 Add safe Processing Status details/retry presentation and compact Workflow Run History identifiers without adding runtime APIs
 - [x] 2.16 Add opt-in Google Drive automatic scoped polling, hourly/daily settings, URL/ID normalization, and focused UI/runtime tests
 - [x] 2.17 Consolidate Google Drive configuration into Data Sync, hide normal-user technical IDs, add actionable provider errors, and support explicit local-demo read-only OAuth
+- [x] 2.18 Simplify Upload status, make Google Drive OAuth feedback transient, and move external sync counters into user-facing details
 
 ## 3. Remaining Verification and Handoff
 

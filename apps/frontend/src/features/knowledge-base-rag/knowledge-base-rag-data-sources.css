@@ -21,6 +21,16 @@
   color: #166534;
 }
 
+.knowledge-base-rag-data-sources-feedback
+  .knowledge-base-rag-data-sources-feedback__dismiss {
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.25rem;
+}
+
 .knowledge-base-rag-data-sources-feedback h3,
 .knowledge-base-rag-data-sources-feedback p {
   margin: 0;

@@ -17,6 +17,12 @@ not provide a one-click deployment, a durable production queue, Google Picker,
 other connectors, source-level grants, a standalone Agent Knowledge Ask UI,
 OCR, legacy DOC extraction, or production OpenClaw/tool registration.
 
+Data Sync is implemented for Google Drive. Users connect Google Drive, select
+files or folders in scope, and enable scheduled Auto Sync. The system checks
+selected Drive content for changes and updates the Knowledge Base by re-running
+parsing, chunking, embedding, and vector indexing. It does not sync the entire
+Drive or claim real-time synchronization.
+
 ## Prerequisites
 
 - Node.js 22 and npm 10 (the versions used by current test evidence)

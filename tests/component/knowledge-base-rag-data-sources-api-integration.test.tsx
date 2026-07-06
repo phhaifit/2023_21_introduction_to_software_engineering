@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { KnowledgeDataSourceDto } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   window.history.replaceState({}, "", "/");
 });
@@ -66,6 +67,7 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     expect(await screen.findByRole("heading", { name: "Google Drive" })).toBeTruthy();
     expect(screen.queryByLabelText("Data source summary")).toBeNull();
     expect(screen.queryByText("Needs attention")).toBeNull();
+    expect(screen.queryByText("Google Drive connected successfully.")).toBeNull();
     expect(client.listDataSources).toHaveBeenCalledWith(workspaceId);
   });
 
@@ -114,6 +116,7 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
   });
 
   it("shows callback success and keeps sync actions in the scope section", async () => {
+    const user = userEvent.setup();
     window.history.replaceState(
       {},
       "",
@@ -132,12 +135,18 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     expect(
       await screen.findByText("Google Drive connected successfully.")
     ).toBeTruthy();
+    expect(window.location.search).toBe("?tab=data-sync");
     expect(screen.getByText("researcher@example.test")).toBeTruthy();
     expect(screen.getByText("Not synced")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Sync now" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Configure scope" })).toBeNull();
     expect(client.requestManualSync).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Dismiss Google Drive notice" })
+    );
+    expect(screen.queryByText("Google Drive connected successfully.")).toBeNull();
   });
 
   it("shows automatic sync schedule for a configured source", async () => {
@@ -161,5 +170,25 @@ describe("Knowledge Base / RAG Data Sources API integration", () => {
     expect(await screen.findByText("Hourly")).toBeTruthy();
     expect(screen.getByText("Completed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Sync now" })).toBeNull();
+  });
+
+  it("auto-hides the OAuth success notice after five seconds", () => {
+    vi.useFakeTimers();
+    window.history.replaceState(
+      {},
+      "",
+      "/knowledge-base-rag?tab=data-sync&googleDrive=connected"
+    );
+
+    render(
+      <KnowledgeBaseDataSourcesScreen
+        apiClient={createClient()}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(screen.getByText("Google Drive connected successfully.")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(5_000));
+    expect(screen.queryByText("Google Drive connected successfully.")).toBeNull();
   });
 });
