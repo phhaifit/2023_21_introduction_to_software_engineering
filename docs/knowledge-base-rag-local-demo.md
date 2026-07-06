@@ -23,6 +23,14 @@ selected Drive content for changes and updates the Knowledge Base by re-running
 parsing, chunking, embedding, and vector indexing. It does not sync the entire
 Drive or claim real-time synchronization.
 
+After a Drive file or folder URL is saved, Data Sync loads a bounded metadata
+tree from Google Drive. Users can expand folders and select the files or
+folders included in synchronization. Selecting a folder selects its loaded
+descendants; clearing a child creates a partial folder selection. `Include
+nested folders` controls whether subfolders are traversed, and the configured
+maximum-file limit bounds both preview and synchronization. Google Picker is
+still deferred.
+
 ## Prerequisites
 
 - Node.js 22 and npm 10 (the versions used by current test evidence)

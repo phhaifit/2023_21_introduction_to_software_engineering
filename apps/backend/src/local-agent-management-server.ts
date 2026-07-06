@@ -748,6 +748,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateJobId: () => randomUUID() as any
   });
   let googleDriveOAuthService: GoogleDriveOAuthService | undefined;
+  let googleDriveProvider: GoogleDriveApiProvider | undefined;
   let enqueueSyncJob:
     | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
     | undefined;
@@ -775,6 +776,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       now: () => new Date().toISOString(),
       generateSourceId: () => `google-drive-${randomUUID()}`
     });
+    googleDriveProvider = new GoogleDriveApiProvider();
     const syncUploadUseCases = new KnowledgeUploadUseCases({
       documentRepository: knowledgeDocumentRepository,
       ingestionJobRepository: knowledgeIngestionJobRepository,
@@ -791,7 +793,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       documentRepository: knowledgeDocumentRepository,
       uploadUseCases: syncUploadUseCases,
       oauthService: googleDriveOAuthService,
-      provider: new GoogleDriveApiProvider(),
+      provider: googleDriveProvider,
       now: () => new Date().toISOString(),
       generateEventId: () => randomUUID()
     });
@@ -805,6 +807,8 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     syncScopeRepository: knowledgeSyncScopeRepository,
     syncJobRepository: knowledgeSyncJobRepository,
     dataSourceRepository: knowledgeDataSourceRepository,
+    googleDriveOAuthService,
+    googleDriveProvider,
     now: () => new Date().toISOString(),
     generateJobId: () => randomUUID() as any,
     enqueueSyncJob

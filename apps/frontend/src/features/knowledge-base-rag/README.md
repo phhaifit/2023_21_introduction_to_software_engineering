@@ -66,6 +66,8 @@ public contracts.
 - Upload validation display.
 - Processing and indexing status display.
 - API-backed Google Drive connection and scoped synchronization in Data Sync.
+- Bounded Google Drive file/folder tree preview with persisted hierarchical
+  selection; raw Drive IDs remain hidden from normal UI.
 - Detailed manual and automatic sync status in Processing Status only.
 - Agent document-grant API client methods consumed by Agent Management.
 

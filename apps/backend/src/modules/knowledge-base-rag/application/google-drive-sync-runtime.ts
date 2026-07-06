@@ -29,7 +29,7 @@ export class GoogleDriveSyncRuntime {
     documentRepository: KnowledgeDocumentRepository;
     uploadUseCases: Pick<KnowledgeUploadUseCases, "importExternalFile">;
     oauthService: Pick<GoogleDriveOAuthService, "getAccessToken">;
-    provider: GoogleDriveProvider;
+    provider: Pick<GoogleDriveProvider, "listFiles" | "downloadFile">;
     now: () => string;
     generateEventId: () => string;
   };
@@ -42,7 +42,7 @@ export class GoogleDriveSyncRuntime {
       documentRepository: KnowledgeDocumentRepository;
       uploadUseCases: Pick<KnowledgeUploadUseCases, "importExternalFile">;
       oauthService: Pick<GoogleDriveOAuthService, "getAccessToken">;
-      provider: GoogleDriveProvider;
+      provider: Pick<GoogleDriveProvider, "listFiles" | "downloadFile">;
       now: () => string;
       generateEventId: () => string;
     }

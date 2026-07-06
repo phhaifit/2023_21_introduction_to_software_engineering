@@ -89,6 +89,12 @@ export function toKnowledgeDataSourceDto(
 }
 
 export function toSyncScopeNodeDto(node: KnowledgeSyncScopeNode): SyncScopeNodeDto {
+  const metadata =
+    node.safeMetadata &&
+    typeof node.safeMetadata === "object" &&
+    !Array.isArray(node.safeMetadata)
+      ? node.safeMetadata
+      : {};
   return {
     scopeNodeId: node.scopeNodeId,
     sourceId: node.sourceId,
@@ -96,8 +102,15 @@ export function toSyncScopeNodeDto(node: KnowledgeSyncScopeNode): SyncScopeNodeD
     parentScopeNodeId: node.parentScopeNodeId,
     name: node.displayName,
     nodeType: node.nodeType,
+    ...(typeof metadata.mimeType === "string"
+      ? { mimeType: metadata.mimeType }
+      : {}),
     selected: node.selected,
     selectable: node.selectable,
+    ...(typeof metadata.unsupportedReason === "string"
+      ? { unsupportedReason: metadata.unsupportedReason }
+      : {}),
+    ...(metadata.hasMoreChildren === true ? { hasMoreChildren: true } : {}),
     updatedAt: node.updatedAt
   };
 }

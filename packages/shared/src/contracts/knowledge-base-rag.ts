@@ -274,8 +274,11 @@ export type SyncScopeNodeDto = {
   parentScopeNodeId?: string;
   name: string;
   nodeType: "folder" | "file" | "page" | "space";
+  mimeType?: string;
   selected: boolean;
   selectable: boolean;
+  unsupportedReason?: string;
+  hasMoreChildren?: boolean;
   updatedAt: string;
 };
 

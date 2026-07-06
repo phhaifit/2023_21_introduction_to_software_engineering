@@ -203,6 +203,125 @@ await assert.rejects(
   /No Google Drive sync scope is configured\. Add a file ID or folder ID before syncing\./
 );
 
+const treeUseCases = new KnowledgeSyncUseCases({
+  dataSourceRepository,
+  syncScopeRepository,
+  syncJobRepository,
+  googleDriveOAuthService: { getAccessToken: async () => "tree-access-value" },
+  googleDriveProvider: {
+    listScopeTree: async () => [
+      {
+        file: driveFile(
+          "folder-1",
+          "HR Policies",
+          "application/vnd.google-apps.folder",
+          now
+        ),
+        hasMoreChildren: false,
+        children: [
+          {
+            file: driveFile(
+              "file-equipment",
+              "Equipment Policy.txt",
+              "text/plain",
+              now
+            ),
+            hasMoreChildren: false,
+            children: []
+          },
+          {
+            file: driveFile(
+              "file-slides-preview",
+              "Company Slides",
+              "application/vnd.google-apps.presentation",
+              now
+            ),
+            hasMoreChildren: false,
+            children: []
+          }
+        ]
+      }
+    ]
+  },
+  now: () => now,
+  generateJobId: () => "scope-tree-job"
+});
+const materialized = await treeUseCases.configureGoogleDriveScope(
+  "workspace-a",
+  "source-drive",
+  {
+    folderIds: ["folder-1"],
+    recursive: true,
+    maxFiles: 10,
+    allowedMimeTypes: []
+  }
+);
+const root = materialized.find((node) => node.name === "HR Policies");
+const equipment = materialized.find(
+  (node) => node.name === "Equipment Policy.txt"
+);
+const unsupported = materialized.find((node) => node.name === "Company Slides");
+assert.ok(root);
+assert.ok(equipment);
+assert.equal(equipment.parentScopeNodeId, root.scopeNodeId);
+assert.equal(unsupported.selectable, false);
+assert.match(unsupported.unsupportedReason, /not supported/);
+
+const selected = await treeUseCases.updateSyncScope("workspace-a", {
+  selectedScopeNodeIds: [equipment.scopeNodeId]
+});
+assert.deepEqual(
+  selected.filter((node) => node.selected).map((node) => node.name),
+  ["Equipment Policy.txt"]
+);
+assert.equal(
+  (await dataSourceRepository.getDataSourceById("workspace-a", "source-drive"))
+    .selectedScopeNodeCount,
+  1
+);
+
+await syncJobRepository.saveSyncJob({
+  jobId: "selection-sync-job",
+  workspaceId: "workspace-a",
+  sourceId: "source-drive",
+  status: "pending",
+  requestedByUserId: "user-a",
+  queuedAt: now,
+  createdAt: now,
+  updatedAt: now
+});
+let selectedProviderScope;
+const selectionRuntime = new GoogleDriveSyncRuntime({
+  dataSourceRepository,
+  documentRepository,
+  syncScopeRepository,
+  syncJobRepository,
+  oauthService: { getAccessToken: async () => "selection-access-value" },
+  provider: {
+    listFiles: async (_token, scope) => {
+      selectedProviderScope = scope;
+      return [];
+    },
+    downloadFile: async () => {
+      throw new Error("download should not run");
+    }
+  },
+  uploadUseCases: {
+    importExternalFile: async () => {
+      throw new Error("import should not run");
+    }
+  },
+  now: () => now,
+  generateEventId: () => `selection-event-${Math.random()}`
+});
+await selectionRuntime.execute({
+  workspaceId: "workspace-a",
+  jobId: "selection-sync-job"
+});
+assert.deepEqual(selectedProviderScope.folderIds, []);
+assert.deepEqual(selectedProviderScope.fileIds, ["file-equipment"]);
+assert.equal(JSON.stringify(selectedProviderScope).includes("selection-access-value"), false);
+
 const workerCalls = [];
 const workerHandler = createGoogleDriveSyncJobHandler({
   execute: async (input) => workerCalls.push(input)

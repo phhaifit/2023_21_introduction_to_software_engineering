@@ -3,13 +3,15 @@ import {
   type GoogleDriveDownloadedFile,
   type GoogleDriveFile,
   type GoogleDriveProvider,
-  type GoogleDriveScope
+  type GoogleDriveScope,
+  type GoogleDriveScopeTreeNode
 } from "../application/google-drive-provider.ts";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
 const GOOGLE_FOLDER = "application/vnd.google-apps.folder";
+const MAX_TREE_DEPTH = 4;
 
 export class GoogleDriveApiProvider implements GoogleDriveProvider {
   private readonly fetchImplementation: typeof fetch;
@@ -45,6 +47,29 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
           scope.allowedMimeTypes.includes(file.mimeType)
       )
       .slice(0, scope.maxFiles);
+  }
+
+  async listScopeTree(
+    accessToken: string,
+    scope: GoogleDriveScope
+  ): Promise<GoogleDriveScopeTreeNode[]> {
+    const remaining = { value: scope.maxFiles };
+    const roots: GoogleDriveScopeTreeNode[] = [];
+    for (const rootId of [...scope.folderIds, ...scope.fileIds]) {
+      if (remaining.value <= 0) break;
+      const file = await this.getMetadata(accessToken, rootId);
+      remaining.value -= 1;
+      roots.push(
+        await this.buildTreeNode(
+          accessToken,
+          file,
+          scope.recursive,
+          0,
+          remaining
+        )
+      );
+    }
+    return roots;
   }
 
   async downloadFile(
@@ -128,6 +153,76 @@ export class GoogleDriveApiProvider implements GoogleDriveProvider {
       } while (pageToken && result.length < scope.maxFiles);
     }
     return result;
+  }
+
+  private async buildTreeNode(
+    accessToken: string,
+    file: GoogleDriveFile,
+    recursive: boolean,
+    depth: number,
+    remaining: { value: number }
+  ): Promise<GoogleDriveScopeTreeNode> {
+    if (file.mimeType !== GOOGLE_FOLDER || remaining.value <= 0) {
+      return { file, children: [], hasMoreChildren: false };
+    }
+    if (depth > 0 && !recursive) {
+      return { file, children: [], hasMoreChildren: false };
+    }
+    if (depth >= MAX_TREE_DEPTH) {
+      return { file, children: [], hasMoreChildren: true };
+    }
+
+    const { files, hasMore } = await this.listDirectChildren(
+      accessToken,
+      file.fileId,
+      remaining.value
+    );
+    const children: GoogleDriveScopeTreeNode[] = [];
+    for (const child of files) {
+      if (remaining.value <= 0) break;
+      remaining.value -= 1;
+      children.push(
+        await this.buildTreeNode(
+          accessToken,
+          child,
+          recursive,
+          depth + 1,
+          remaining
+        )
+      );
+    }
+    return {
+      file,
+      children,
+      hasMoreChildren: hasMore || files.length > children.length
+    };
+  }
+
+  private async listDirectChildren(
+    accessToken: string,
+    folderId: string,
+    limit: number
+  ): Promise<{ files: GoogleDriveFile[]; hasMore: boolean }> {
+    if (limit <= 0) return { files: [], hasMore: true };
+    const query = new URLSearchParams({
+      q: `'${folderId.replace(/'/g, "\\'")}' in parents and trashed = false`,
+      fields:
+        "nextPageToken,files(id,name,mimeType,modifiedTime,size,md5Checksum,trashed,capabilities(canDownload),parents)",
+      pageSize: String(Math.min(100, limit))
+    });
+    const response = await this.request(
+      `${DRIVE_API}/files?${query.toString()}`,
+      { headers: { authorization: `Bearer ${accessToken}` } }
+    );
+    if (!response.ok) throw await providerError(response);
+    const body = (await response.json()) as {
+      files?: unknown[];
+      nextPageToken?: string;
+    };
+    return {
+      files: (body.files ?? []).map(mapFile).slice(0, limit),
+      hasMore: Boolean(body.nextPageToken) || (body.files?.length ?? 0) > limit
+    };
   }
 
   private async getMetadata(

@@ -24,6 +24,23 @@ import {
   readGoogleDriveAutoSyncSettings
 } from "./google-drive-auto-sync.ts";
 import { normalizeGoogleDriveItemId } from "./google-drive-id.ts";
+import type {
+  GoogleDriveProvider,
+  GoogleDriveScope,
+  GoogleDriveScopeTreeNode
+} from "./google-drive-provider.ts";
+import type { GoogleDriveOAuthService } from "./google-drive-oauth-service.ts";
+
+const GOOGLE_DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
+const SUPPORTED_DRIVE_MIME_TYPES = new Set([
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.google-apps.document",
+  "application/vnd.google-apps.spreadsheet"
+]);
 
 export type KnowledgeSyncUseCaseDependencies = {
   syncScopeRepository: KnowledgeSyncScopeRepository;
@@ -31,6 +48,8 @@ export type KnowledgeSyncUseCaseDependencies = {
   now: () => string;
   generateJobId: () => EntityId<"jobId">;
   dataSourceRepository?: KnowledgeDataSourceRepository;
+  googleDriveOAuthService?: Pick<GoogleDriveOAuthService, "getAccessToken">;
+  googleDriveProvider?: Pick<GoogleDriveProvider, "listScopeTree">;
   enqueueSyncJob?: (input: {
     workspaceId: EntityId<"workspaceId">;
     jobId: EntityId<"jobId">;
@@ -73,6 +92,7 @@ export class KnowledgeSyncUseCases {
       workspaceId,
       updated
     );
+    await this.updateSelectedScopeCount(workspaceId, saved);
 
     return saved.map(toSyncScopeNodeDto);
   }
@@ -267,12 +287,21 @@ export class KnowledgeSyncUseCases {
       ...fileIds.map((externalId) => ({ externalId, nodeType: "file" as const }))
     ];
     const requestedIds = new Set(requested.map((item) => item.externalId));
-    const nodes = [
-      ...existing.map((node) => ({
-        ...node,
-        selected: requestedIds.has(node.externalId),
-        updatedAt: now
-      })),
+    const rootNodes = [
+      ...existing
+        .filter((node) => !node.parentScopeNodeId && requestedIds.has(node.externalId))
+        .map((node) => ({
+          ...node,
+          selected: node.selected,
+          safeMetadata: {
+            ...metadataRecord(node.safeMetadata),
+            isScopeRoot: true,
+            recursive: request.recursive === true,
+            allowedMimeTypes,
+            maxFiles
+          },
+          updatedAt: now
+        })),
       ...requested
         .filter((item) => !byExternalId.has(item.externalId))
         .map((item) => ({
@@ -285,6 +314,7 @@ export class KnowledgeSyncUseCases {
           selected: true,
           selectable: true,
           safeMetadata: {
+            isScopeRoot: true,
             recursive: request.recursive === true,
             allowedMimeTypes,
             maxFiles
@@ -293,11 +323,52 @@ export class KnowledgeSyncUseCases {
           updatedAt: now
         }))
     ];
-    const saved = (
-      await this.dependencies.syncScopeRepository.saveSyncScopeNodes(
-        workspaceId,
-        nodes
-      )
+    let nodes = [
+      ...rootNodes,
+      ...existing
+        .filter((node) => Boolean(node.parentScopeNodeId))
+        .map((node) => ({ ...node, updatedAt: now }))
+    ];
+    if (
+      this.dependencies.googleDriveOAuthService &&
+      this.dependencies.googleDriveProvider
+    ) {
+      try {
+        const accessToken =
+          await this.dependencies.googleDriveOAuthService.getAccessToken(
+            workspaceId,
+            sourceId
+          );
+        const tree = await this.dependencies.googleDriveProvider.listScopeTree(
+          accessToken,
+          {
+            folderIds,
+            fileIds,
+            recursive: request.recursive === true,
+            allowedMimeTypes,
+            maxFiles
+          }
+        );
+        nodes = materializeScopeTree({
+          workspaceId,
+          sourceId,
+          tree,
+          existing,
+          rootExternalIds: requestedIds,
+          config: {
+            recursive: request.recursive === true,
+            allowedMimeTypes,
+            maxFiles
+          },
+          now
+        });
+      } catch {
+        // Scope roots remain saved and existing safe preview nodes remain usable.
+      }
+    }
+    const saved = await this.dependencies.syncScopeRepository.saveSyncScopeNodes(
+      workspaceId,
+      nodes
     );
     if (this.dependencies.dataSourceRepository) {
       const source =
@@ -314,6 +385,26 @@ export class KnowledgeSyncUseCases {
       }
     }
     return saved.map(toSyncScopeNodeDto);
+  }
+
+  private async updateSelectedScopeCount(
+    workspaceId: EntityId<"workspaceId">,
+    nodes: Awaited<ReturnType<KnowledgeSyncScopeRepository["getSyncScope"]>>
+  ): Promise<void> {
+    if (!this.dependencies.dataSourceRepository || nodes.length === 0) return;
+    const sourceId = nodes[0]?.sourceId;
+    if (!sourceId) return;
+    const source =
+      await this.dependencies.dataSourceRepository.getDataSourceById(
+        workspaceId,
+        sourceId
+      );
+    if (!source) return;
+    await this.dependencies.dataSourceRepository.saveDataSource({
+      ...source,
+      selectedScopeNodeCount: nodes.filter((node) => node.selected).length,
+      updatedAt: this.dependencies.now()
+    });
   }
 
   async listSyncJobs(
@@ -361,4 +452,66 @@ function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? { ...value }
     : {};
+}
+
+function materializeScopeTree(input: {
+  workspaceId: EntityId<"workspaceId">;
+  sourceId: string;
+  tree: GoogleDriveScopeTreeNode[];
+  existing: Awaited<ReturnType<KnowledgeSyncScopeRepository["getSyncScope"]>>;
+  rootExternalIds: Set<string>;
+  config: Pick<GoogleDriveScope, "recursive" | "allowedMimeTypes" | "maxFiles">;
+  now: string;
+}) {
+  const existingByExternalId = new Map(
+    input.existing.map((node) => [node.externalId, node])
+  );
+  const result: Awaited<
+    ReturnType<KnowledgeSyncScopeRepository["getSyncScope"]>
+  > = [];
+
+  const visit = (
+    treeNode: GoogleDriveScopeTreeNode,
+    parentScopeNodeId?: string,
+    inheritedSelected = true
+  ) => {
+    const file = treeNode.file;
+    const nodeType =
+      file.mimeType === GOOGLE_DRIVE_FOLDER_MIME ? "folder" : "file";
+    const scopeNodeId = `google-drive:${input.sourceId}:${nodeType}:${file.fileId}`;
+    const existing = existingByExternalId.get(file.fileId);
+    const selectable =
+      nodeType === "folder" || SUPPORTED_DRIVE_MIME_TYPES.has(file.mimeType);
+    const selected = selectable
+      ? existing?.selected ?? inheritedSelected
+      : false;
+    result.push({
+      scopeNodeId,
+      workspaceId: input.workspaceId,
+      sourceId: input.sourceId,
+      externalId: file.fileId,
+      ...(parentScopeNodeId ? { parentScopeNodeId } : {}),
+      nodeType,
+      displayName: file.name,
+      selected,
+      selectable,
+      safeMetadata: {
+        mimeType: file.mimeType,
+        hasMoreChildren: treeNode.hasMoreChildren,
+        isScopeRoot: input.rootExternalIds.has(file.fileId),
+        ...input.config,
+        ...(!selectable
+          ? { unsupportedReason: "This Drive file type is not supported." }
+          : {})
+      },
+      createdAt: existing?.createdAt ?? input.now,
+      updatedAt: input.now
+    });
+    for (const child of treeNode.children) {
+      visit(child, scopeNodeId, selected);
+    }
+  };
+
+  for (const root of input.tree) visit(root);
+  return result;
 }

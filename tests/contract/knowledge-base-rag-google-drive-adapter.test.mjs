@@ -83,6 +83,43 @@ const rawFolderFiles = await rawFolderProvider.listFiles("access-value", {
 assert.deepEqual(rawFolderFiles.map((item) => item.fileId), ["nested-file"]);
 assert.ok(rawFolderCalls.some((url) => url.includes("%27raw-folder%27+in+parents")));
 
+const treeProvider = new GoogleDriveApiProvider(async (url) => {
+  const value = String(url);
+  if (value.includes("/files/folder-tree?")) {
+    return jsonResponse(
+      file("folder-tree", "HR Policies", "application/vnd.google-apps.folder")
+    );
+  }
+  if (value.includes("%27folder-tree%27+in+parents")) {
+    return jsonResponse({
+      files: [
+        file("tree-file", "Equipment Policy.txt", "text/plain"),
+        file("tree-subfolder", "Archive", "application/vnd.google-apps.folder")
+      ]
+    });
+  }
+  if (value.includes("%27tree-subfolder%27+in+parents")) {
+    return jsonResponse({
+      files: [file("nested-file", "Leave Policy.pdf", "application/pdf")]
+    });
+  }
+  throw new Error("unexpected fake Drive request");
+});
+const tree = await treeProvider.listScopeTree("access-value", {
+  folderIds: ["folder-tree"],
+  fileIds: [],
+  recursive: true,
+  allowedMimeTypes: [],
+  maxFiles: 10
+});
+assert.equal(tree[0].file.name, "HR Policies");
+assert.deepEqual(
+  tree[0].children.map((node) => node.file.name),
+  ["Equipment Policy.txt", "Archive"]
+);
+assert.equal(tree[0].children[1].children[0].file.name, "Leave Policy.pdf");
+assert.equal(JSON.stringify(tree).includes("access-value"), false);
+
 for (const [status, code] of [
   [401, "credential_invalid"],
   [403, "permission_denied"],

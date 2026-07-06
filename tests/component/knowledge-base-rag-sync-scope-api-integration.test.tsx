@@ -67,6 +67,12 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
     connectDataSource: vi.fn(),
     getSyncScope: vi.fn(async () => [rootNode, childNode]),
     configureGoogleDriveScope: vi.fn(async () => [rootNode, childNode]),
+    updateSyncScope: vi.fn(async (_workspaceId, request) =>
+      [rootNode, childNode].map((node) => ({
+        ...node,
+        selected: request.selectedScopeNodeIds.includes(node.scopeNodeId)
+      }))
+    ),
     configureGoogleDriveAutoSync: vi.fn(async () => ({
       ...connectedSource,
       autoSyncEnabled: true,
@@ -99,7 +105,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(input).toHaveValue("");
     expect(client.getSyncScope).toHaveBeenCalledWith(workspaceId);
     expect(client.listSyncJobs).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "Saved Drive content" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Selected Drive content" })).toBeTruthy();
     expect(screen.getByText("Company Handbook")).toBeTruthy();
     expect(screen.queryByText(rootNode.externalId!)).toBeNull();
     expect(screen.queryByText("sync-job-a")).toBeNull();
@@ -177,26 +183,28 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
   it("normalizes Drive URLs and saves Auto Sync settings", async () => {
     const savedFileId = "file-a";
     const savedFolderId = "folder-a";
+    const configuredNodes: SyncScopeNodeDto[] = [
+      {
+        ...rootNode,
+        scopeNodeId: "saved-folder",
+        externalId: savedFolderId,
+        name: `Folder ${savedFolderId}`,
+        nodeType: "folder",
+        selected: true
+      },
+      {
+        ...childNode,
+        scopeNodeId: "saved-file",
+        parentScopeNodeId: undefined,
+        externalId: savedFileId,
+        name: `File ${savedFileId}`,
+        selected: true
+      }
+    ];
     const client = createClient({
       getSyncScope: vi.fn(async () => []),
-      configureGoogleDriveScope: vi.fn(async () => [
-        {
-          ...rootNode,
-          scopeNodeId: "saved-folder",
-          externalId: savedFolderId,
-          name: `Folder ${savedFolderId}`,
-          nodeType: "folder",
-          selected: true
-        },
-        {
-          ...childNode,
-          scopeNodeId: "saved-file",
-          parentScopeNodeId: undefined,
-          externalId: savedFileId,
-          name: `File ${savedFileId}`,
-          selected: true
-        }
-      ])
+      configureGoogleDriveScope: vi.fn(async () => configuredNodes),
+      updateSyncScope: vi.fn(async () => configuredNodes)
     });
     const user = userEvent.setup();
 
@@ -237,6 +245,63 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     expect(screen.queryByText(savedFolderId)).toBeNull();
     expect(screen.queryByText(savedFileId)).toBeNull();
     expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
+  });
+
+  it("expands folder content and applies hierarchical checkbox selection", async () => {
+    const user = userEvent.setup();
+    const siblingNode: SyncScopeNodeDto = {
+      ...childNode,
+      scopeNodeId: "scope-sibling",
+      name: "Leave Policy.pdf",
+      selected: false
+    };
+    const treeNodes = [rootNode, childNode, siblingNode];
+    const client = createClient({
+      getSyncScope: vi.fn(async () => treeNodes),
+      configureGoogleDriveScope: vi.fn(async () => treeNodes),
+      updateSyncScope: vi.fn(async (_workspaceId, request) =>
+        treeNodes.map((node) => ({
+          ...node,
+          selected: request.selectedScopeNodeIds.includes(node.scopeNodeId)
+        }))
+      )
+    });
+
+    render(<KnowledgeBaseSyncScopeScreen apiClient={client} workspaceId={workspaceId} />);
+
+    expect(await screen.findByText("Company Handbook")).toBeTruthy();
+    expect(screen.queryByText("Benefits Overview.pdf")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Expand Company Handbook" }));
+    expect(screen.getByText("Benefits Overview.pdf")).toBeTruthy();
+    expect(screen.getByText("Leave Policy.pdf")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Collapse all" }));
+    expect(screen.queryByText("Benefits Overview.pdf")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Expand Company Handbook" }));
+
+    const folderCheckbox = screen.getByRole("checkbox", {
+      name: "Company Handbook"
+    });
+    const fileCheckbox = screen.getByRole("checkbox", {
+      name: "Benefits Overview.pdf"
+    });
+    expect(folderCheckbox).toBePartiallyChecked();
+    expect(fileCheckbox).not.toBeChecked();
+
+    await user.click(folderCheckbox);
+    expect(folderCheckbox).toBeChecked();
+    expect(fileCheckbox).toBeChecked();
+    expect(screen.getByRole("button", { name: "Sync now" })).toBeDisabled();
+    expect(screen.getByText("Save selection and settings before syncing.")).toBeTruthy();
+
+    await user.click(fileCheckbox);
+    expect(folderCheckbox).toBePartiallyChecked();
+    expect(fileCheckbox).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save scope" }));
+    await waitFor(() => expect(client.updateSyncScope).toHaveBeenCalled());
+    expect(client.updateSyncScope).toHaveBeenLastCalledWith(workspaceId, {
+      selectedScopeNodeIds: ["scope-sibling"]
+    });
+    expect(screen.queryByText(rootNode.externalId!)).toBeNull();
   });
 
   it("does not repopulate new input with saved raw Drive IDs after reload", async () => {
@@ -313,7 +378,7 @@ describe("Knowledge Base / RAG Sync Scope API integration", () => {
     const syncButton = await screen.findByRole("button", { name: "Sync now" });
     expect(syncButton).toBeDisabled();
     expect(
-      screen.getByText("Save at least one Drive file or folder before syncing.")
+      screen.getByText("Select at least one Drive file or folder before syncing.")
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save scope" })).toBeDisabled();
     expect(screen.queryByText(/Notion|Confluence/i)).toBeNull();

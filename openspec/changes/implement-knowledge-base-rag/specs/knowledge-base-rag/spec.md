@@ -375,6 +375,14 @@ through a workspace-scoped public API.
 - **AND** Upload and Google Drive processing details share one common status, progress, timing, chunk, indexing, and retry layout without duplicating the current step
 - **AND** Google Drive-only source metadata is grouped in a separate user-facing section without exposing internal identifiers
 
+#### Scenario: Google Drive scope materializes a selectable content tree
+- **WHEN** an authorized user saves one or more accessible Drive file or folder locations
+- **THEN** the backend resolves safe provider metadata and persists bounded file and folder scope nodes with readable names and parent relationships
+- **AND** the Data Sync UI renders collapsible roots, file/folder badges, and hierarchical checkboxes without displaying raw Drive identifiers
+- **AND** selecting or clearing a folder applies to its loaded descendants, mixed descendants produce an indeterminate folder state, and the persisted selected node IDs are the only scope consumed by manual and scheduled synchronization
+- **AND** nested traversal respects the configured recursive option and preview size limit
+- **AND** unsupported items are visible but not selectable, while provider preview failures remain safe and do not expose tokens or raw provider payloads
+
 #### Scenario: Agent knowledge assignments communicate grant behavior
 - **WHEN** an authorized user manages an agent's document grants
 - **THEN** the UI explains that one or more documents may be assigned

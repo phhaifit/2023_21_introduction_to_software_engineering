@@ -112,6 +112,11 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: `GET`, `POST`, and `DELETE` routes under `/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents` call a KB/RAG application use case, reuse the existing grant repository and access policy, and validate agent existence through an injected workspace-scoped lookup port.
    - Constraint: Listing requires `workspace:read`; mutations require `knowledge:manage`. Responses expose safe document metadata only. This slice does not add source/collection grants, UI, orchestration/tool integration, schema changes, worker behavior, connectors, OAuth, or new dependencies.
 
+31. Materialize Google Drive selection through existing scope-node persistence.
+   - Rationale: The existing scope node model already stores safe display names, parent relationships, and selection state, and the sync runtime already converts only selected nodes into provider scope.
+   - Boundary: Saving Google Drive locations resolves a bounded provider tree, persists safe file/folder nodes, and reuses the existing sync-scope update route for checkbox selection. No schema or new connector abstraction is added.
+   - Constraint: Folder selection applies only to loaded bounded descendants; recursive traversal and maximum-file settings bound preview expansion. Raw Drive identifiers remain internal DTO fields required by the existing sync boundary and are never rendered as normal UI text.
+
 21. Expose assigned knowledge retrieval through an internal agent tool boundary.
    - Rationale: Agent consumers need a stable, JSON-friendly boundary that reuses KB/RAG retrieval and its document-grant enforcement without duplicating vector search logic.
    - Boundary: `AgentKnowledgeRetrievalTool` validates workspace-scoped agent identity through an injected lookup, delegates to `KnowledgeRetrievalSearchUseCase` with agent context, and maps safe results to bounded citation-style evidence under the internal name `knowledge.retrieve`.

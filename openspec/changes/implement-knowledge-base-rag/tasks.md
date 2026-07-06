@@ -35,6 +35,7 @@
 - [x] 2.17 Consolidate Google Drive configuration into Data Sync, hide normal-user technical IDs, add actionable provider errors, and support explicit local-demo read-only OAuth
 - [x] 2.18 Simplify Upload status, make Google Drive OAuth feedback transient, and move external sync counters into user-facing details
 - [x] 2.19 Separate new and saved Drive scope input, hide external IDs, and align Upload/Drive processing details
+- [x] 2.20 Materialize a bounded Google Drive scope tree, persist hierarchical selection, and make sync consume only selected nodes
 
 ## 3. Remaining Verification and Handoff
 

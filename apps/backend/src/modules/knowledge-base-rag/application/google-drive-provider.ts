@@ -24,8 +24,18 @@ export type GoogleDriveScope = {
   maxFiles: number;
 };
 
+export type GoogleDriveScopeTreeNode = {
+  file: GoogleDriveFile;
+  children: GoogleDriveScopeTreeNode[];
+  hasMoreChildren: boolean;
+};
+
 export type GoogleDriveProvider = {
   listFiles(accessToken: string, scope: GoogleDriveScope): Promise<GoogleDriveFile[]>;
+  listScopeTree(
+    accessToken: string,
+    scope: GoogleDriveScope
+  ): Promise<GoogleDriveScopeTreeNode[]>;
   downloadFile(
     accessToken: string,
     file: GoogleDriveFile
