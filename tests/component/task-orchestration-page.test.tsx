@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -105,6 +105,35 @@ describe("TaskOrchestrationPage base workspace", () => {
     expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
     const composer = screen.getByRole("region", { name: "Task composer area" });
     expect(within(composer).queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("grows the chat input for long queries and mirrors submitted queries in the right sidebar", async () => {
+    const user = userEvent.setup();
+    render(<TaskOrchestrationPage taskCreationClient={createLocalTaskCreationClient()} />);
+
+    const promptBox = screen.getByRole("textbox", { name: "Request" });
+    const longPrompt =
+      "Prepare a detailed implementation summary for the demo workflow, including sales qualification context, market research notes, known risks, and the next validation step.";
+
+    Object.defineProperty(promptBox, "scrollHeight", {
+      configurable: true,
+      value: 180
+    });
+
+    fireEvent.change(promptBox, { target: { value: longPrompt } });
+
+    await waitFor(() => {
+      expect(promptBox).toHaveStyle({ height: "180px" });
+    });
+
+    await user.click(screen.getByRole("button", { name: "Send request" }));
+
+    const querySidebar = screen.getByRole("complementary", {
+      name: "Conversation queries"
+    });
+    expect(within(querySidebar).getByText("Current chat")).toBeInTheDocument();
+    expect(within(querySidebar).getByText(longPrompt)).toBeInTheDocument();
+    expect(within(querySidebar).getByText("Auto-routing")).toBeInTheDocument();
   });
 
   it("uses deterministic suggestions and renders Pending after accepted submit", async () => {
@@ -254,7 +283,8 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     render(<TaskOrchestrationPage taskOrchestrationClient={client} />);
 
-    expect(await screen.findByText("Research competitors")).toBeVisible();
+    const taskFeed = await screen.findByLabelText("Conversation task feed");
+    expect(await within(taskFeed).findByText("Research competitors")).toBeVisible();
     expect(await screen.findByLabelText("Task status: In Progress")).toBeVisible();
 
     expect(screen.getByText("OpenClaw partial competitor notes")).toBeVisible();
@@ -341,7 +371,8 @@ describe("TaskOrchestrationPage base workspace", () => {
 
     render(<TaskOrchestrationPage taskOrchestrationClient={client} />);
 
-    expect(await screen.findByText("Research latest OpenClaw release")).toBeVisible();
+    const taskFeed = await screen.findByLabelText("Conversation task feed");
+    expect(await within(taskFeed).findByText("Research latest OpenClaw release")).toBeVisible();
     await waitFor(() => expect(subscribedHandler).toBeDefined());
 
     act(() => {

@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import "./task-composer.css";
 
@@ -27,6 +27,7 @@ export function TaskComposer({
 }: TaskComposerProps) {
   const promptId = useId();
   const errorId = `${promptId}-error`;
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [invalidSubmitAttempted, setInvalidSubmitAttempted] = useState(false);
   const promptIsValid = prompt.trim().length > 0;
@@ -35,6 +36,16 @@ export function TaskComposer({
   const showValidationError = invalidSubmitAttempted && !promptIsValid && !primaryIsCancel;
   const sendDisabled = !primaryIsCancel && (interactionIsDisabled || !promptIsValid);
   const cancelDisabled = interactionIsDisabled;
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
+  }, [prompt]);
 
   function handlePromptChange(value: string) {
     if (value.trim().length > 0) {
@@ -83,6 +94,7 @@ export function TaskComposer({
           Request
         </label>
         <textarea
+          ref={textareaRef}
           id={promptId}
           className="task-composer__textarea"
           value={prompt}

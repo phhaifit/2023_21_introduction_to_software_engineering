@@ -277,6 +277,18 @@ export function TaskOrchestrationPage({
     : undefined;
 
   const activeTask = latestActiveConversationTask;
+  const activeQueryItems = activeConversationTasks.map((task, index) => ({
+    taskId: task.taskId as string,
+    label: `Query ${index + 1}`,
+    prompt: task.prompt,
+    status: toTaskPresentationStatus(task.status),
+    createdAt: task.createdAt,
+    routingSummary: formatCompactRoutingSummary(task.requestedRouting, routingOptions)
+  }));
+  const queryRailMarkers =
+    activeQueryItems.length > 0
+      ? activeQueryItems.map((item) => item.taskId)
+      : Array.from({ length: 18 }, (_, index) => `query-placeholder-${index}`);
   const cancellableActiveTask =
     activeTask && (activeTask.status === "queued" || activeTask.status === "running")
       ? activeTask
@@ -983,6 +995,53 @@ export function TaskOrchestrationPage({
           />
         </section>
       </div>
+
+      <aside className="task-workspace__query-sidebar" aria-label="Conversation queries">
+        <div className="task-workspace__query-panel">
+          <div className="task-workspace__query-rail" aria-hidden="true">
+            {queryRailMarkers.map((marker) => (
+              <span key={marker} />
+            ))}
+          </div>
+
+          <div className="task-workspace__query-content">
+            <div className="task-workspace__query-sidebar-header">
+              <p className="task-workspace__eyebrow">Queries</p>
+              <h2>Current chat</h2>
+              <span className="task-workspace__query-count">
+                {activeQueryItems.length}
+              </span>
+            </div>
+
+            {activeQueryItems.length > 0 ? (
+              <ol className="task-workspace__query-list">
+                {activeQueryItems.map((item) => (
+                  <li key={item.taskId} className="task-workspace__query-item">
+                    <button
+                      type="button"
+                      className="task-workspace__query-button"
+                      aria-label={`Open details for ${item.label}`}
+                      onClick={() => setDetailModalTaskId(item.taskId)}
+                    >
+                      <span className="task-workspace__query-meta">
+                        <span>{item.label}</span>
+                        <span>{formatQueryTimestamp(item.createdAt)}</span>
+                      </span>
+                      <span className="task-workspace__query-text">{item.prompt}</span>
+                      <span className="task-workspace__query-footer">
+                        <span>{item.routingSummary}</span>
+                        <span>{item.status}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="task-workspace__query-empty">No queries yet</p>
+            )}
+          </div>
+        </div>
+      </aside>
     </section>
   );
 }
@@ -1030,4 +1089,16 @@ export function formatRoutingDebugLabel(routing: TaskRoutingSelection): string |
 
 function shortId(id: string): string {
   return id.length > 12 ? id.slice(0, 8) : id;
+}
+
+function formatQueryTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
