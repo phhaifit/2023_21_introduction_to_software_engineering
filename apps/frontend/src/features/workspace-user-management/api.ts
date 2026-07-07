@@ -1,5 +1,17 @@
 import type { WorkspaceMemberListResponse, InviteMemberRequest, InvitationResponse, WorkspaceMemberResponse, UpdateMemberRoleRequest } from "@vcp/shared/contracts/index.ts";
 
+export class WorkspaceUserManagementApiError extends Error {
+  code?: string;
+  details?: any;
+
+  constructor(message: string, code?: string, details?: any) {
+    super(message);
+    this.name = 'WorkspaceUserManagementApiError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
 export class WorkspaceUserManagementAPI {
   constructor(private baseUrl: string) {}
 
@@ -21,8 +33,13 @@ export class WorkspaceUserManagementAPI {
     });
     
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(err.message || 'API request failed');
+      const err = await res.json().catch(() => ({}));
+      const errorPayload = err.error || err;
+      throw new WorkspaceUserManagementApiError(
+        errorPayload.message || 'API request failed',
+        errorPayload.code,
+        errorPayload.details
+      );
     }
     
     const data = await res.json();
