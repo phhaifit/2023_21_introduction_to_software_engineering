@@ -103,22 +103,7 @@ const suggestedPrompts = [
 const RUNNING_DELETE_REASON =
   "Cannot delete while a task is still running or queued in this conversation.";
 
-function resolveProviderBadgeLabel(options: {
-  isReconnecting: boolean;
-  isProviderUnavailable: boolean;
-  providerMode?: "http" | "neutral";
-}): { label: string; tone: "live" | "reconnecting" | "unavailable" | "neutral" } {
-  if (options.isReconnecting) {
-    return { label: "Reconnecting", tone: "reconnecting" };
-  }
-  if (options.isProviderUnavailable) {
-    return { label: "Provider unavailable", tone: "unavailable" };
-  }
-  if (options.providerMode === "http") {
-    return { label: "HTTP / OpenClaw Gateway", tone: "live" };
-  }
-  return { label: "Execution provider", tone: "neutral" };
-}
+
 
 export function TaskOrchestrationPage({
   isLoading = false,
@@ -297,11 +282,7 @@ export function TaskOrchestrationPage({
   const detailModalTask = detailModalTaskId
     ? taskState.tasks.find((task) => task.taskId === detailModalTaskId)
     : undefined;
-  const providerBadge = resolveProviderBadgeLabel({
-    isReconnecting,
-    isProviderUnavailable,
-    providerMode
-  });
+
 
   const navigationItems: TaskConversationNavigationItem[] = [...taskState.conversations]
     .sort((a, b) => {
@@ -755,31 +736,7 @@ export function TaskOrchestrationPage({
       </aside>
 
       <div className="task-workspace__main">
-        <header className="task-workspace__header">
-          <div className="task-workspace__header-copy">
-            <div>
-              <p className="task-workspace__eyebrow">Workspace</p>
-              <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
-              {activeConversation ? (
-                <p className="task-workspace__active-conversation">
-                  {activeConversation.title}
-                </p>
-              ) : (
-                <p className="task-workspace__header-subtitle">
-                  Bring a request to your virtual team and keep the work in one conversation.
-                </p>
-              )}
-            </div>
-          </div>
-          <div
-            className={`task-workspace__provider-badge task-workspace__provider-badge--${providerBadge.tone}`}
-            aria-label={`Execution provider: ${providerBadge.label}`}
-            title={providerBadge.label}
-          >
-            <span className="task-workspace__provider-dot" aria-hidden="true" />
-            <span>{providerBadge.label}</span>
-          </div>
-        </header>
+
 
         <section
           ref={conversationScrollRef}
