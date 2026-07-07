@@ -52,10 +52,12 @@ function mapStatus(s: OriginalStatus): WorkspaceStatus {
   switch (s) {
     case "provisioning":    return "pending";
     case "active":          return "running";
+    case "running" as any:  return "running";
     case "deleting":        return "stopping";
     case "delete_failed":
     case "failed":          return "failed";
     case "deleted":         return "deleted";
+    default:                return (s || "pending") as unknown as WorkspaceStatus;
   }
 }
 
