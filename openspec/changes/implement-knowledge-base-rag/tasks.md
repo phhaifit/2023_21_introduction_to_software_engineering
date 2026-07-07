@@ -6,7 +6,7 @@
 - [x] 1.4 Implement the workspace-scoped backend HTTP API router for the approved KB/RAG route family
 - [x] 1.5 Implement the typed frontend KB/RAG API client boundary for shared DTOs and workspace-scoped routes
 - [x] 1.6 Wire Documents and Upload screens to the frontend API client for metadata-only runtime flows
-- [x] 1.7 Wire Data Sources and Synchronization Scope screens to the frontend API client for safe placeholder/source/sync flows
+- [x] 1.7 Wire external-source connection and sync-scope screen slices to the frontend API client
 - [x] 1.8 Implement lifecycle-only worker ingestion handoff through repository ports and safe ingestion lifecycle events
 - [x] 1.9 Implement deterministic text/markdown document processing pipeline with injected content reader and chunk persistence
 - [x] 1.10 Implement embedding/indexing adapter boundary with injected fake-test adapters and no real provider/vector DB calls

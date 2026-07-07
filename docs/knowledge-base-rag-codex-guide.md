@@ -32,47 +32,43 @@ report that the CLI command could not be run.
 
 The Knowledge Base / RAG frontend currently includes:
 
-- Base layout and local navigation.
+- Local navigation for Documents, Upload Documents, Data Sync, and Processing
+  Status.
 - Shared KB/RAG UI components.
 - Mock data and shared local view types.
-- Documents screen.
-- Upload Documents screen.
+- API-backed document upload, document list, Google Drive configuration, and
+  processing status screens.
 - Typed frontend API client for the workspace-scoped KB/RAG routes.
 
-The Documents, Upload, Data Sources, and Synchronization Scope screens now use
-the typed KB/RAG API client for runtime loading, metadata-only upload
-validation/preparation, safe data-source placeholder connection, sync-scope
-updates, manual sync requests, and sync job reads. Local mock data remains
-available for isolated prototype/test use. Do not wire Processing Status to API
-calls outside its own scoped frontend integration issue.
+All four views use the typed KB/RAG API client. Data Sync is the single
+user-facing home for Google Drive connection, draft URL/ID preview, persisted
+selection, manual sync, and opt-in hourly/daily Auto Sync. The saved selected
+count appears on the Google Drive card; detailed ingestion and synchronization
+jobs appear only in Processing Status. Local mock data remains isolated to
+tests and prototypes.
 
-The backend now has an internal foundation and local/test worker flow for
-future production runtime implementation:
+The backend has implemented runtime boundaries for:
 
 - Domain models for documents, chunks, ingestion jobs, data sources, sync scope,
   sync jobs, and sync job events.
-- Application repository ports.
-- Application use cases for document reads, metadata-only upload validation,
-  safe upload preparation, ingestion-job reads, data-source placeholders,
-  sync-scope updates, and queued manual sync requests.
+- PDF, DOCX, TXT, CSV, and Markdown upload, storage, extraction, chunking,
+  embedding, vector indexing, and retrieval.
+- Google Drive-only OAuth, safe encrypted credential storage, scoped manual
+  synchronization, and opt-in scheduled polling.
+- Process-local queue mode plus opt-in PostgreSQL durable job claims and
+  expiring leases.
+- Document-level agent grants, assignment-aware retrieval, bounded citations,
+  and insufficient-evidence fallback.
 - Safe DTO mappers to shared contracts.
 - Prisma repositories using KB/RAG-owned tables through `@vcp/database`.
-- Deterministic in-memory repositories for future use-case tests.
+- Deterministic in-memory repositories and fake provider adapters for tests.
 - A thin workspace-scoped HTTP API router that maps shared route contracts to
   application use cases and shared API envelopes.
-- A worker handoff skeleton that moves already-created document ingestion jobs
-  through pending/ingesting/ready or pending/ingesting/failed lifecycle states
-  through KB/RAG repository ports.
-- A deterministic worker-side text processing pipeline for supported
-  text/plain and markdown-style content. It reads content through an injected
-  reader, normalizes text, splits stable chunks, and persists chunks through
-  KB/RAG repository ports.
-- An embedding/vector indexing adapter boundary and local flow runner for
-  deterministic contract tests with fake adapters.
 
-The backend still does not have production upload/file adapters, real
-embedding/vector provider adapters, PDF/DOC/DOCX/OCR parsers, full worker
-runtime handlers, retrieval, or external sync adapters.
+Deferred work is limited to explicitly documented extensions: Notion and
+Confluence, Google Picker, Drive Changes API/push notifications, OCR for
+scanned PDFs, legacy `.doc`, and a separately deployed autoscaled worker
+service.
 
 ## Required Future Workflow
 
@@ -246,13 +242,11 @@ Likely future production-runtime files:
 
 Do not create worker handlers or adapters outside the selected task scope.
 
-The current worker handoff plus processing pipeline may mark pending ingestion
-jobs as ingesting, ready, or failed, update associated document ingestion
-status, and persist deterministic text chunks. The local flow runner may compose
-that handoff with fake embedding/vector adapters for contract tests. It must
-not read object storage, parse PDF/DOC/DOCX, perform OCR, call real embedding
-providers, write to a real vector database, execute external sync, or schedule
-runtime workers.
+The worker and queue boundaries process supported uploads and selected Google
+Drive content through parsing, chunking, embedding, and vector indexing.
+Process-local mode is the default; durable PostgreSQL mode is opt-in. Do not
+claim OCR, legacy `.doc`, Google Picker, Drive webhook/change-token sync, or a
+separately deployed autoscaled worker until those capabilities are implemented.
 
 ## API Contract Boundary
 
@@ -262,15 +256,20 @@ The KB/RAG public API contract uses workspace-scoped routes under
 
 ```text
 GET    /api/workspaces/:workspaceId/knowledge/documents
+POST   /api/workspaces/:workspaceId/knowledge/uploads
 POST   /api/workspaces/:workspaceId/knowledge/uploads/validate
 POST   /api/workspaces/:workspaceId/knowledge/uploads/prepare
 GET    /api/workspaces/:workspaceId/knowledge/ingestion-jobs
 GET    /api/workspaces/:workspaceId/knowledge/data-sources
-POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/connect
-GET    /api/workspaces/:workspaceId/knowledge/sync-scope
-PUT    /api/workspaces/:workspaceId/knowledge/sync-scope
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/google-drive/connect/start
+GET    /api/workspaces/:workspaceId/knowledge/data-sources/google-drive/oauth/callback
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/disconnect
+POST   /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/preview
+PUT    /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/scope
+PUT    /api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/auto-sync
 POST   /api/workspaces/:workspaceId/knowledge/sync-jobs
 GET    /api/workspaces/:workspaceId/knowledge/sync-jobs
+GET    /api/workspaces/:workspaceId/knowledge/sync-jobs/:jobId
 ```
 
 This route contract is documented, tested, and exposed by the backend API
@@ -381,13 +380,14 @@ npm run prisma -- validate
 
 ## Current UI Guidance
 
-Documents, Upload, Data Sources, and Synchronization Scope use the API client;
-remaining placeholder views may keep local mock data until their own scoped
-integration issues wire them to API contracts. New UI-only flows should pause
-until the API/DTO/event foundation is designed. The KB/RAG API client follows
-the Agent Management and Workflow Management client pattern: typed fetch
-wrapper, shared `ApiResponse` parsing, shared `ErrorCode`, network error
-handling, and malformed-response handling.
+Documents, Upload Documents, Data Sync, and Processing Status use the API
+client. Data Sync presents Google Drive only; a draft preview is non-persistent
+until Save scope, while Sync now and Auto Sync use the persisted selection.
+Processing Status is the source of truth for upload and synchronization jobs,
+with detailed counters inside View details. The KB/RAG API client follows the
+Agent Management and Workflow Management client pattern: typed fetch wrapper,
+shared `ApiResponse` parsing, shared `ErrorCode`, network error handling, and
+malformed-response handling.
 
 ## Final Response Checklist
 

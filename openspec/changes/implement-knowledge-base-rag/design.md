@@ -80,12 +80,12 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 
 14. Wire Documents and Upload screens through the frontend API client in a scoped slice.
    - Rationale: Runtime screens should stop treating local mock data as the source of truth once backend routes and the typed frontend API client exist.
-   - Boundary: Documents loads `KnowledgeDocumentDto` values through `listDocuments`; Upload converts selected `File` objects to metadata-only `UploadCandidateFileDto` values, validates candidates through the API client, and prepares only accepted candidates. This slice does not integrate Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, vector databases, or new dependencies.
+   - Boundary: Documents loads `KnowledgeDocumentDto` values through `listDocuments`; Upload converts selected `File` objects to metadata-only `UploadCandidateFileDto` values, validates candidates through the API client, and prepares only accepted candidates. Later tasks completed Google Drive Data Sync, Processing Status, storage, parsing, embedding, and vector runtime integration.
    - Constraint: Frontend code must not import backend, worker, Prisma, database, or another module's private internals.
 
-15. Wire Data Sources and Synchronization Scope screens through the frontend API client in a scoped slice.
+15. Wire external-source connection and scope configuration through the frontend API client in a scoped slice.
    - Rationale: Runtime source/scope screens should use the same shared DTO and route boundary as backend routes instead of remaining static placeholders once the API client exists.
-   - Boundary: Data Sources loads `KnowledgeDataSourceDto` values through `listDataSources` and records safe connection intent through `connectDataSource` without credentials. Synchronization Scope loads `SyncScopeNodeDto` values through `getSyncScope`, persists selected scope IDs through `updateSyncScope`, requests queued manual sync intent through `requestManualSync`, and displays `SyncJobDto` values through `listSyncJobs`. This slice does not integrate Processing Status, worker runtime, external provider/OAuth flows, credentials, object storage, file parsing, embedding providers, vector databases, or new dependencies.
+   - Boundary: The API client loads `KnowledgeDataSourceDto` and `SyncScopeNodeDto` values, persists selected scope IDs, and requests queued manual sync intent without accepting credentials. The final UI consolidates these capabilities into Data Sync, while Processing Status owns job history.
    - Constraint: Frontend request bodies must not include workspace IDs, actor/user IDs, generated IDs, lifecycle status controlled by the server, timestamps, storage keys, vector references, queue payloads, credentials, secrets, tokens, refresh tokens, passwords, raw provider payloads, raw embeddings, or vector config.
 
 16. Add a lifecycle-only worker handoff before real ingestion adapters.
@@ -148,7 +148,7 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
    - Boundary: The backend uses the `drive.file`, `openid`, and `email` OAuth scopes; stores credentials through an encrypted backend-only credential port; accepts explicit folder IDs and file IDs; downloads blob files; exports Google Docs as text and Google Sheets as CSV; and imports changed content through the existing ingestion/indexing pipeline.
    - Runtime: Manual and scheduled sync create observable jobs and hand them to a configurable queue boundary. Process-local mode remains the local default; durable mode persists runtime work in PostgreSQL, claims it atomically with expiring worker leases, reclaims abandoned work, and applies capped retries. The durable poller is database-backed but is not a separate autoscaled worker service.
    - Parsing: Manual upload supports TXT, Markdown (`.md` and `.markdown`), CSV, text-bearing PDF, and DOCX, including bounded plain-text/octet-stream browser MIME aliases matched against supported extensions. Google Drive also supports Google Docs and Google Sheets exports. Legacy DOC, Google Slides, and other unsupported types are skipped safely. OCR is deferred; scanned PDFs that yield no text fail with a safe empty-content error.
-   - UI: Data Sources and Synchronization Scope become functional for Google Drive only. Scope configuration uses folder/file URLs or IDs, loads a non-persistent draft tree before confirmation, and keeps the saved sync scope separate. It does not claim Google Picker or broad Drive browsing.
+   - UI: One Data Sync tab is functional for Google Drive only. Scope configuration uses folder/file URLs or IDs, loads a non-persistent draft tree before confirmation, persists only the confirmed selection, and shows the selected count on the Google Drive card. It does not render a separate saved-scope summary or claim Google Picker or broad Drive browsing.
    - Security: OAuth tokens, client secrets, raw provider responses, downloaded content, local paths, embeddings, and vectors are excluded from public DTOs, events, and UI. Automated tests inject fake fetch/provider adapters and make no real Google API calls.
 
 27. Add opt-in scoped Google Drive scheduled polling.
@@ -169,9 +169,9 @@ Knowledge Base / RAG gives agents access to workspace-specific documents and int
 - File parsing varies by format -> Start with a small supported parser set and report unsupported files clearly.
 - Embedding services may be unavailable -> Provide mock/local adapter mode for demos and tests.
 - Access control is security-sensitive -> Check agent knowledge assignment before retrieval, not only during upload.
-- Public contracts can drift from prototype UI mocks -> Keep runtime Documents, Upload, Data Sources, and Synchronization Scope flows mapped to shared DTOs through the API client, and keep any remaining mock data isolated to placeholder/test use.
+- Public contracts can drift from prototype UI mocks -> Keep Documents, Upload Documents, Data Sync, and Processing Status mapped to shared DTOs through the API client, and keep remaining mock data isolated to tests.
 - KB/RAG persistence can outgrow the initial additive schema -> Add later migrations only through focused OpenSpec-backed issues and keep vector/embedding provider internals behind adapters.
 - A lifecycle-only worker handoff can look complete to callers -> Keep docs/tests explicit that parsing, chunking, embedding, vector writes, and external sync remain future adapter/runtime scope.
-- Text-only chunking is intentionally limited -> Keep PDF/DOC/DOCX/OCR, object storage readers, embedding, and vector indexing in later adapter-focused issues.
+- Parser support remains intentionally bounded -> Keep legacy `.doc` and OCR for scanned/image-only documents as explicit future parser work.
 - A standalone indexing pipeline can be mistaken for a scheduled runtime -> Keep it explicitly injected/tested and leave queue/runtime wiring for a later scoped issue.
 - A local end-to-end runner can be mistaken for production runtime -> Keep it documented and tested as local/test-only composition until a separate worker runtime issue adds scheduling.

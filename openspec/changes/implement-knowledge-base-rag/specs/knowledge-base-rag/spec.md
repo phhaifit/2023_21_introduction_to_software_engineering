@@ -118,18 +118,15 @@ The system SHALL provide a typed frontend KB/RAG API client before existing UI s
 - **THEN** the screen sends metadata-only upload candidates through `validateUploadCandidates(workspaceId, request)`
 - **AND** it calls `prepareUpload(workspaceId, request)` only for validation-accepted candidates
 - **AND** it does not send raw file bytes, `workspaceId` in the request body, actor/user IDs, generated IDs, lifecycle status, timestamps, storage keys, vector refs, queue payloads, credentials, secrets, tokens, passwords, raw embeddings, or vector configuration
-- **AND** this integration does not wire Data Sources, Synchronization Scope, Processing Status, worker runtime, object storage, file parsing, embedding providers, or vector databases
 
-#### Scenario: Data Sources and Sync Scope screens use the API client
-- **WHEN** the Data Sources screen is opened
-- **THEN** it loads external source placeholders through `listDataSources(workspaceId)` and renders shared data-source DTO data with loading, error, and empty states
-- **AND** connection actions call `connectDataSource(workspaceId, sourceId)` as a safe placeholder without raw credentials, OAuth tokens, refresh tokens, provider secrets, passwords, or private provider payloads
-- **WHEN** the Synchronization Scope screen is opened
-- **THEN** it loads scope nodes through `getSyncScope(workspaceId)` and sync job status through `listSyncJobs(workspaceId)`
-- **AND** saving selected scope nodes calls `updateSyncScope(workspaceId, request)` with only selected public scope node IDs
-- **AND** requesting manual sync calls `requestManualSync(workspaceId, request)` as queued sync intent only
+#### Scenario: Data Sync uses the API client
+- **WHEN** the Data Sync tab is opened
+- **THEN** it loads safe Google Drive connection metadata and the persisted selected-item count through the workspace-scoped API client
+- **AND** entering a Drive URL or ID loads a bounded non-persistent draft preview
+- **AND** Save scope persists only the confirmed selected scope nodes
+- **AND** Sync now and Auto Sync use the persisted selected scope
+- **AND** detailed sync jobs are displayed only in Processing Status
 - **AND** request bodies do not include `workspaceId`, actor/user IDs, generated IDs, lifecycle status controlled by the server, timestamps, storage keys, vector refs, queue payloads, credentials, secrets, tokens, refresh tokens, passwords, raw provider payloads, raw embeddings, or vector configuration
-- **AND** this integration does not wire Processing Status, worker runtime, external provider/OAuth runtime, object storage, file parsing, embedding providers, or vector databases
 
 ### Requirement: Application Use Cases
 The system SHALL provide KB/RAG application use cases that future API routers and workers can call without importing repositories or infrastructure directly.
@@ -290,15 +287,16 @@ through a workspace-scoped public API.
 - **THEN** the primary chat label uses the display name instead of the full entity identifier
 - **AND** identifiers remain optional debugging metadata rather than the primary label
 
-#### Scenario: Knowledge management UI does not overclaim placeholder integrations
-- **WHEN** external connector runtimes are not enabled in the local demo
-- **THEN** Data Sources and Synchronization Scope are hidden from the default Knowledge Base navigation or clearly marked unavailable
-- **AND** the user-facing page title and description avoid implementation-focused RAG terminology
+#### Scenario: Knowledge management UI presents the implemented scope
+- **WHEN** a user opens Knowledge Base
+- **THEN** navigation contains Documents, Upload Documents, Data Sync, and Processing Status
+- **AND** Data Sync presents Google Drive as the only implemented external source
+- **AND** Notion, Confluence, whole-Drive import, real-time webhook sync, and Google Picker are not presented as available
 
 #### Scenario: Google Drive connects with least-privilege OAuth
 - **WHEN** an authorized user starts and completes Google Drive authorization
 - **THEN** the backend uses `drive.file`, `openid`, and `email`, validates one-time OAuth state, exchanges and refreshes tokens only on the backend, and returns safe connection metadata without credentials
-- **AND** browser callbacks redirect to the frontend Data Sources view with only a bounded success/error indicator, while explicit JSON clients may receive the safe API response
+- **AND** browser callbacks redirect to the frontend Data Sync view with only a bounded success/error indicator, while explicit JSON clients may receive the safe API response
 
 #### Scenario: Local demo may opt into read-only Drive scope
 - **WHEN** Google Picker is unavailable and the local demo explicitly configures `GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly`
@@ -308,7 +306,7 @@ through a workspace-scoped public API.
 
 #### Scenario: Connected Google Drive requires explicit scope
 - **WHEN** Google Drive is connected but no folder or file scope is selected
-- **THEN** the Data Sources UI explains that connection only authorizes access, disables manual sync, keeps disconnect available, and links to Synchronization Scope
+- **THEN** Data Sync explains that connection only authorizes access, disables manual sync, keeps disconnect available, and provides URL/ID scope input in the same tab
 - **AND** a direct sync API request fails with a safe actionable validation error
 - **AND** the system never imports the user's whole Drive automatically
 
