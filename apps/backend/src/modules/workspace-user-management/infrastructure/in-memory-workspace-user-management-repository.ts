@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceMember, InvitationResponse } from "@vcp/shared/contracts/index.ts";
+import type { AdminRequestResponse, Workspace, WorkspaceMember, InvitationResponse } from "@vcp/shared/contracts/index.ts";
 import type { WorkspaceRole } from "@vcp/shared/contracts/roles.ts";
 import type { WorkspaceUserManagementRepository, WorkspaceEvent } from "../domain/workspace-user-management-repository.ts";
 
@@ -6,7 +6,9 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
   private workspaces: Map<string, Workspace> = new Map();
   private members: Map<string, WorkspaceMember> = new Map();
   private invitations: Map<string, InvitationResponse> = new Map();
+  private adminRequests: Map<string, AdminRequestResponse> = new Map();
   private events: WorkspaceEvent[] = [];
+  private transactionLock: Promise<void> = Promise.resolve();
 
   async createWorkspace(workspace: Workspace): Promise<void> {
     this.workspaces.set(workspace.workspaceId, workspace);
@@ -25,20 +27,28 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
     return members.find(m => m.userId === userId) || null;
   }
 
+  async getWorkspaceMemberByMemberId(workspaceId: string, memberId: string): Promise<WorkspaceMember | null> {
+    let member = this.members.get(memberId);
+    if (!member) {
+      member = Array.from(this.members.values()).find(m => m.workspaceId === workspaceId && m.userId === memberId);
+    }
+    return member?.workspaceId === workspaceId ? member : null;
+  }
+
   async addWorkspaceMember(member: WorkspaceMember): Promise<void> {
     this.members.set(member.memberId, member);
   }
 
-  async updateWorkspaceMemberRole(workspaceId: string, userId: string, role: WorkspaceRole): Promise<void> {
-    const member = await this.getWorkspaceMember(workspaceId, userId);
+  async updateWorkspaceMemberRole(workspaceId: string, memberId: string, role: WorkspaceRole): Promise<void> {
+    const member = await this.getWorkspaceMemberByMemberId(workspaceId, memberId);
     if (member) {
       member.role = role;
       this.members.set(member.memberId, member);
     }
   }
 
-  async removeWorkspaceMember(workspaceId: string, userId: string): Promise<void> {
-    const member = await this.getWorkspaceMember(workspaceId, userId);
+  async removeWorkspaceMember(workspaceId: string, memberId: string): Promise<void> {
+    const member = await this.getWorkspaceMemberByMemberId(workspaceId, memberId);
     if (member) {
       this.members.delete(member.memberId);
     }
@@ -61,7 +71,7 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
     this.invitations.set(invitation.invitationId, invitation);
   }
 
-  async updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "revoked"): Promise<void> {
+  async updateInvitationStatus(invitationId: string, status: "pending" | "accepted" | "cancelled" | "expired" | "replaced" | "rejected" | "revoked"): Promise<void> {
     const inv = this.invitations.get(invitationId);
     if (inv) {
       inv.status = status;
@@ -69,25 +79,60 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
     }
   }
 
-  async listWorkspacesByUserId(userId: string): Promise<Workspace[]> {
-    const userMemberWorkspaces = Array.from(this.members.values())
-      .filter(m => m.userId === userId)
-      .map(m => m.workspaceId);
-      
-    return Array.from(this.workspaces.values())
-      .filter(w => userMemberWorkspaces.includes(w.workspaceId));
+  async updateInvitationRole(invitationId: string, role: WorkspaceRole): Promise<void> {
+    const inv = this.invitations.get(invitationId);
+    if (inv) {
+      inv.role = role;
+      this.invitations.set(invitationId, inv);
+    }
   }
 
-  async listAllWorkspaces(): Promise<Workspace[]> {
-    return Array.from(this.workspaces.values());
+  async deleteInvitation(invitationId: string): Promise<void> {
+    this.invitations.delete(invitationId);
+  }
+
+  async getAdminRequests(workspaceId: string): Promise<AdminRequestResponse[]> {
+    return Array.from(this.adminRequests.values()).filter(request => request.workspaceId === workspaceId);
+  }
+
+  async addAdminRequest(request: AdminRequestResponse): Promise<void> {
+    this.adminRequests.set(request.requestId, request);
+  }
+
+  async updateAdminRequestStatus(
+    requestId: string,
+    status: "approved" | "rejected",
+    resolvedBy: string,
+    resolvedAt: string
+  ): Promise<void> {
+    const request = this.adminRequests.get(requestId);
+    if (request) {
+      this.adminRequests.set(requestId, { ...request, status, resolvedBy, resolvedAt });
+    }
   }
 
   async getUserIdByEmail(email: string): Promise<string | null> {
-    const emailToUserMap = new Map<string, string>([
-      ["dev@local.test", "local-dev-user"],
-      ["mapmobile123456@gmail.com", "local-dev-user"]
-    ]);
-    return emailToUserMap.get(email) || email; // fallback to email as userId
+    const normalizedEmail = email.trim().toLowerCase();
+    const localEmailUserEmail = process.env.GMAIL_USER?.trim().toLowerCase();
+    const emailToUserMap = new Map<string, string>();
+    emailToUserMap.set("dev@local.test", "local-dev-user");
+    if (localEmailUserEmail) {
+      emailToUserMap.set(localEmailUserEmail, "local-email-user");
+    }
+    return emailToUserMap.get(normalizedEmail) || normalizedEmail; // fallback to email as userId
+  }
+
+  async getEmailByUserId(userId: string): Promise<string | null> {
+    const localEmailUserEmail = process.env.GMAIL_USER?.trim().toLowerCase();
+    const userToEmailMap = new Map<string, string>();
+    userToEmailMap.set("local-dev-user", "dev@local.test");
+    if (localEmailUserEmail) {
+      userToEmailMap.set("local-email-user", localEmailUserEmail);
+    }
+    if (userId.includes("@")) {
+      return userId;
+    }
+    return userToEmailMap.get(userId) || null;
   }
 
   async addWorkspaceEvent(event: WorkspaceEvent): Promise<void> {
@@ -96,5 +141,19 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
 
   async getWorkspaceEvents(workspaceId: string): Promise<WorkspaceEvent[]> {
     return this.events.filter(e => e.workspaceId === workspaceId);
+  }
+
+  async transaction<T>(operation: (tx: WorkspaceUserManagementRepository) => Promise<T>): Promise<T> {
+    let releaseLock: () => void;
+    const acquireLock = new Promise<void>(resolve => { releaseLock = resolve; });
+    const previousLock = this.transactionLock;
+    this.transactionLock = previousLock.then(() => acquireLock);
+
+    await previousLock;
+    try {
+      return await operation(this);
+    } finally {
+      releaseLock!();
+    }
   }
 }
