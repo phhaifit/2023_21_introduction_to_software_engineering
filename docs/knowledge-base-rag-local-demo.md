@@ -7,15 +7,17 @@ verified locally in the current TypeScript/Node NPM Workspaces repository. For
 the final presentation walkthrough, use
 [`docs/demo/kb-rag/final-local-rag-demo-script.md`](demo/kb-rag/final-local-rag-demo-script.md).
 
-The implementation covers file upload/storage, TXT/DOCX/text-PDF extraction,
-ingestion and indexing boundaries, pgvector retrieval, grounded answer
-generation, access control, and the API-backed Processing Status screen.
+The implementation covers PDF, DOCX, TXT, CSV, and Markdown upload/storage,
+text extraction, ingestion and indexing boundaries, pgvector retrieval,
+grounded answer generation, access control, and the API-backed Processing
+Status screen.
 
 Google Drive is the only external data source and supports backend OAuth,
 manual synchronization, and opt-in scheduled polling. The implementation does
-not provide a one-click deployment, a durable production queue, Google Picker,
-other connectors, source-level grants, a standalone Agent Knowledge Ask UI,
-OCR, legacy DOC extraction, or production OpenClaw/tool registration.
+not provide a one-click deployment, Google Picker, other connectors,
+source-level grants, a standalone Agent Knowledge Ask UI, OCR, legacy DOC
+extraction, or a separately deployed autoscaled worker service. PostgreSQL
+durable queue mode is available, while process-local mode remains the default.
 
 Data Sync is implemented for Google Drive. Users connect Google Drive, select
 files or folders in scope, and enable scheduled Auto Sync. The system checks
@@ -23,13 +25,16 @@ selected Drive content for changes and updates the Knowledge Base by re-running
 parsing, chunking, embedding, and vector indexing. It does not sync the entire
 Drive or claim real-time synchronization.
 
-After a Drive file or folder URL is saved, Data Sync loads a bounded metadata
-tree from Google Drive. Users can expand folders and select the files or
-folders included in synchronization. Selecting a folder selects its loaded
-descendants; clearing a child creates a partial folder selection. `Include
-nested folders` controls whether subfolders are traversed, and the configured
-maximum-file limit bounds both preview and synchronization. Google Picker is
-still deferred.
+When a user enters a Drive file or folder URL or ID, Data Sync loads a bounded,
+non-persistent draft preview from Google Drive before Save scope is selected.
+Users can expand folders and select the files or folders included in
+synchronization. Selecting a folder selects its loaded descendants; clearing a
+child creates a partial folder selection. `Include subfolders in future sync`
+controls future traversal, and the configured maximum-file limit bounds both
+preview and synchronization. Save scope persists the confirmed selection;
+Sync now and Auto Sync use only that persisted scope. The saved selected-item
+count appears on the Google Drive connection card, with no separate summary
+section. Google Picker is still deferred.
 
 ## Prerequisites
 
@@ -90,11 +95,10 @@ After a browser callback, the backend redirects to
 explicitly request `application/json` continue to receive a safe API envelope.
 Data Sync accepts raw Drive IDs or full Google Docs/Drive file and folder URLs,
 loads a bounded non-persistent preview, and saves only the confirmed selection.
-Clearing the input removes the draft preview without changing the compact saved
-scope summary. Optional subfolder traversal for future syncs, allowed MIME
-types, and a maximum file count remain configurable. Users can run sync
-manually or enable an hourly/daily schedule. The app never imports an entire
-Drive by default.
+Clearing the input removes the draft preview without changing persisted scope.
+Optional subfolder traversal for future syncs, allowed MIME types, and a
+maximum file count remain configurable. Users can run sync manually or enable
+an hourly/daily schedule. The app never imports an entire Drive by default.
 
 Manual upload supports TXT, Markdown (`.md` and `.markdown`), CSV, text-bearing
 PDF, and DOCX. Google Drive imports additionally support Google Docs (exported
@@ -139,7 +143,7 @@ The user-facing flow is:
 1. **Connect Google Drive** authorizes access.
 2. **Data Sync** configures selected Drive content, Auto Sync, and Sync now.
 3. **Processing Status** is the single place to review document and external
-   sync jobs.
+   sync jobs; concise cards link to View details for full safe counters.
 4. **Documents** shows imported and indexed files.
 5. Agent document assignment controls which imported documents each agent may
    retrieve.
