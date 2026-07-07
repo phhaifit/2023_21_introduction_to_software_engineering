@@ -1111,6 +1111,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     next();
   });
   app.use(express.json());
+  app.use((err: any, req: any, res: any, next: any) => {
+    if (err instanceof SyntaxError && "status" in err && err.status === 400 && "body" in err) {
+      res.status(400).json({
+        ok: false,
+        error: { code: "validation.invalid_input", message: "Invalid JSON format: " + err.message }
+      });
+      return;
+    }
+    next(err);
+  });
 
   const workspaceRepository = await createWorkspaceRepository();
   if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
@@ -1440,6 +1450,14 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     subscriptionRepository
   });
   renewalCron.start(24 * 60 * 60 * 1000);
+
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("[Global Error Handler]", err);
+    res.status(500).json({
+      ok: false,
+      error: { code: "system.unexpected_error", message: err.message || "An unexpected error occurred." }
+    });
+  });
 
   return {
     app,
