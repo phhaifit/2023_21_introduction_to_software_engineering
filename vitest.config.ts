@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     fs: {
-      allow: [".."]
+      allow: ["../test", "."]
     }
   },
   test: {
@@ -17,6 +17,7 @@ export default defineConfig({
       "../test/**/*.test.{ts,tsx}",
     ],
     setupFiles: ["tests/component/setup.ts"],
+    environmentMatchGlobs: [
       ["apps/frontend/**/*.test.tsx", "jsdom"],
       ["apps/backend/**", "node"],
       ["apps/**", "node"],
