@@ -1004,53 +1004,37 @@ export function TaskOrchestrationPage({
         </section>
 
         <aside className="task-workspace__query-sidebar" aria-label="Conversation queries">
-        <div className="task-workspace__query-panel">
-          <div className="task-workspace__query-rail" aria-hidden="true">
-            {queryRailMarkers.map((marker) => (
-              <span key={marker} />
-            ))}
-          </div>
-
-          <div className="task-workspace__query-content">
-            <div className="task-workspace__query-sidebar-header">
-              <p className="task-workspace__eyebrow">Queries</p>
-              <h2>Current chat</h2>
-              <span className="task-workspace__query-count">
-                {activeQueryItems.length}
-              </span>
+          <div className="task-workspace__query-panel">
+            <div className="task-workspace__query-rail" aria-hidden="true">
+              {queryRailMarkers.map((marker) => (
+                <span key={marker} />
+              ))}
             </div>
 
-            {activeQueryItems.length > 0 ? (
-              <ol className="task-workspace__query-list">
-                {activeQueryItems.map((item) => (
-                  <li key={item.taskId} className="task-workspace__query-item">
-                    <button
-                      type="button"
-                      className="task-workspace__query-button"
-                      aria-label={`Scroll to ${item.label}`}
-                      onClick={() => handleQueryClick(item.taskId)}
-                    >
-                      <span className="task-workspace__query-meta">
-                        <span>{item.label}</span>
-                        <span>{formatQueryTimestamp(item.createdAt)}</span>
-                      </span>
-                      <span className="task-workspace__query-text">
-                        {item.prompt.length > 12 ? item.prompt.slice(0, 12) + "..." : item.prompt}
-                      </span>
-                      <span className="task-workspace__query-footer">
-                        <span>{item.routingSummary}</span>
-                        <span>{item.status}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="task-workspace__query-empty">No queries yet</p>
-            )}
+            <div className="task-workspace__query-content">
+              {activeQueryItems.length > 0 ? (
+                <ol className="task-workspace__query-list">
+                  {activeQueryItems.map((item) => (
+                    <li key={item.taskId} className="task-workspace__query-item">
+                      <button
+                        type="button"
+                        className="task-workspace__query-button"
+                        aria-label="Scroll to task"
+                        onClick={() => handleQueryClick(item.taskId)}
+                      >
+                        <span className="task-workspace__query-text">
+                          {item.prompt}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="task-workspace__query-empty">No active queries</div>
+              )}
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </div>
     </section>
   );

@@ -131,10 +131,7 @@ describe("TaskOrchestrationPage base workspace", () => {
     const querySidebar = screen.getByRole("complementary", {
       name: "Conversation queries"
     });
-    expect(within(querySidebar).getByText("Current chat")).toBeInTheDocument();
-    const truncatedPrompt = longPrompt.length > 12 ? longPrompt.slice(0, 12) + "..." : longPrompt;
-    expect(within(querySidebar).getByText(truncatedPrompt)).toBeInTheDocument();
-    expect(within(querySidebar).getByText("Auto-routing")).toBeInTheDocument();
+    expect(within(querySidebar).getByText(longPrompt)).toBeInTheDocument();
   });
 
   it("uses deterministic suggestions and renders Pending after accepted submit", async () => {
