@@ -98,6 +98,95 @@ export class SubscriptionPaymentApiClient {
     return json.data;
   }
 
+  async deletePaymentMethod(workspaceId: string, methodId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/payment-method/${encodeURIComponent(methodId)}?workspaceId=${encodeURIComponent(workspaceId)}`, {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async cancelSubscription(workspaceId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async chargeSavedMethod(workspaceId: string, plan: string, methodId: string, promoCode?: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/vnpay/charge-saved-method`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, plan, methodId, promoCode })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async initiateVnPayBinding(workspaceId: string, returnUrl: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/vnpay/initiate-binding`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, returnUrl })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async createStripeSetupIntent(workspaceId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/stripe/setup-intent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async confirmStripeBinding(workspaceId: string, paymentMethodId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/stripe/confirm-binding`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, paymentMethodId })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async chargeStripePayment(workspaceId: string, plan: string, paymentMethodId: string, promoCode?: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/stripe/charge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, plan, paymentMethodId, promoCode })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
   // 4. Gọi API validate mã giảm giá
   async validatePromo(promoCode: string): Promise<ValidatePromoResponse> {
     const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/validate-promo`, {
@@ -116,6 +205,28 @@ export class SubscriptionPaymentApiClient {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transactionId, status })
+    });
+    if (!response.ok) {
+      throw new Error(await this.getErrorMessage(response));
+    }
+    const json = await response.json();
+    return json.data;
+  }
+
+  async initiateVnPayCheckout(
+    workspaceId: string,
+    plan: "standard" | "premium",
+    promoCode?: string,
+    returnUrl?: string
+  ): Promise<{
+    checkoutUrl: string;
+    subscriptionId: string;
+    transactionId: string;
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/subscriptions/vnpay/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, plan, promoCode, returnUrl })
     });
     if (!response.ok) {
       throw new Error(await this.getErrorMessage(response));
