@@ -35,6 +35,20 @@ class FakeWorkspaceUserManagementRepository implements WorkspaceUserManagementRe
     return this.workspaces.get(id) ?? null;
   }
 
+  async listAllWorkspaces(): Promise<Workspace[]> {
+    return [...this.workspaces.values()];
+  }
+
+  async listWorkspacesByUserId(userId: string): Promise<Workspace[]> {
+    const acceptedWorkspaceIds = new Set(
+      [...this.members.values()]
+        .filter((member) => member.userId === userId && member.isAccepted)
+        .map((member) => member.workspaceId)
+    );
+
+    return [...this.workspaces.values()].filter((workspace) => acceptedWorkspaceIds.has(workspace.workspaceId));
+  }
+
   async getWorkspaceMembers(id: string): Promise<WorkspaceMember[]> {
     return [...this.members.values()].filter((member) => member.workspaceId === id);
   }
@@ -457,6 +471,39 @@ describe("WorkspaceUserManagementService", () => {
       role: "viewer",
       isAccepted: true
     });
+    expect(await repository.listWorkspacesByUserId(invitedUserId)).toMatchObject([
+      {
+        workspaceId,
+        name: "Workspace 1"
+      }
+    ]);
+  });
+
+  it("keeps pending invitations separate from active memberships until the token is accepted", async () => {
+    const { repository, service } = makeService();
+    await repository.addInvitation({
+      invitationId: "login-invitation",
+      workspaceId,
+      email: "invited@example.com",
+      role: "viewer",
+      status: "pending",
+      invitedByUserId: adminUserId,
+      createdAt: "2026-06-29T00:00:00.000Z",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    });
+
+    const pending = await service.listPendingInvitationsForEmail("invited@example.com");
+
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      invitationId: "login-invitation",
+      workspaceId,
+      email: "invited@example.com",
+      role: "viewer"
+    });
+    expect((await repository.getInvitationByCode("login-invitation"))?.status).toBe("pending");
+    expect(await repository.getWorkspaceMember(workspaceId, invitedUserId)).toBeNull();
+    expect(await repository.listWorkspacesByUserId(invitedUserId)).toEqual([]);
   });
 
   it("accepts a valid token even when post-accept email notification fails", async () => {

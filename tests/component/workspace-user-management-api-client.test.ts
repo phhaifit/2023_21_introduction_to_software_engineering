@@ -65,6 +65,7 @@ describe("Workspace User Management API client", () => {
     const client = new WorkspaceUserManagementAPI("");
 
     await client.updateInvitationRole("workspace-1", "invitation-1", { role: "editor" });
+    await client.resendInvitation("workspace-1", "invitation-1");
     await client.cancelInvitation("workspace-1", "invitation-1");
 
     expect(fetchMock.mock.calls.map(([url, init]) => [url, init.method, init.body])).toEqual([
@@ -72,6 +73,11 @@ describe("Workspace User Management API client", () => {
         "/api/workspaces/workspace-1/invitations/invitation-1",
         "PATCH",
         JSON.stringify({ role: "editor" })
+      ],
+      [
+        "/api/workspaces/workspace-1/invitations/invitation-1/resend",
+        "POST",
+        undefined
       ],
       [
         "/api/workspaces/workspace-1/invitations/invitation-1",

@@ -23,7 +23,7 @@ export function createAcceptInvitationRouter({
         return sendAuthApiFailure(req, res, "validation.invalid_input", "code is required");
       }
 
-      await service.acceptInvitation(code, user.userId);
+      await service.acceptInvitation(code, user.userId, user.email);
       sendAuthApiSuccess(req, res, { success: true });
     } catch (err: any) {
       sendAuthApiFailure(req, res, "system.unexpected_error", err.message);

@@ -71,7 +71,7 @@ export function WorkspaceMembersPage() {
   const pendingAdminRequests = adminRequests.filter((request) => request.status === "pending");
   const canRequestAdmin = (currentRole === "editor" || currentRole === "viewer") && !currentAdminRequest;
 
-  const pendingInvitations = (data?.invitations ?? []).filter(inv => inv.status !== "accepted");
+  const pendingInvitations = (data?.invitations ?? []).filter(isActionableInvitation);
   const canManageInvitations = permissions?.canManagePendingInvitations ?? false;
 
   function getInvitationStatus(invitation: InvitationResponse): string {
@@ -758,4 +758,8 @@ function activityClass(type: string): string {
   if (type.includes("REQUEST")) return "wum-activity-warning";
   if (type.includes("TRANSFER") || type.includes("ROLE")) return "wum-activity-info";
   return "wum-activity-success";
+}
+
+function isActionableInvitation(invitation: InvitationResponse): boolean {
+  return invitation.status === "pending" || invitation.status === "expired";
 }

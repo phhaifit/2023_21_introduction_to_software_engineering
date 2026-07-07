@@ -18,6 +18,22 @@ export class InMemoryWorkspaceUserManagementRepository implements WorkspaceUserM
     return this.workspaces.get(workspaceId) || null;
   }
 
+  async listAllWorkspaces(): Promise<Workspace[]> {
+    return Array.from(this.workspaces.values());
+  }
+
+  async listWorkspacesByUserId(userId: string): Promise<Workspace[]> {
+    const acceptedWorkspaceIds = new Set(
+      Array.from(this.members.values())
+        .filter((member) => member.userId === userId && member.isAccepted)
+        .map((member) => member.workspaceId)
+    );
+
+    return Array.from(this.workspaces.values())
+      .filter((workspace) => acceptedWorkspaceIds.has(workspace.workspaceId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     return Array.from(this.members.values()).filter(m => m.workspaceId === workspaceId);
   }

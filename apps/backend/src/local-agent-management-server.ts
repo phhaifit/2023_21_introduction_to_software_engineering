@@ -159,18 +159,18 @@ function createKnowledgeRetrievalSearchUseCase(
   const hasEmbeddingConfig = Boolean(
     embeddingProvider === "openrouter"
       ? (process.env.OPENROUTER_API_KEY ||
-          process.env.KNOWLEDGE_EMBEDDING_API_KEY) &&
-          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+        process.env.KNOWLEDGE_EMBEDDING_API_KEY) &&
+      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
       : process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
-          process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
-          process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
-          process.env.KNOWLEDGE_EMBEDDING_MODEL &&
-          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+      process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
+      process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
+      process.env.KNOWLEDGE_EMBEDDING_MODEL &&
+      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
   );
   const hasVectorConfig = Boolean(
     process.env.KNOWLEDGE_VECTOR_PROVIDER &&
-      process.env.KNOWLEDGE_VECTOR_DIMENSIONS &&
-      process.env.KNOWLEDGE_VECTOR_DISTANCE
+    process.env.KNOWLEDGE_VECTOR_DIMENSIONS &&
+    process.env.KNOWLEDGE_VECTOR_DISTANCE
   );
 
   if (prisma && hasEmbeddingConfig && hasVectorConfig) {
@@ -205,17 +205,17 @@ function createKnowledgeRagAnswerUseCase(
 ): KnowledgeRagAnswerUseCase {
   const hasRagConfig = Boolean(
     process.env.KNOWLEDGE_RAG_PROVIDER &&
-      process.env.KNOWLEDGE_RAG_BASE_URL &&
-      process.env.KNOWLEDGE_RAG_API_KEY &&
-      process.env.KNOWLEDGE_RAG_MODEL
+    process.env.KNOWLEDGE_RAG_BASE_URL &&
+    process.env.KNOWLEDGE_RAG_API_KEY &&
+    process.env.KNOWLEDGE_RAG_MODEL
   );
   const answerProvider = hasRagConfig
     ? createKnowledgeRagAnswerProviderFromEnvironment()
     : {
-        async generateAnswer() {
-          throw new Error("Knowledge answer provider is not configured.");
-        }
-      };
+      async generateAnswer() {
+        throw new Error("Knowledge answer provider is not configured.");
+      }
+    };
 
   return new KnowledgeRagAnswerUseCase({
     retrievalSearchUseCase,
@@ -466,7 +466,7 @@ async function getPrismaClient(): Promise<any> {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       const adapter = new PrismaPg(pool);
       const prisma = new PrismaClient({ adapter });
-      
+
       // Thử kết nối vật lý với DB bằng truy vấn SQL thô
       await prisma.$executeRawUnsafe("SELECT 1;");
       console.log("Database connection established successfully via Prisma.");
@@ -630,16 +630,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const skillWriter = createSkillWriter();
   const openclawAgentMaterializer = createOpenClawAgentMaterializer();
   const openclawWorkflowMaterializer = createOpenClawWorkflowMaterializer();
-  
+
   const eventBus = new InMemoryEventBus();
 
-  const draftingPort = process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY 
+  const draftingPort = process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY
     ? createProductionLlmAgentDraftingService({
-        geminiApiKey: process.env.GEMINI_API_KEY,
-        geminiModelId: process.env.GEMINI_MODEL_ID,
-        openrouterApiKey: process.env.OPENROUTER_API_KEY,
-        openrouterModelId: process.env.OPENROUTER_MODEL_ID
-      })
+      geminiApiKey: process.env.GEMINI_API_KEY,
+      geminiModelId: process.env.GEMINI_MODEL_ID,
+      openrouterApiKey: process.env.OPENROUTER_API_KEY,
+      openrouterModelId: process.env.OPENROUTER_MODEL_ID
+    })
     : new LlmAgentDraftingService([new MockLlmAgentDraftProvider()]);
 
   const useCases = new AgentLifecycleUseCases({
@@ -711,16 +711,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const googleRedirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI;
   const googleDriveOAuthScopeMode =
     process.env.GOOGLE_DRIVE_OAUTH_SCOPE_MODE?.trim().toLowerCase() ===
-    "readonly"
+      "readonly"
       ? "readonly"
       : "file";
   const credentialEncryptionKey =
     process.env.GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY;
   const googleDriveConfigured = Boolean(
     googleClientId &&
-      googleClientSecret &&
-      googleRedirectUri &&
-      credentialEncryptionKey
+    googleClientSecret &&
+    googleRedirectUri &&
+    credentialEncryptionKey
   );
   const knowledgeQueueMode =
     process.env.KNOWLEDGE_QUEUE_MODE?.trim().toLowerCase() === "durable"
@@ -804,7 +804,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
               throw new PermanentKnowledgeRuntimeError(
                 result.failure?.errorCode ?? "knowledge.ingestion_failed",
                 result.failure?.errorMessage ??
-                  "Knowledge document ingestion failed."
+                "Knowledge document ingestion failed."
               );
             }
           }
@@ -822,9 +822,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
             );
           const document = job?.documentId
             ? await knowledgeDocumentRepository.getDocumentById(
-                input.workspaceId,
-                job.documentId
-              )
+              input.workspaceId,
+              job.documentId
+            )
             : null;
           if (!job || !document) {
             throw new Error("Queued knowledge ingestion state is unavailable.");
@@ -999,7 +999,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     googleDriveOAuthService,
     frontendBaseUrl: frontendUrl
   };
-  
+
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
     const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
     return all.agents.filter((a: any) => agentIds.includes(a.agentId));
@@ -1111,16 +1111,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     next();
   });
   app.use(express.json());
-  app.use((err: any, req: any, res: any, next: any) => {
-    if (err instanceof SyntaxError && "status" in err && err.status === 400 && "body" in err) {
-      res.status(400).json({
-        ok: false,
-        error: { code: "validation.invalid_input", message: "Invalid JSON format: " + err.message }
-      });
-      return;
-    }
-    next(err);
-  });
 
   const workspaceRepository = await createWorkspaceRepository();
   if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
@@ -1136,12 +1126,64 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     });
   }
 
+  const baseListAccessibleByUser = workspaceRepository.listAccessibleByUser.bind(workspaceRepository);
+  workspaceRepository.listAccessibleByUser = async (userId) => {
+    const ownedOrPersistedWorkspaces = await baseListAccessibleByUser(userId);
+    const seenWorkspaceIds = new Set(ownedOrPersistedWorkspaces.map((workspace) => workspace.workspaceId));
+    const acceptedMemberWorkspaces = [];
+
+    for (const workspace of await workspaceUserManagementRepo.listAllWorkspaces()) {
+      if (seenWorkspaceIds.has(workspace.workspaceId as any)) {
+        continue;
+      }
+
+      const member = await workspaceUserManagementRepo.getWorkspaceMember(workspace.workspaceId, userId);
+      if (!member?.isAccepted) {
+        continue;
+      }
+
+      const workspaceRecord = await workspaceRepository.findById(workspace.workspaceId as EntityId<"workspaceId">);
+      if (!workspaceRecord || workspaceRecord.status === "deleted") {
+        continue;
+      }
+
+      acceptedMemberWorkspaces.push(workspaceRecord);
+      seenWorkspaceIds.add(workspaceRecord.workspaceId);
+    }
+
+    return [...ownedOrPersistedWorkspaces, ...acceptedMemberWorkspaces]
+      .filter((workspace) => workspace.status !== "deleted")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  };
+
+  const baseFindActiveMembershipByUser = workspaceRepository.findActiveMembershipByUser.bind(workspaceRepository);
+  workspaceRepository.findActiveMembershipByUser = async (userId) => {
+    const persistedMembership = await baseFindActiveMembershipByUser(userId);
+    if (persistedMembership) {
+      return persistedMembership;
+    }
+
+    const memberWorkspaces = await workspaceUserManagementRepo.listAllWorkspaces();
+    for (const workspace of memberWorkspaces.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+      const member = await workspaceUserManagementRepo.getWorkspaceMember(workspace.workspaceId, userId);
+      if (member?.isAccepted) {
+        return {
+          workspaceId: member.workspaceId as EntityId<"workspaceId">,
+          memberId: member.memberId as EntityId<"memberId">,
+          role: member.role
+        };
+      }
+    }
+
+    return null;
+  };
+
   // ── Workspace Management ───────────────────────────────────────────────────
   // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
   const nullSafePrisma = prisma ?? {
-    agent:           { count: async () => 0 },
-    workflow:        { count: async () => 0 },
-    toolConnection:  { count: async () => 0 },
+    agent: { count: async () => 0 },
+    workflow: { count: async () => 0 },
+    toolConnection: { count: async () => 0 },
     workspaceMember: {
       findFirst: async (query: any) => {
         const where = query?.where ?? {};
@@ -1451,14 +1493,6 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   renewalCron.start(24 * 60 * 60 * 1000);
 
-  app.use((err: any, req: any, res: any, next: any) => {
-    console.error("[Global Error Handler]", err);
-    res.status(500).json({
-      ok: false,
-      error: { code: "system.unexpected_error", message: err.message || "An unexpected error occurred." }
-    });
-  });
-
   return {
     app,
     repository,
@@ -1530,5 +1564,5 @@ if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
   app.listen(LOCAL_AGENT_API_PORT, LOCAL_AGENT_API_HOST, () => {
     console.log(`Agent & Billing API: http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`);
   });
-  setInterval(() => {}, 100000);
+  setInterval(() => { }, 100000);
 }

@@ -1,9 +1,9 @@
-import type { 
-  WorkspaceMemberListResponse, 
-  InviteMemberRequest, 
-  InvitationResponse, 
-  WorkspaceMemberResponse, 
-  UpdateMemberRoleRequest 
+import type {
+  WorkspaceMemberListResponse,
+  InviteMemberRequest,
+  InvitationResponse,
+  WorkspaceMemberResponse,
+  UpdateMemberRoleRequest
 } from "@vcp/shared/contracts/index.ts";
 
 export class WorkspaceUserManagementApiError extends Error {
@@ -21,7 +21,7 @@ export class WorkspaceUserManagementApiError extends Error {
 }
 
 export class WorkspaceUserManagementAPI {
-  constructor(private baseUrl: string) {}
+  constructor(private baseUrl: string) { }
 
   private async fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const token = localStorage.getItem('vcp.auth.token');
@@ -37,7 +37,7 @@ export class WorkspaceUserManagementAPI {
       ...options,
       headers
     });
-    
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const errorPayload = err.error || err;
@@ -48,7 +48,7 @@ export class WorkspaceUserManagementAPI {
         errorPayload.details
       );
     }
-    
+
     const data = await res.json();
     return data.data; // Auth API response wraps in { data, success }
   }
@@ -92,12 +92,6 @@ export class WorkspaceUserManagementAPI {
 
   async resendInvitation(workspaceId: string, invitationId: string): Promise<InvitationResponse> {
     return this.fetchAPI<InvitationResponse>(`/api/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {
-      method: 'POST',
-    });
-  }
-
-  async transferHost(workspaceId: string, memberId: string): Promise<void> {
-    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/members/${memberId}/transfer-host`, {
       method: 'POST',
     });
   }
