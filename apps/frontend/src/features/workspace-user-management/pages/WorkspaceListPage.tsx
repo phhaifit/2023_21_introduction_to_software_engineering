@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { WorkspaceUserManagementAPI } from '../api';
+import { decodeEmail } from '../utils/punycode';
 import { InviteMemberModal } from '../components/InviteMemberModal';
 import { useAuth } from '../../authentication/authentication-context.tsx';
 import { UserPlus, Shield, User, ArrowLeft, Bell, ShieldAlert } from 'lucide-react';
@@ -152,7 +153,7 @@ export const WorkspaceListPage: React.FC = () => {
                     ) : (
                       pendingInvites.map(inv => (
                         <div className="bell-popover-item" key={inv.invitationId}>
-                          <div className="bell-popover-item-email">{inv.email}</div>
+                          <div className="bell-popover-item-email">{decodeEmail(inv.email)}</div>
                           <div className="bell-popover-item-meta">
                             <span className="role-badge">{inv.role === 'admin' ? 'Host' : inv.role}</span>
                             <span>Invited: {formatDate(inv.createdAt)}</span>
@@ -198,7 +199,7 @@ export const WorkspaceListPage: React.FC = () => {
                         </div>
                         <div>
                           <div style={{ fontWeight: 600 }}>{member.userId}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{member.email || 'No email associated'}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{member.email ? decodeEmail(member.email) : 'No email associated'}</div>
                         </div>
                       </div>
                     </td>
