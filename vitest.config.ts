@@ -3,16 +3,23 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    fs: {
+      allow: [".."]
+    }
+  },
   test: {
     environment: "jsdom",
     include: [
       "tests/component/**/*.test.{ts,tsx}",
       "apps/**/*.test.{ts,tsx}",
-      "packages/**/*.test.{ts,tsx}"
+      "packages/**/*.test.{ts,tsx}",
+      "../test/**/*.test.{ts,tsx}",
     ],
     setupFiles: ["tests/component/setup.ts"],
-    environmentMatchGlobs: [
+      ["apps/frontend/**/*.test.tsx", "jsdom"],
       ["apps/backend/**", "node"],
+      ["apps/**", "node"],
       ["packages/**", "node"]
     ],
     deps: {
