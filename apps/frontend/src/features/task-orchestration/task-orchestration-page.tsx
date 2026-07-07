@@ -682,7 +682,7 @@ export function TaskOrchestrationPage({
   function handleQueryClick(taskId: string): void {
     const element = document.getElementById(`task-${taskId}`);
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 
@@ -1034,7 +1034,9 @@ export function TaskOrchestrationPage({
                         <span>{item.label}</span>
                         <span>{formatQueryTimestamp(item.createdAt)}</span>
                       </span>
-                      <span className="task-workspace__query-text">{item.prompt}</span>
+                      <span className="task-workspace__query-text">
+                        {item.prompt.length > 12 ? item.prompt.slice(0, 12) + "..." : item.prompt}
+                      </span>
                       <span className="task-workspace__query-footer">
                         <span>{item.routingSummary}</span>
                         <span>{item.status}</span>

@@ -132,7 +132,8 @@ describe("TaskOrchestrationPage base workspace", () => {
       name: "Conversation queries"
     });
     expect(within(querySidebar).getByText("Current chat")).toBeInTheDocument();
-    expect(within(querySidebar).getByText(longPrompt)).toBeInTheDocument();
+    const truncatedPrompt = longPrompt.length > 12 ? longPrompt.slice(0, 12) + "..." : longPrompt;
+    expect(within(querySidebar).getByText(truncatedPrompt)).toBeInTheDocument();
     expect(within(querySidebar).getByText("Auto-routing")).toBeInTheDocument();
   });
 
