@@ -1,12 +1,10 @@
 .task-workspace {
   background: #ffffff;
-  border: 1px solid #d8dee8;
-  border-radius: 16px;
   display: grid;
   grid-template-columns: minmax(240px, 0.28fr) minmax(0, 1fr);
-  height: calc(100vh - 48px);
+  height: 100vh;
   min-height: 680px;
-  max-height: 1200px;
+  max-height: none;
   overflow: hidden;
 }
 
