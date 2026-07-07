@@ -397,9 +397,9 @@
   left: 0;
   right: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .task-workspace__header-copy {
@@ -536,9 +536,9 @@
 }
 
 .task-composer {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-block-start: 1px solid rgba(226, 232, 240, 0.5);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.04);
   display: grid;
