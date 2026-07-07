@@ -45,8 +45,9 @@
   min-width: 0;
   overflow: visible;
   position: absolute;
-  right: 0;
-  top: 15%;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   bottom: auto;
   z-index: 30;
   display: flex;
@@ -69,14 +70,14 @@
   margin-right: 4px;
 }
 
-.task-workspace__query-sidebar:hover .task-workspace__query-panel,
-.task-workspace__query-sidebar:focus-within .task-workspace__query-panel {
-  background: #2b2d31;
-  border-color: #1e1f22;
+.task-workspace__query-sidebar:not(.task-workspace__query-sidebar--hidden):hover .task-workspace__query-panel,
+.task-workspace__query-sidebar:not(.task-workspace__query-sidebar--hidden):focus-within .task-workspace__query-panel {
+  background: rgba(255, 255, 255, 0.99);
+  border-color: #cbd5e1;
   border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.14);
   width: min(320px, calc(100vw - 84px));
-  margin-right: 16px;
+  margin-right: 8px;
 }
 
 .task-workspace__query-rail {
@@ -105,8 +106,8 @@
   background: #6366f1;
 }
 
-.task-workspace__query-sidebar:hover .task-workspace__query-rail,
-.task-workspace__query-sidebar:focus-within .task-workspace__query-rail {
+.task-workspace__query-sidebar:not(.task-workspace__query-sidebar--hidden):hover .task-workspace__query-rail,
+.task-workspace__query-sidebar:not(.task-workspace__query-sidebar--hidden):focus-within .task-workspace__query-rail {
   opacity: 0;
   width: 0;
   padding-inline: 0;
@@ -128,8 +129,8 @@
   transition: opacity 0.15s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.task-workspace__query-sidebar:hover .task-workspace__query-content,
-.task-workspace__query-sidebar:focus-within .task-workspace__query-content {
+.task-workspace__query-sidebar:not(.task-workspace__query-sidebar--hidden):hover .task-workspace__query-content,
+.task-workspace__query-sidebar:not(.task-workspace__query-sidebar--hidden):focus-within .task-workspace__query-content {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
@@ -161,11 +162,11 @@
 
 .task-workspace__query-button:hover,
 .task-workspace__query-button:focus-visible {
-  background: #404249;
+  background: #f1f5f9;
 }
 
 .task-workspace__query-text {
-  color: #dbdee1;
+  color: #334155;
   display: block;
   font-size: 0.85rem;
   overflow: hidden;
@@ -175,7 +176,7 @@
 }
 
 .task-workspace__query-empty {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 0.85rem;
   padding: 12px;
   text-align: center;

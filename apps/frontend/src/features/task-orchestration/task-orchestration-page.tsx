@@ -176,6 +176,7 @@ export function TaskOrchestrationPage({
   const [deleteConversationTargetId, setDeleteConversationTargetId] = useState<string | null>(
     null
   );
+  const [isSidebarHidden, setIsSidebarHidden] = useState(false);
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
@@ -684,6 +685,7 @@ export function TaskOrchestrationPage({
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    setIsSidebarHidden(true);
   }
 
   return (
@@ -1003,7 +1005,11 @@ export function TaskOrchestrationPage({
           />
         </section>
 
-        <aside className="task-workspace__query-sidebar" aria-label="Conversation queries">
+        <aside 
+          className={`task-workspace__query-sidebar${isSidebarHidden ? " task-workspace__query-sidebar--hidden" : ""}`}
+          aria-label="Conversation queries"
+          onMouseLeave={() => setIsSidebarHidden(false)}
+        >
           <div className="task-workspace__query-panel">
             <div className="task-workspace__query-rail" aria-hidden="true">
               {queryRailMarkers.map((marker) => (
