@@ -174,6 +174,29 @@ export function createWorkspaceUserManagementRouter({
     }
   });
 
+  router.delete("/members/:memberId", async (req: Request, res: Response) => {
+    try {
+      const workspaceContext = requireWorkspaceContext((req as any).context);
+      requirePermission((req as any).context, "members:manage");
+      const user = requireAuthenticatedUser((req as any).context);
+
+      const memberId = req.params.memberId;
+      await service.removeMember(workspaceContext.workspaceId, memberId, user.userId, workspaceContext.role);
+      sendAuthApiSuccess(req, res, { success: true });
+    } catch (err: any) {
+      if (err.message?.includes("permission")) {
+        return sendAuthApiFailure(req, res, "auth.forbidden", err.message);
+      }
+      if (err.message === "Member not found.") {
+        return sendAuthApiFailure(req, res, "member.not_found", err.message);
+      }
+      if (err.message.includes("last admin")) {
+        return sendAuthApiFailure(req, res, "workspace.conflict", err.message);
+      }
+      sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
+    }
+  });
+
   router.patch("/invitations/:invitationId", async (req: Request, res: Response) => {
     try {
       const workspaceContext = requireWorkspaceContext((req as any).context);
@@ -199,6 +222,30 @@ export function createWorkspaceUserManagementRouter({
         return sendAuthApiFailure(req, res, "auth.forbidden", err.message);
       }
       if (err.message?.includes("Invalid") || err.message?.includes("Pending invitation")) {
+        return sendAuthApiFailure(req, res, "validation.invalid_input", err.message);
+      }
+      sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
+    }
+  });
+
+  router.delete("/invitations/:invitationId", async (req: Request, res: Response) => {
+    try {
+      const workspaceContext = requireWorkspaceContext((req as any).context);
+      requirePermission((req as any).context, "members:manage");
+      const user = requireAuthenticatedUser((req as any).context);
+
+      await service.cancelInvitation(
+        workspaceContext.workspaceId,
+        req.params.invitationId,
+        user.userId,
+        workspaceContext.role
+      );
+      sendAuthApiSuccess(req, res, { success: true });
+    } catch (err: any) {
+      if (err.message?.includes("permission") || err.message?.includes("can only")) {
+        return sendAuthApiFailure(req, res, "auth.forbidden", err.message);
+      }
+      if (err.message?.includes("Pending invitation")) {
         return sendAuthApiFailure(req, res, "validation.invalid_input", err.message);
       }
       sendAuthApiFailure(req, res, "system.unexpected_error", err.message);
