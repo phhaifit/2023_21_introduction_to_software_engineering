@@ -1375,15 +1375,30 @@
 
 .task-conversation__turn {
   align-items: flex-start;
-  display: flex;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
   gap: 16px;
-  min-width: 0;
-  position: relative;
   width: 100%;
 }
 
-.task-conversation__turn--user {
-  flex-direction: row-reverse;
+.task-conversation__turn--assistant .task-conversation__avatar {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.task-conversation__turn--assistant .task-conversation__bubble {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.task-conversation__turn--user .task-conversation__avatar {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.task-conversation__turn--user .task-conversation__bubble {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .task-conversation__turn-toolbar-labels {
@@ -1488,13 +1503,7 @@
 }
 
 .task-conversation__bubble {
-  flex: 1;
   min-width: 0;
-}
-
-.task-conversation__turn--user .task-conversation__bubble {
-  flex: 0 1 auto;
-  max-width: 85%;
 }
 
 .task-conversation__bubble--user {
