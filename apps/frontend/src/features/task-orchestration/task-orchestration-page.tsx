@@ -994,9 +994,8 @@ export function TaskOrchestrationPage({
             }
           />
         </section>
-      </div>
 
-      <aside className="task-workspace__query-sidebar" aria-label="Conversation queries">
+        <aside className="task-workspace__query-sidebar" aria-label="Conversation queries">
         <div className="task-workspace__query-panel">
           <div className="task-workspace__query-rail" aria-hidden="true">
             {queryRailMarkers.map((marker) => (
@@ -1042,6 +1041,7 @@ export function TaskOrchestrationPage({
           </div>
         </div>
       </aside>
+      </div>
     </section>
   );
 }
