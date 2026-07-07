@@ -259,33 +259,49 @@ export function WorkspaceDetailPage() {
         </article>
 
         {/* Actions panel */}
-        {isDeletable && (
-          <article className="panel">
-            <div className="panel-heading">
-              <h2>Hành động</h2>
-            </div>
-            <p style={{ fontSize: 14, color: "var(--muted)", margin: "0 0 16px" }}>
-              Xóa workspace sẽ dừng OpenClaw runtime và xóa toàn bộ dữ liệu liên quan.
-              Hành động này không thể hoàn tác.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={deleting}
-              style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 18px", borderRadius: 8, fontSize: 14, fontWeight: 600,
-                background: "var(--danger-soft)", color: "var(--danger)",
-                border: "1px solid rgba(185,28,28,0.25)",
-                cursor: "pointer", width: "100%", justifyContent: "center",
-                transition: "opacity 0.15s",
-              }}
-            >
-              <Trash2 size={16} />
-              Xóa Workspace
-            </button>
-          </article>
-        )}
+        <article className="panel">
+          <div className="panel-heading">
+            <h2>Hành động</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/workspaces/${workspaceId}/members`)}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 18px", borderRadius: 8, fontSize: 14, fontWeight: 600,
+              background: "var(--accent-soft)", color: "var(--accent)",
+              border: "1px solid rgba(99,102,241,0.25)",
+              cursor: "pointer", width: "100%", justifyContent: "center",
+              marginBottom: 16
+            }}
+          >
+            View Member List
+          </button>
+          {isDeletable && (
+            <>
+              <p style={{ fontSize: 14, color: "var(--muted)", margin: "0 0 16px" }}>
+                Xóa workspace sẽ dừng OpenClaw runtime và xóa toàn bộ dữ liệu liên quan.
+                Hành động này không thể hoàn tác.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={deleting}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "10px 18px", borderRadius: 8, fontSize: 14, fontWeight: 600,
+                  background: "var(--danger-soft)", color: "var(--danger)",
+                  border: "1px solid rgba(185,28,28,0.25)",
+                  cursor: "pointer", width: "100%", justifyContent: "center",
+                  transition: "opacity 0.15s",
+                }}
+              >
+                <Trash2 size={16} />
+                Xóa Workspace
+              </button>
+            </>
+          )}
+        </article>
       </div>
 
       {/* Delete confirmation dialog */}

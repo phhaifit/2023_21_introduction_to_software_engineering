@@ -1,6 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import type { WorkspaceUserManagementService } from "../application/workspace-user-management-service.ts";
-import { sendAuthApiSuccess, sendAuthApiFailure } from "../../authentication/api/api-response.ts";
+import {
+  sendWorkspaceUserManagementApiSuccess as sendAuthApiSuccess,
+  sendWorkspaceUserManagementApiFailure as sendAuthApiFailure
+} from "./api-response.ts";
 import { requireAuthenticatedUser } from "../../../shared/auth/request-context.ts";
 
 export type AcceptInvitationRouterDependencies = {

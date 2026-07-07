@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import type { WorkspaceUserManagementRepository } from "../domain/workspace-user-management-repository.ts";
-import { sendAuthApiFailure } from "../../authentication/api/api-response.ts";
+import { sendWorkspaceUserManagementApiFailure as sendAuthApiFailure } from "./api-response.ts";
 import type { AuthenticatedUser, WorkspaceMembershipContext } from "../../../shared/auth/request-context.ts";
 
 export function createWorkspaceContextMiddleware(repository: WorkspaceUserManagementRepository) {

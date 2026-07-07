@@ -439,7 +439,7 @@ describe("WorkspaceUserManagementService", () => {
       status: "pending",
       invitedByUserId: adminUserId,
       createdAt: "2026-06-29T00:00:00.000Z",
-      expiresAt: "2026-07-06T00:00:00.000Z"
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     });
 
     const result = await service.acceptInvitation("invitation-1", invitedUserId, "invited@example.com");
@@ -470,7 +470,7 @@ describe("WorkspaceUserManagementService", () => {
       status: "pending",
       invitedByUserId: adminUserId,
       createdAt: "2026-06-29T00:00:00.000Z",
-      expiresAt: "2026-07-06T00:00:00.000Z"
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     });
 
     const result = await service.acceptInvitation("invitation-1", invitedUserId, "invited@example.com");
@@ -558,7 +558,7 @@ describe("WorkspaceUserManagementService", () => {
       status: "pending",
       invitedByUserId: hostUserId,
       createdAt: "2026-06-29T00:00:00.000Z",
-      expiresAt: "2026-07-06T00:00:00.000Z"
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     });
 
     await expect(
