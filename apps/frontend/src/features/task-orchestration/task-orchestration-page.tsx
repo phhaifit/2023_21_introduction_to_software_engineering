@@ -679,6 +679,13 @@ export function TaskOrchestrationPage({
     }
   }
 
+  function handleQueryClick(taskId: string): void {
+    const element = document.getElementById(`task-${taskId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
   return (
     <section
       className={`task-workspace${
@@ -836,6 +843,7 @@ export function TaskOrchestrationPage({
 
                 return (
                   <article
+                    id={`task-${task.taskId}`}
                     key={task.taskId as string}
                     className={`task-workspace__task-view${
                       isRunning ? " task-workspace__task-view--in-progress" : ""
@@ -1019,8 +1027,8 @@ export function TaskOrchestrationPage({
                     <button
                       type="button"
                       className="task-workspace__query-button"
-                      aria-label={`Open details for ${item.label}`}
-                      onClick={() => setDetailModalTaskId(item.taskId)}
+                      aria-label={`Scroll to ${item.label}`}
+                      onClick={() => handleQueryClick(item.taskId)}
                     >
                       <span className="task-workspace__query-meta">
                         <span>{item.label}</span>
