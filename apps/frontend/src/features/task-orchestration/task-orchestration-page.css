@@ -55,27 +55,28 @@
 
 .task-workspace__query-panel {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   box-shadow: none;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   overflow: hidden;
   position: relative;
-  transition: width 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border 0.18s ease;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), margin-right 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, background 0.2s ease, border-color 0.2s ease;
   width: 16px;
   max-height: 70vh;
-  border-radius: 12px 0 0 12px;
+  border-radius: 16px;
+  margin-right: 4px;
 }
 
 .task-workspace__query-sidebar:hover .task-workspace__query-panel,
 .task-workspace__query-sidebar:focus-within .task-workspace__query-panel {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid #cbd5e1;
-  border-right: none;
-  border-radius: 12px 0 0 12px;
-  box-shadow: -14px 0 28px rgba(15, 23, 42, 0.12);
-  width: min(320px, calc(100vw - 84px));
+  background: rgba(255, 255, 255, 0.99);
+  border-color: #cbd5e1;
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.14);
+  width: min(340px, calc(100vw - 84px));
+  margin-right: 16px;
 }
 
 .task-workspace__query-rail {
@@ -87,7 +88,8 @@
   min-height: 0;
   overflow: hidden;
   padding: 12px 2px;
-  transition: opacity 0.16s ease;
+  width: 16px;
+  transition: opacity 0.15s ease, width 0.2s ease, padding 0.2s ease;
 }
 
 .task-workspace__query-rail span {
@@ -96,6 +98,7 @@
   height: 2px;
   opacity: 0.9;
   width: 12px;
+  border-radius: 2px;
 }
 
 .task-workspace__query-rail span:last-child {
@@ -105,6 +108,8 @@
 .task-workspace__query-sidebar:hover .task-workspace__query-rail,
 .task-workspace__query-sidebar:focus-within .task-workspace__query-rail {
   opacity: 0;
+  width: 0;
+  padding-inline: 0;
 }
 
 .task-workspace__query-content {
@@ -117,10 +122,10 @@
   min-width: 0;
   opacity: 0;
   overflow: hidden;
-  padding: 16px 10px 16px 0;
+  padding: 16px;
   pointer-events: none;
   transform: translateX(8px);
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition: opacity 0.15s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .task-workspace__query-sidebar:hover .task-workspace__query-content,
