@@ -680,12 +680,14 @@ export function TaskOrchestrationPage({
     }
   }
 
-  function handleQueryClick(taskId: string): void {
+  function handleQueryClick(taskId: string, event: React.MouseEvent<HTMLButtonElement>): void {
     const element = document.getElementById(`task-${taskId}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
+      element.focus({ preventScroll: true });
     }
     setIsSidebarHidden(true);
+    event.currentTarget.blur();
   }
 
   return (
@@ -846,6 +848,7 @@ export function TaskOrchestrationPage({
                 return (
                   <article
                     id={`task-${task.taskId}`}
+                    tabIndex={-1}
                     key={task.taskId as string}
                     className={`task-workspace__task-view${
                       isRunning ? " task-workspace__task-view--in-progress" : ""
@@ -1026,7 +1029,7 @@ export function TaskOrchestrationPage({
                         type="button"
                         className="task-workspace__query-button"
                         aria-label="Scroll to task"
-                        onClick={() => handleQueryClick(item.taskId)}
+                        onClick={(e) => handleQueryClick(item.taskId, e)}
                       >
                         <span className="task-workspace__query-text">
                           {item.prompt}
