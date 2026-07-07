@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 
 import {
@@ -28,9 +29,22 @@ import {
 export function AuthenticationPage() {
   const { isAuthenticated, currentUser, status, signIn, signUp, signOut } =
     useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const redirectTarget = searchParams.get("redirect");
+  const redirectMessage = searchParams.get("message");
 
   // Separate the authenticated and unauthenticated views.
+  useEffect(() => {
+    if (isAuthenticated && redirectTarget) {
+      navigate(decodeURIComponent(redirectTarget), { replace: true });
+    }
+  }, [isAuthenticated, redirectTarget, navigate]);
+
   if (isAuthenticated) {
+    if (redirectTarget) {
+      return null;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -39,6 +53,8 @@ export function AuthenticationPage() {
       signIn={signIn}
       signUp={signUp}
       isSubmitting={status === "submitting"}
+      redirectTarget={redirectTarget}
+      redirectMessage={redirectMessage}
     />
   );
 }
@@ -98,9 +114,12 @@ type AuthFormsProps = {
   signIn: ReturnType<typeof useAuth>["signIn"];
   signUp: ReturnType<typeof useAuth>["signUp"];
   isSubmitting: boolean;
+  redirectTarget?: string | null;
+  redirectMessage?: string | null;
 };
 
-function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
+function AuthForms({ signIn, signUp, isSubmitting, redirectTarget, redirectMessage }: AuthFormsProps) {
+  const navigate = useNavigate();
   const [screen, setScreen] = useState<"login" | "register">("login");
 
   // Shared form state
@@ -111,6 +130,9 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
   // Error state
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Info banner from redirect (e.g. invitation link)
+  const [infoMessage, setInfoMessage] = useState<string | null>(redirectMessage ? decodeURIComponent(redirectMessage) : null);
 
   // Success banner shown on login screen after successful registration
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -204,6 +226,11 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
     const result = await signIn(values);
     if (!result.ok) {
       setFormError(getAuthErrorMessage(result.code));
+    } else {
+      // If redirectTarget is present, the useEffect will handle redirection once context updates.
+      if (!redirectTarget) {
+        navigate('/workspaces', { replace: true });
+      }
     }
   }
 
@@ -251,6 +278,11 @@ function AuthForms({ signIn, signUp, isSubmitting }: AuthFormsProps) {
 
         {screen === "login" ? (
           <AuthCard title="Log in">
+            {infoMessage ? (
+              <div className="auth-info-banner" role="alert">
+                ℹ️ {infoMessage}
+              </div>
+            ) : null}
             {successMessage ? (
               <p className="auth-success-banner" role="status">
                 {successMessage}
