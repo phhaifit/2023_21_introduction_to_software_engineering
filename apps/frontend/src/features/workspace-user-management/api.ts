@@ -1,13 +1,21 @@
-import type { WorkspaceMemberListResponse, InviteMemberRequest, InvitationResponse, WorkspaceMemberResponse, UpdateMemberRoleRequest } from "@vcp/shared/contracts/index.ts";
+import type { 
+  WorkspaceMemberListResponse, 
+  InviteMemberRequest, 
+  InvitationResponse, 
+  WorkspaceMemberResponse, 
+  UpdateMemberRoleRequest 
+} from "@vcp/shared/contracts/index.ts";
 
 export class WorkspaceUserManagementApiError extends Error {
   code?: string;
+  status?: number;
   details?: any;
 
-  constructor(message: string, code?: string, details?: any) {
+  constructor(message: string, code?: string, status?: number, details?: any) {
     super(message);
     this.name = 'WorkspaceUserManagementApiError';
     this.code = code;
+    this.status = status;
     this.details = details;
   }
 }
@@ -16,8 +24,6 @@ export class WorkspaceUserManagementAPI {
   constructor(private baseUrl: string) {}
 
   private async fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    // Basic fetch wrapper, assume token is injected by interceptor or similar in real app.
-    // For now, we mock the local-dev headers.
     const token = localStorage.getItem('vcp.auth.token');
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -38,6 +44,7 @@ export class WorkspaceUserManagementAPI {
       throw new WorkspaceUserManagementApiError(
         errorPayload.message || 'API request failed',
         errorPayload.code,
+        res.status,
         errorPayload.details
       );
     }
@@ -51,14 +58,14 @@ export class WorkspaceUserManagementAPI {
   }
 
   async inviteMember(workspaceId: string, req: InviteMemberRequest): Promise<InvitationResponse> {
-    return this.fetchAPI<InvitationResponse>(`/api/workspaces/${workspaceId}/members/invite`, {
+    return this.fetchAPI<InvitationResponse>(`/api/workspaces/${workspaceId}/invitations`, {
       method: 'POST',
       body: JSON.stringify(req),
     });
   }
 
   async updateRole(workspaceId: string, memberId: string, req: UpdateMemberRoleRequest): Promise<void> {
-    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/members/${memberId}/role`, {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/members/${memberId}`, {
       method: 'PATCH',
       body: JSON.stringify(req),
     });
@@ -70,28 +77,60 @@ export class WorkspaceUserManagementAPI {
     });
   }
 
-  async acceptInvitation(code: string): Promise<void> {
-    return this.fetchAPI<void>(`/api/invitations/${code}/accept`, {
+  async updateInvitationRole(workspaceId: string, invitationId: string, req: { role: string }): Promise<void> {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/invitations/${invitationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async cancelInvitation(workspaceId: string, invitationId: string): Promise<void> {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async resendInvitation(workspaceId: string, invitationId: string): Promise<InvitationResponse> {
+    return this.fetchAPI<InvitationResponse>(`/api/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {
       method: 'POST',
     });
   }
 
-  async listWorkspaces(): Promise<any[]> {
-    return this.fetchAPI<any[]>('/api/workspaces');
+  async transferHost(workspaceId: string, memberId: string): Promise<void> {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/members/${memberId}/transfer-host`, {
+      method: 'POST',
+    });
   }
 
-  async createWorkspace(name: string): Promise<any> {
-    return this.fetchAPI<any>('/api/workspaces', {
+  async acceptInvitation(code: string): Promise<any> {
+    return this.fetchAPI<any>(`/api/invitations/${code}/accept`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
     });
   }
 
   async listPendingInvitationsForUser(): Promise<any[]> {
-    return this.fetchAPI<any[]>('/api/workspaces/invitations/pending');
+    return this.fetchAPI<any[]>('/api/invitations/pending');
   }
 
   async listWorkspaceEvents(workspaceId: string): Promise<any[]> {
     return this.fetchAPI<any[]>(`/api/workspaces/${workspaceId}/events`);
+  }
+
+  async requestAdminRole(workspaceId: string): Promise<void> {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/admin-requests`, {
+      method: 'POST',
+    });
+  }
+
+  async approveAdminRequest(workspaceId: string, requestId: string): Promise<void> {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/admin-requests/${requestId}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectAdminRequest(workspaceId: string, requestId: string): Promise<void> {
+    return this.fetchAPI<void>(`/api/workspaces/${workspaceId}/admin-requests/${requestId}/reject`, {
+      method: 'POST',
+    });
   }
 }
