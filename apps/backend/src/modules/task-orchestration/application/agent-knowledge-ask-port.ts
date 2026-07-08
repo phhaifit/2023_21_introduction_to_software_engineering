@@ -10,4 +10,9 @@ export type AgentKnowledgeAskPort = {
     agentId: EntityId<"agentId">,
     request: AgentKnowledgeAskRequest
   ): Promise<AgentKnowledgeAskResponse>;
+  debugAsk?(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    request: AgentKnowledgeAskRequest
+  ): Promise<unknown>;
 };

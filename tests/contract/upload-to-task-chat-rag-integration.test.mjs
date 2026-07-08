@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import express from "express";
 
+import { createKnowledgeBaseRagRouter } from "@vcp/backend/modules/knowledge-base-rag/api/knowledge-base-rag-router.ts";
 import { AgentKnowledgeAssignmentUseCase } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-assignment-use-case.ts";
 import {
   AGENT_KNOWLEDGE_INSUFFICIENT_EVIDENCE_ANSWER,
@@ -77,6 +78,20 @@ async function verifyUploadToTaskChatRagFlow() {
     content:
       "product_code,product_name,category,monthly_price_vnd,warranty_months,note\nVCP-STD,Virtual Company Standard,Subscription,990000,0,Goi tieu chuan cho nhom nho\nVCP-PRO,Virtual Company Pro,Subscription,2490000,0,Goi nang cao cho team can nhieu agent\nAGENT-ADDON,Additional Agent Add-on,Add-on,300000,0,Them mot agent hoat dong trong workspace"
   });
+  const financeDocumentId = await uploadDocument(runtime, {
+    workspaceId: "workspace-a",
+    clientFileId: "finance-approval",
+    fileName: "04_finance_approval_policy.docx",
+    mediaType:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    content: createDocx([
+      "Finance Approval Policy - Workspace Demo.",
+      "Tai lieu nay mo ta quy tac phe duyet chi phi noi bo.",
+      "Cac khoan chi tren 500 USD can phe duyet boi Finance Manager.",
+      "Cac khoan chi tren 2000 USD can them phe duyet cua Workspace Admin.",
+      "Tu khoa kiem thu: FINANCE-APPROVAL-GAMMA."
+    ])
+  });
 
   assert.notEqual(policyDocumentId, unassignedDocumentId);
   assert.notEqual(policyDocumentId, workspaceBDocumentId);
@@ -91,18 +106,14 @@ async function verifyUploadToTaskChatRagFlow() {
   assert.ok(policyChunks.total >= 1);
   assert.ok(policyChunks.items.every((chunk) => chunk.embeddingStatus === "ready"));
 
-  const assigned = await runtime.assignmentUseCase.assignDocument(
-    "workspace-a",
-    "agent-a",
-    policyDocumentId,
-    "admin"
-  );
-  assert.equal(assigned.grantStatus, "active");
-  assert.equal(assigned.document.documentId, policyDocumentId);
-  assertSafe(assigned);
+  await withTaskChatApi(runtime, async (api) => {
+    const assigned = await api.assign("workspace-a", "agent-a", policyDocumentId);
+    assert.equal(assigned.status, 200);
+    assert.equal(assigned.body.data.grantStatus, "active");
+    assert.equal(assigned.body.data.document.documentId, policyDocumentId);
+    assertSafe(assigned.body);
 
-  await withTaskChatApi(runtime, async (post) => {
-    const answered = await post("workspace-a", {
+    const answered = await api.ask("workspace-a", {
       agentId: "agent-a",
       message: "What approval is required for equipment purchases over 500 USD?",
       topK: 5
@@ -122,7 +133,7 @@ async function verifyUploadToTaskChatRagFlow() {
     assertSafe(answered.body);
 
     const callsAfterAnswered = callCounts(runtime);
-    const unassigned = await post("workspace-a", {
+    const unassigned = await api.ask("workspace-a", {
       agentId: "agent-unassigned",
       message:
         "What approval is required for equipment purchases over 500 USD?",
@@ -131,7 +142,7 @@ async function verifyUploadToTaskChatRagFlow() {
     assertFallback(unassigned);
     assert.deepEqual(callCounts(runtime), callsAfterAnswered);
 
-    const crossWorkspace = await post("workspace-b", {
+    const crossWorkspace = await api.ask("workspace-b", {
       agentId: "agent-a",
       message:
         "What approval is required for equipment purchases over 500 USD?",
@@ -144,13 +155,10 @@ async function verifyUploadToTaskChatRagFlow() {
     assertSafe(crossWorkspace.body);
     assert.deepEqual(callCounts(runtime), callsAfterAnswered);
 
-    await runtime.assignmentUseCase.revokeDocument(
-      "workspace-a",
-      "agent-a",
-      policyDocumentId,
-      "admin"
-    );
-    const revoked = await post("workspace-a", {
+    const policyRevoke = await api.revoke("workspace-a", "agent-a", policyDocumentId);
+    assert.equal(policyRevoke.status, 200);
+    assert.equal(policyRevoke.body.data.grantStatus, "revoked");
+    const revoked = await api.ask("workspace-a", {
       agentId: "agent-a",
       message:
         "What approval is required for equipment purchases over 500 USD?",
@@ -159,13 +167,8 @@ async function verifyUploadToTaskChatRagFlow() {
     assertFallback(revoked);
     assert.deepEqual(callCounts(runtime), callsAfterAnswered);
 
-    await runtime.assignmentUseCase.assignDocument(
-      "workspace-a",
-      "agent-a",
-      hrDocumentId,
-      "admin"
-    );
-    const hrAnswer = await post("workspace-a", {
+    await assignOnlyViaApi(api, "agent-a", [hrDocumentId]);
+    const hrAnswer = await api.ask("workspace-a", {
       agentId: "agent-a",
       message: "Nhan vien muon nghi phep phai bao truoc bao nhieu ngay?",
       topK: 5
@@ -183,20 +186,21 @@ async function verifyUploadToTaskChatRagFlow() {
     assert.match(hrAnswer.body.data.answer, /3 ngay lam viec/i);
     assert.deepEqual(citationTitles(hrAnswer), ["01_hr_policy.txt"]);
 
-    const hrOnlySalesQuestion = await post("workspace-a", {
+    const hrOnlySalesQuestion = await api.ask("workspace-a", {
       agentId: "agent-a",
       message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
       topK: 5
     });
     assertFallback(hrOnlySalesQuestion);
+    const hrOnlyDebug = await api.debugAsk("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assertDebugTrace(hrOnlyDebug, ["01_hr_policy.txt"], [], []);
 
-    await runtime.assignmentUseCase.assignDocument(
-      "workspace-a",
-      "agent-a",
-      salesDocumentId,
-      "admin"
-    );
-    const salesAnswer = await post("workspace-a", {
+    await assignOnlyViaApi(api, "agent-a", [salesDocumentId]);
+    const salesAnswer = await api.ask("workspace-a", {
       agentId: "agent-a",
       message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
       topK: 5
@@ -215,35 +219,15 @@ async function verifyUploadToTaskChatRagFlow() {
     assert.deepEqual(citationTitles(salesAnswer), ["02_sales_guide.md"]);
     assert.doesNotMatch(salesAnswer.body.data.answer, /nghi phep|3 ngay/i);
 
-    await runtime.assignmentUseCase.assignDocument(
-      "workspace-a",
-      "agent-a",
-      productDocumentId,
-      "admin"
-    );
-    const mixedSalesAnswer = await post("workspace-a", {
+    await assignOnlyViaApi(api, "agent-a", [productDocumentId]);
+    const productOnlyHr = await api.ask("workspace-a", {
       agentId: "agent-a",
-      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      message: "Nhan vien muon nghi phep phai bao truoc bao nhieu ngay?",
       topK: 5
     });
-    assert.equal(mixedSalesAnswer.status, 200);
-    assert.equal(
-      mixedSalesAnswer.body.data.status,
-      "answered",
-      await diagnosticMessage(
-        runtime,
-        "agent-a",
-        "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?"
-      )
-    );
-    assert.match(mixedSalesAnswer.body.data.answer, /8%/);
-    assert.deepEqual(citationTitles(mixedSalesAnswer), ["02_sales_guide.md"]);
-    assert.doesNotMatch(
-      mixedSalesAnswer.body.data.answer,
-      /monthly_price_vnd|VCP-STD|VCP-PRO|nghi phep/i
-    );
+    assertFallback(productOnlyHr);
 
-    const productAnswer = await post("workspace-a", {
+    const productAnswer = await api.ask("workspace-a", {
       agentId: "agent-a",
       message: "Goi Virtual Company Pro co gia bao nhieu moi thang?",
       topK: 5
@@ -263,6 +247,55 @@ async function verifyUploadToTaskChatRagFlow() {
     assert.doesNotMatch(
       productAnswer.body.data.answer,
       /monthly_price_vnd|VCP-STD|AGENT-ADDON|product_code/i
+    );
+
+    await assignOnlyViaApi(api, "agent-a", [financeDocumentId]);
+    const financeAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Cac khoan chi tren 500 USD can ai phe duyet?",
+      topK: 5
+    });
+    assert.equal(financeAnswer.status, 200);
+    assert.equal(
+      financeAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Cac khoan chi tren 500 USD can ai phe duyet?"
+      )
+    );
+    assert.match(financeAnswer.body.data.answer, /Finance Manager/i);
+    assert.deepEqual(citationTitles(financeAnswer), [
+      "04_finance_approval_policy.docx"
+    ]);
+
+    await assignOnlyViaApi(api, "agent-a", [
+      hrDocumentId,
+      salesDocumentId,
+      productDocumentId,
+      financeDocumentId
+    ]);
+    const mixedSalesAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assert.equal(mixedSalesAnswer.status, 200);
+    assert.equal(
+      mixedSalesAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?"
+      )
+    );
+    assert.match(mixedSalesAnswer.body.data.answer, /8%/);
+    assert.deepEqual(citationTitles(mixedSalesAnswer), ["02_sales_guide.md"]);
+    assert.doesNotMatch(
+      mixedSalesAnswer.body.data.answer,
+      /monthly_price_vnd|VCP-STD|VCP-PRO|nghi phep|Finance Manager/i
     );
   });
 }
@@ -289,7 +322,10 @@ async function uploadDocument(
         clientFileId,
         fileName,
         mediaType,
-        content: new TextEncoder().encode(content)
+        content:
+          content instanceof Uint8Array
+            ? content
+            : new TextEncoder().encode(content)
       }
     ]
   );
@@ -424,7 +460,26 @@ function createRuntime() {
     agentLookup
   });
   const orchestrationUseCase = new AgentKnowledgeOrchestrationUseCase({
-    knowledgeRetrievalTool
+    knowledgeRetrievalTool,
+    diagnostics: {
+      async listAssignedDocuments(workspaceId, agentId) {
+        const documentIds = await accessPolicy.listAgentDocumentIds(
+          workspaceId,
+          agentId
+        );
+        const documents = await Promise.all(
+          documentIds.map((documentId) =>
+            documentRepository.getDocumentById(workspaceId, documentId)
+          )
+        );
+        return documents
+          .filter((document) => document && !document.deletedAt)
+          .map((document) => ({
+            documentId: document.documentId,
+            documentTitle: document.displayName || document.fileName
+          }));
+      }
+    }
   });
   const assignmentUseCase = new AgentKnowledgeAssignmentUseCase({
     accessGrantRepository,
@@ -436,6 +491,7 @@ function createRuntime() {
   });
 
   return {
+    accessPolicy,
     assignmentUseCase,
     documentRepository,
     embeddingCalls,
@@ -466,6 +522,19 @@ async function withTaskChatApi(runtime, callback) {
     next();
   });
   app.use(
+    createKnowledgeBaseRagRouter({
+      documentUseCases: {},
+      uploadUseCases: {},
+      ingestionUseCases: {},
+      dataSourceUseCases: {},
+      syncUseCases: {},
+      retrievalSearchUseCase: {},
+      ragAnswerUseCase: {},
+      agentKnowledgeAssignmentUseCase: runtime.assignmentUseCase,
+      accessPolicy: runtime.accessPolicy
+    })
+  );
+  app.use(
     "/api/workspaces/:workspaceId",
     createTaskOrchestrationRouter({
       orchestrator: {},
@@ -481,24 +550,75 @@ async function withTaskChatApi(runtime, callback) {
   await once(server, "listening");
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   try {
-    await callback(async (workspaceId, body) => {
-      const response = await fetch(
-        `${baseUrl}/api/workspaces/${workspaceId}/tasks/agent-knowledge/ask`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-test-workspace": workspaceId
-          },
-          body: JSON.stringify(body)
-        }
-      );
-      return { status: response.status, body: await response.json() };
+    await callback({
+      ask: (workspaceId, body) =>
+        requestJson(
+          baseUrl,
+          workspaceId,
+          "POST",
+          `/api/workspaces/${workspaceId}/tasks/agent-knowledge/ask`,
+          body
+        ),
+      debugAsk: (workspaceId, body) =>
+        requestDebugJson(baseUrl, workspaceId, body),
+      assign: (workspaceId, agentId, documentId) =>
+        requestJson(
+          baseUrl,
+          workspaceId,
+          "POST",
+          `/api/workspaces/${workspaceId}/knowledge/agents/${agentId}/documents/${documentId}`
+        ),
+      revoke: (workspaceId, agentId, documentId) =>
+        requestJson(
+          baseUrl,
+          workspaceId,
+          "DELETE",
+          `/api/workspaces/${workspaceId}/knowledge/agents/${agentId}/documents/${documentId}`
+        ),
+      listAssigned: (workspaceId, agentId) =>
+        requestJson(
+          baseUrl,
+          workspaceId,
+          "GET",
+          `/api/workspaces/${workspaceId}/knowledge/agents/${agentId}/documents`
+        )
     });
   } finally {
     server.close();
     await once(server, "close");
   }
+}
+
+async function requestDebugJson(baseUrl, workspaceId, body) {
+  const previousTrace = process.env.KB_RAG_TRACE;
+  process.env.KB_RAG_TRACE = "1";
+  try {
+    return await requestJson(
+      baseUrl,
+      workspaceId,
+      "POST",
+      `/api/workspaces/${workspaceId}/tasks/agent-knowledge/debug-ask`,
+      body
+    );
+  } finally {
+    if (previousTrace === undefined) {
+      delete process.env.KB_RAG_TRACE;
+    } else {
+      process.env.KB_RAG_TRACE = previousTrace;
+    }
+  }
+}
+
+async function requestJson(baseUrl, workspaceId, method, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-test-workspace": workspaceId
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) })
+  });
+  return { status: response.status, body: await response.json() };
 }
 
 function callCounts(runtime) {
@@ -510,6 +630,57 @@ function callCounts(runtime) {
 
 function citationTitles(response) {
   return response.body.data.citations.map((citation) => citation.documentTitle);
+}
+
+async function assignOnlyViaApi(api, agentId, documentIds) {
+  const current = await api.listAssigned("workspace-a", agentId);
+  assert.equal(current.status, 200);
+  for (const assignment of current.body.data) {
+    if (!documentIds.includes(assignment.document.documentId)) {
+      const revoked = await api.revoke(
+        "workspace-a",
+        agentId,
+        assignment.document.documentId
+      );
+      assert.equal(revoked.status, 200);
+      assert.equal(revoked.body.data.grantStatus, "revoked");
+    }
+  }
+
+  for (const documentId of documentIds) {
+    const assigned = await api.assign("workspace-a", agentId, documentId);
+    assert.equal(assigned.status, 200);
+    assert.equal(assigned.body.data.grantStatus, "active");
+    assert.equal(assigned.body.data.document.documentId, documentId);
+  }
+
+  const next = await api.listAssigned("workspace-a", agentId);
+  assert.equal(next.status, 200);
+  assert.deepEqual(
+    next.body.data.map((assignment) => assignment.document.documentId),
+    documentIds
+  );
+}
+
+function assertDebugTrace(response, assignedTitles, filteredTitles, citationTitles) {
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    response.body.data.assignedDocuments.map((document) => document.documentTitle),
+    assignedTitles
+  );
+  assert.deepEqual(
+    response.body.data.filteredEvidence.map((evidence) => evidence.documentTitle),
+    filteredTitles
+  );
+  assert.deepEqual(
+    response.body.data.citations.map((citation) => citation.documentTitle),
+    citationTitles
+  );
+  assert.ok(
+    response.body.data.answerability.every(
+      (item) => typeof item.reason === "string" && item.reason.length > 0
+    )
+  );
 }
 
 async function diagnosticMessage(runtime, agentId, message) {
@@ -557,6 +728,98 @@ function assertFallback(response) {
     warnings: ["insufficient_evidence"]
   });
   assertSafe(response.body);
+}
+
+function createDocx(paragraphs) {
+  const documentXml = [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
+    "<w:body>",
+    ...paragraphs.map(
+      (text) => `<w:p><w:r><w:t>${escapeXml(text)}</w:t></w:r></w:p>`
+    ),
+    "</w:body></w:document>"
+  ].join("");
+  return createZip([
+    {
+      name: "[Content_Types].xml",
+      data:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+        "</Types>"
+    },
+    {
+      name: "_rels/.rels",
+      data:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+        "</Relationships>"
+    },
+    { name: "word/document.xml", data: documentXml }
+  ]);
+}
+
+function createZip(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name);
+    const data = Buffer.from(entry.data);
+    const checksum = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    localParts.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+
+  const directory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, directory, end]);
+}
+
+function crc32(data) {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function escapeXml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function assertSafe(value) {

@@ -57,7 +57,10 @@ import { KnowledgeRetrievalSearchUseCase } from "./modules/knowledge-base-rag/ap
 import { KnowledgeRagAnswerUseCase } from "./modules/knowledge-base-rag/application/knowledge-rag-answer-use-case.ts";
 import { AgentKnowledgeAssignmentUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-assignment-use-case.ts";
 import { AgentKnowledgeRetrievalTool } from "./modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
-import { AgentKnowledgeOrchestrationUseCase } from "./modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
+import {
+  AgentKnowledgeOrchestrationUseCase,
+  KB_RAG_RELEVANCE_GATE_VERSION
+} from "./modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
 import { KnowledgeBaseRagAccessPolicy } from "./modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeSyncUseCases } from "./modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import {
@@ -211,6 +214,31 @@ function createKnowledgeRagAnswerUseCase(
     answerProvider,
     generateAnswerId: () => randomUUID()
   });
+}
+
+function createAgentKnowledgeDiagnostics(
+  accessPolicy: KnowledgeBaseRagAccessPolicy,
+  documentRepository: KnowledgeDocumentRepository
+) {
+  return {
+    async listAssignedDocuments(workspaceId: any, agentId: any) {
+      const documentIds = await accessPolicy.listAgentDocumentIds(
+        workspaceId,
+        agentId
+      );
+      const documents = await Promise.all(
+        documentIds.map((documentId: any) =>
+          documentRepository.getDocumentById(workspaceId, documentId)
+        )
+      );
+      return documents
+        .filter((document: any) => document && !document.deletedAt)
+        .map((document: any) => ({
+          documentId: document.documentId,
+          documentTitle: document.displayName || document.fileName
+        }));
+    }
+  };
 }
 
 class ServerAgentCatalog implements ExternalAgentCatalog {
@@ -980,12 +1008,22 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
             return Boolean(await repository.findById(workspaceId, agentId));
           }
         }
-      })
+      }),
+      diagnostics: createAgentKnowledgeDiagnostics(
+        knowledgeAccessPolicy,
+        knowledgeDocumentRepository
+      )
     }),
     accessPolicy: knowledgeAccessPolicy,
     googleDriveOAuthService,
     frontendBaseUrl: frontendUrl
   };
+
+  if (process.env.KB_RAG_TRACE === "1") {
+    console.info(
+      `[KB/RAG] KB_RAG_RELEVANCE_GATE_VERSION=${KB_RAG_RELEVANCE_GATE_VERSION}`
+    );
+  }
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
     const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
@@ -1245,6 +1283,13 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       agentKnowledgeAskPort: {
         ask(workspaceId, agentId, request) {
           return knowledgeBaseRagUseCases.agentKnowledgeOrchestrationUseCase.ask(
+            workspaceId,
+            agentId,
+            request
+          );
+        },
+        debugAsk(workspaceId, agentId, request) {
+          return knowledgeBaseRagUseCases.agentKnowledgeOrchestrationUseCase.debugAsk(
             workspaceId,
             agentId,
             request

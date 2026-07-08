@@ -13,6 +13,8 @@ import { CreateTaskError } from "../application/create-task-error.ts";
 import { TaskValidationError } from "../domain/task.ts";
 import { TaskRoutingValidationError } from "../domain/routing-validation.ts";
 
+const KB_RAG_RELEVANCE_GATE_VERSION = "clean-base-ui-align-v2";
+
 export type TaskOrchestrationRouterDependencies = {
   orchestrator: OpenClawExecutionOrchestrator;
   adapter: OpenClawTaskExecutionAdapter;
@@ -101,48 +103,8 @@ export function createTaskOrchestrationRouter(
   });
 
   router.post("/tasks/agent-knowledge/ask", async (request, response) => {
-    const context = getRequestContext(request) as any;
-    const workspaceId = request.params.workspaceId;
-    if (!context.user?.userId) {
-      response.status(401).json({
-        ok: false,
-        error: { code: "auth.unauthorized", message: "Authentication required." },
-        meta: createMeta(request)
-      });
-      return;
-    }
-    if (
-      !context.workspace?.workspaceId ||
-      context.workspace.workspaceId !== workspaceId
-    ) {
-      response.status(403).json({
-        ok: false,
-        error: {
-          code: "auth.forbidden",
-          message: "Workspace route does not match authenticated workspace context."
-        },
-        meta: createMeta(request)
-      });
-      return;
-    }
-
-    const agentId =
-      typeof request.body?.agentId === "string"
-        ? request.body.agentId.trim()
-        : "";
-    const message =
-      typeof request.body?.message === "string"
-        ? request.body.message.trim()
-        : "";
-    if (!agentId || !message) {
-      response.status(422).json({
-        ok: false,
-        error: {
-          code: "validation.invalid_input",
-          message: "Agent and message are required."
-        },
-        meta: createMeta(request)
-      });
+    const parsed = parseAgentKnowledgeAskRouteRequest(request, response);
+    if (!parsed) {
       return;
     }
     if (!dependencies.agentKnowledgeAskPort) {
@@ -158,13 +120,14 @@ export function createTaskOrchestrationRouter(
     }
 
     try {
+      logKbRagRouteMarker();
       const result = await dependencies.agentKnowledgeAskPort.ask(
-        workspaceId as any,
-        agentId as any,
+        parsed.workspaceId as any,
+        parsed.agentId as any,
         {
-          message,
-          topK: request.body?.topK,
-          filters: request.body?.filters
+          message: parsed.message,
+          topK: parsed.topK,
+          filters: parsed.filters
         }
       );
       response.status(200).json({
@@ -178,6 +141,63 @@ export function createTaskOrchestrationRouter(
         error: {
           code: "system.unavailable",
           message: "Unable to answer from assigned knowledge right now."
+        },
+        meta: createMeta(request)
+      });
+    }
+  });
+
+  router.post("/tasks/agent-knowledge/debug-ask", async (request, response) => {
+    if (process.env.KB_RAG_TRACE !== "1") {
+      response.status(404).json({
+        ok: false,
+        error: {
+          code: "system.not_found",
+          message: "Agent knowledge diagnostics are disabled."
+        },
+        meta: createMeta(request)
+      });
+      return;
+    }
+
+    const parsed = parseAgentKnowledgeAskRouteRequest(request, response);
+    if (!parsed) {
+      return;
+    }
+    if (!dependencies.agentKnowledgeAskPort?.debugAsk) {
+      response.status(503).json({
+        ok: false,
+        error: {
+          code: "system.unavailable",
+          message: "Assigned knowledge diagnostics are unavailable."
+        },
+        meta: createMeta(request)
+      });
+      return;
+    }
+
+    try {
+      logKbRagRouteMarker();
+      const result = await dependencies.agentKnowledgeAskPort.debugAsk(
+        parsed.workspaceId as any,
+        parsed.agentId as any,
+        {
+          message: parsed.message,
+          topK: parsed.topK,
+          filters: parsed.filters
+        }
+      );
+      response.status(200).json({
+        ok: true,
+        data: result,
+        meta: createMeta(request)
+      });
+    } catch {
+      response.status(503).json({
+        ok: false,
+        error: {
+          code: "system.unavailable",
+          message: "Unable to inspect assigned knowledge right now."
         },
         meta: createMeta(request)
       });
@@ -435,4 +455,78 @@ function createMeta(request: Request): { requestId: string; timestamp: string } 
     requestId: request.header("x-request-id") || "task-orchestration-request",
     timestamp: new Date().toISOString()
   };
+}
+
+function parseAgentKnowledgeAskRouteRequest(
+  request: Request,
+  response: Response
+):
+  | {
+      workspaceId: string;
+      agentId: string;
+      message: string;
+      topK: unknown;
+      filters: unknown;
+    }
+  | null {
+  const context = getRequestContext(request) as any;
+  const workspaceId = request.params.workspaceId;
+  if (!context.user?.userId) {
+    response.status(401).json({
+      ok: false,
+      error: { code: "auth.unauthorized", message: "Authentication required." },
+      meta: createMeta(request)
+    });
+    return null;
+  }
+  if (
+    !context.workspace?.workspaceId ||
+    context.workspace.workspaceId !== workspaceId
+  ) {
+    response.status(403).json({
+      ok: false,
+      error: {
+        code: "auth.forbidden",
+        message: "Workspace route does not match authenticated workspace context."
+      },
+      meta: createMeta(request)
+    });
+    return null;
+  }
+
+  const agentId =
+    typeof request.body?.agentId === "string"
+      ? request.body.agentId.trim()
+      : "";
+  const message =
+    typeof request.body?.message === "string"
+      ? request.body.message.trim()
+      : "";
+  if (!agentId || !message) {
+    response.status(422).json({
+      ok: false,
+      error: {
+        code: "validation.invalid_input",
+        message: "Agent and message are required."
+      },
+      meta: createMeta(request)
+    });
+    return null;
+  }
+
+  return {
+    workspaceId,
+    agentId,
+    message,
+    topK: request.body?.topK,
+    filters: request.body?.filters
+  };
+}
+
+function logKbRagRouteMarker(): void {
+  if (process.env.KB_RAG_TRACE === "1") {
+    console.info(
+      `[KB/RAG] KB_RAG_RELEVANCE_GATE_VERSION=${KB_RAG_RELEVANCE_GATE_VERSION}`
+    );
+  }
 }

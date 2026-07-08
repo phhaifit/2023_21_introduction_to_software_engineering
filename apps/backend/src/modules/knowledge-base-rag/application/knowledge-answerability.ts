@@ -70,12 +70,42 @@ export type KnowledgeAnswerabilityInput = {
   minScore?: number;
 };
 
+export type KnowledgeAnswerabilityExplanation = {
+  answerable: boolean;
+  reason: string;
+  minScore: number;
+  score: number;
+  questionTerms: string[];
+  overlapTerms: string[];
+  overlapCount: number;
+  overlapRatio: number;
+};
+
 export function isKnowledgeEvidenceAnswerable(
   input: KnowledgeAnswerabilityInput
 ): boolean {
+  return explainKnowledgeEvidenceAnswerability(input).answerable;
+}
+
+export function explainKnowledgeEvidenceAnswerability(
+  input: KnowledgeAnswerabilityInput
+): KnowledgeAnswerabilityExplanation {
   const minScore = input.minScore ?? DEFAULT_KNOWLEDGE_ANSWERABILITY_MIN_SCORE;
+  const score = Number.isFinite(input.score) ? input.score : Number.NaN;
+  const base = {
+    minScore,
+    score,
+    questionTerms: [] as string[],
+    overlapTerms: [] as string[],
+    overlapCount: 0,
+    overlapRatio: 0
+  };
   if (!Number.isFinite(input.score) || input.score < minScore) {
-    return false;
+    return {
+      ...base,
+      answerable: false,
+      reason: "score_below_threshold"
+    };
   }
 
   const questionTerms = meaningfulTerms(input.query);
@@ -83,19 +113,48 @@ export function isKnowledgeEvidenceAnswerable(
     meaningfulTerms(`${input.evidenceTitle ?? ""} ${input.evidenceText}`)
   );
   if (questionTerms.length === 0 || evidenceTerms.size === 0) {
-    return false;
+    return {
+      ...base,
+      questionTerms: [...new Set(questionTerms)],
+      answerable: false,
+      reason: "missing_meaningful_terms"
+    };
   }
 
   const uniqueQuestionTerms = [...new Set(questionTerms)];
-  const overlapCount = uniqueQuestionTerms.filter((term) =>
+  const overlapTerms = uniqueQuestionTerms.filter((term) =>
     evidenceTerms.has(term)
-  ).length;
+  );
+  const overlapCount = overlapTerms.length;
   const overlapRatio = overlapCount / uniqueQuestionTerms.length;
+  const explanation = {
+    minScore,
+    score: input.score,
+    questionTerms: uniqueQuestionTerms,
+    overlapTerms,
+    overlapCount,
+    overlapRatio
+  };
 
   if (overlapCount >= 2 && overlapRatio >= 0.3) {
-    return true;
+    return {
+      ...explanation,
+      answerable: true,
+      reason: "meaningful_overlap"
+    };
   }
-  return overlapCount >= 1 && uniqueQuestionTerms.length <= 3 && input.score >= 0.75;
+  if (overlapCount >= 1 && uniqueQuestionTerms.length <= 3 && input.score >= 0.75) {
+    return {
+      ...explanation,
+      answerable: true,
+      reason: "short_query_overlap"
+    };
+  }
+  return {
+    ...explanation,
+    answerable: false,
+    reason: "insufficient_meaningful_overlap"
+  };
 }
 
 export function selectMostRelevantEvidenceSentence(

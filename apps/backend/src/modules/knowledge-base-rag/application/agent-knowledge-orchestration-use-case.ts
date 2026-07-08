@@ -5,7 +5,8 @@ import type {
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import {
   DEFAULT_KNOWLEDGE_ANSWERABILITY_MIN_SCORE,
-  isKnowledgeEvidenceAnswerable,
+  explainKnowledgeEvidenceAnswerability,
+  type KnowledgeAnswerabilityExplanation,
   selectMostRelevantEvidenceSentence
 } from "./knowledge-answerability.ts";
 import type {
@@ -15,9 +16,56 @@ import type {
 
 export const AGENT_KNOWLEDGE_INSUFFICIENT_EVIDENCE_ANSWER =
   "I could not find enough information in this agent's assigned knowledge documents to answer reliably.";
+export const KB_RAG_RELEVANCE_GATE_VERSION = "clean-base-ui-align-v2";
 export const MAX_AGENT_ORCHESTRATION_ANSWER_LENGTH = 1_200;
 export const MIN_AGENT_KNOWLEDGE_EVIDENCE_SCORE =
   DEFAULT_KNOWLEDGE_ANSWERABILITY_MIN_SCORE;
+
+export type AgentKnowledgeAssignedDocumentSummary = {
+  documentId: EntityId<"documentId">;
+  documentTitle: string;
+};
+
+export type AgentKnowledgeAskDebugResult = {
+  version: typeof KB_RAG_RELEVANCE_GATE_VERSION;
+  workspaceId: EntityId<"workspaceId">;
+  agentId: EntityId<"agentId">;
+  query: string;
+  assignedDocuments: AgentKnowledgeAssignedDocumentSummary[];
+  retrievalStatus: "found" | "empty" | "unauthorized" | "invalid_request" | "error";
+  retrievedEvidence: Array<{
+    citationId: string;
+    documentId: EntityId<"documentId">;
+    documentTitle: string;
+    score: number;
+    sourceType: string;
+    snippetPreview: string;
+  }>;
+  answerability: Array<{
+    citationId: string;
+    documentId: EntityId<"documentId">;
+    documentTitle: string;
+    answerable: boolean;
+    reason: string;
+    score: number;
+    minScore: number;
+    overlapTerms: string[];
+    overlapCount: number;
+    overlapRatio: number;
+  }>;
+  filteredEvidence: Array<{
+    citationId: string;
+    documentId: EntityId<"documentId">;
+    documentTitle: string;
+    score: number;
+    snippetPreview: string;
+  }>;
+  finalAnswer: Pick<AgentKnowledgeAskResponse, "status" | "answer" | "warnings">;
+  citations: Array<{
+    documentId: EntityId<"documentId">;
+    documentTitle: string;
+  }>;
+};
 
 export type AgentGroundedResponseComposer = {
   compose(input: {
@@ -29,6 +77,12 @@ export type AgentGroundedResponseComposer = {
 export type AgentKnowledgeOrchestrationDependencies = {
   knowledgeRetrievalTool: Pick<AgentKnowledgeRetrievalTool, "execute">;
   responseComposer?: AgentGroundedResponseComposer;
+  diagnostics?: {
+    listAssignedDocuments(
+      workspaceId: EntityId<"workspaceId">,
+      agentId: EntityId<"agentId">
+    ): Promise<AgentKnowledgeAssignedDocumentSummary[]>;
+  };
 };
 
 export class AgentKnowledgeOrchestrationUseCase {
@@ -43,6 +97,30 @@ export class AgentKnowledgeOrchestrationUseCase {
     agentId: EntityId<"agentId">,
     request: AgentKnowledgeAskRequest
   ): Promise<AgentKnowledgeAskResponse> {
+    const result = await this.askWithDebug(workspaceId, agentId, request);
+    if (isKbRagTraceEnabled()) {
+      logKbRagTrace(result.debug);
+    }
+    return result.response;
+  }
+
+  async debugAsk(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    request: AgentKnowledgeAskRequest
+  ): Promise<AgentKnowledgeAskDebugResult> {
+    return (await this.askWithDebug(workspaceId, agentId, request)).debug;
+  }
+
+  private async askWithDebug(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">,
+    request: AgentKnowledgeAskRequest
+  ): Promise<{
+    response: AgentKnowledgeAskResponse;
+    debug: AgentKnowledgeAskDebugResult;
+  }> {
+    const assignedDocuments = await this.listAssignedDocuments(workspaceId, agentId);
     const retrieval = await this.dependencies.knowledgeRetrievalTool.execute({
       workspaceId,
       agentId,
@@ -52,7 +130,7 @@ export class AgentKnowledgeOrchestrationUseCase {
     });
 
     if (retrieval.status !== "found") {
-      return {
+      const response = {
         status:
           retrieval.status === "empty"
             ? "insufficient_evidence"
@@ -67,19 +145,49 @@ export class AgentKnowledgeOrchestrationUseCase {
             ? ["insufficient_evidence"]
             : retrieval.warnings
       };
+      return {
+        response,
+        debug: createDebugResult({
+          workspaceId,
+          agentId,
+          query: request.message,
+          assignedDocuments,
+          retrieval,
+          answerability: [],
+          relevantEvidence: [],
+          response
+        })
+      };
     }
 
-    const relevantEvidence = retrieval.evidence.filter((item) =>
-      isKnowledgeEvidenceAnswerable({
+    const answerability = retrieval.evidence.map((item) => ({
+      item,
+      explanation: explainKnowledgeEvidenceAnswerability({
         query: request.message,
         evidenceTitle: item.documentTitle,
         evidenceText: item.snippet,
         score: item.score,
         minScore: MIN_AGENT_KNOWLEDGE_EVIDENCE_SCORE
       })
-    );
+    }));
+    const relevantEvidence = answerability
+      .filter(({ explanation }) => explanation.answerable)
+      .map(({ item }) => item);
     if (relevantEvidence.length === 0) {
-      return insufficientEvidenceResponse();
+      const response = insufficientEvidenceResponse();
+      return {
+        response,
+        debug: createDebugResult({
+          workspaceId,
+          agentId,
+          query: request.message,
+          assignedDocuments,
+          retrieval,
+          answerability,
+          relevantEvidence,
+          response
+        })
+      };
     }
 
     try {
@@ -93,10 +201,23 @@ export class AgentKnowledgeOrchestrationUseCase {
         })
       );
       if (!answer) {
-        return insufficientEvidenceResponse();
+        const response = insufficientEvidenceResponse();
+        return {
+          response,
+          debug: createDebugResult({
+            workspaceId,
+            agentId,
+            query: request.message,
+            assignedDocuments,
+            retrieval,
+            answerability,
+            relevantEvidence,
+            response
+          })
+        };
       }
 
-      return {
+      const response = {
         status: "answered",
         answer,
         citations: relevantEvidence.map((item) => ({
@@ -111,8 +232,51 @@ export class AgentKnowledgeOrchestrationUseCase {
         })),
         warnings: retrieval.warnings
       };
+      return {
+        response,
+        debug: createDebugResult({
+          workspaceId,
+          agentId,
+          query: request.message,
+          assignedDocuments,
+          retrieval,
+          answerability,
+          relevantEvidence,
+          response
+        })
+      };
     } catch {
-      return safeError();
+      const response = safeError();
+      return {
+        response,
+        debug: createDebugResult({
+          workspaceId,
+          agentId,
+          query: request.message,
+          assignedDocuments,
+          retrieval,
+          answerability,
+          relevantEvidence,
+          response
+        })
+      };
+    }
+  }
+
+  private async listAssignedDocuments(
+    workspaceId: EntityId<"workspaceId">,
+    agentId: EntityId<"agentId">
+  ): Promise<AgentKnowledgeAssignedDocumentSummary[]> {
+    if (!this.dependencies.diagnostics) {
+      return [];
+    }
+    try {
+      return await this.dependencies.diagnostics.listAssignedDocuments(
+        workspaceId,
+        agentId
+      );
+    } catch {
+      return [];
     }
   }
 }
@@ -159,4 +323,75 @@ function insufficientEvidenceResponse(): AgentKnowledgeAskResponse {
     citations: [],
     warnings: ["insufficient_evidence"]
   };
+}
+
+function createDebugResult(input: {
+  workspaceId: EntityId<"workspaceId">;
+  agentId: EntityId<"agentId">;
+  query: string;
+  assignedDocuments: AgentKnowledgeAssignedDocumentSummary[];
+  retrieval: Awaited<ReturnType<AgentKnowledgeRetrievalTool["execute"]>>;
+  answerability: Array<{
+    item: AgentKnowledgeRetrievalToolEvidence;
+    explanation: KnowledgeAnswerabilityExplanation;
+  }>;
+  relevantEvidence: readonly AgentKnowledgeRetrievalToolEvidence[];
+  response: AgentKnowledgeAskResponse;
+}): AgentKnowledgeAskDebugResult {
+  return {
+    version: KB_RAG_RELEVANCE_GATE_VERSION,
+    workspaceId: input.workspaceId,
+    agentId: input.agentId,
+    query: input.query,
+    assignedDocuments: input.assignedDocuments,
+    retrievalStatus: input.retrieval.status,
+    retrievedEvidence: input.retrieval.evidence.map((item) => ({
+      citationId: item.citationId,
+      documentId: item.documentId,
+      documentTitle: item.documentTitle,
+      score: item.score,
+      sourceType: item.sourceType,
+      snippetPreview: previewSnippet(item.snippet)
+    })),
+    answerability: input.answerability.map(({ item, explanation }) => ({
+      citationId: item.citationId,
+      documentId: item.documentId,
+      documentTitle: item.documentTitle,
+      answerable: explanation.answerable,
+      reason: explanation.reason,
+      score: explanation.score,
+      minScore: explanation.minScore,
+      overlapTerms: explanation.overlapTerms,
+      overlapCount: explanation.overlapCount,
+      overlapRatio: Number(explanation.overlapRatio.toFixed(3))
+    })),
+    filteredEvidence: input.relevantEvidence.map((item) => ({
+      citationId: item.citationId,
+      documentId: item.documentId,
+      documentTitle: item.documentTitle,
+      score: item.score,
+      snippetPreview: previewSnippet(item.snippet)
+    })),
+    finalAnswer: {
+      status: input.response.status,
+      answer: input.response.answer,
+      warnings: input.response.warnings
+    },
+    citations: input.response.citations.map((citation) => ({
+      documentId: citation.documentId,
+      documentTitle: citation.documentTitle
+    }))
+  };
+}
+
+function previewSnippet(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+function isKbRagTraceEnabled(): boolean {
+  return process.env.KB_RAG_TRACE === "1";
+}
+
+function logKbRagTrace(debug: AgentKnowledgeAskDebugResult): void {
+  console.info("[KB/RAG trace]", JSON.stringify(debug));
 }
