@@ -1,0 +1,4 @@
+product_code,product_name,category,monthly_price_vnd,warranty_months,note
+VCP-STD,Virtual Company Standard,Subscription,990000,0,Goi tieu chuan cho nhom nho
+VCP-PRO,Virtual Company Pro,Subscription,2490000,0,Goi nang cao cho team can nhieu agent
+AGENT-ADDON,Additional Agent Add-on,Add-on,300000,0,Them mot agent hoat dong trong workspace

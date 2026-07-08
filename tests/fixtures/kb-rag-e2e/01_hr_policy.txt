@@ -1,0 +1,5 @@
+Chinh sach nhan su noi bo - Workspace Demo.
+
+Nhan vien duoc nghi phep nam toi da 12 ngay lam viec moi nam.
+Neu muon nghi phep, nhan vien phai gui yeu cau truoc it nhat 3 ngay lam viec.
+Tu khoa kiem thu: HR-POLICY-ALPHA.
