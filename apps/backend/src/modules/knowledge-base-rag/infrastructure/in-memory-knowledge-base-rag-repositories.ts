@@ -111,6 +111,17 @@ export class InMemoryKnowledgeDocumentRepository
     this.chunks.set(chunk.chunkId, copyChunk(chunk));
     return copyChunk(chunk);
   }
+
+  async deleteDocumentChunks(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<void> {
+    for (const [chunkId, chunk] of this.chunks) {
+      if (chunk.workspaceId === workspaceId && chunk.documentId === documentId) {
+        this.chunks.delete(chunkId);
+      }
+    }
+  }
 }
 
 export class InMemoryKnowledgeAccessGrantRepository
@@ -238,14 +249,27 @@ export class InMemoryKnowledgeDataSourceRepository
 {
   private readonly dataSources = new Map<string, KnowledgeDataSource>();
 
+  async listAllDataSources(
+    filters: KnowledgeDataSourceListFilters = {}
+  ): Promise<KnowledgeDataSource[]> {
+    return this.filterDataSources([...this.dataSources.values()], filters);
+  }
+
   async listDataSources(
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeDataSourceListFilters = {}
   ): Promise<KnowledgeDataSource[]> {
-    let items = [...this.dataSources.values()].filter(
+    const items = [...this.dataSources.values()].filter(
       (source) => source.workspaceId === workspaceId
     );
+    return this.filterDataSources(items, filters);
+  }
 
+  private filterDataSources(
+    sources: KnowledgeDataSource[],
+    filters: KnowledgeDataSourceListFilters
+  ): KnowledgeDataSource[] {
+    let items = sources;
     if (filters.provider) {
       items = items.filter((source) => source.provider === filters.provider);
     }
@@ -300,6 +324,17 @@ export class InMemoryKnowledgeSyncScopeRepository
     nodes: readonly KnowledgeSyncScopeNode[]
   ): Promise<KnowledgeSyncScopeNode[]> {
     const saved = nodes.map((node) => ({ ...node, workspaceId }));
+    const sourceIds = new Set(saved.map((node) => node.sourceId));
+    const retainedIds = new Set(saved.map((node) => node.scopeNodeId));
+    for (const [scopeNodeId, node] of this.nodes) {
+      if (
+        node.workspaceId === workspaceId &&
+        sourceIds.has(node.sourceId) &&
+        !retainedIds.has(scopeNodeId)
+      ) {
+        this.nodes.delete(scopeNodeId);
+      }
+    }
 
     for (const node of saved) {
       this.nodes.set(node.scopeNodeId, copySyncScopeNode(node));
@@ -348,6 +383,18 @@ export class InMemoryKnowledgeSyncJobRepository
   ): Promise<KnowledgeSyncJob | null> {
     const job = this.jobs.get(jobId);
     return job && job.workspaceId === workspaceId ? copySyncJob(job) : null;
+  }
+
+  async createSyncJobIfNoActiveSource(
+    job: KnowledgeSyncJob
+  ): Promise<KnowledgeSyncJob | null> {
+    const active = [...this.jobs.values()].some(
+      (candidate) =>
+        candidate.sourceId === job.sourceId &&
+        (candidate.status === "pending" || candidate.status === "syncing")
+    );
+    if (active) return null;
+    return this.saveSyncJob(job);
   }
 
   async saveSyncJob(job: KnowledgeSyncJob) {

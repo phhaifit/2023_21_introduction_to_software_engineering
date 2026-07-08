@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import express, { type Express } from "express";
@@ -49,6 +50,7 @@ import { PrismaUserRepository } from "./modules/authentication/infrastructure/pr
 import { PrismaSessionRepository } from "./modules/authentication/infrastructure/prisma-session-repository.ts";
 import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
 import { Sha256TokenHasher } from "./modules/authentication/infrastructure/sha256-token-hasher.ts";
+import { createUser } from "./modules/authentication/domain/user.ts";
 import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/knowledge-base-rag-router.ts";
 import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/application/knowledge-data-source-use-cases.ts";
 import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
@@ -87,7 +89,29 @@ import {
   PrismaKnowledgeSyncJobRepository,
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
+import {
+  createWorkspaceUserManagementRouter,
+  createAcceptInvitationRouter,
+  WorkspaceUserManagementService,
+  InMemoryWorkspaceUserManagementRepository,
+  createWorkspaceContextMiddleware
+} from "./modules/workspace-user-management/index.ts";
+import { NodemailerEmailService } from "./shared/email/email-service.ts";
+import { loadBackendEnvironment } from "./shared/config/backend-environment.ts";
 import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
+import {
+  GoogleDriveOAuthService,
+  GoogleDriveOAuthStateStore
+} from "./modules/knowledge-base-rag/application/google-drive-oauth-service.ts";
+import { GoogleDriveSyncRuntime } from "./modules/knowledge-base-rag/application/google-drive-sync-runtime.ts";
+import { GoogleDriveAutoSyncScheduler } from "./modules/knowledge-base-rag/application/google-drive-auto-sync-scheduler.ts";
+import { EncryptedFileGoogleDriveCredentialStore } from "./modules/knowledge-base-rag/infrastructure/encrypted-google-drive-credential-store.ts";
+import { GoogleDriveApiProvider } from "./modules/knowledge-base-rag/infrastructure/google-drive-api-provider.ts";
+import { LocalKnowledgeRuntimeQueue } from "./modules/knowledge-base-rag/infrastructure/local-knowledge-runtime-queue.ts";
+import {
+  PermanentKnowledgeRuntimeError,
+  PrismaKnowledgeRuntimeQueue
+} from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-runtime-queue.ts";
 
 // New imports for Task Orchestration & OpenClaw network transport
 import { createTaskOrchestrationRouter } from "./modules/task-orchestration/api/task-orchestration-router.ts";
@@ -599,6 +623,8 @@ function createOpenClawAgentArtifactMirror(): OpenClawAgentArtifactMirror {
 }
 
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
+  loadBackendEnvironment();
+
   const repository = await createRepository();
   const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
@@ -624,7 +650,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateAgentId: () => randomUUID()
   });
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5173";
+  const frontendUrl =
+    process.env.APP_FRONTEND_BASE_URL ||
+    process.env.FRONTEND_URL ||
+    "http://127.0.0.1:5173";
 
   const prisma = await getPrismaClient();
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
@@ -677,8 +706,40 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const knowledgeFileStorage = new LocalKnowledgeFileStorage();
   const inlineIngestionEnabled =
     process.env.KNOWLEDGE_INGESTION_MODE?.trim().toLowerCase() === "inline";
+  const googleClientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+  const googleRedirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI;
+  const googleDriveOAuthScopeMode =
+    process.env.GOOGLE_DRIVE_OAUTH_SCOPE_MODE?.trim().toLowerCase() ===
+    "readonly"
+      ? "readonly"
+      : "file";
+  const credentialEncryptionKey =
+    process.env.GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY;
+  const googleDriveConfigured = Boolean(
+    googleClientId &&
+      googleClientSecret &&
+      googleRedirectUri &&
+      credentialEncryptionKey
+  );
+  const knowledgeQueueMode =
+    process.env.KNOWLEDGE_QUEUE_MODE?.trim().toLowerCase() === "durable"
+      ? "durable"
+      : "process_local";
   let postUploadProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
-  if (inlineIngestionEnabled) {
+  let fullIngestionProcessor: KnowledgeUploadUseCaseDependencies["postUploadProcessor"];
+  let enqueueIngestionJob:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  let googleDriveSyncHandler:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  let durableQueue: PrismaKnowledgeRuntimeQueue | undefined;
+  if (
+    inlineIngestionEnabled ||
+    (prisma && googleDriveConfigured) ||
+    (prisma && knowledgeQueueMode === "durable")
+  ) {
     if (!prisma) {
       throw new Error(
         "KNOWLEDGE_INGESTION_MODE=inline requires DATABASE_URL and PostgreSQL."
@@ -701,26 +762,207 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         `${documentId}:chunk:${chunkIndex}`,
       generateEventId: () => randomUUID() as any
     });
-    postUploadProcessor = {
+    fullIngestionProcessor = {
       async process(input) {
         const result = await inlineRunner.run(input);
         return { document: result.document, job: result.job };
       }
     };
+    if (inlineIngestionEnabled) postUploadProcessor = fullIngestionProcessor;
+    if (knowledgeQueueMode === "durable" && prisma) {
+      const leaseMs = positiveIntegerEnvironment(
+        process.env.KNOWLEDGE_QUEUE_LEASE_MS,
+        300_000
+      );
+      const maxAttempts = positiveIntegerEnvironment(
+        process.env.KNOWLEDGE_QUEUE_MAX_ATTEMPTS,
+        3
+      );
+      const pollIntervalMs = positiveIntegerEnvironment(
+        process.env.KNOWLEDGE_QUEUE_POLL_INTERVAL_MS,
+        5_000
+      );
+      durableQueue = new PrismaKnowledgeRuntimeQueue({
+        prisma,
+        leaseOwner: `knowledge-worker-${process.pid}-${randomUUID()}`,
+        leaseMs,
+        maxAttempts,
+        pollIntervalMs,
+        handlers: {
+          googleDriveSync: async (job) => {
+            if (!googleDriveSyncHandler) {
+              throw new PermanentKnowledgeRuntimeError(
+                "knowledge.google_drive_handler_unavailable",
+                "Google Drive synchronization runtime is unavailable."
+              );
+            }
+            await googleDriveSyncHandler(job);
+          },
+          documentIngestion: async (job) => {
+            const result = await inlineRunner.run(job);
+            if (result.phase !== "completed") {
+              throw new PermanentKnowledgeRuntimeError(
+                result.failure?.errorCode ?? "knowledge.ingestion_failed",
+                result.failure?.errorMessage ??
+                  "Knowledge document ingestion failed."
+              );
+            }
+          }
+        }
+      });
+      enqueueIngestionJob = (input) =>
+        durableQueue!.enqueue({ kind: "document-ingestion", ...input });
+      postUploadProcessor = {
+        async process(input) {
+          await enqueueIngestionJob!(input);
+          const job =
+            await knowledgeIngestionJobRepository.getIngestionJobById(
+              input.workspaceId,
+              input.jobId
+            );
+          const document = job?.documentId
+            ? await knowledgeDocumentRepository.getDocumentById(
+                input.workspaceId,
+                job.documentId
+              )
+            : null;
+          if (!job || !document) {
+            throw new Error("Queued knowledge ingestion state is unavailable.");
+          }
+          return { document, job };
+        }
+      };
+    }
+  }
+  const uploadUseCases = new KnowledgeUploadUseCases({
+    documentRepository: knowledgeDocumentRepository,
+    ingestionJobRepository: knowledgeIngestionJobRepository,
+    fileStorage: knowledgeFileStorage,
+    postUploadProcessor,
+    now: () => new Date().toISOString(),
+    generateDocumentId: () => randomUUID() as any,
+    generateJobId: () => randomUUID() as any
+  });
+  let googleDriveOAuthService: GoogleDriveOAuthService | undefined;
+  let googleDriveProvider: GoogleDriveApiProvider | undefined;
+  let enqueueSyncJob:
+    | ((input: { workspaceId: any; jobId: any }) => Promise<void>)
+    | undefined;
+  if (
+    googleClientId &&
+    googleClientSecret &&
+    googleRedirectUri &&
+    credentialEncryptionKey &&
+    fullIngestionProcessor
+  ) {
+    const credentialStore = new EncryptedFileGoogleDriveCredentialStore({
+      rootDirectory: resolve(".data/knowledge-base-rag/google-drive-credentials"),
+      encryptionSecret: credentialEncryptionKey
+    });
+    googleDriveOAuthService = new GoogleDriveOAuthService({
+      config: {
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        redirectUri: googleRedirectUri,
+        scopeMode: googleDriveOAuthScopeMode
+      },
+      dataSourceRepository: knowledgeDataSourceRepository,
+      credentialStore,
+      stateStore: new GoogleDriveOAuthStateStore(),
+      now: () => new Date().toISOString(),
+      generateSourceId: () => `google-drive-${randomUUID()}`
+    });
+    googleDriveProvider = new GoogleDriveApiProvider();
+    const syncUploadUseCases = new KnowledgeUploadUseCases({
+      documentRepository: knowledgeDocumentRepository,
+      ingestionJobRepository: knowledgeIngestionJobRepository,
+      fileStorage: knowledgeFileStorage,
+      postUploadProcessor: fullIngestionProcessor,
+      now: () => new Date().toISOString(),
+      generateDocumentId: () => randomUUID() as any,
+      generateJobId: () => randomUUID() as any
+    });
+    const syncRuntime = new GoogleDriveSyncRuntime({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      syncScopeRepository: knowledgeSyncScopeRepository,
+      syncJobRepository: knowledgeSyncJobRepository,
+      documentRepository: knowledgeDocumentRepository,
+      uploadUseCases: syncUploadUseCases,
+      oauthService: googleDriveOAuthService,
+      provider: googleDriveProvider,
+      now: () => new Date().toISOString(),
+      generateEventId: () => randomUUID()
+    });
+    googleDriveSyncHandler = async (job) => {
+      await syncRuntime.execute(job);
+      const completed =
+        await knowledgeSyncJobRepository.getSyncJobById(
+          job.workspaceId,
+          job.jobId
+        );
+      if (completed?.status === "failed") {
+        const permanentCodes = [
+          "credential_invalid",
+          "permission_denied",
+          "insufficient_scope",
+          "not_found",
+          "unsupported_file"
+        ];
+        const errorCode = completed.errorCode ?? "google_drive.sync_failed";
+        if (permanentCodes.some((code) => errorCode.includes(code))) {
+          throw new PermanentKnowledgeRuntimeError(
+            errorCode,
+            completed.errorMessage ?? "Google Drive synchronization failed."
+          );
+        }
+        throw new Error("Transient Google Drive synchronization failure.");
+      }
+    };
+    if (durableQueue) {
+      enqueueSyncJob = (input) =>
+        durableQueue!.enqueue({ kind: "google-drive-sync", ...input });
+    } else {
+      const queue = new LocalKnowledgeRuntimeQueue({
+        googleDriveSync: (job) => syncRuntime.execute(job)
+      });
+      enqueueSyncJob = (input) =>
+        queue.enqueue({ kind: "google-drive-sync", ...input });
+    }
+  }
+  durableQueue?.start();
+  const knowledgeSyncUseCases = new KnowledgeSyncUseCases({
+    syncScopeRepository: knowledgeSyncScopeRepository,
+    syncJobRepository: knowledgeSyncJobRepository,
+    dataSourceRepository: knowledgeDataSourceRepository,
+    googleDriveOAuthService,
+    googleDriveProvider,
+    now: () => new Date().toISOString(),
+    generateJobId: () => randomUUID() as any,
+    enqueueSyncJob
+  });
+  if (
+    process.env.KNOWLEDGE_AUTO_SYNC_ENABLED?.trim().toLowerCase() === "true" &&
+    enqueueSyncJob
+  ) {
+    const configuredPollInterval = Number(
+      process.env.KNOWLEDGE_AUTO_SYNC_POLL_INTERVAL_MS ?? "60000"
+    );
+    const scheduler = new GoogleDriveAutoSyncScheduler({
+      dataSourceRepository: knowledgeDataSourceRepository,
+      syncUseCases: knowledgeSyncUseCases,
+      now: () => new Date().toISOString(),
+      pollIntervalMs:
+        Number.isFinite(configuredPollInterval) && configuredPollInterval > 0
+          ? configuredPollInterval
+          : 60_000
+    });
+    scheduler.start();
   }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
       documentRepository: knowledgeDocumentRepository
     }),
-    uploadUseCases: new KnowledgeUploadUseCases({
-      documentRepository: knowledgeDocumentRepository,
-      ingestionJobRepository: knowledgeIngestionJobRepository,
-      fileStorage: knowledgeFileStorage,
-      postUploadProcessor,
-      now: () => new Date().toISOString(),
-      generateDocumentId: () => randomUUID() as any,
-      generateJobId: () => randomUUID() as any
-    }),
+    uploadUseCases,
     ingestionUseCases: new KnowledgeIngestionUseCases({
       ingestionJobRepository: knowledgeIngestionJobRepository
     }),
@@ -728,12 +970,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       dataSourceRepository: knowledgeDataSourceRepository,
       now: () => new Date().toISOString()
     }),
-    syncUseCases: new KnowledgeSyncUseCases({
-      syncScopeRepository: knowledgeSyncScopeRepository,
-      syncJobRepository: knowledgeSyncJobRepository,
-      now: () => new Date().toISOString(),
-      generateJobId: () => randomUUID() as any
-    }),
+    syncUseCases: knowledgeSyncUseCases,
     retrievalSearchUseCase,
     ragAnswerUseCase: createKnowledgeRagAnswerUseCase(retrievalSearchUseCase),
     agentKnowledgeAssignmentUseCase: new AgentKnowledgeAssignmentUseCase({
@@ -758,7 +995,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
         }
       })
     }),
-    accessPolicy: knowledgeAccessPolicy
+    accessPolicy: knowledgeAccessPolicy,
+    googleDriveOAuthService,
+    frontendBaseUrl: frontendUrl
   };
   
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
@@ -784,10 +1023,86 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     });
   }
 
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
+
+  const workspaceUserManagementRepo = new InMemoryWorkspaceUserManagementRepository();
+  const emailService = new NodemailerEmailService();
+  const localEmailUserEmail = process.env.GMAIL_USER?.trim().toLowerCase();
+  const workspaceUserManagementService = new WorkspaceUserManagementService({
+    repository: workspaceUserManagementRepo,
+    emailService: emailService,
+    frontendUrl: frontendUrl,
+    generateId: () => randomUUID(),
+    sessionRepository: authSessionRepository,
+  });
+  await workspaceUserManagementRepo.createWorkspace({
+    workspaceId: DEMO_WORKSPACE_ID,
+    name: "Demo Workspace",
+    createdAt: new Date().toISOString(),
+    ownerId: "local-dev-user"
+  });
+  await workspaceUserManagementRepo.addWorkspaceMember({
+    memberId: "local-member",
+    workspaceId: DEMO_WORKSPACE_ID,
+    userId: "local-dev-user",
+    role: "host",
+    isAccepted: true,
+    joinedAt: new Date().toISOString()
+  });
+  if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
+    await workspaceUserManagementRepo.addWorkspaceMember({
+      memberId: "local-email-member",
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-email-user",
+      role: "admin",
+      isAccepted: true,
+      joinedAt: new Date().toISOString()
+    });
+  }
+
+  // Real Authentication Setup (Moved up to enable session token verification globally)
+  const authPasswordHasher = new BcryptPasswordHasher();
+  const authTokenHasher = new Sha256TokenHasher();
+  if (authUserRepository instanceof InMemoryUserRepository) {
+    const timestamp = new Date().toISOString();
+    const existingDevUser = await authUserRepository.findByEmail("dev@local.test");
+    if (!existingDevUser) {
+      await authUserRepository.create(createUser({
+        userId: "local-dev-user" as any,
+        email: "dev@local.test",
+        displayName: "Local Developer",
+        passwordHash: await authPasswordHasher.hash("Password123!"),
+        status: "active",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }));
+    }
+    if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
+      const existingEmailUser = await authUserRepository.findByEmail(localEmailUserEmail);
+      if (!existingEmailUser) {
+        await authUserRepository.create(createUser({
+          userId: "local-email-user" as any,
+          email: localEmailUserEmail,
+          displayName: "Local Email User",
+          passwordHash: await authPasswordHasher.hash("Password123!"),
+          status: "active",
+          createdAt: timestamp,
+          updatedAt: timestamp
+        }));
+      }
+    }
+  }
+  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
+    authSessionRepository,
+    authUserRepository,
+    authTokenHasher
+  );
+
   const app = express();
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-mock-role, x-mock-user, x-request-id");
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
@@ -797,24 +1112,41 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   app.use(express.json());
 
-  // ── Auth repositories & use cases (hoisted for early middleware access) ───
-  const authUserRepository = await createAuthUserRepository();
-  const authSessionRepository = await createAuthSessionRepository();
-  const authPasswordHasher = new BcryptPasswordHasher();
-  const authTokenHasher = new Sha256TokenHasher();
-  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
-    authSessionRepository,
-    authUserRepository,
-    authTokenHasher
-  );
-
-  // ── Workspace repository & use cases (hoisted for early middleware access) ─
   const workspaceRepository = await createWorkspaceRepository();
+  if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
+    const now = new Date().toISOString();
+    await workspaceRepository.save({
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-dev-user" as any,
+      name: "Demo Workspace",
+      status: "running",
+      plan: "premium",
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  // ── Workspace Management ───────────────────────────────────────────────────
+  // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
   const nullSafePrisma = prisma ?? {
     agent:           { count: async () => 0 },
     workflow:        { count: async () => 0 },
     toolConnection:  { count: async () => 0 },
-    workspaceMember: { findFirst: async () => null }
+    workspaceMember: {
+      findFirst: async (query: any) => {
+        const where = query?.where ?? {};
+        const member = await workspaceUserManagementRepo.getWorkspaceMember(where.workspaceId, where.userId);
+        if (!member || !member.isAccepted) return null;
+        if (where.status && where.status !== "active") return null;
+        return {
+          memberId: member.memberId,
+          workspaceId: member.workspaceId,
+          userId: member.userId,
+          role: member.role,
+          status: "active"
+        };
+      }
+    }
   };
   const workspaceUseCases = new WorkspaceUseCases({
     repository: workspaceRepository,
@@ -856,10 +1188,12 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     next();
   });
 
-  // (C) Fake Auth Middleware for local development (conditional — yields to real auth)
-  app.use((req, res, next) => {
+  // (C) Fake Auth Middleware for local development.
+  // It only activates when tests/tools explicitly provide x-mock-user so
+  // browser requests without a real session still exercise the auth flow.
+  app.use((req, _res, next) => {
+    const mockUser = req.headers["x-mock-user"] as string | undefined;
     const role = (req.headers["x-mock-role"] as any) || "admin";
-    const anonymous = req.headers["x-mock-user"] === "anonymous";
     const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
     const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
 
@@ -869,36 +1203,38 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       (req as any).context = { ...existing, requestId: req.headers["x-request-id"] || randomUUID() };
     }
 
-    if (anonymous) {
+    if (mockUser === "anonymous") {
       // anonymous header: clear user + workspace (legacy behaviour)
       (req as any).context = { ...(req as any).context, user: undefined, workspace: undefined };
-    } else {
-      const ctx2 = (req as any).context;
-      // Only set demo user if real auth did NOT populate one
-      if (!ctx2.user) {
-        (req as any).context = {
-          ...ctx2,
-          user: {
-            userId: "local-dev-user",
-            email: "dev@local.test",
-            displayName: "Local Developer"
-          }
-        };
-      }
-      // Only set demo workspace if real auth did NOT populate one
-      if (!(req as any).context.workspace) {
-        (req as any).context = {
-          ...(req as any).context,
-          workspace: {
-            workspaceId,
-            memberId: "local-member",
-            role
-          }
-        };
-      }
+      next();
+      return;
     }
+
+    if (!mockUser || (req as any).context.user) {
+      next();
+      return;
+    }
+
+    (req as any).context = {
+      ...(req as any).context,
+      user: {
+        userId: mockUser,
+        email: mockUser === "local-email-user" ? localEmailUserEmail ?? "dev@local.test" : "dev@local.test",
+        displayName: "Local Developer"
+      },
+      workspace: {
+        workspaceId,
+        memberId: "local-member",
+        role
+      }
+    };
     next();
   });
+
+  app.use(
+    "/api/workspaces/:workspaceId",
+    createWorkspaceContextMiddleware(workspaceUserManagementRepo)
+  );
 
   // ── Workspace Management ───────────────────────────────────────────────────
 
@@ -909,6 +1245,25 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     const now = new Date().toISOString();
     try {
       const ws = await workspaceRepository.findById(workspaceId);
+      if (ws) {
+        await workspaceUserManagementRepo.createWorkspace({
+          workspaceId: ws.workspaceId,
+          name: ws.name,
+          createdAt: ws.createdAt,
+          ownerId: ws.userId
+        });
+        const ownerMembership = await workspaceUserManagementRepo.getWorkspaceMember(ws.workspaceId, ws.userId);
+        if (!ownerMembership) {
+          await workspaceUserManagementRepo.addWorkspaceMember({
+            memberId: randomUUID(),
+            workspaceId: ws.workspaceId,
+            userId: ws.userId,
+            role: "host",
+            isAccepted: true,
+            joinedAt: now
+          });
+        }
+      }
       const result = await runtimeAdapter.provision({
         workspaceId,
         displayName: ws?.name ?? workspaceId,
@@ -1011,6 +1366,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   app.use(
     "/api/workspaces/:workspaceId",
+    createWorkspaceUserManagementRouter({ service: workspaceUserManagementService })
+  );
+
+  app.use(
+    "/api/invitations",
+    createAcceptInvitationRouter({ service: workspaceUserManagementService })
+  );
+
+  app.use(
+    "/api/workspaces/:workspaceId",
     createTaskOrchestrationRouter({
       orchestrator: openclawOrchestrator,
       adapter: openclawAdapter,
@@ -1090,6 +1455,14 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     openclawOrchestrator,
     conversationRepository
   };
+}
+
+function positiveIntegerEnvironment(
+  value: string | undefined,
+  fallback: number
+): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function seedDemoAgents(repository: AgentRepository): Promise<void> {

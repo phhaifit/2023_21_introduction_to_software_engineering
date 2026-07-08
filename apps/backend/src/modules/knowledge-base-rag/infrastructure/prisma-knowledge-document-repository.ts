@@ -101,6 +101,15 @@ export class PrismaKnowledgeDocumentRepository implements KnowledgeDocumentRepos
     return toKnowledgeDocumentChunkDomain(record);
   }
 
+  async deleteDocumentChunks(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<void> {
+    await this.prisma.knowledgeDocumentChunk.deleteMany({
+      where: { workspaceId, documentId }
+    });
+  }
+
   private buildDocumentWhere(
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeDocumentListFilters

@@ -103,22 +103,7 @@ const suggestedPrompts = [
 const RUNNING_DELETE_REASON =
   "Cannot delete while a task is still running or queued in this conversation.";
 
-function resolveProviderBadgeLabel(options: {
-  isReconnecting: boolean;
-  isProviderUnavailable: boolean;
-  providerMode?: "http" | "neutral";
-}): { label: string; tone: "live" | "reconnecting" | "unavailable" | "neutral" } {
-  if (options.isReconnecting) {
-    return { label: "Reconnecting", tone: "reconnecting" };
-  }
-  if (options.isProviderUnavailable) {
-    return { label: "Provider unavailable", tone: "unavailable" };
-  }
-  if (options.providerMode === "http") {
-    return { label: "HTTP / OpenClaw Gateway", tone: "live" };
-  }
-  return { label: "Execution provider", tone: "neutral" };
-}
+
 
 export function TaskOrchestrationPage({
   isLoading = false,
@@ -176,6 +161,7 @@ export function TaskOrchestrationPage({
   const [deleteConversationTargetId, setDeleteConversationTargetId] = useState<string | null>(
     null
   );
+  const [isSidebarHidden, setIsSidebarHidden] = useState(false);
   const dispatchRef = useRef(dispatchTaskAction);
   dispatchRef.current = dispatchTaskAction;
   const taskStateRef = useRef(taskState);
@@ -277,6 +263,18 @@ export function TaskOrchestrationPage({
     : undefined;
 
   const activeTask = latestActiveConversationTask;
+  const activeQueryItems = activeConversationTasks.map((task, index) => ({
+    taskId: task.taskId as string,
+    label: `Query ${index + 1}`,
+    prompt: task.prompt,
+    status: toTaskPresentationStatus(task.status),
+    createdAt: task.createdAt,
+    routingSummary: formatCompactRoutingSummary(task.requestedRouting, routingOptions)
+  }));
+  const queryRailMarkers =
+    activeQueryItems.length > 0
+      ? activeQueryItems.map((item) => item.taskId)
+      : Array.from({ length: 18 }, (_, index) => `query-placeholder-${index}`);
   const cancellableActiveTask =
     activeTask && (activeTask.status === "queued" || activeTask.status === "running")
       ? activeTask
@@ -284,11 +282,7 @@ export function TaskOrchestrationPage({
   const detailModalTask = detailModalTaskId
     ? taskState.tasks.find((task) => task.taskId === detailModalTaskId)
     : undefined;
-  const providerBadge = resolveProviderBadgeLabel({
-    isReconnecting,
-    isProviderUnavailable,
-    providerMode
-  });
+
 
   const navigationItems: TaskConversationNavigationItem[] = [...taskState.conversations]
     .sort((a, b) => {
@@ -667,6 +661,16 @@ export function TaskOrchestrationPage({
     }
   }
 
+  function handleQueryClick(taskId: string, event: React.MouseEvent<HTMLButtonElement>): void {
+    const element = document.getElementById(`task-${taskId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+      element.focus({ preventScroll: true });
+    }
+    setIsSidebarHidden(true);
+    event.currentTarget.blur();
+  }
+
   return (
     <section
       className={`task-workspace${
@@ -732,31 +736,7 @@ export function TaskOrchestrationPage({
       </aside>
 
       <div className="task-workspace__main">
-        <header className="task-workspace__header">
-          <div className="task-workspace__header-copy">
-            <div>
-              <p className="task-workspace__eyebrow">Workspace</p>
-              <h2 id="task-workspace-title">Task &amp; Orchestration</h2>
-              {activeConversation ? (
-                <p className="task-workspace__active-conversation">
-                  {activeConversation.title}
-                </p>
-              ) : (
-                <p className="task-workspace__header-subtitle">
-                  Bring a request to your virtual team and keep the work in one conversation.
-                </p>
-              )}
-            </div>
-          </div>
-          <div
-            className={`task-workspace__provider-badge task-workspace__provider-badge--${providerBadge.tone}`}
-            aria-label={`Execution provider: ${providerBadge.label}`}
-            title={providerBadge.label}
-          >
-            <span className="task-workspace__provider-dot" aria-hidden="true" />
-            <span>{providerBadge.label}</span>
-          </div>
-        </header>
+
 
         <section
           ref={conversationScrollRef}
@@ -824,6 +804,8 @@ export function TaskOrchestrationPage({
 
                 return (
                   <article
+                    id={`task-${task.taskId}`}
+                    tabIndex={-1}
                     key={task.taskId as string}
                     className={`task-workspace__task-view${
                       isRunning ? " task-workspace__task-view--in-progress" : ""
@@ -982,6 +964,43 @@ export function TaskOrchestrationPage({
             }
           />
         </section>
+
+        <aside 
+          className={`task-workspace__query-sidebar${isSidebarHidden ? " task-workspace__query-sidebar--hidden" : ""}`}
+          aria-label="Conversation queries"
+          onMouseLeave={() => setIsSidebarHidden(false)}
+        >
+          <div className="task-workspace__query-panel">
+            <div className="task-workspace__query-rail" aria-hidden="true">
+              {queryRailMarkers.map((marker) => (
+                <span key={marker} />
+              ))}
+            </div>
+
+            <div className="task-workspace__query-content">
+              {activeQueryItems.length > 0 ? (
+                <ol className="task-workspace__query-list">
+                  {activeQueryItems.map((item) => (
+                    <li key={item.taskId} className="task-workspace__query-item">
+                      <button
+                        type="button"
+                        className="task-workspace__query-button"
+                        aria-label="Scroll to task"
+                        onClick={(e) => handleQueryClick(item.taskId, e)}
+                      >
+                        <span className="task-workspace__query-text">
+                          {item.prompt}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="task-workspace__query-empty">No active queries</div>
+              )}
+            </div>
+          </div>
+        </aside>
       </div>
     </section>
   );
@@ -1030,4 +1049,16 @@ export function formatRoutingDebugLabel(routing: TaskRoutingSelection): string |
 
 function shortId(id: string): string {
   return id.length > 12 ? id.slice(0, 8) : id;
+}
+
+function formatQueryTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }

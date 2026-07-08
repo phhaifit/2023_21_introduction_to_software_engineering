@@ -39,10 +39,12 @@ export type KnowledgeSyncJobRepository = {
     jobId: EntityId<"jobId">
   ): Promise<KnowledgeSyncJob | null>;
   saveSyncJob(job: KnowledgeSyncJob): Promise<KnowledgeSyncJob>;
+  createSyncJobIfNoActiveSource(
+    job: KnowledgeSyncJob
+  ): Promise<KnowledgeSyncJob | null>;
   appendSyncJobEvent(event: KnowledgeSyncJobEvent): Promise<KnowledgeSyncJobEvent>;
   listSyncJobEvents(
     workspaceId: EntityId<"workspaceId">,
     jobId: EntityId<"jobId">
   ): Promise<KnowledgeSyncJobEvent[]>;
 };
-

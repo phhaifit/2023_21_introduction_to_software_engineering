@@ -18,6 +18,9 @@ export type KnowledgeDocument = {
   sourceId?: string;
   storageKey?: string;
   contentHash?: string;
+  externalId?: string;
+  sourceModifiedAt?: string;
+  lastSyncedAt?: string;
   status: KnowledgeIndexStatus;
   ingestionStatus: KnowledgeIndexStatus;
   indexingStatus: KnowledgeIndexStatus;
@@ -58,6 +61,9 @@ export function toKnowledgeDocumentDto(
     indexedChunkCount: document.indexedChunkCount,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt
+    ,
+    externalId: document.externalId,
+    sourceModifiedAt: document.sourceModifiedAt,
+    lastSyncedAt: document.lastSyncedAt
   };
 }
-

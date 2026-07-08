@@ -85,6 +85,16 @@ await runtime.dataSourceRepository.saveDataSource({
   createdAt: "2026-06-26T00:00:00.000Z",
   updatedAt: "2026-06-26T00:00:00.000Z"
 });
+await runtime.dataSourceRepository.saveDataSource({
+  sourceId: "source-google-drive-empty",
+  workspaceId: "workspace-a",
+  provider: "google_drive",
+  displayName: "Google Drive",
+  connectionStatus: "connected",
+  selectedScopeNodeCount: 0,
+  createdAt: "2026-06-26T00:00:00.000Z",
+  updatedAt: "2026-06-26T00:00:00.000Z"
+});
 await runtime.syncScopeRepository.saveSyncScopeNodes("workspace-a", [
   {
     scopeNodeId: "scope-node-a",
@@ -186,7 +196,19 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
       mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       content: "PK\u0003\u0004"
     },
-    { fileName: "Runtime.txt", mediaType: "text/plain", content: "runtime text" }
+    { fileName: "Runtime.txt", mediaType: "text/plain", content: "runtime text" },
+    {
+      fileName: "Runtime.csv",
+      mediaType: "application/csv",
+      content: "name,status\nLaptop,approved",
+      expectedMediaType: "text/csv"
+    },
+    {
+      fileName: "Runtime.markdown",
+      mediaType: "application/octet-stream",
+      content: "# Runtime handbook",
+      expectedMediaType: "text/markdown"
+    }
   ]) {
     const uploaded = await requestMultipart(
       baseUrl,
@@ -197,6 +219,10 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
     assert.equal(uploaded.body.data.documents.length, 1);
     assert.equal(uploaded.body.data.documents[0].workspaceId, "workspace-a");
     assert.equal(uploaded.body.data.documents[0].name, uploadCase.fileName);
+    assert.equal(
+      uploaded.body.data.documents[0].mediaType,
+      uploadCase.expectedMediaType ?? uploadCase.mediaType
+    );
     assertNoForbiddenPublicKeys(uploaded.body);
   }
 
@@ -245,14 +271,14 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
     documents.body.data.some((document) => document.name === "Runtime.pdf"),
     "real uploaded document is listed"
   );
-  assert.equal(documents.body.meta.pagination.totalItems, 4);
+  assert.equal(documents.body.meta.pagination.totalItems, 6);
 
   const ingestionJobs = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/ingestion-jobs"
   );
   assert.equal(ingestionJobs.status, 200);
-  assert.equal(ingestionJobs.body.data.length, 4);
+  assert.equal(ingestionJobs.body.data.length, 6);
   assert.ok(
     ingestionJobs.body.data.every((job) => job.status === "pending"),
     "prepared and uploaded documents queue pending ingestion metadata"
@@ -330,6 +356,78 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   assert.equal(syncJob.body.data.status, "pending");
   assertNoForbiddenPublicKeys(syncJob.body);
 
+  const noScopeSync = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/sync-jobs",
+    {
+      method: "POST",
+      body: { sourceId: "source-google-drive-empty" }
+    }
+  );
+  assert.equal(noScopeSync.status, 422);
+  assert.equal(noScopeSync.body.error.code, "validation.invalid_input");
+  assert.equal(
+    noScopeSync.body.error.message,
+    "No Google Drive sync scope is configured. Add a file ID or folder ID before syncing."
+  );
+  assertNoForbiddenPublicKeys(noScopeSync.body);
+
+  const drivePreview = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/preview",
+    {
+      method: "POST",
+      body: {
+        fileIds: ["1DRIVEFILE123"],
+        recursive: false,
+        maxFiles: 25
+      }
+    }
+  );
+  assert.equal(drivePreview.status, 200);
+  assert.equal(drivePreview.body.data[0].name, "Equipment Policy.txt");
+  assert.equal(
+    (
+      await runtime.syncScopeRepository.getSyncScope(
+        "workspace-a",
+        "source-google-drive-empty"
+      )
+    ).length,
+    0,
+    "preview route must not persist scope"
+  );
+  assertNoForbiddenPublicKeys(drivePreview.body);
+
+  const configuredDriveScope = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/scope",
+    {
+      method: "PUT",
+      body: {
+        fileIds: [
+          "https://docs.google.com/document/d/1DRIVEFILE123/edit?tab=t.0"
+        ],
+        recursive: false,
+        maxFiles: 25
+      }
+    }
+  );
+  assert.equal(configuredDriveScope.status, 200);
+  assert.equal(configuredDriveScope.body.data[0].externalId, "1DRIVEFILE123");
+
+  const autoSyncSettings = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/data-sources/source-google-drive-empty/google-drive/auto-sync",
+    {
+      method: "PUT",
+      body: { autoSyncEnabled: true, autoSyncFrequency: "hourly" }
+    }
+  );
+  assert.equal(autoSyncSettings.status, 200);
+  assert.equal(autoSyncSettings.body.data.autoSyncEnabled, true);
+  assert.equal(autoSyncSettings.body.data.autoSyncFrequency, "hourly");
+  assertNoForbiddenPublicKeys(autoSyncSettings.body);
+
   const syncJobs = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/sync-jobs"
@@ -387,6 +485,27 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
   assert.equal(unauthenticated.status, 401);
   assert.equal(unauthenticated.body.error.code, "auth.unauthorized");
 
+  const callbackPath =
+    "/api/workspaces/workspace-a/knowledge/data-sources/google-drive/oauth/callback?code=browser-code&state=safe-state";
+  const browserCallback = await fetch(`${baseUrl}${callbackPath}`, {
+    headers: { accept: "text/html", "x-request-id": "test-request" },
+    redirect: "manual"
+  });
+  assert.equal(browserCallback.status, 303);
+  const redirectLocation = browserCallback.headers.get("location");
+  assert.equal(
+    redirectLocation,
+    "http://127.0.0.1:5173/knowledge-base-rag?tab=data-sync&googleDrive=connected"
+  );
+  assert.equal(/browser-code|safe-state|token|secret/i.test(redirectLocation), false);
+
+  const jsonCallback = await requestJson(baseUrl, callbackPath, {
+    headers: { accept: "application/json" }
+  });
+  assert.equal(jsonCallback.status, 200);
+  assert.equal(jsonCallback.body.data.connected, true);
+  assertNoForbiddenPublicKeys(jsonCallback.body);
+
   const oldRoute = await fetch(`${baseUrl}/api/knowledge-base/documents`);
   assert.equal(oldRoute.status, 404);
 });
@@ -437,6 +556,30 @@ function createKnowledgeBaseRagRuntime() {
       syncUseCases: new KnowledgeSyncUseCases({
         syncScopeRepository,
         syncJobRepository,
+        dataSourceRepository,
+        googleDriveOAuthService: {
+          async getAccessToken() {
+            return "safe-test-access-value";
+          }
+        },
+        googleDriveProvider: {
+          async listScopeTree() {
+            return [
+              {
+                file: {
+                  fileId: "1DRIVEFILE123",
+                  name: "Equipment Policy.txt",
+                  mimeType: "text/plain",
+                  modifiedTime: now(),
+                  trashed: false,
+                  canDownload: true
+                },
+                children: [],
+                hasMoreChildren: false
+              }
+            ];
+          }
+        },
         now,
         generateJobId: () => `sync-job-${++syncJobSequence}`
       }),
@@ -465,6 +608,23 @@ function createKnowledgeBaseRagRuntime() {
               }
             ],
             warnings: []
+          };
+        }
+      },
+      frontendBaseUrl: "http://127.0.0.1:5173",
+      googleDriveOAuthService: {
+        async callback() {
+          return {
+            connected: true,
+            source: {
+              sourceId: "source-google-drive",
+              workspaceId: "workspace-a",
+              provider: "google_drive",
+              displayName: "Google Drive",
+              status: "connected",
+              selectedScopeNodeCount: 0,
+              updatedAt: now()
+            }
           };
         }
       }

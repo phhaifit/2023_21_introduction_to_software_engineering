@@ -19,6 +19,29 @@ export class PrismaKnowledgeDataSourceRepository
     this.prisma = prisma;
   }
 
+  async listAllDataSources(
+    filters: KnowledgeDataSourceListFilters = {}
+  ): Promise<KnowledgeDataSource[]> {
+    const records = await this.prisma.knowledgeDataSource.findMany({
+      where: this.buildWhere(undefined, filters),
+      orderBy: { updatedAt: "desc" }
+    });
+    return Promise.all(
+      records.map(async (record) =>
+        toKnowledgeDataSourceDomain(
+          record,
+          await this.prisma.knowledgeSyncScopeNode.count({
+            where: {
+              workspaceId: record.workspaceId,
+              sourceId: record.sourceId,
+              selected: true
+            }
+          })
+        )
+      )
+    );
+  }
+
   async listDataSources(
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeDataSourceListFilters = {}
@@ -72,10 +95,11 @@ export class PrismaKnowledgeDataSourceRepository
   }
 
   private buildWhere(
-    workspaceId: EntityId<"workspaceId">,
+    workspaceId: EntityId<"workspaceId"> | undefined,
     filters: KnowledgeDataSourceListFilters
   ) {
-    const where: Record<string, unknown> = { workspaceId };
+    const where: Record<string, unknown> = {};
+    if (workspaceId) where.workspaceId = workspaceId;
 
     if (filters.provider) {
       where.provider = filters.provider;

@@ -32,6 +32,7 @@ export type KnowledgeSyncJob = {
   failedItems?: number;
   errorCode?: string;
   errorMessage?: string;
+  safeSummary?: SafeJsonValue;
   createdAt: string;
   updatedAt: string;
 };

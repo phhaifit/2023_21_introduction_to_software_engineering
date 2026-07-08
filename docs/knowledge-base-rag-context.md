@@ -20,26 +20,28 @@ OpenSpec change: `implement-knowledge-base-rag`
 
 ## Current Knowledge Base / RAG State
 
-The frontend currently has a PA5 prototype under
+The frontend implementation lives under
 `apps/frontend/src/features/knowledge-base-rag`:
 
-- Base layout and local navigation for Documents, Upload Documents, Data
-  Sources, Synchronization Scope, and Processing Status.
+- Base layout and local navigation for Documents, Upload Documents, Data Sync,
+  and Processing Status.
 - Shared KB/RAG UI components in `knowledge-base-rag-components.tsx`.
-- Mock data and shared local view types in `knowledge-base-rag-mock-data.ts`
-  and `knowledge-base-rag-view.ts`.
+- Shared local view types in `knowledge-base-rag-view.ts`.
 - Documents screen in `knowledge-base-rag-documents.tsx`.
-- Upload Documents screen in `knowledge-base-rag-upload.tsx`.
+- Upload Documents screen in `knowledge-base-rag-upload.tsx`, supporting PDF,
+  DOCX, TXT, CSV, and Markdown.
+- Combined Google Drive-only Data Sync screen with draft preview, persisted
+  selection, manual sync, and opt-in scheduled polling.
 - Typed frontend API client in `knowledge-base-rag-api-client.ts`.
 - Feature-prefixed CSS split by shell, shared components, documents, and upload
   screens.
 
 The frontend is integrated into the app shell through `App.tsx`,
 `types/navigation.ts`, and `Sidebar.tsx`. This architecture issue does not
-change that integration. Documents, Upload, Data Sources, and Synchronization
-Scope screens now use the typed frontend KB/RAG API client as their runtime
-source of truth. The remaining Processing Status view is still
-placeholder-only and should be integrated in a later scoped slice.
+change that integration. Documents, Upload, the combined Google Drive Data
+Sync view, and Processing Status use the typed frontend KB/RAG API client as
+their runtime source of truth. Processing Status is the only user-facing job
+history for document ingestion and external-source synchronization.
 
 The backend now has an internal module foundation under
 `apps/backend/src/modules/knowledge-base-rag`:
@@ -48,14 +50,17 @@ The backend now has an internal module foundation under
   sync jobs, and sync job events.
 - Application repository ports for documents, ingestion jobs, data sources,
   sync scope, and sync jobs.
-- Application use cases for document reads, metadata-only upload validation,
-  safe upload preparation, ingestion-job reads, data-source placeholders,
-  sync-scope updates, and queued manual sync-job creation.
+- Application use cases for document reads, supported file upload validation
+  and storage, ingestion-job reads, Google Drive connection metadata,
+  sync-scope updates, and queued manual or scheduled sync-job creation.
 - Safe DTO mappers from internal domain objects to shared public DTOs.
 - Prisma repositories using KB/RAG-owned Prisma models through `@vcp/database`.
 - Deterministic in-memory repositories for future use-case tests.
 - A thin workspace-scoped HTTP API router under `api/` that maps shared route
   contracts to application use cases and shared `ApiResponse` envelopes.
+- A Google Drive-only Data Sync flow with backend OAuth, encrypted local
+  credential storage, explicit folder/file ID scope, manual synchronization,
+  blob download, Google Docs/Sheets export, and safe sync summaries.
 - A worker handoff skeleton that transitions already-created document ingestion
   jobs through pending/ingesting/ready or pending/ingesting/failed lifecycle
   states using KB/RAG repository ports.
@@ -67,24 +72,24 @@ The backend now has an internal module foundation under
   that composes handoff, text processing, chunk persistence, fake embeddings,
   fake vector upserts, and final indexing status updates.
 
-Production runtime implementation still needs:
+Remaining production runtime gaps include:
 
-- Object storage integration, real PDF/DOC/DOCX parsing, OCR, provider-backed
-  embedding, provider-backed vector indexing, retrieval, and external source
-  adapters.
-- Full worker ingestion/sync runtime entrypoints for queue integration,
-  embedding, vector writes, and external sync.
-- Frontend API integration for Processing Status.
-- Production worker tests, frontend Processing Status integration tests, and
-  functional PA5 tests for production runtime behavior.
+- A separately deployed autoscaled worker daemon. PostgreSQL durable mode now
+  provides multi-instance atomic claims, expiring leases, abandoned-job
+  reclaim, and capped retries; process-local mode remains the default.
+- OCR and legacy DOC parsing. PDF and DOCX text extraction are implemented;
+  scanned PDFs with no extractable text fail safely.
+- Google Picker. Current scope configuration accepts raw IDs and full
+  Google Docs/Drive file or folder URLs.
+- Other connectors, which are intentionally out of scope. Google Drive is the
+  only supported external source.
 
-The queue type already reserves `document.ingest`. The current worker handoff
-skeleton is module-local under the KB/RAG backend boundary and can be called by
-a later worker entrypoint. The current processing pipeline handles supported
-text/markdown content only. The local flow runner is contract-test integration
-only; it does not read object storage, parse PDF/DOC/DOCX, perform OCR, call
-real embedding providers, write to real vector stores, schedule background
-jobs, expose HTTP routes, or execute external sync.
+The queue boundary reserves document ingestion and Google Drive sync job
+kinds. The current local server can run Google Drive sync through a
+process-local asynchronous queue or an explicitly enabled PostgreSQL durable
+queue, opt-in hourly/daily scheduler, and the existing ingestion/indexing
+pipeline. PDF and DOCX text extraction are implemented; OCR is not. A
+separately deployed worker service remains future deployment work.
 
 ## Modular Monolith Alignment
 
@@ -153,8 +158,9 @@ Future implementation should define these concepts before writing runtime code:
   detection, workspace policy, and safe error reporting.
 - `KnowledgeIngestionJob`: asynchronous parsing, chunking, embedding, and
   indexing work record.
-- `KnowledgeDataSource`: external source such as Google Drive, Notion, or
-  Confluence, excluding raw credentials from public DTOs.
+- `KnowledgeDataSource`: Google Drive connection and safe synchronization
+  metadata, excluding raw credentials from public DTOs. Other connectors are
+  out of scope.
 - `KnowledgeSyncScopeNode`: selected external folder, file, page, or space
   included in synchronization.
 - `KnowledgeSyncJob`: manual or scheduled sync work record.
@@ -369,35 +375,28 @@ Application code should depend on repository and adapter ports. Infrastructure
 should implement those ports. API code should translate HTTP/request context
 into application commands and return shared API envelopes.
 
-The backend HTTP router slice intentionally does not add worker handlers,
-frontend API clients, file/object storage adapters, embedding/vector adapters,
-external source adapters, or Prisma schema changes.
+The HTTP router remains thin: it validates workspace/request context, calls
+application use cases, returns safe API envelopes, and delegates slow work to
+queue/worker boundaries.
 
-The application use-case slice intentionally keeps upload validation
-metadata-only and creates only safe pending document, ingestion-job, and
-sync-job records through repository ports. It does not parse files, upload to
-object storage, enqueue runtime workers, call embedding providers, or write to a
-vector database.
+Manual upload validates and stores PDF, DOCX, TXT, CSV, and Markdown before
+creating observable ingestion jobs. The processing pipeline reads stored
+content, extracts supported text, chunks it, generates embeddings, writes
+vectors, and updates document/job status. Google Drive synchronization reuses
+the same ingestion/indexing path for persisted selected scope.
 
-The current worker processing slice adds text/markdown ingestion after handoff:
-it uses an injected content reader, deterministic normalization, deterministic
-chunking, and repository-backed chunk persistence. It does not read object
-storage directly, parse PDF/DOC/DOCX, perform OCR, call embeddings, write
-vectors, or implement retrieval.
-
-## Worker Handoff Roadmap
+## Worker Handoff Flow
 
 Long-running ingestion and synchronization must not run inside an HTTP request.
 
 Expected flow:
 
 1. Upload candidates are validated.
-2. Valid uploads are prepared into durable document metadata.
+2. Valid uploads are stored with durable document metadata.
 3. An ingestion job is queued through the worker/job boundary.
 4. The worker processes document ingestion.
-5. The text pipeline normalizes supported text and persists chunks.
-6. Local tests can run fake embedding and vector indexing through adapter
-   ports.
+5. The text pipeline extracts and normalizes supported text and persists chunks.
+6. Embedding and vector adapters index the persisted chunks.
 7. Domain events are emitted for public state transitions.
 8. The UI reads document, job, and status state through the API.
 
@@ -425,9 +424,9 @@ Future KB/RAG work should add focused tests with each implemented behavior:
 - Import-boundary tests to prevent private cross-module imports.
 - Worker handoff tests for queue payloads, handler registration, adapter usage,
   success, and failure.
-- Functional PA5 cases for upload validation, prepare, queued ingestion,
-  processing status, failed ingestion, data-source placeholder connection, sync
-  scope update, manual sync, and status display.
+- Functional cases for supported upload validation, queued ingestion,
+  Processing Status, failed ingestion, Google Drive connection, draft preview,
+  persisted scope selection, manual/automatic sync, and status display.
 
 ## Current Constraints
 

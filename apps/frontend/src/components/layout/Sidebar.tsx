@@ -102,10 +102,13 @@ function NavigationGroup({ items }: NavigationGroupProps) {
     <>
       {items.map((item) => {
         const Icon = item.icon;
+        const toPath = item.key === "workspace" 
+          ? `/workspaces` 
+          : `/${item.key}`;
 
         return (
           <NavLink
-            to={`/${item.key}`}
+            to={toPath}
             className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
             aria-label={item.ariaLabel ?? item.label}
             key={item.key}

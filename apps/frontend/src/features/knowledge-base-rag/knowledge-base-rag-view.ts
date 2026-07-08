@@ -6,7 +6,13 @@ export type KnowledgeDocumentSource =
   | "notion"
   | "confluence";
 
-export type KnowledgeDocumentType = "pdf" | "docx" | "txt" | "csv" | "page";
+export type KnowledgeDocumentType =
+  | "pdf"
+  | "docx"
+  | "txt"
+  | "csv"
+  | "markdown"
+  | "page";
 
 export type KnowledgeDocument = {
   id: string;
@@ -16,6 +22,9 @@ export type KnowledgeDocument = {
   sizeLabel: string;
   owner: string;
   updatedAt: string;
+  mediaType?: string;
+  lastSyncedAt?: string;
+  sourceModifiedAt?: string;
   status: KnowledgeDocumentStatus;
   chunkCount?: number;
   indexedItemCount?: number;
@@ -59,6 +68,9 @@ export type ProcessingJob = {
   chunkCount?: number;
   indexedChunkCount?: number;
   safeErrorMessage?: string;
+  originalDriveName?: string;
+  lastSyncedAt?: string;
+  sourceModifiedAt?: string;
 };
 
 export type IngestionJob = ProcessingJob;

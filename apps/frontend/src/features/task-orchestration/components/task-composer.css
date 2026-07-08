@@ -32,12 +32,13 @@
   color: #0f172a;
   font: inherit;
   line-height: 1.45;
-  max-height: 160px;
-  min-height: 24px;
+  max-height: 220px;
+  min-height: 56px;
   min-width: 0;
+  overflow-y: auto;
   overflow-wrap: anywhere;
-  padding: 4px 2px;
-  resize: none;
+  padding: 6px 2px;
+  resize: vertical;
   width: 100%;
 }
 

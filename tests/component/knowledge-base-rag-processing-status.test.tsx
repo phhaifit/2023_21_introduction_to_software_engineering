@@ -7,7 +7,8 @@ import { KnowledgeBaseProcessingStatusScreen } from "@vcp/frontend/features/know
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type {
   IngestionJobDto,
-  KnowledgeDocumentDto
+  KnowledgeDocumentDto,
+  SyncJobDto
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 
 afterEach(cleanup);
@@ -58,6 +59,10 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
   return {
     listDocuments: vi.fn(async () => ({ items: documents, pagination })),
     listIngestionJobs: vi.fn(async () => ({ items: jobs, pagination })),
+    listSyncJobs: vi.fn(async () => ({
+      items: [],
+      pagination: { ...pagination, totalItems: 0 }
+    })),
     ...overrides
   } as unknown as KnowledgeBaseRagApiClient;
 }
@@ -166,6 +171,128 @@ describe("Knowledge Base / RAG Processing Status", () => {
     expect(screen.queryByText("Employee Handbook.pdf")).toBeNull();
   });
 
+  it("labels scheduled Google Drive jobs as automatic sync", async () => {
+    const user = userEvent.setup();
+    const scheduledJob: SyncJobDto = {
+      jobId: "sync-scheduled" as EntityId<"jobId">,
+      workspaceId,
+      sourceId: "source-drive",
+      status: "completed",
+      requestedAt: "2026-07-05T00:00:00.000Z",
+      startedAt: "2026-07-05T00:00:01.000Z",
+      finishedAt: "2026-07-05T00:00:02.000Z",
+      scannedItemCount: 4,
+      changedItemCount: 2,
+      importedItemCount: 1,
+      updatedItemCount: 1,
+      skippedUnchangedItemCount: 2,
+      skippedUnsupportedItemCount: 0,
+      removedItemCount: 1,
+      failedItemCount: 0,
+      syncMode: "scheduled"
+    };
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({
+          listDocuments: vi.fn(async () => ({
+            items: [],
+            pagination: { ...pagination, totalItems: 0 }
+          })),
+          listIngestionJobs: vi.fn(async () => ({
+            items: [],
+            pagination: { ...pagination, totalItems: 0 }
+          })),
+          listSyncJobs: vi.fn(async () => ({
+            items: [scheduledJob],
+            pagination: { ...pagination, totalItems: 1 }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(await screen.findByText("Automatic sync")).toBeTruthy();
+    const syncCard = screen.getByRole("heading", { name: "Google Drive sync" }).closest("article");
+    expect(syncCard).not.toBeNull();
+    expect(within(syncCard!).getByText("Imported 1 · Updated 1 · Skipped 2")).toBeTruthy();
+    expect(within(syncCard!).queryByText("Discovered")).toBeNull();
+    expect(within(syncCard!).queryByText("Removed")).toBeNull();
+    expect(screen.queryByText("sync-scheduled")).toBeNull();
+
+    await user.click(
+      within(syncCard!).getByRole("button", { name: "View details" })
+    );
+    const details = screen.getByRole("dialog", { name: "Google Drive sync" });
+    expect(within(details).getByText("Discovered")).toBeTruthy();
+    expect(within(details).getByText("Skipped unchanged")).toBeTruthy();
+    expect(within(details).getByText("Removed")).toBeTruthy();
+    expect(within(details).queryByText("sync-scheduled")).toBeNull();
+  });
+
+  it("explains provider failures that happen before Drive scanning", async () => {
+    const user = userEvent.setup();
+    const failedSync: SyncJobDto = {
+      jobId: "ca39c5dc-4144-433c-bf1b-60e0c682845f" as EntityId<"jobId">,
+      workspaceId,
+      sourceId: "source-drive",
+      status: "failed",
+      requestedAt: "2026-07-05T00:00:00.000Z",
+      startedAt: "2026-07-05T00:00:01.000Z",
+      finishedAt: "2026-07-05T00:00:02.000Z",
+      scannedItemCount: 0,
+      changedItemCount: 0,
+      syncMode: "manual",
+      failure: {
+        errorCode: "google_drive.not_found",
+        errorMessage:
+          "The selected Drive file or folder could not be found or is not accessible."
+      }
+    };
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({
+          listSyncJobs: vi.fn(async () => ({
+            items: [failedSync],
+            pagination: { ...pagination, totalItems: 1 }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Google Drive sync" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Sync failed before any files could be scanned.")
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "The selected Drive file or folder could not be found or is not accessible."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/GOOGLE_DRIVE_OAUTH_SCOPE_MODE=readonly/)
+    ).toBeTruthy();
+    expect(screen.queryByText(failedSync.jobId)).toBeNull();
+
+    const failedSyncCard = screen
+      .getByRole("heading", { name: "Google Drive sync" })
+      .closest("article");
+    await user.click(
+      within(failedSyncCard!).getByRole("button", { name: "View details" })
+    );
+    const details = screen.getByRole("dialog", { name: "Google Drive sync" });
+    expect(
+      within(details).getByText(
+        "The sync failed before any files could be scanned, so failed file count is 0."
+      )
+    ).toBeTruthy();
+    expect(within(details).getByText("Failed files")).toBeTruthy();
+  });
+
   it("shows a safe unavailable state and retries without rendering raw errors", async () => {
     const listIngestionJobs = vi
       .fn()
@@ -248,9 +375,25 @@ describe("Knowledge Base / RAG Processing Status", () => {
     expect(
       within(readyDialog).getByText("Ready for retrieval", { selector: "strong" })
     ).toBeVisible();
+    expect(within(readyDialog).getAllByText("Current step")).toHaveLength(1);
+    expect(within(readyDialog).getAllByText("Ready for retrieval")).toHaveLength(1);
+    expect(within(readyDialog).getByText("Source")).toBeVisible();
+    expect(within(readyDialog).getByText("Upload")).toBeVisible();
+    expect(within(readyDialog).getByText("MIME / type")).toBeVisible();
+    expect(within(readyDialog).getByText("Started")).toBeVisible();
+    expect(within(readyDialog).getByText("Chunks")).toBeVisible();
+    expect(within(readyDialog).getByText("Indexing")).toBeVisible();
     expect(within(readyDialog).getByText("application/pdf")).toBeVisible();
     expect(within(readyDialog).getByText("4 of 4 chunks indexed")).toBeVisible();
+    expect(
+      within(readyDialog).queryByRole("heading", { name: "Google Drive source" })
+    ).toBeNull();
     expect(within(readyDialog).queryByText("Retry failed job")).toBeNull();
+    expect(within(readyDialog).queryByText("Debug details")).toBeNull();
+    expect(within(readyDialog).queryByText("Job ID")).toBeNull();
+    expect(within(readyDialog).queryByText("Document ID")).toBeNull();
+    expect(within(readyDialog).queryByText("job-ready")).toBeNull();
+    expect(within(readyDialog).queryByText("document-ready")).toBeNull();
 
     await user.click(
       within(readyDialog).getByRole("button", { name: "Close processing job details" })
@@ -269,5 +412,69 @@ describe("Knowledge Base / RAG Processing Status", () => {
       within(failedDialog).getByText("The document could not be processed.")
     ).toBeVisible();
     expect(within(failedDialog).getByText("Not implemented yet")).toBeVisible();
+  });
+
+  it("shows safe Google Drive document metadata without internal IDs", async () => {
+    const driveDocument: KnowledgeDocumentDto = {
+      ...createDocument(
+        "document-drive-private-id",
+        "Equipment policy.pdf",
+        "application/pdf"
+      ),
+      source: "google_drive",
+      status: "ready",
+      lastSyncedAt: "2026-07-05T02:00:00.000Z",
+      sourceModifiedAt: "2026-07-05T01:30:00.000Z",
+      chunkCount: 3,
+      indexedChunkCount: 3
+    };
+    const driveJob = {
+      ...createJob(
+        "job-drive-private-id",
+        "document-drive-private-id",
+        "ready",
+        100
+      ),
+      currentStep: "Ready for retrieval",
+      finishedAt: "2026-07-05T02:00:00.000Z"
+    };
+    const user = userEvent.setup();
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({
+          listDocuments: vi.fn(async () => ({
+            items: [driveDocument],
+            pagination: { ...pagination, totalItems: 1 }
+          })),
+          listIngestionJobs: vi.fn(async () => ({
+            items: [driveJob],
+            pagination: { ...pagination, totalItems: 1 }
+          }))
+        })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const card = (await screen.findByText("Equipment policy.pdf")).closest("article");
+    await user.click(within(card!).getByRole("button", { name: "View details" }));
+    const dialog = screen.getByRole("dialog", { name: "Equipment policy.pdf" });
+    expect(within(dialog).getByText("Google Drive")).toBeTruthy();
+    expect(
+      within(dialog).getByRole("heading", { name: "Google Drive source" })
+    ).toBeTruthy();
+    expect(within(dialog).getByText("Original Drive name")).toBeTruthy();
+    expect(within(dialog).getByText("Last synced")).toBeTruthy();
+    expect(within(dialog).getByText("Source modified")).toBeTruthy();
+    expect(within(dialog).getByText("3 of 3 chunks indexed")).toBeTruthy();
+    expect(within(dialog).getAllByText("Current step")).toHaveLength(1);
+    expect(within(dialog).getAllByText("Ready for retrieval")).toHaveLength(1);
+    expect(within(dialog).getByText("MIME / type")).toBeTruthy();
+    expect(within(dialog).getByText("Started")).toBeTruthy();
+    expect(within(dialog).getByText("Completed", { selector: "dt" })).toBeTruthy();
+    expect(within(dialog).getByText("Chunks")).toBeTruthy();
+    expect(within(dialog).getByText("Indexing")).toBeTruthy();
+    expect(within(dialog).queryByText("document-drive-private-id")).toBeNull();
+    expect(within(dialog).queryByText("job-drive-private-id")).toBeNull();
   });
 });

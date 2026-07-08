@@ -1,5 +1,8 @@
 import type {
   AgentKnowledgeAskRequest,
+  GoogleDriveAutoSyncSettingsRequest,
+  GoogleDriveOAuthStartRequest,
+  GoogleDriveSyncScopeRequest,
   ConnectKnowledgeDataSourceRequest,
   KnowledgeRagAnswerRequest,
   KnowledgeRetrievalSearchRequest,
@@ -123,6 +126,80 @@ export function parseConnectDataSourceRequest(
   return {
     displayName: parseOptionalTrimmedString(payload["displayName"]),
     providerAccountLabel: parseOptionalTrimmedString(payload["providerAccountLabel"])
+  };
+}
+
+export function parseGoogleDriveOAuthStartRequest(
+  body: unknown
+): GoogleDriveOAuthStartRequest {
+  const payload =
+    body === undefined ? {} : requirePlainObject(body, "Google Drive OAuth start request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(payload, ["displayName"], "Google Drive OAuth start request");
+  return { displayName: parseOptionalTrimmedString(payload["displayName"]) };
+}
+
+export function parseGoogleDriveSyncScopeRequest(
+  body: unknown
+): GoogleDriveSyncScopeRequest {
+  const payload = requirePlainObject(body, "Google Drive sync scope request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["folderIds", "fileIds", "recursive", "allowedMimeTypes", "maxFiles"],
+    "Google Drive sync scope request"
+  );
+  return {
+    folderIds:
+      payload["folderIds"] === undefined
+        ? undefined
+        : requireStringArray(payload["folderIds"], "folderIds"),
+    fileIds:
+      payload["fileIds"] === undefined
+        ? undefined
+        : requireStringArray(payload["fileIds"], "fileIds"),
+    recursive:
+      payload["recursive"] === undefined
+        ? undefined
+        : requireBoolean(payload["recursive"], "recursive"),
+    allowedMimeTypes:
+      payload["allowedMimeTypes"] === undefined
+        ? undefined
+        : requireStringArray(payload["allowedMimeTypes"], "allowedMimeTypes"),
+    maxFiles:
+      payload["maxFiles"] === undefined
+        ? undefined
+        : requireFiniteNumber(payload["maxFiles"], "maxFiles")
+  };
+}
+
+export const parseGoogleDriveScopePreviewRequest =
+  parseGoogleDriveSyncScopeRequest;
+
+export function parseGoogleDriveAutoSyncSettingsRequest(
+  body: unknown
+): GoogleDriveAutoSyncSettingsRequest {
+  const payload = requirePlainObject(body, "Google Drive Auto Sync request");
+  assertNoForbiddenRequestKeys(payload);
+  assertOnlyKeys(
+    payload,
+    ["autoSyncEnabled", "autoSyncFrequency"],
+    "Google Drive Auto Sync request"
+  );
+  const enabled = requireBoolean(payload["autoSyncEnabled"], "autoSyncEnabled");
+  const frequency = parseOptionalTrimmedString(payload["autoSyncFrequency"]);
+  if (
+    frequency !== undefined &&
+    frequency !== "hourly" &&
+    frequency !== "daily"
+  ) {
+    throw new KnowledgeBaseRagValidationError([
+      "Auto Sync frequency must be hourly or daily."
+    ]);
+  }
+  return {
+    autoSyncEnabled: enabled,
+    autoSyncFrequency: frequency
   };
 }
 

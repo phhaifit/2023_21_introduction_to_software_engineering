@@ -29,7 +29,10 @@ indexing adapter boundary for persisted chunks. It also has a local end-to-end
 flow runner that composes handoff, text processing, and indexing for
 deterministic tests.
 
-It still does not contain OCR or external queue/worker daemon infrastructure.
+It still does not contain OCR or a separately deployed worker daemon.
+`KNOWLEDGE_QUEUE_MODE=durable` enables PostgreSQL-backed runtime job claims,
+expiring leases, abandoned-job reclaim, and capped retries; process-local mode
+remains the default.
 Live retrieval uses the existing PostgreSQL/pgvector and embedding adapters;
 deterministic tests use injected adapters.
 
@@ -371,10 +374,13 @@ returning a safe API failure.
 
 `KnowledgeDocumentTextExtractor` keeps parser implementation details behind a
 backend-only boundary. `RuntimeKnowledgeDocumentTextExtractor` uses strict
-UTF-8 `TextDecoder` behavior for TXT, `mammoth` for DOCX, and `pdf-parse` for
-text-based PDF content. Extracted text is normalized before downstream
-processing, and internal attribution retains only workspace ID, document ID,
-original filename, and media type.
+UTF-8 `TextDecoder` behavior for TXT, CSV, and Markdown, `mammoth` for DOCX,
+and `pdf-parse` for text-based PDF content. Manual upload accepts `.pdf`,
+`.docx`, `.txt`, `.csv`, `.md`, and `.markdown`; browser-provided plain-text
+or octet-stream MIME aliases are accepted only when paired with one of those
+extensions. Extracted text is normalized before downstream processing, and
+internal attribution retains only workspace ID, document ID, original
+filename, and media type.
 
 Corrupt, unreadable, and empty documents produce controlled parser errors.
 Storage keys, local paths, parser stack traces, raw XML/PDF data, and dependency
@@ -417,10 +423,10 @@ completed   -> ready
 failed      -> failed
 ```
 
-Retry remains deferred because there is no reviewed public reset/retry contract.
-Queued-job selection is deterministic but is not an atomic cross-process lease;
-deployments with multiple worker processes require a future repository claim or
-approved queue boundary before concurrent polling is enabled.
+Public user-triggered retry remains deferred because there is no reviewed reset
+endpoint. Durable runtime retries are internal and capped. PostgreSQL durable
+mode atomically claims queued work with `FOR UPDATE SKIP LOCKED`, prevents a
+second worker from taking an active lease, and reclaims expired leases.
 
 The document processing pipeline is the first real ingestion processor boundary.
 It reads extracted text through an injected content reader, supports TXT, DOCX,
@@ -514,8 +520,9 @@ distance ordering rather than creating an ANN index tied to one dimension.
 Adding a production ANN index requires selecting and fixing a model dimension
 in a later migration.
 
-Legacy DOC parsing, OCR, and external synchronization remain outside this
-runtime slice.
+Legacy DOC parsing and OCR remain outside the supported parser scope. Google
+Drive synchronization imports supported scoped content through this same
+ingestion and indexing pipeline.
 
 ## Retrieval/Search API
 

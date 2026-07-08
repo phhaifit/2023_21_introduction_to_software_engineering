@@ -18,6 +18,7 @@ const storageRoot = await mkdtemp(join(tmpdir(), "kb-rag-inline-upload-"));
 
 try {
   await verifySuccessfulInlineUpload();
+  await verifyCsvAndMarkdownInlineUploads();
   await verifyUnsupportedUploadRejected();
   await verifySafeFailure("parser");
   await verifySafeFailure("embedding");
@@ -109,6 +110,60 @@ async function verifySuccessfulInlineUpload() {
   );
   assert.equal(runtime.embeddingCalls.length, chunks.total);
   assert.equal(runtime.vectorCalls.length, chunks.total);
+}
+
+async function verifyCsvAndMarkdownInlineUploads() {
+  for (const candidate of [
+    {
+      mode: "csv",
+      fileName: "equipment.csv",
+      mediaType: "application/csv",
+      content: "name,status\nLaptop,approved",
+      expectedMediaType: "text/csv",
+      expectedText: /Laptop,approved/
+    },
+    {
+      mode: "markdown",
+      fileName: "handbook.md",
+      mediaType: "application/octet-stream",
+      content: "# Handbook\n\nUse approved equipment.",
+      expectedMediaType: "text/markdown",
+      expectedText: /approved equipment/
+    }
+  ]) {
+    const runtime = createRuntime(candidate.mode);
+    const upload = await runtime.uploadUseCases.uploadDocuments(
+      "workspace-a",
+      "user-a",
+      [
+        {
+          clientFileId: `${candidate.mode}-file`,
+          fileName: candidate.fileName,
+          mediaType: candidate.mediaType,
+          content: new TextEncoder().encode(candidate.content)
+        }
+      ]
+    );
+
+    assert.equal(
+      upload.documents[0].status,
+      "ready",
+      JSON.stringify({
+        document: upload.documents[0],
+        ingestionJob: upload.ingestionJobs[0]
+      })
+    );
+    assert.equal(upload.documents[0].mediaType, candidate.expectedMediaType);
+    const chunks = await runtime.documentRepository.listDocumentChunks(
+      "workspace-a",
+      `document-${candidate.mode}`
+    );
+    assert.ok(chunks.total >= 1);
+    assert.match(chunks.items[0].contentText, candidate.expectedText);
+    assert.ok(chunks.items.every((chunk) => chunk.embeddingStatus === "ready"));
+    assert.equal(runtime.vectorCalls.length, chunks.total);
+    assertSafe(upload);
+  }
 }
 
 async function verifyUnsupportedUploadRejected() {

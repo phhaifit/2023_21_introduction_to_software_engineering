@@ -22,7 +22,12 @@ import {
 export const SUPPORTED_UPLOAD_MEDIA_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain"
+  "text/plain",
+  "text/csv",
+  "application/csv",
+  "text/markdown",
+  "text/x-markdown",
+  "application/octet-stream"
 ] as const;
 
 export const MAX_UPLOAD_CANDIDATE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -50,6 +55,16 @@ export type UploadedKnowledgeFile = {
   fileName: string;
   mediaType: string;
   content: Uint8Array;
+};
+
+export type ExternalKnowledgeFile = {
+  sourceId: string;
+  externalId: string;
+  sourceModifiedAt: string;
+  fileName: string;
+  mediaType: string;
+  content: Uint8Array;
+  existingDocument?: KnowledgeDocument;
 };
 
 export class KnowledgeUploadUseCases {
@@ -119,7 +134,8 @@ export class KnowledgeUploadUseCases {
     const documents = [];
     const jobs = [];
 
-    for (const file of request.files) {
+    for (const rawFile of request.files) {
+      const file = normalizeManualUploadCandidate(rawFile);
       const documentId = this.dependencies.generateDocumentId();
       const document = await this.dependencies.documentRepository.saveDocument({
         documentId,
@@ -174,7 +190,8 @@ export class KnowledgeUploadUseCases {
       throw new KnowledgeFileStorageError();
     }
 
-    const candidates = files.map((file) => ({
+    const normalizedFiles = files.map(normalizeManualUploadedFile);
+    const candidates = normalizedFiles.map((file) => ({
       clientFileId: file.clientFileId,
       fileName: file.fileName,
       mediaType: file.mediaType,
@@ -188,7 +205,9 @@ export class KnowledgeUploadUseCases {
       );
     }
 
-    const contentIssues = files.flatMap((file) => this.validateUploadedContent(file));
+    const contentIssues = normalizedFiles.flatMap((file) =>
+      this.validateUploadedContent(file)
+    );
     if (contentIssues.length > 0) {
       throw new KnowledgeBaseRagValidationError(contentIssues);
     }
@@ -197,7 +216,7 @@ export class KnowledgeUploadUseCases {
     const documents = [];
     const jobs = [];
 
-    for (const file of files) {
+    for (const file of normalizedFiles) {
       const documentId = this.dependencies.generateDocumentId();
       const candidate = {
         clientFileId: file.clientFileId,
@@ -275,6 +294,92 @@ export class KnowledgeUploadUseCases {
     };
   }
 
+  async importExternalFile(
+    workspaceId: EntityId<"workspaceId">,
+    actorId: EntityId<"userId">,
+    file: ExternalKnowledgeFile
+  ): Promise<{ document: KnowledgeDocument; job: KnowledgeIngestionJob }> {
+    if (!this.dependencies.fileStorage) throw new KnowledgeFileStorageError();
+    const normalizedMediaType =
+      file.mediaType === "text/csv" || file.mediaType === "text/markdown"
+        ? "text/plain"
+        : file.mediaType;
+    const candidate = {
+      clientFileId: file.externalId,
+      fileName: normalizeExternalFileName(file.fileName, normalizedMediaType),
+      mediaType: normalizedMediaType,
+      content: file.content
+    };
+    const issues = this.validateUploadedContent(candidate);
+    if (
+      !SUPPORTED_UPLOAD_MEDIA_TYPES.includes(normalizedMediaType as never) ||
+      issues.length > 0
+    ) {
+      throw new KnowledgeBaseRagValidationError([
+        `${file.fileName}: unsupported_or_invalid_external_file`
+      ]);
+    }
+    const now = this.dependencies.now();
+    const documentId =
+      file.existingDocument?.documentId ?? this.dependencies.generateDocumentId();
+    const stored = await this.dependencies.fileStorage.store({
+      workspaceId,
+      documentId,
+      fileName: candidate.fileName,
+      mediaType: normalizedMediaType,
+      content: candidate.content
+    });
+    if (file.existingDocument) {
+      await this.dependencies.documentRepository.deleteDocumentChunks(
+        workspaceId,
+        documentId
+      );
+    }
+    const document = await this.dependencies.documentRepository.saveDocument({
+      documentId,
+      workspaceId,
+      uploadedByUserId: actorId,
+      displayName: file.fileName,
+      fileName: candidate.fileName,
+      mimeType: normalizedMediaType,
+      fileType: inferFileType({
+        fileName: candidate.fileName,
+        mediaType: normalizedMediaType
+      }),
+      sizeBytes: stored.sizeBytes,
+      sourceType: "google_drive",
+      sourceId: file.sourceId,
+      storageKey: stored.storageKey,
+      contentHash: stored.contentHash,
+      externalId: file.externalId,
+      sourceModifiedAt: file.sourceModifiedAt,
+      lastSyncedAt: now,
+      status: "pending",
+      ingestionStatus: "pending",
+      indexingStatus: "pending",
+      chunkCount: 0,
+      indexedChunkCount: 0,
+      createdAt: file.existingDocument?.createdAt ?? now,
+      updatedAt: now
+    });
+    const job = await this.dependencies.ingestionJobRepository.saveIngestionJob({
+      jobId: this.dependencies.generateJobId(),
+      workspaceId,
+      documentId,
+      status: "pending",
+      progress: 0,
+      queuedAt: now,
+      requestedByUserId: actorId,
+      createdAt: now,
+      updatedAt: now
+    });
+    if (!this.dependencies.postUploadProcessor) return { document, job };
+    return this.dependencies.postUploadProcessor.process({
+      workspaceId,
+      jobId: job.jobId
+    });
+  }
+
   private assertWorkspaceId(workspaceId: EntityId<"workspaceId">): void {
     if (!workspaceId) {
       throw new KnowledgeBaseRagValidationError(["workspaceId is required"]);
@@ -318,15 +423,15 @@ export class KnowledgeUploadUseCases {
       };
     }
 
-    if (!SUPPORTED_UPLOAD_MEDIA_TYPES.includes(file.mediaType as never)) {
+    const mediaType = file.mediaType.trim().toLowerCase();
+    if (!SUPPORTED_UPLOAD_MEDIA_TYPES.includes(mediaType as never)) {
       return {
         reasonCode: "unsupported_media_type",
         message: "File type is not supported for knowledge ingestion."
       };
     }
 
-    const expectedExtension = expectedExtensionForMediaType(file.mediaType);
-    if (expectedExtension && !fileName.toLowerCase().endsWith(expectedExtension)) {
+    if (!canonicalManualUploadMediaType(fileName, mediaType)) {
       return {
         reasonCode: "file_type_mismatch",
         message: "File extension does not match the declared media type."
@@ -364,7 +469,7 @@ export class KnowledgeUploadUseCases {
     ) {
       return [`${file.fileName}: invalid_file_content`];
     }
-    if (mediaType === "text/plain") {
+    if (isUtf8TextMediaType(mediaType)) {
       if (content.includes(0)) {
         return [`${file.fileName}: invalid_file_content`];
       }
@@ -387,6 +492,13 @@ export class KnowledgeUploadUseCases {
   }
 }
 
+function normalizeExternalFileName(fileName: string, mediaType: string): string {
+  if (mediaType === "text/plain" && !/\.(txt|md|csv)$/i.test(fileName)) {
+    return `${fileName}.txt`;
+  }
+  return fileName;
+}
+
 function inferFileType(file: UploadCandidateFileDto): string {
   const lowerName = file.fileName.toLowerCase();
   const extension = lowerName.includes(".") ? lowerName.split(".").pop() : undefined;
@@ -394,11 +506,71 @@ function inferFileType(file: UploadCandidateFileDto): string {
   return extension || file.mediaType.split("/").pop() || "unknown";
 }
 
-function expectedExtensionForMediaType(mediaType: string): string | null {
-  if (mediaType === "application/pdf") return ".pdf";
-  if (mediaType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    return ".docx";
+function normalizeManualUploadCandidate<T extends UploadCandidateFileDto>(file: T): T {
+  return {
+    ...file,
+    mediaType:
+      canonicalManualUploadMediaType(file.fileName, file.mediaType) ??
+      file.mediaType.trim().toLowerCase()
+  };
+}
+
+function normalizeManualUploadedFile(file: UploadedKnowledgeFile): UploadedKnowledgeFile {
+  return {
+    ...file,
+    mediaType:
+      canonicalManualUploadMediaType(file.fileName, file.mediaType) ??
+      file.mediaType.trim().toLowerCase()
+  };
+}
+
+function canonicalManualUploadMediaType(
+  fileName: string,
+  declaredMediaType: string
+): string | null {
+  const mediaType = declaredMediaType.trim().toLowerCase();
+  const extension = fileName.trim().toLowerCase().match(/(\.[^.]+)$/)?.[1];
+  const octetStream = mediaType === "application/octet-stream";
+
+  if (extension === ".pdf" && (mediaType === "application/pdf" || octetStream)) {
+    return "application/pdf";
   }
-  if (mediaType === "text/plain") return ".txt";
+  if (
+    extension === ".docx" &&
+    (mediaType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      octetStream)
+  ) {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (extension === ".txt" && (mediaType === "text/plain" || octetStream)) {
+    return "text/plain";
+  }
+  if (
+    extension === ".csv" &&
+    (mediaType === "text/csv" ||
+      mediaType === "application/csv" ||
+      mediaType === "text/plain" ||
+      octetStream)
+  ) {
+    return "text/csv";
+  }
+  if (
+    (extension === ".md" || extension === ".markdown") &&
+    (mediaType === "text/markdown" ||
+      mediaType === "text/x-markdown" ||
+      mediaType === "text/plain" ||
+      octetStream)
+  ) {
+    return "text/markdown";
+  }
   return null;
+}
+
+function isUtf8TextMediaType(mediaType: string): boolean {
+  return (
+    mediaType === "text/plain" ||
+    mediaType === "text/csv" ||
+    mediaType === "text/markdown"
+  );
 }

@@ -72,6 +72,7 @@ const fileTypeLabels: Record<KnowledgeDocumentType, string> = {
   docx: "DOCX",
   txt: "TXT",
   csv: "CSV",
+  markdown: "MD",
   page: "Page"
 };
 

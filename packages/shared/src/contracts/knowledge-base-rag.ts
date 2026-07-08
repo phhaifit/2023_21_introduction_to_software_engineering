@@ -19,7 +19,21 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   agentKnowledgeDocument:
     "/api/workspaces/:workspaceId/knowledge/agents/:agentId/documents/:documentId",
   agentKnowledgeAsk:
-    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask"
+    "/api/workspaces/:workspaceId/knowledge/agents/:agentId/ask",
+  googleDriveOAuthStart:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/google-drive/connect/start",
+  googleDriveOAuthCallback:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/google-drive/oauth/callback",
+  disconnectDataSource:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/disconnect",
+  googleDriveScope:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/scope",
+  googleDrivePreview:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/preview",
+  googleDriveAutoSync:
+    "/api/workspaces/:workspaceId/knowledge/data-sources/:sourceId/google-drive/auto-sync",
+  syncJob:
+    "/api/workspaces/:workspaceId/knowledge/sync-jobs/:jobId"
 } as const;
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
@@ -39,7 +53,14 @@ export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocuments },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
   { method: "DELETE", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeDocument },
-  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeAsk }
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.agentKnowledgeAsk },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthStart },
+  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthCallback },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.disconnectDataSource },
+  { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveScope },
+  { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDrivePreview },
+  { method: "PUT", path: KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveAutoSync },
+  { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.syncJob }
 ] as const;
 
 export type KnowledgeBaseRagApiRoute =
@@ -88,6 +109,12 @@ export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeDataSourceDto",
   "SyncScopeNodeDto",
   "SyncJobDto",
+  "GoogleDriveOAuthStartRequest",
+  "GoogleDriveOAuthStartResponse",
+  "GoogleDriveOAuthCallbackResponse",
+  "GoogleDriveSyncScopeRequest",
+  "GoogleDriveScopePreviewRequest",
+  "GoogleDriveAutoSyncSettingsRequest",
   "KnowledgeRetrievalSearchRequest",
   "KnowledgeEvidenceDto",
   "KnowledgeRetrievalSearchResponse",
@@ -124,6 +151,9 @@ export type KnowledgeDocumentDto = {
   createdAt: string;
   updatedAt: string;
   lastIndexedAt?: string;
+  externalId?: string;
+  sourceModifiedAt?: string;
+  lastSyncedAt?: string;
   failure?: SafeFailureSummary;
 };
 
@@ -229,7 +259,14 @@ export type KnowledgeDataSourceDto = {
   displayName: string;
   status: KnowledgeDataSourceStatus;
   selectedScopeNodeCount: number;
+  connectedAccountEmail?: string;
+  oauthConfigured?: boolean;
   lastSyncAt?: string;
+  autoSyncEnabled?: boolean;
+  autoSyncFrequency?: "hourly" | "daily";
+  lastAutoSyncAt?: string;
+  nextAutoSyncAt?: string;
+  lastSyncStatus?: "completed" | "failed";
   updatedAt: string;
   failure?: SafeFailureSummary;
 };
@@ -237,11 +274,15 @@ export type KnowledgeDataSourceDto = {
 export type SyncScopeNodeDto = {
   scopeNodeId: string;
   sourceId: string;
+  externalId?: string;
   parentScopeNodeId?: string;
   name: string;
   nodeType: "folder" | "file" | "page" | "space";
+  mimeType?: string;
   selected: boolean;
   selectable: boolean;
+  unsupportedReason?: string;
+  hasMoreChildren?: boolean;
   updatedAt: string;
 };
 
@@ -255,7 +296,50 @@ export type SyncJobDto = {
   finishedAt?: string;
   scannedItemCount: number;
   changedItemCount: number;
+  importedItemCount?: number;
+  updatedItemCount?: number;
+  skippedUnchangedItemCount?: number;
+  skippedUnsupportedItemCount?: number;
+  removedItemCount?: number;
+  failedItemCount?: number;
+  totalChunksCreated?: number;
+  totalVectorsIndexed?: number;
+  syncMode?: "manual" | "scheduled";
   failure?: SafeFailureSummary;
+};
+
+export type GoogleDriveOAuthStartRequest = {
+  displayName?: string;
+};
+
+export type GoogleDriveOAuthStartResponse = {
+  authorizationUrl: string;
+};
+
+export type GoogleDriveOAuthCallbackResponse = {
+  source: KnowledgeDataSourceDto;
+  connected: true;
+};
+
+export type GoogleDriveSyncScopeRequest = {
+  folderIds?: string[];
+  fileIds?: string[];
+  recursive?: boolean;
+  allowedMimeTypes?: string[];
+  maxFiles?: number;
+};
+
+export type GoogleDriveScopePreviewRequest = {
+  folderIds?: string[];
+  fileIds?: string[];
+  recursive?: boolean;
+  allowedMimeTypes?: string[];
+  maxFiles?: number;
+};
+
+export type GoogleDriveAutoSyncSettingsRequest = {
+  autoSyncEnabled: boolean;
+  autoSyncFrequency?: "hourly" | "daily";
 };
 
 export type ConnectKnowledgeDataSourceRequest = {

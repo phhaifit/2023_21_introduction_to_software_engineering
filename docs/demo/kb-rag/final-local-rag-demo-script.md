@@ -233,8 +233,9 @@ dimensions from `.env.example`.
   and PostgreSQL is reachable. Inline mode requires PostgreSQL.
 - **Document remains pending:** confirm `KNOWLEDGE_INGESTION_MODE=inline` is set
   in `.env`, then restart the backend. Refresh **Processing Status** manually.
-- **Document failed processing:** use a supported text file first. Image-only
-  PDFs and OCR hardening are outside this demo.
+- **Document failed processing:** confirm the file is PDF with extractable
+  text, DOCX, TXT, CSV, or Markdown. Image-only PDFs require OCR, which is
+  deferred.
 - **No citations in Task chat:** confirm the document is ready/completed,
   assigned to the selected agent, and the selected Tasks mode is **Agent**.
 - **The wrong agent answers:** select the same agent that received the document
@@ -262,9 +263,14 @@ dimensions from `.env.example`.
   Orchestration.
 - `knowledge.retrieve` is not registered into the production OpenClaw/tool
   runtime.
-- There is no production queue, scheduler, Redis/RabbitMQ worker daemon, or
-  public process-next endpoint in this demo.
-- External connectors, OAuth, and source-level grants are not implemented.
-- OCR/image-only PDF hardening is outside this slice.
+- Process-local queue mode is the default. PostgreSQL durable lease mode is
+  opt-in; there is no separately deployed autoscaled worker service.
+- Google Drive is the only external connector. OAuth, scoped manual sync, and
+  opt-in scheduled polling are implemented; Notion and Confluence are future
+  work.
+- Google Picker and Drive Changes API/push notifications are deferred.
+- OCR for image-only/scanned PDFs and legacy `.doc` are deferred.
+- Agent grants are document-level; production source-level grants are not
+  implemented.
 - Real pgvector verification is opt-in and not required in CI.
 - Deterministic automated tests do not call real embedding or RAG providers.

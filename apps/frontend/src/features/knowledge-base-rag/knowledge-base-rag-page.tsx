@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 
+import { KnowledgeBaseDataSourcesScreen } from "./knowledge-base-rag-data-sources.tsx";
 import { KnowledgeBaseDocumentsScreen } from "./knowledge-base-rag-documents.tsx";
 import {
   createKnowledgeBaseRagApiClient,
@@ -10,12 +11,14 @@ import {
 } from "./knowledge-base-rag-api-client.ts";
 import { KnowledgeBaseTabs } from "./knowledge-base-rag-components.tsx";
 import { KnowledgeBaseProcessingStatusScreen } from "./knowledge-base-rag-processing-status.tsx";
+import { KnowledgeBaseSyncScopeScreen } from "./knowledge-base-rag-sync-scope.tsx";
 import { KnowledgeBaseUploadScreen } from "./knowledge-base-rag-upload.tsx";
 import "./knowledge-base-rag-view.css";
 
 type KnowledgeBaseRagViewId =
   | "documents"
   | "upload-documents"
+  | "data-sync"
   | "processing-status";
 
 type KnowledgeBaseRagView = {
@@ -55,6 +58,14 @@ const knowledgeBaseViews: KnowledgeBaseRagView[] = [
     ]
   },
   {
+    id: "data-sync",
+    label: "Data Sync",
+    eyebrow: "Google Drive sync",
+    title: "Data Sync",
+    description: "Connect Google Drive and synchronize selected files or folders.",
+    summaryItems: ["Connect Google Drive.", "Configure selected content and sync settings."]
+  },
+  {
     id: "processing-status",
     label: "Processing Status",
     eyebrow: "Ingestion and sync monitoring",
@@ -78,8 +89,12 @@ export type KnowledgeBaseRagPageProps = {
 
 export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
   const { apiClient = defaultApiClient, workspaceId = DEMO_WORKSPACE_ID } = props;
-  const [activeViewId, setActiveViewId] = useState<KnowledgeBaseRagViewId>("documents");
+  const [activeViewId, setActiveViewId] = useState<KnowledgeBaseRagViewId>(
+    getInitialViewId
+  );
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
+  const [dataSourceRefreshKey, setDataSourceRefreshKey] = useState(0);
+  const [syncScopeRefreshKey, setSyncScopeRefreshKey] = useState(0);
 
   const activeView = useMemo(
     () =>
@@ -124,6 +139,27 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
             workspaceId={workspaceId}
           />
         )}
+        {activeView.id === "data-sync" && (
+          <div className="knowledge-base-rag-data-sync">
+            <KnowledgeBaseDataSourcesScreen
+              apiClient={apiClient}
+              key={`data-source-${dataSourceRefreshKey}`}
+              onConnectionChanged={() =>
+                setSyncScopeRefreshKey((current) => current + 1)
+              }
+              workspaceId={workspaceId}
+            />
+            <KnowledgeBaseSyncScopeScreen
+              apiClient={apiClient}
+              key={`sync-scope-${syncScopeRefreshKey}`}
+              onScopeSaved={() =>
+                setDataSourceRefreshKey((current) => current + 1)
+              }
+              onViewProcessingStatus={() => setActiveViewId("processing-status")}
+              workspaceId={workspaceId}
+            />
+          </div>
+        )}
         {activeView.id === "processing-status" && (
           <KnowledgeBaseProcessingStatusScreen
             apiClient={apiClient}
@@ -133,4 +169,15 @@ export function KnowledgeBaseRagPage(props: KnowledgeBaseRagPageProps = {}) {
       </main>
     </section>
   );
+}
+
+function getInitialViewId(): KnowledgeBaseRagViewId {
+  if (typeof window === "undefined") return "documents";
+  const requested = new URLSearchParams(window.location.search).get("tab");
+  if (requested === "data-sources" || requested === "synchronization-scope") {
+    return "data-sync";
+  }
+  return knowledgeBaseViews.some((view) => view.id === requested)
+    ? (requested as KnowledgeBaseRagViewId)
+    : "documents";
 }

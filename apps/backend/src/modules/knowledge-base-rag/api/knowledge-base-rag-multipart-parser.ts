@@ -168,6 +168,10 @@ function inferMediaType(fileName: string): string {
   if (lowerName.endsWith(".docx")) {
     return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   }
+  if (lowerName.endsWith(".csv")) return "text/csv";
+  if (lowerName.endsWith(".md") || lowerName.endsWith(".markdown")) {
+    return "text/markdown";
+  }
   if (lowerName.endsWith(".txt")) return "text/plain";
   return "application/octet-stream";
 }

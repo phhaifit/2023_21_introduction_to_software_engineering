@@ -63,6 +63,7 @@ environment above. `Not executed` is intentionally not presented as passing.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | KB-E2E-001 | Upload | Supported TXT upload | Automated | Run contract suite | Bytes stored; pending document/job DTOs returned | Accepted and persisted through storage port | Passed | application use cases; production E2E | Public DTO excludes storage key |
 | KB-E2E-002 | Upload | Supported PDF/DOCX signatures | Automated | Run contract suite | Supported formats accepted | PDF and DOCX candidates accepted | Passed | application use cases | Parsing covered separately |
+| KB-E2E-002A | Upload | Supported CSV/Markdown upload | Automated | Run contract suite | Browser MIME aliases are normalized and text reaches ingestion/indexing | CSV and Markdown uploads become ready with indexed chunks | Passed | application use cases; local upload-to-index | `.csv`, `.md`, and `.markdown` covered |
 | KB-E2E-003 | Upload | Unsupported type | Automated | Run contract suite | Safe validation rejection | Unsupported media rejected | Passed | application use cases; API router | No storage side effect |
 | KB-E2E-004 | Upload | Oversized file | Automated | Run contract suite | Safe validation rejection | Oversized input rejected | Passed | application use cases; API router | Configured limit enforced |
 | KB-E2E-005 | Upload | Missing file | Automated | Run contract suite | Safe validation rejection | Empty upload rejected | Passed | application use cases; API router | Multipart missing-file behavior covered |
@@ -76,7 +77,8 @@ environment above. `Not executed` is intentionally not presented as passing.
 | KB-E2E-013 | Worker | Queued job succeeds | Automated | Run contract suite | Job/document progress to ready | Chunks persisted; lifecycle ready | Passed | ingestion worker runtime | Storage and extractor called once |
 | KB-E2E-014 | Worker | Storage/parser failure | Automated | Run contract suite | Job/document fail safely | Safe failure status persisted | Passed | ingestion worker runtime | Private paths excluded |
 | KB-E2E-015 | Worker | Non-pending job | Automated | Run contract suite | No reprocessing or duplicate chunks | Ingesting/ready/failed jobs rejected | Passed | ingestion worker runtime | No implicit retry |
-| KB-E2E-016 | Worker | FIFO tie ordering | Automated | Run contract suite | `queuedAt`, then job ID ordering | Stable ordering verified | Passed | ingestion worker runtime | No multi-worker lease claim |
+| KB-E2E-016 | Worker | Process-local FIFO tie ordering | Automated | Run contract suite | `queuedAt`, then job ID ordering | Stable ordering verified | Passed | ingestion worker runtime | Durable claim behavior is covered separately |
+| KB-E2E-016A | Worker | Durable job lease and retry | Automated | Run contract suite | One worker claims active work; expired leases reclaim; retries are capped | Claim, reclaim, completion, transient retry, and permanent failure passed | Passed | durable queue contract | Uses a fake Prisma/raw-query harness, not a PostgreSQL concurrency smoke test |
 | KB-E2E-017 | Worker | Chunk persistence failure | Automated | Run contract suite | Job/document remain failed, not ready | Failure lifecycle verified | Passed | ingestion worker runtime | Partial chunk is not treated as success |
 | KB-E2E-018 | Embedding | Deterministic and real-adapter success | Automated | Run contract suite | Vectors generated in input order | Fake and mocked HTTP modes passed | Passed | embedding adapter/provider tests | No real network call |
 | KB-E2E-019 | Embedding | Provider failure | Automated | Run contract suite | Safe embedding failure | Provider details redacted | Passed | embedding adapter; local flow | API key/payload withheld |
@@ -157,8 +159,9 @@ issue. This does not replace live deployment and browser acceptance testing.
 - The existing Playwright suite covers Agent Management and Workflow
   import/export, not KB/RAG; it also cannot run in this environment until the
   matching Chromium binary is installed.
-- External Google Drive, Notion, and Confluence synchronization runtime remains
-  placeholder/deferred.
+- Google Drive is the only implemented external synchronization provider.
+  Manual sync and opt-in scheduled polling operate only on configured file or
+  folder scope. Notion and Confluence remain out of scope.
 - Agent grants are document-level. Source-level grants and a public grant
   administration API remain deferred.
 - Image-only PDFs require OCR, which remains out of scope.
