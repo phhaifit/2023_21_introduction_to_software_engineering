@@ -20,6 +20,7 @@ import { CheckoutUseCases } from "./modules/subscription-payment/application/che
 import { PrismaSubscriptionRepository } from "./modules/subscription-payment/infrastructure/prisma-subscription-repository.ts";
 import { InMemorySubscriptionRepository } from "./modules/subscription-payment/infrastructure/in-memory-subscription-repository.ts";
 import { MockPaymentAdapter } from "./modules/subscription-payment/infrastructure/mock-payment-adapter.ts";
+import { SubscriptionRenewalCron } from "../../workers/src/jobs/subscription-renewal/renewal-cron.ts";
 import { InMemoryEventBus } from "./shared/events/event-bus.ts";
 
 // Workspace Management
@@ -1432,6 +1433,13 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       authenticateSessionUseCase,
     })
   );
+
+  // Khởi chạy Daily Cron Job gia hạn định kỳ hàng ngày (mỗi 24 giờ)
+  const renewalCron = new SubscriptionRenewalCron({
+    checkoutUseCases,
+    subscriptionRepository
+  });
+  renewalCron.start(24 * 60 * 60 * 1000);
 
   return {
     app,

@@ -16,6 +16,8 @@
     "test:components": "cd ../.. && vitest run --config vitest.config.ts tests/component"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.7.0",
+    "@stripe/stripe-js": "^9.9.0",
     "@vcp/shared": "0.1.0",
     "lucide-react": "^1.21.0",
     "react": "^18.3.1",
