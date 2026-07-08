@@ -27,10 +27,10 @@ Owner module: `apps/backend/src/modules/authentication`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/auth/register` | Public | None | `implement-authentication` request DTO | `ApiResponse` user/session summary | `planned` | Must never return password or password hash. |
-| `POST` | `/api/auth/login` | Public | None | `implement-authentication` request DTO | `ApiResponse` session summary | `planned` | Invalid credentials use safe shared auth error expectations. |
-| `POST` | `/api/auth/logout` | Authenticated | None | Empty or session-token context | `ApiResponse` logout acknowledgement | `planned` | Invalidates current session/token. |
-| `GET` | `/api/auth/me` | Authenticated | None | Request context | `ApiResponse` current-user summary | `planned` | Source of user identity for protected frontend state. |
+| `POST` | `/api/auth/register` | Public | None | `implement-authentication` request DTO | `ApiResponse` user/session summary | `implemented` | Must never return password or password hash. |
+| `POST` | `/api/auth/login` | Public | None | `implement-authentication` request DTO | `ApiResponse` session summary | `implemented` | Invalid credentials use safe shared auth error expectations. |
+| `POST` | `/api/auth/logout` | Authenticated | None | Empty or session-token context | `ApiResponse` logout acknowledgement | `implemented` | Invalidates current session/token. |
+| `GET` | `/api/auth/me` | Authenticated | None | Request context | `ApiResponse` current-user summary | `implemented` | Source of user identity for protected frontend state. |
 
 ## Workspace Management
 
@@ -38,10 +38,10 @@ Owner module: `apps/backend/src/modules/workspace-management`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/workspaces` | Authenticated | User-accessible workspaces | Request context plus optional pagination | `ApiPaginatedSuccess` workspace summaries | `planned` | Lists workspaces visible to current user. |
-| `POST` | `/api/workspaces` | Authenticated | Created workspace | `implement-workspace-management` create DTO | `ApiResponse` workspace summary | `planned` | Records provisioning state and delegates OpenClaw setup through worker/runtime boundary. |
-| `GET` | `/api/workspaces/:workspaceId` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` workspace detail | `planned` | Detail may include related public summaries only. |
-| `DELETE` | `/api/workspaces/:workspaceId` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` deletion acknowledgement | `planned` | Marks deletion and delegates runtime cleanup through worker/runtime boundary. |
+| `GET` | `/api/workspaces` | Authenticated | User-accessible workspaces | Request context plus optional pagination | `ApiPaginatedSuccess` workspace summaries | `implemented` | Lists workspaces visible to current user. |
+| `POST` | `/api/workspaces` | Authenticated | Created workspace | `implement-workspace-management` create DTO | `ApiResponse` workspace summary | `implemented` | Records provisioning state and delegates OpenClaw setup through worker/runtime boundary. |
+| `GET` | `/api/workspaces/:workspaceId` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` workspace detail | `implemented` | Detail may include related public summaries only. |
+| `DELETE` | `/api/workspaces/:workspaceId` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` deletion acknowledgement | `implemented` | Marks deletion and delegates runtime cleanup through worker/runtime boundary. |
 
 ## Workspace User Management
 
@@ -49,10 +49,16 @@ Owner module: `apps/backend/src/modules/workspace-user-management`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/workspaces/:workspaceId/members` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiPaginatedSuccess` member summaries | `planned` | Viewer can read according to module RBAC rules. |
-| `POST` | `/api/workspaces/:workspaceId/invitations` | Workspace admin | Route `workspaceId` | `implement-workspace-user-management` invitation DTO | `ApiResponse` invitation summary | `planned` | Request body must not accept inviter user identity. |
-| `PATCH` | `/api/workspaces/:workspaceId/members/:memberId` | Workspace admin | Route `workspaceId` | role update DTO | `ApiResponse` member summary | `planned` | Validates admin/editor/viewer role transitions. |
-| `DELETE` | `/api/workspaces/:workspaceId/members/:memberId` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` removal acknowledgement | `planned` | Revokes workspace access. |
+| `GET` | `/api/workspaces/:workspaceId/members` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiResponse` member summaries | `provisional-existing` | Live handler exists; OpenSpec tasks still need reconciliation. |
+| `GET` | `/api/workspaces/:workspaceId/events` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` workspace activity summaries | `provisional-existing` | Live handler exists for the member-management UI. |
+| `POST` | `/api/workspaces/:workspaceId/invitations` | Workspace admin | Route `workspaceId` | `implement-workspace-user-management` invitation DTO | `ApiResponse` invitation summary | `provisional-existing` | Request body must not accept inviter user identity; OpenSpec tasks still need reconciliation. |
+| `PATCH` | `/api/workspaces/:workspaceId/members/:memberId` | Workspace admin | Route `workspaceId` | role update DTO | `ApiResponse` member summary | `provisional-existing` | Validates admin/editor/viewer role transitions. |
+| `DELETE` | `/api/workspaces/:workspaceId/members/:memberId` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` removal acknowledgement | `provisional-existing` | Revokes workspace access. |
+| `POST` | `/api/workspaces/:workspaceId/members/:memberId/transfer-host` | Workspace host/admin | Route `workspaceId` | Request context | `ApiResponse` host transfer acknowledgement | `provisional-existing` | Live handler exists; contract needs OpenSpec alignment. |
+| `POST` | `/api/workspaces/:workspaceId/admin-requests` | Workspace member | Route `workspaceId` | admin request DTO | `ApiResponse` admin request summary | `provisional-existing` | Live handler exists; OpenSpec tasks still need reconciliation. |
+| `POST` | `/api/workspaces/:workspaceId/admin-requests/:requestId/approve` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` admin request summary | `provisional-existing` | Live handler exists; OpenSpec tasks still need reconciliation. |
+| `POST` | `/api/workspaces/:workspaceId/admin-requests/:requestId/reject` | Workspace admin | Route `workspaceId` | Request context | `ApiResponse` admin request summary | `provisional-existing` | Live handler exists; OpenSpec tasks still need reconciliation. |
+| `POST` | `/api/invitations/:code/accept` | Public or authenticated invite accept flow | Invitation code | accept invitation DTO | `ApiResponse` workspace context | `provisional-existing` | Public accept router is mounted separately from workspace-scoped member routes. |
 
 ## Agent Management
 
@@ -64,11 +70,13 @@ Owner module: `apps/backend/src/modules/agent-management`
 | `POST` | `/api/workspaces/:workspaceId/agents` | `agents:manage` | Route `workspaceId` | `CreateAgentRequest` name, role, model, instructions, optional approved runtime sections, and optional requested tool/knowledge intent | `ApiResponse` agent public summary | `implemented` | Existing route derives workspace from request context; approved non-permission runtime sections are persisted for Agent Management runtime profiles, while requested tool/knowledge intent is validated but does not create assignments or grants. |
 | `GET` | `/api/workspaces/:workspaceId/agents/models` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` model catalog entries | `implemented` | Returns selectable static server-side model catalog entries for the creation assistant change. |
 | `POST` | `/api/workspaces/:workspaceId/agents/skill-preview` | `agents:manage` | Route `workspaceId` | `AgentSkillPreviewRequest` | `ApiResponse` `AgentSkillPreviewResponse` | `implemented` | Renders Markdown from a draft payload without creating or updating an agent. |
-| `POST` | `/api/workspaces/:workspaceId/agents/assistant/draft` | `agents:manage` | Route `workspaceId` | `AgentCreationAssistantDraftRequest` | `ApiResponse` `AgentCreationAssistantDraftResponse` | `planned` | Reserved for Gemini/OpenRouter draft generation; must not return raw provider errors or credentials. |
+| `POST` | `/api/workspaces/:workspaceId/agents/assistant/draft` | `agents:manage` | Route `workspaceId` | `AgentCreationAssistantDraftRequest` | `ApiResponse` `AgentCreationAssistantDraftResponse` | `implemented` | Generates editable drafts through the Gemini/OpenRouter provider chain; must not return raw provider errors or credentials. |
 | `POST` | `/api/workspaces/:workspaceId/agents/assistant/import-skill` | `agents:manage` | Route `workspaceId` | `AgentSkillImportAnalysisRequest` | `ApiResponse` extracted draft response | `implemented` | Analyzes free-form Markdown through the LLM provider chain and returns an editable draft without creating an agent. |
 | `GET` | `/api/workspaces/:workspaceId/agents/:agentId/skill.md` | Workspace member | Route `workspaceId` | Request context | `text/markdown` generated `skill.md` | `implemented` | Downloads the current generated skill artifact for enabled or disabled agents; deleted and cross-workspace agents are rejected. |
 | `GET` | `/api/workspaces/:workspaceId/agents/:agentId/configuration` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` editable configuration | `implemented` | Only route that returns private instructions; generated skill content is never returned. |
 | `PATCH` | `/api/workspaces/:workspaceId/agents/:agentId` | `agents:manage` | Route `workspaceId` | role, model, instructions | `ApiResponse` agent public summary | `implemented` | Agent name is not changed by this route. |
+| `PATCH` | `/api/workspaces/:workspaceId/agents/:agentId/name` | `agents:manage` | Route `workspaceId` | name update DTO | `ApiResponse` agent public summary | `implemented` | Renames an existing active agent. |
+| `POST` | `/api/workspaces/:workspaceId/agents/:agentId/duplicate` | `agents:manage` | Route `workspaceId` | optional name override | `ApiResponse` duplicated agent public summary | `implemented` | Creates a same-workspace copy using canonical stored configuration. |
 | `POST` | `/api/workspaces/:workspaceId/agents/:agentId/enable` | `agents:manage` | Route `workspaceId` | Request context | `ApiResponse` agent public summary | `implemented` | Enables an existing disabled agent. |
 | `POST` | `/api/workspaces/:workspaceId/agents/:agentId/disable` | `agents:manage` | Route `workspaceId` | Request context | `ApiResponse` agent public summary | `implemented` | Disables an available agent. |
 | `DELETE` | `/api/workspaces/:workspaceId/agents/:agentId` | `agents:manage` | Route `workspaceId` | Request context | `ApiResponse` agent public summary | `implemented` | Marks the agent as deleted. |
@@ -87,7 +95,17 @@ Owner module: `apps/backend/src/modules/subscription-payment`
 | `GET` | `/api/subscriptions/usage` | Authenticated | Workspace scope | workspaceId query | `ApiResponse` workspace resource usage summary | `implemented` | Computes dynamic CPU, RAM, Agent count, and Document storage usage. |
 | `POST` | `/api/subscriptions/toggle-auto-renewal` | Authenticated | User subscription context | `{ autoRenew: boolean }` | `ApiResponse` subscription summary | `implemented` | Enables or disables automatic renewal of current subscription. |
 | `POST` | `/api/subscriptions/payment-method` | Authenticated | User subscription context | `{ cardNumber, cardHolder, cardExpiry }` | `ApiResponse` subscription summary | `implemented` | Updates the virtual card details associated with the user. |
+| `DELETE` | `/api/subscriptions/payment-method/:id` | Authenticated | User subscription context | route `id` plus workspace query | `ApiResponse` payment-method acknowledgement | `provisional-existing` | Live handler exists; provider contract remains provisional. |
 | `POST` | `/api/subscriptions/validate-promo` | Authenticated | User subscription context | `{ promoCode: string }` | `ApiResponse` validate promo response | `implemented` | Checks promo code and returns discount amount ($10 for VCP10, $20 for VCP20). |
+| `POST` | `/api/subscriptions/cancel` | Authenticated | User subscription context | cancellation DTO | `ApiResponse` subscription summary | `implemented` | Cancels the active subscription in the current local implementation. |
+| `POST` | `/api/subscriptions/vnpay/checkout` | Authenticated | User subscription context | VNPay checkout DTO | `ApiResponse` checkout redirect/session summary | `provisional-existing` | Live VNPay-oriented handler exists; provider contract remains provisional. |
+| `GET` | `/api/subscriptions/vnpay/vnpay-return` | VNPay callback | Transaction context | callback query | redirect or callback acknowledgement | `provisional-existing` | Live callback handler exists; provider contract remains provisional. |
+| `GET` | `/api/subscriptions/vnpay/vnpay-ipn` | VNPay callback | Transaction context | callback query | callback acknowledgement | `provisional-existing` | Live IPN handler exists; provider contract remains provisional. |
+| `POST` | `/api/subscriptions/vnpay/charge-saved-method` | Authenticated | User subscription context | saved-method charge DTO | `ApiResponse` charge summary | `provisional-existing` | Live handler exists; provider contract remains provisional. |
+| `POST` | `/api/subscriptions/vnpay/initiate-binding` | Authenticated | User subscription context | binding DTO | `ApiResponse` binding summary | `provisional-existing` | Live handler exists; provider contract remains provisional. |
+| `POST` | `/api/subscriptions/stripe/setup-intent` | Authenticated | User subscription context | setup intent DTO | `ApiResponse` setup intent summary | `provisional-existing` | Live Stripe-oriented handler exists; provider contract remains provisional. |
+| `POST` | `/api/subscriptions/stripe/confirm-binding` | Authenticated | User subscription context | binding confirmation DTO | `ApiResponse` payment-method summary | `provisional-existing` | Live handler exists; provider contract remains provisional. |
+| `POST` | `/api/subscriptions/stripe/charge` | Authenticated | User subscription context | charge DTO | `ApiResponse` charge summary | `provisional-existing` | Live handler exists; provider contract remains provisional. |
 
 ## Tools & Integration
 
@@ -107,13 +125,15 @@ Owner module: `apps/backend/src/modules/workflow-management`
 
 | Method | Path | Auth | Workspace Scope | Request Contract | Response Contract | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `GET` | `/api/workspaces/:workspaceId/workflows` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiPaginatedSuccess` workflow summaries | `planned` | Lists workflows visible in the workspace. |
-| `POST` | `/api/workspaces/:workspaceId/workflows` | Workspace editor/admin | Route `workspaceId` | workflow create DTO | `ApiResponse` workflow detail | `planned` | Validates referenced public agent summaries before activation. |
-| `GET` | `/api/workspaces/:workspaceId/workflows/:workflowId` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` workflow detail | `planned` | Returns workflow definition without private module internals. |
-| `PATCH` | `/api/workspaces/:workspaceId/workflows/:workflowId` | Workspace editor/admin | Route `workspaceId` | workflow update DTO | `ApiResponse` workflow detail | `planned` | Updates name, status, and ordered steps. |
-| `POST` | `/api/workspaces/:workspaceId/workflows/:workflowId/publish` | Workspace editor/admin | Route `workspaceId` | Request context | `ApiResponse` workflow summary | `planned` | Publishes an active workflow after validation. |
-| `POST` | `/api/workspaces/:workspaceId/workflows/:workflowId/archive` | Workspace editor/admin | Route `workspaceId` | Request context | `ApiResponse` workflow summary | `planned` | Archives a workflow. |
-| `POST` | `/api/workspaces/:workspaceId/workflows/:workflowId/execution-requests` | Workspace member | Route `workspaceId` | execution request DTO | `ApiResponse` execution request summary | `planned` | Hands execution to Task & Orchestration or worker processing; Workflow does not execute task steps directly. |
+| `GET` | `/api/workspaces/:workspaceId/workflows` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiPaginatedSuccess` workflow summaries | `implemented` | Lists workflows visible in the workspace. |
+| `POST` | `/api/workspaces/:workspaceId/workflows` | Workspace editor/admin | Route `workspaceId` | workflow create DTO | `ApiResponse` workflow detail | `implemented` | Validates referenced public agent summaries before activation. |
+| `GET` | `/api/workspaces/:workspaceId/workflows/executions` | Workspace member | Route `workspaceId` | Request context plus optional pagination | `ApiResponse` execution summaries | `implemented` | Lists workflow execution records for the workspace. |
+| `GET` | `/api/workspaces/:workspaceId/workflows/executions/:executionId/logs` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` execution log entries | `implemented` | Reads execution logs without exposing private orchestration internals. |
+| `GET` | `/api/workspaces/:workspaceId/workflows/:workflowId` | Workspace member | Route `workspaceId` | Request context | `ApiResponse` workflow detail | `implemented` | Returns workflow definition without private module internals. |
+| `PATCH` | `/api/workspaces/:workspaceId/workflows/:workflowId` | Workspace editor/admin | Route `workspaceId` | workflow update DTO | `ApiResponse` workflow detail | `implemented` | Updates name, status, and ordered steps. |
+| `POST` | `/api/workspaces/:workspaceId/workflows/:workflowId/execute` | Workspace member | Route `workspaceId` | execution request DTO | `ApiResponse` execution request summary | `implemented` | Hands execution to Task & Orchestration; Workflow does not execute task steps directly. |
+| `GET` | `/api/workspaces/:workspaceId/workflows/:workflowId/execute/stream` | Workspace member | Route `workspaceId` | SSE subscription | Server-Sent Events carrying workflow execution updates | `implemented` | Streams execution progress for the selected workflow. |
+| `DELETE` | `/api/workspaces/:workspaceId/workflows/:workflowId` | Workspace editor/admin | Route `workspaceId` | Request context | `ApiResponse` deletion acknowledgement | `implemented` | Deletes or removes a workflow according to module rules. |
 
 ## Task & Orchestration
 

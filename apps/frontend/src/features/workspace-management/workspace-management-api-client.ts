@@ -52,10 +52,12 @@ function mapStatus(s: OriginalStatus): WorkspaceStatus {
   switch (s) {
     case "provisioning":    return "pending";
     case "active":          return "running";
+    case "running" as any:  return "running";
     case "deleting":        return "stopping";
     case "delete_failed":
     case "failed":          return "failed";
     case "deleted":         return "deleted";
+    default:                return (s || "pending") as unknown as WorkspaceStatus;
   }
 }
 
@@ -65,12 +67,16 @@ function mapProfile(p?: OriginalProfile | null): SubscriptionPlan {
   return "free";
 }
 
-function mapSummary(ws: OriginalWorkspaceSummary): WorkspaceSummaryDto {
+function mapSummary(ws: any): WorkspaceSummaryDto {
+  const plan = ws.plan || mapProfile(ws.requestedProfile);
+  const status = ["pending", "running", "stopping", "failed", "deleted"].includes(ws.status)
+    ? ws.status
+    : mapStatus(ws.status);
   return {
     workspaceId: ws.workspaceId as WorkspaceSummaryDto["workspaceId"],
     name: ws.name,
-    status: mapStatus(ws.status),
-    plan: mapProfile(ws.requestedProfile),
+    status,
+    plan,
     createdAt: ws.createdAt,
     updatedAt: ws.updatedAt,
   };
@@ -153,11 +159,12 @@ export async function createWorkspace(
       "Content-Type": "application/json",
       "Idempotency-Key": generateIdempotencyKey(),
     },
-    body: JSON.stringify({ name: body.name, requestedProfile }),
+    body: JSON.stringify({ name: body.name, plan: body.plan, requestedProfile }),
   });
 
-  const data = await parseOkResponse<OriginalCreateAccepted>(res);
-  return mapSummary(data.workspace);
+  const data = await parseOkResponse<any>(res);
+  const workspaceObj = data.workspace || data;
+  return mapSummary(workspaceObj);
 }
 
 export async function getWorkspaceDetail(

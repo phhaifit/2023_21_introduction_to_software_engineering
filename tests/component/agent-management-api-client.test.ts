@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentApiClientError,
@@ -43,6 +43,11 @@ function paginatedSuccess(data: unknown[], pagination: unknown): Response {
 }
 
 describe("Agent Management API client", () => {
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
   it("lists workspace agents and parses successful data", async () => {
     const fetchImplementation = vi.fn(async () =>
       paginatedSuccess(
@@ -137,6 +142,37 @@ describe("Agent Management API client", () => {
       "/api/workspaces/workspace-a/agents",
       expect.objectContaining({ method: "POST", body: JSON.stringify(payload) })
     );
+  });
+
+  it("uses authenticated default transport for list and mutation requests", async () => {
+    localStorage.setItem("vcp.auth.token", "session-token");
+    const fetchImplementation = vi.fn(async () =>
+      paginatedSuccess(
+        [{ ...summary, createdAt: "2026-06-19T00:00:00.000Z" }],
+        { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false }
+      )
+    );
+    vi.stubGlobal("fetch", fetchImplementation);
+    const client = createAgentManagementApiClient();
+
+    await client.listAgents(workspaceId);
+
+    const createPayload = {
+      name: "Research Agent",
+      role: "Researcher",
+      model: "gemini-2.5-flash",
+      instructions: "Prepare research."
+    };
+    fetchImplementation.mockResolvedValueOnce(success(summary));
+
+    await client.createAgent(workspaceId, createPayload);
+
+    const listHeaders = fetchImplementation.mock.calls[0][1]?.headers as Headers;
+    const createHeaders = fetchImplementation.mock.calls[1][1]?.headers as Headers;
+
+    expect(listHeaders.get("Authorization")).toBe("Bearer session-token");
+    expect(createHeaders.get("Authorization")).toBe("Bearer session-token");
+    expect(createHeaders.get("content-type")).toBe("application/json");
   });
 
   it("lists selectable agent models from the workspace catalog", async () => {
@@ -278,7 +314,7 @@ describe("Agent Management API client", () => {
     });
   });
 
-  it("normalizes malformed and network failures", async () => {
+  it("normalizes malformed, network, and auth failures", async () => {
     const malformedClient = createAgentManagementApiClient({
       fetchImplementation: vi.fn(async () => response({ ok: true, data: [] }))
     });
@@ -299,6 +335,22 @@ describe("Agent Management API client", () => {
             meta: { requestId: "test", timestamp: "2026-06-20T00:00:00.000Z" }
           },
           401
+        )
+      )
+    });
+    const forbiddenClient = createAgentManagementApiClient({
+      fetchImplementation: vi.fn(async () =>
+        response(
+          {
+            ok: false,
+            error: {
+              code: "auth.forbidden",
+              message: "Workspace membership is required",
+              details: { workspaceId }
+            },
+            meta: { requestId: "test", timestamp: "2026-06-20T00:00:00.000Z" }
+          },
+          403
         )
       )
     });
@@ -326,6 +378,17 @@ describe("Agent Management API client", () => {
       kind: "api",
       code: "auth.unauthorized",
       status: 401
+    });
+    await expect(forbiddenClient.createAgent(workspaceId, {
+      name: "Agent",
+      role: "Role",
+      model: "gemini-2.5-flash",
+      instructions: "Work."
+    })).rejects.toMatchObject({
+      kind: "api",
+      code: "auth.forbidden",
+      details: { workspaceId },
+      status: 403
     });
     await expect(networkClient.listAgents(workspaceId)).rejects.toEqual(
       expect.objectContaining<Partial<AgentApiClientError>>({

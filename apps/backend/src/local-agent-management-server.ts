@@ -5,6 +5,11 @@ import { pathToFileURL } from "node:url";
 import express, { type Express } from "express";
 
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import {
+  PLATFORM_DEMO_USERS,
+  PLATFORM_DEMO_WORKSPACES,
+  seedPlatformDemoData
+} from "./platform-demo-seed.ts";
 import type { AgentRepository } from "./modules/agent-management/application/agent-repository.ts";
 import type { AgentSkillWriter } from "./modules/agent-management/application/agent-skill-writer.ts";
 import { AgentLifecycleUseCases, type AgentRuntimeProfileReader } from "./modules/agent-management/application/agent-lifecycle-use-cases.ts";
@@ -20,6 +25,7 @@ import { CheckoutUseCases } from "./modules/subscription-payment/application/che
 import { PrismaSubscriptionRepository } from "./modules/subscription-payment/infrastructure/prisma-subscription-repository.ts";
 import { InMemorySubscriptionRepository } from "./modules/subscription-payment/infrastructure/in-memory-subscription-repository.ts";
 import { MockPaymentAdapter } from "./modules/subscription-payment/infrastructure/mock-payment-adapter.ts";
+import { SubscriptionRenewalCron } from "../../workers/src/jobs/subscription-renewal/renewal-cron.ts";
 import { InMemoryEventBus } from "./shared/events/event-bus.ts";
 
 // Workspace Management
@@ -49,6 +55,7 @@ import { PrismaUserRepository } from "./modules/authentication/infrastructure/pr
 import { PrismaSessionRepository } from "./modules/authentication/infrastructure/prisma-session-repository.ts";
 import { BcryptPasswordHasher } from "./modules/authentication/infrastructure/bcrypt-password-hasher.ts";
 import { Sha256TokenHasher } from "./modules/authentication/infrastructure/sha256-token-hasher.ts";
+import { createUser } from "./modules/authentication/domain/user.ts";
 import { createKnowledgeBaseRagRouter } from "./modules/knowledge-base-rag/api/knowledge-base-rag-router.ts";
 import { KnowledgeDataSourceUseCases } from "./modules/knowledge-base-rag/application/knowledge-data-source-use-cases.ts";
 import { KnowledgeDocumentUseCases } from "./modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
@@ -87,6 +94,15 @@ import {
   PrismaKnowledgeSyncJobRepository,
   PrismaKnowledgeSyncScopeRepository
 } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-sync-repository.ts";
+import {
+  createWorkspaceUserManagementRouter,
+  createAcceptInvitationRouter,
+  WorkspaceUserManagementService,
+  InMemoryWorkspaceUserManagementRepository,
+  createWorkspaceContextMiddleware
+} from "./modules/workspace-user-management/index.ts";
+import { NodemailerEmailService } from "./shared/email/email-service.ts";
+import { loadBackendEnvironment } from "./shared/config/backend-environment.ts";
 import { createKnowledgeBaseRagLocalFlowRunner } from "./modules/knowledge-base-rag/worker/knowledge-base-rag-local-flow-runner.ts";
 import {
   GoogleDriveOAuthService,
@@ -148,18 +164,18 @@ function createKnowledgeRetrievalSearchUseCase(
   const hasEmbeddingConfig = Boolean(
     embeddingProvider === "openrouter"
       ? (process.env.OPENROUTER_API_KEY ||
-          process.env.KNOWLEDGE_EMBEDDING_API_KEY) &&
-          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+        process.env.KNOWLEDGE_EMBEDDING_API_KEY) &&
+      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
       : process.env.KNOWLEDGE_EMBEDDING_PROVIDER &&
-          process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
-          process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
-          process.env.KNOWLEDGE_EMBEDDING_MODEL &&
-          process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
+      process.env.KNOWLEDGE_EMBEDDING_BASE_URL &&
+      process.env.KNOWLEDGE_EMBEDDING_API_KEY &&
+      process.env.KNOWLEDGE_EMBEDDING_MODEL &&
+      process.env.KNOWLEDGE_EMBEDDING_DIMENSIONS
   );
   const hasVectorConfig = Boolean(
     process.env.KNOWLEDGE_VECTOR_PROVIDER &&
-      process.env.KNOWLEDGE_VECTOR_DIMENSIONS &&
-      process.env.KNOWLEDGE_VECTOR_DISTANCE
+    process.env.KNOWLEDGE_VECTOR_DIMENSIONS &&
+    process.env.KNOWLEDGE_VECTOR_DISTANCE
   );
 
   if (prisma && hasEmbeddingConfig && hasVectorConfig) {
@@ -194,17 +210,17 @@ function createKnowledgeRagAnswerUseCase(
 ): KnowledgeRagAnswerUseCase {
   const hasRagConfig = Boolean(
     process.env.KNOWLEDGE_RAG_PROVIDER &&
-      process.env.KNOWLEDGE_RAG_BASE_URL &&
-      process.env.KNOWLEDGE_RAG_API_KEY &&
-      process.env.KNOWLEDGE_RAG_MODEL
+    process.env.KNOWLEDGE_RAG_BASE_URL &&
+    process.env.KNOWLEDGE_RAG_API_KEY &&
+    process.env.KNOWLEDGE_RAG_MODEL
   );
   const answerProvider = hasRagConfig
     ? createKnowledgeRagAnswerProviderFromEnvironment()
     : {
-        async generateAnswer() {
-          throw new Error("Knowledge answer provider is not configured.");
-        }
-      };
+      async generateAnswer() {
+        throw new Error("Knowledge answer provider is not configured.");
+      }
+    };
 
   return new KnowledgeRagAnswerUseCase({
     retrievalSearchUseCase,
@@ -455,7 +471,7 @@ async function getPrismaClient(): Promise<any> {
       const pool = new Pool({ connectionString: process.env.DATABASE_URL });
       const adapter = new PrismaPg(pool);
       const prisma = new PrismaClient({ adapter });
-      
+
       // Thử kết nối vật lý với DB bằng truy vấn SQL thô
       await prisma.$executeRawUnsafe("SELECT 1;");
       console.log("Database connection established successfully via Prisma.");
@@ -612,21 +628,23 @@ function createOpenClawAgentArtifactMirror(): OpenClawAgentArtifactMirror {
 }
 
 export async function createLocalAgentManagementRuntime(): Promise<LocalAgentManagementRuntime> {
+  loadBackendEnvironment();
+
   const repository = await createRepository();
   const subscriptionRepository = await createSubscriptionRepository();
   const skillWriter = createSkillWriter();
   const openclawAgentMaterializer = createOpenClawAgentMaterializer();
   const openclawWorkflowMaterializer = createOpenClawWorkflowMaterializer();
-  
+
   const eventBus = new InMemoryEventBus();
 
-  const draftingPort = process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY 
+  const draftingPort = process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY
     ? createProductionLlmAgentDraftingService({
-        geminiApiKey: process.env.GEMINI_API_KEY,
-        geminiModelId: process.env.GEMINI_MODEL_ID,
-        openrouterApiKey: process.env.OPENROUTER_API_KEY,
-        openrouterModelId: process.env.OPENROUTER_MODEL_ID
-      })
+      geminiApiKey: process.env.GEMINI_API_KEY,
+      geminiModelId: process.env.GEMINI_MODEL_ID,
+      openrouterApiKey: process.env.OPENROUTER_API_KEY,
+      openrouterModelId: process.env.OPENROUTER_MODEL_ID
+    })
     : new LlmAgentDraftingService([new MockLlmAgentDraftProvider()]);
 
   const useCases = new AgentLifecycleUseCases({
@@ -643,6 +661,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     "http://127.0.0.1:5173";
 
   const prisma = await getPrismaClient();
+  if (prisma && process.env.VCP_SEED_DEMO_ON_START?.trim().toLowerCase() === "true") {
+    await seedPlatformDemoData(prisma);
+    console.log("Platform demo seed completed during local API startup.");
+  }
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
   const knowledgeDocumentRepository = prisma
     ? new PrismaKnowledgeDocumentRepository(prisma)
@@ -698,16 +720,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const googleRedirectUri = process.env.GOOGLE_DRIVE_REDIRECT_URI;
   const googleDriveOAuthScopeMode =
     process.env.GOOGLE_DRIVE_OAUTH_SCOPE_MODE?.trim().toLowerCase() ===
-    "readonly"
+      "readonly"
       ? "readonly"
       : "file";
   const credentialEncryptionKey =
     process.env.GOOGLE_DRIVE_CREDENTIAL_ENCRYPTION_KEY;
   const googleDriveConfigured = Boolean(
     googleClientId &&
-      googleClientSecret &&
-      googleRedirectUri &&
-      credentialEncryptionKey
+    googleClientSecret &&
+    googleRedirectUri &&
+    credentialEncryptionKey
   );
   const knowledgeQueueMode =
     process.env.KNOWLEDGE_QUEUE_MODE?.trim().toLowerCase() === "durable"
@@ -791,7 +813,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
               throw new PermanentKnowledgeRuntimeError(
                 result.failure?.errorCode ?? "knowledge.ingestion_failed",
                 result.failure?.errorMessage ??
-                  "Knowledge document ingestion failed."
+                "Knowledge document ingestion failed."
               );
             }
           }
@@ -809,9 +831,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
             );
           const document = job?.documentId
             ? await knowledgeDocumentRepository.getDocumentById(
-                input.workspaceId,
-                job.documentId
-              )
+              input.workspaceId,
+              job.documentId
+            )
             : null;
           if (!job || !document) {
             throw new Error("Queued knowledge ingestion state is unavailable.");
@@ -986,7 +1008,7 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     googleDriveOAuthService,
     frontendBaseUrl: frontendUrl
   };
-  
+
   const agentProvider = async (workspaceId: any, agentIds: any[]) => {
     const all = await repository.listByWorkspace(workspaceId, { limit: 100, offset: 0 } as any);
     return all.agents.filter((a: any) => agentIds.includes(a.agentId));
@@ -1010,10 +1032,91 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     });
   }
 
+  const authUserRepository = await createAuthUserRepository();
+  const authSessionRepository = await createAuthSessionRepository();
+
+  const workspaceUserManagementRepo = new InMemoryWorkspaceUserManagementRepository();
+  const emailService = new NodemailerEmailService();
+  const localEmailUserEmail = process.env.GMAIL_USER?.trim().toLowerCase();
+  const workspaceUserManagementService = new WorkspaceUserManagementService({
+    repository: workspaceUserManagementRepo,
+    emailService: emailService,
+    frontendUrl: frontendUrl,
+    generateId: () => randomUUID(),
+    sessionRepository: authSessionRepository,
+  });
+  for (const workspace of PLATFORM_DEMO_WORKSPACES) {
+    await workspaceUserManagementRepo.createWorkspace({
+      workspaceId: workspace.workspaceId,
+      name: workspace.name,
+      createdAt: new Date().toISOString(),
+      ownerId: workspace.userId
+    });
+
+    for (const user of PLATFORM_DEMO_USERS.filter((candidate) => candidate.role)) {
+      await workspaceUserManagementRepo.addWorkspaceMember({
+        memberId: `member-${workspace.workspaceId}-${user.userId}`,
+        workspaceId: workspace.workspaceId,
+        userId: user.userId,
+        role: user.role as any,
+        isAccepted: true,
+        joinedAt: new Date().toISOString()
+      });
+    }
+  }
+  if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
+    await workspaceUserManagementRepo.addWorkspaceMember({
+      memberId: "local-email-member",
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-email-user",
+      role: "admin",
+      isAccepted: true,
+      joinedAt: new Date().toISOString()
+    });
+  }
+
+  // Real Authentication Setup (Moved up to enable session token verification globally)
+  const authPasswordHasher = new BcryptPasswordHasher();
+  const authTokenHasher = new Sha256TokenHasher();
+  if (authUserRepository instanceof InMemoryUserRepository) {
+    const timestamp = new Date().toISOString();
+    const existingDevUser = await authUserRepository.findByEmail("dev@local.test");
+    if (!existingDevUser) {
+      await authUserRepository.create(createUser({
+        userId: "local-dev-user" as any,
+        email: "dev@local.test",
+        displayName: "Local Developer",
+        passwordHash: await authPasswordHasher.hash("Password123!"),
+        status: "active",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }));
+    }
+    if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
+      const existingEmailUser = await authUserRepository.findByEmail(localEmailUserEmail);
+      if (!existingEmailUser) {
+        await authUserRepository.create(createUser({
+          userId: "local-email-user" as any,
+          email: localEmailUserEmail,
+          displayName: "Local Email User",
+          passwordHash: await authPasswordHasher.hash("Password123!"),
+          status: "active",
+          createdAt: timestamp,
+          updatedAt: timestamp
+        }));
+      }
+    }
+  }
+  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
+    authSessionRepository,
+    authUserRepository,
+    authTokenHasher
+  );
+
   const app = express();
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Methods", "GET, PUT, POST, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-mock-role, x-mock-user, x-request-id");
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
@@ -1023,24 +1126,93 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   });
   app.use(express.json());
 
-  // ── Auth repositories & use cases (hoisted for early middleware access) ───
-  const authUserRepository = await createAuthUserRepository();
-  const authSessionRepository = await createAuthSessionRepository();
-  const authPasswordHasher = new BcryptPasswordHasher();
-  const authTokenHasher = new Sha256TokenHasher();
-  const authenticateSessionUseCase = new AuthenticateSessionUseCase(
-    authSessionRepository,
-    authUserRepository,
-    authTokenHasher
-  );
-
-  // ── Workspace repository & use cases (hoisted for early middleware access) ─
   const workspaceRepository = await createWorkspaceRepository();
+  if (!(await workspaceRepository.findById(DEMO_WORKSPACE_ID))) {
+    const now = new Date().toISOString();
+    await workspaceRepository.save({
+      workspaceId: DEMO_WORKSPACE_ID,
+      userId: "local-dev-user" as any,
+      name: "Demo Workspace",
+      status: "running",
+      plan: "premium",
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  const baseListAccessibleByUser = workspaceRepository.listAccessibleByUser.bind(workspaceRepository);
+  workspaceRepository.listAccessibleByUser = async (userId) => {
+    const ownedOrPersistedWorkspaces = await baseListAccessibleByUser(userId);
+    const seenWorkspaceIds = new Set(ownedOrPersistedWorkspaces.map((workspace) => workspace.workspaceId));
+    const acceptedMemberWorkspaces = [];
+
+    for (const workspace of await workspaceUserManagementRepo.listAllWorkspaces()) {
+      if (seenWorkspaceIds.has(workspace.workspaceId as any)) {
+        continue;
+      }
+
+      const member = await workspaceUserManagementRepo.getWorkspaceMember(workspace.workspaceId, userId);
+      if (!member?.isAccepted) {
+        continue;
+      }
+
+      const workspaceRecord = await workspaceRepository.findById(workspace.workspaceId as EntityId<"workspaceId">);
+      if (!workspaceRecord || workspaceRecord.status === "deleted") {
+        continue;
+      }
+
+      acceptedMemberWorkspaces.push(workspaceRecord);
+      seenWorkspaceIds.add(workspaceRecord.workspaceId);
+    }
+
+    return [...ownedOrPersistedWorkspaces, ...acceptedMemberWorkspaces]
+      .filter((workspace) => workspace.status !== "deleted")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  };
+
+  const baseFindActiveMembershipByUser = workspaceRepository.findActiveMembershipByUser.bind(workspaceRepository);
+  workspaceRepository.findActiveMembershipByUser = async (userId) => {
+    const persistedMembership = await baseFindActiveMembershipByUser(userId);
+    if (persistedMembership) {
+      return persistedMembership;
+    }
+
+    const memberWorkspaces = await workspaceUserManagementRepo.listAllWorkspaces();
+    for (const workspace of memberWorkspaces.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+      const member = await workspaceUserManagementRepo.getWorkspaceMember(workspace.workspaceId, userId);
+      if (member?.isAccepted) {
+        return {
+          workspaceId: member.workspaceId as EntityId<"workspaceId">,
+          memberId: member.memberId as EntityId<"memberId">,
+          role: member.role
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // ── Workspace Management ───────────────────────────────────────────────────
+  // Null-safe Prisma stub: used when DB is unavailable; count queries return 0
   const nullSafePrisma = prisma ?? {
-    agent:           { count: async () => 0 },
-    workflow:        { count: async () => 0 },
-    toolConnection:  { count: async () => 0 },
-    workspaceMember: { findFirst: async () => null }
+    agent: { count: async () => 0 },
+    workflow: { count: async () => 0 },
+    toolConnection: { count: async () => 0 },
+    workspaceMember: {
+      findFirst: async (query: any) => {
+        const where = query?.where ?? {};
+        const member = await workspaceUserManagementRepo.getWorkspaceMember(where.workspaceId, where.userId);
+        if (!member || !member.isAccepted) return null;
+        if (where.status && where.status !== "active") return null;
+        return {
+          memberId: member.memberId,
+          workspaceId: member.workspaceId,
+          userId: member.userId,
+          role: member.role,
+          status: "active"
+        };
+      }
+    }
   };
   const workspaceUseCases = new WorkspaceUseCases({
     repository: workspaceRepository,
@@ -1082,10 +1254,12 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     next();
   });
 
-  // (C) Fake Auth Middleware for local development (conditional — yields to real auth)
-  app.use((req, res, next) => {
+  // (C) Fake Auth Middleware for local development.
+  // It only activates when tests/tools explicitly provide x-mock-user so
+  // browser requests without a real session still exercise the auth flow.
+  app.use((req, _res, next) => {
+    const mockUser = req.headers["x-mock-user"] as string | undefined;
     const role = (req.headers["x-mock-role"] as any) || "admin";
-    const anonymous = req.headers["x-mock-user"] === "anonymous";
     const match = req.path.match(/^\/api\/workspaces\/([^\/]+)/);
     const workspaceId = match ? match[1] : DEMO_WORKSPACE_ID;
 
@@ -1095,36 +1269,38 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       (req as any).context = { ...existing, requestId: req.headers["x-request-id"] || randomUUID() };
     }
 
-    if (anonymous) {
+    if (mockUser === "anonymous") {
       // anonymous header: clear user + workspace (legacy behaviour)
       (req as any).context = { ...(req as any).context, user: undefined, workspace: undefined };
-    } else {
-      const ctx2 = (req as any).context;
-      // Only set demo user if real auth did NOT populate one
-      if (!ctx2.user) {
-        (req as any).context = {
-          ...ctx2,
-          user: {
-            userId: "local-dev-user",
-            email: "dev@local.test",
-            displayName: "Local Developer"
-          }
-        };
-      }
-      // Only set demo workspace if real auth did NOT populate one
-      if (!(req as any).context.workspace) {
-        (req as any).context = {
-          ...(req as any).context,
-          workspace: {
-            workspaceId,
-            memberId: "local-member",
-            role
-          }
-        };
-      }
+      next();
+      return;
     }
+
+    if (!mockUser || (req as any).context.user) {
+      next();
+      return;
+    }
+
+    (req as any).context = {
+      ...(req as any).context,
+      user: {
+        userId: mockUser,
+        email: mockUser === "local-email-user" ? localEmailUserEmail ?? "dev@local.test" : "dev@local.test",
+        displayName: "Local Developer"
+      },
+      workspace: {
+        workspaceId,
+        memberId: "local-member",
+        role
+      }
+    };
     next();
   });
+
+  app.use(
+    "/api/workspaces/:workspaceId",
+    createWorkspaceContextMiddleware(workspaceUserManagementRepo)
+  );
 
   // ── Workspace Management ───────────────────────────────────────────────────
 
@@ -1135,6 +1311,25 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     const now = new Date().toISOString();
     try {
       const ws = await workspaceRepository.findById(workspaceId);
+      if (ws) {
+        await workspaceUserManagementRepo.createWorkspace({
+          workspaceId: ws.workspaceId,
+          name: ws.name,
+          createdAt: ws.createdAt,
+          ownerId: ws.userId
+        });
+        const ownerMembership = await workspaceUserManagementRepo.getWorkspaceMember(ws.workspaceId, ws.userId);
+        if (!ownerMembership) {
+          await workspaceUserManagementRepo.addWorkspaceMember({
+            memberId: randomUUID(),
+            workspaceId: ws.workspaceId,
+            userId: ws.userId,
+            role: "host",
+            isAccepted: true,
+            joinedAt: now
+          });
+        }
+      }
       const result = await runtimeAdapter.provision({
         workspaceId,
         displayName: ws?.name ?? workspaceId,
@@ -1237,6 +1432,16 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
 
   app.use(
     "/api/workspaces/:workspaceId",
+    createWorkspaceUserManagementRouter({ service: workspaceUserManagementService })
+  );
+
+  app.use(
+    "/api/invitations",
+    createAcceptInvitationRouter({ service: workspaceUserManagementService })
+  );
+
+  app.use(
+    "/api/workspaces/:workspaceId",
     createTaskOrchestrationRouter({
       orchestrator: openclawOrchestrator,
       adapter: openclawAdapter,
@@ -1294,6 +1499,13 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
       authenticateSessionUseCase,
     })
   );
+
+  // Khởi chạy Daily Cron Job gia hạn định kỳ hàng ngày (mỗi 24 giờ)
+  const renewalCron = new SubscriptionRenewalCron({
+    checkoutUseCases,
+    subscriptionRepository
+  });
+  renewalCron.start(24 * 60 * 60 * 1000);
 
   return {
     app,
@@ -1366,5 +1578,5 @@ if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
   app.listen(LOCAL_AGENT_API_PORT, LOCAL_AGENT_API_HOST, () => {
     console.log(`Agent & Billing API: http://${LOCAL_AGENT_API_HOST}:${LOCAL_AGENT_API_PORT}`);
   });
-  setInterval(() => {}, 100000);
+  setInterval(() => { }, 100000);
 }

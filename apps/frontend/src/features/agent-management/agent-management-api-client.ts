@@ -12,6 +12,8 @@ import type { ApiPaginationMeta, ErrorCode } from "@vcp/shared/contracts/api.ts"
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { AgentStatus } from "@vcp/shared/contracts/statuses.ts";
 
+import { authorizedFetch } from "../../shared/api/authorized-fetch.ts";
+
 export type AgentListItem = AgentPublicSummary & {
   createdAt: string;
 };
@@ -126,7 +128,7 @@ export function createAgentManagementApiClient(input: {
   fetchImplementation?: FetchImplementation;
   baseUrl?: string;
 } = {}): AgentManagementApiClient {
-  const fetchImplementation = input.fetchImplementation ?? fetch;
+  const fetchImplementation = input.fetchImplementation ?? authorizedFetch;
   const baseUrl = input.baseUrl?.replace(/\/$/, "") ?? "";
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {

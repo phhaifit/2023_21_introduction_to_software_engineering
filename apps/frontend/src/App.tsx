@@ -14,45 +14,58 @@ import { SettingsPage } from "./features/workspace-management/SettingsPage.tsx";
 import { WorkspaceListPage } from "./features/workspace-management/WorkspaceListPage.tsx";
 import { WorkspaceCreatePage } from "./features/workspace-management/WorkspaceCreatePage.tsx";
 import { WorkspaceDetailPage } from "./features/workspace-management/WorkspaceDetailPage.tsx";
+import { WorkspaceMembersPage } from "./features/workspace-user-management/pages/WorkspaceMembersPage.tsx";
 import { WorkflowEditorPage } from "./features/workflow-management/WorkflowEditorPage.tsx";
 import { WorkflowsPage } from "./features/workflow-management/WorkflowsPage.tsx";
 import { AuthenticationPage } from "./features/authentication/authentication-page.tsx";
+import { AcceptInvitePage } from "./features/workspace-user-management/pages/AcceptInvitePage.tsx";
+import { InvitationInvalidPage } from "./features/workspace-user-management/pages/InvitationInvalidPage.tsx";
 
 export function App() {
   return (
     <AuthProvider>
       <Routes>
         <Route path="/authentication" element={<AuthenticationPage />} />
-      <Route path="*" element={
-        <RequireAuth fallback={<Navigate to="/authentication" replace />}>
-          <div className="app-shell">
-            <Sidebar />
-            <main className="main-content">
-              <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="/workflow-editor" element={<WorkflowEditorPage />} />
-          <Route path="/executions" element={<TaskOrchestrationPage />} />
-          <Route path="/agents" element={
-            <section aria-label="Agent Management">
-              <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />
-            </section>
-          } />
-          <Route path="/knowledge-base-rag" element={<KnowledgeBaseRagPage />} />
-          <Route path="/billing" element={<SubscriptionPaymentPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/workspaces" element={<WorkspaceListPage />} />
-          <Route path="/workspaces/new" element={<WorkspaceCreatePage />} />
-          <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
-                <Route path="/account" element={<AccountPage />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </main>
-          </div>
-        </RequireAuth>
-      } />
-    </Routes>
+        <Route path="/workspace/invitation/accept" element={<AcceptInvitePage />} />
+        <Route path="/workspace/invitation/invalid" element={<InvitationInvalidPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
+        <Route
+          path="*"
+          element={
+            <RequireAuth fallback={<Navigate to="/authentication" replace />}>
+              <div className="app-shell">
+                <Sidebar />
+                <main className="main-content">
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/workflows" element={<WorkflowsPage />} />
+                    <Route path="/workflow-editor" element={<WorkflowEditorPage />} />
+                    <Route path="/executions" element={<TaskOrchestrationPage />} />
+                    <Route
+                      path="/agents"
+                      element={
+                        <section aria-label="Agent Management">
+                          <AgentManagementPage workspaceId={DEMO_WORKSPACE_ID} />
+                        </section>
+                      }
+                    />
+                    <Route path="/knowledge-base-rag" element={<KnowledgeBaseRagPage />} />
+                    <Route path="/billing" element={<SubscriptionPaymentPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/workspaces" element={<WorkspaceListPage />} />
+                    <Route path="/workspaces/new" element={<WorkspaceCreatePage />} />
+                    <Route path="/workspaces/:workspaceId/members" element={<WorkspaceMembersPage />} />
+                    <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+                    <Route path="/account" element={<AccountPage />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  </Routes>
+                </main>
+              </div>
+            </RequireAuth>
+          }
+        />
+      </Routes>
     </AuthProvider>
   );
 }

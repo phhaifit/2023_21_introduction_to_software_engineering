@@ -5,13 +5,13 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const normalizedStatus = status.toLowerCase();
+  const normalizedStatus = (status || "").toLowerCase();
   
   let statusClass = "draft";
   let icon = <FileEdit size={14} strokeWidth={2.5} />;
-  let label = status.charAt(0).toUpperCase() + status.slice(1);
+  let label = status ? status.charAt(0).toUpperCase() + status.slice(1) : "Pending";
   
-  if (normalizedStatus === "published" || normalizedStatus === "active") {
+  if (normalizedStatus === "published" || normalizedStatus === "active" || normalizedStatus === "running") {
     statusClass = "completed";
     icon = <CheckCircle2 size={14} strokeWidth={2.5} />;
     label = "Active"; // Show "Active" to users even though internal value is "published"

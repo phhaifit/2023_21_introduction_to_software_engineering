@@ -9,4 +9,5 @@ export type PageKey =
   | "billing"
   | "settings"
   | "authentication"
+  | "workspace"
   | "account";

@@ -76,3 +76,18 @@ export function toTransactionPublicSummary(tx: Transaction): TransactionPublicSu
     updatedAt: tx.updatedAt
   };
 }
+
+export function calculateProratedUpgradeAmount(
+  sub: Pick<Subscription, "expiresAt">,
+  premiumPrice: number,
+  standardPrice: number,
+  nowStr: string
+): number {
+  const now = new Date(nowStr).getTime();
+  const expiresAt = new Date(sub.expiresAt).getTime();
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const remainingDays = Math.max(0, (expiresAt - now) / msPerDay);
+  const totalDays = 30;
+  const proratedAmount = (premiumPrice - standardPrice) * (remainingDays / totalDays);
+  return Math.max(0, Number(proratedAmount.toFixed(2)));
+}

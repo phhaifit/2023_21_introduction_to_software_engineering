@@ -63,6 +63,8 @@ npm run prisma -- migrate deploy
 
 `DATABASE_URL` for Prisma may include `?schema=public`. For `psql`, use a URL without that query parameter.
 
+For a PostgreSQL-backed authenticated demo dataset, see [Full Platform Demo Seed](docs/platform-demo-seed.md).
+
 ## Verification
 
 Run the main verification commands from the repository root:
