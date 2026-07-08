@@ -4,6 +4,7 @@ import type { KnowledgeIndexStatus } from "./statuses.ts";
 
 export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
   documents: "/api/workspaces/:workspaceId/knowledge/documents",
+  document: "/api/workspaces/:workspaceId/knowledge/documents/:documentId",
   uploadDocuments: "/api/workspaces/:workspaceId/knowledge/uploads",
   validateUploads: "/api/workspaces/:workspaceId/knowledge/uploads/validate",
   prepareUploads: "/api/workspaces/:workspaceId/knowledge/uploads/prepare",
@@ -38,6 +39,7 @@ export const KNOWLEDGE_BASE_RAG_API_ROUTES = {
 
 export const KNOWLEDGE_BASE_RAG_ROUTE_CONTRACTS = [
   { method: "GET", path: KNOWLEDGE_BASE_RAG_API_ROUTES.documents },
+  { method: "DELETE", path: KNOWLEDGE_BASE_RAG_API_ROUTES.document },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.uploadDocuments },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.validateUploads },
   { method: "POST", path: KNOWLEDGE_BASE_RAG_API_ROUTES.prepareUploads },
@@ -93,12 +95,14 @@ export const KNOWLEDGE_BASE_API_ERROR_CODES = [
   "auth.unauthorized",
   "auth.forbidden",
   "validation.invalid_input",
+  "workspace.not_found",
   "knowledge.access_denied",
   "system.unexpected_error"
 ] as const satisfies readonly ErrorCode[];
 
 export const KNOWLEDGE_BASE_RAG_DTO_EXPORTS = [
   "KnowledgeDocumentDto",
+  "DeleteKnowledgeDocumentResponse",
   "KnowledgeDocumentChunkDto",
   "UploadCandidateFileDto",
   "UploadValidationRequest",
@@ -155,6 +159,11 @@ export type KnowledgeDocumentDto = {
   sourceModifiedAt?: string;
   lastSyncedAt?: string;
   failure?: SafeFailureSummary;
+};
+
+export type DeleteKnowledgeDocumentResponse = {
+  documentId: EntityId<"documentId">;
+  deleted: true;
 };
 
 export type AgentKnowledgeDocumentDto = {

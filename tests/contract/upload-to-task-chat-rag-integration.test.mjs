@@ -16,10 +16,12 @@ import {
 import { AgentKnowledgeRetrievalTool } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
 import { isKnowledgeEvidenceAnswerable } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-answerability.ts";
 import { KnowledgeBaseRagAccessPolicy } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
+import { KnowledgeDocumentUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-document-use-cases.ts";
 import { KnowledgeRetrievalSearchUseCase } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeUploadUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
 import {
   InMemoryKnowledgeAccessGrantRepository,
+  InMemoryKnowledgeDocumentDeletionRepository,
   InMemoryKnowledgeDocumentRepository,
   InMemoryKnowledgeIngestionJobRepository
 } from "@vcp/backend/modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
@@ -439,6 +441,33 @@ async function verifyUploadToTaskChatRagFlow() {
       [],
       []
     );
+
+    await assignOnlyViaApi(api, "agent-a", [salesDocumentId]);
+    const deleteSalesDocument = await api.deleteDocument(
+      "workspace-a",
+      salesDocumentId
+    );
+    assert.equal(deleteSalesDocument.status, 200);
+    assert.deepEqual(deleteSalesDocument.body.data, {
+      documentId: salesDocumentId,
+      deleted: true
+    });
+    const assignedAfterDelete = await api.listAssigned("workspace-a", "agent-a");
+    assert.equal(assignedAfterDelete.status, 200);
+    assert.deepEqual(assignedAfterDelete.body.data, []);
+    const salesAfterDelete = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assertFallback(salesAfterDelete);
+    assert.equal(
+      await runtime.documentRepository.getDocumentById(
+        "workspace-a",
+        salesDocumentId
+      ),
+      null
+    );
   });
 }
 
@@ -484,6 +513,11 @@ function createRuntime() {
   const accessGrantRepository = new InMemoryKnowledgeAccessGrantRepository();
   const accessPolicy = new KnowledgeBaseRagAccessPolicy(accessGrantRepository);
   const fileStorage = new LocalKnowledgeFileStorage(storageRoot);
+  const documentDeletionRepository = new InMemoryKnowledgeDocumentDeletionRepository(
+    documentRepository,
+    accessGrantRepository,
+    ingestionJobRepository
+  );
   const agents = new Set([
     "workspace-a:agent-a",
     "workspace-a:agent-unassigned",
@@ -559,6 +593,12 @@ function createRuntime() {
         return { document: result.document, job: result.job };
       }
     }
+  });
+  const documentUseCases = new KnowledgeDocumentUseCases({
+    documentRepository,
+    documentDeletionRepository,
+    fileStorage,
+    logger: { warn() {} }
   });
 
   const retrievalSearchUseCase = new KnowledgeRetrievalSearchUseCase({
@@ -636,6 +676,7 @@ function createRuntime() {
     accessPolicy,
     assignmentUseCase,
     documentRepository,
+    documentUseCases,
     embeddingCalls,
     knowledgeRetrievalTool,
     queryEmbeddingCalls,
@@ -665,7 +706,7 @@ async function withTaskChatApi(runtime, callback) {
   });
   app.use(
     createKnowledgeBaseRagRouter({
-      documentUseCases: {},
+      documentUseCases: runtime.documentUseCases,
       uploadUseCases: {},
       ingestionUseCases: {},
       dataSourceUseCases: {},
@@ -723,6 +764,13 @@ async function withTaskChatApi(runtime, callback) {
           workspaceId,
           "GET",
           `/api/workspaces/${workspaceId}/knowledge/agents/${agentId}/documents`
+        ),
+      deleteDocument: (workspaceId, documentId) =>
+        requestJson(
+          baseUrl,
+          workspaceId,
+          "DELETE",
+          `/api/workspaces/${workspaceId}/knowledge/documents/${documentId}`
         )
     });
   } finally {

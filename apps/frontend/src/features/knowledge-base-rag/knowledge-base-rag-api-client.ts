@@ -3,6 +3,7 @@ import type { EntityId } from "@vcp/shared/contracts/ids.ts";
 import type { KnowledgeIndexStatus } from "@vcp/shared/contracts/statuses.ts";
 import {
   type AgentKnowledgeDocumentDto,
+  type DeleteKnowledgeDocumentResponse,
   KNOWLEDGE_BASE_RAG_API_ROUTES,
   type ConnectKnowledgeDataSourceRequest,
   type IngestionJobDto,
@@ -70,6 +71,10 @@ export type KnowledgeBaseRagApiClient = {
     workspaceId: EntityId<"workspaceId">,
     files: readonly File[]
   ): Promise<PrepareUploadResponse>;
+  deleteKnowledgeDocument(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<DeleteKnowledgeDocumentResponse>;
   listIngestionJobs(
     workspaceId: EntityId<"workspaceId">,
     filters?: KnowledgeIngestionJobListFilters
@@ -276,6 +281,14 @@ export function createKnowledgeBaseRagApiClient(input: {
         formData
       );
     },
+    deleteKnowledgeDocument: (workspaceId, documentId) =>
+      requestDataWithMethod<DeleteKnowledgeDocumentResponse>(
+        routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.document, {
+          workspaceId,
+          documentId
+        }),
+        "DELETE"
+      ),
     listIngestionJobs: async (workspaceId, filters) => {
       const response = await request<IngestionJobDto[]>(
         withQuery(routePath(KNOWLEDGE_BASE_RAG_API_ROUTES.ingestionJobs, { workspaceId }), {

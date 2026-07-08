@@ -5,6 +5,10 @@ import type {
 } from "../application/knowledge-data-source-repository.ts";
 import type { KnowledgeAccessGrantRepository } from "../application/knowledge-access-grant-repository.ts";
 import type {
+  DeletedKnowledgeDocument,
+  KnowledgeDocumentDeletionRepository
+} from "../application/knowledge-document-deletion-repository.ts";
+import type {
   KnowledgeDocumentListFilters,
   KnowledgeDocumentListResult,
   KnowledgeDocumentRepository
@@ -122,6 +126,19 @@ export class InMemoryKnowledgeDocumentRepository
       }
     }
   }
+
+  async deleteDocumentForWorkspace(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<KnowledgeDocument | null> {
+    const document = this.documents.get(documentId);
+    if (!document || document.workspaceId !== workspaceId) {
+      return null;
+    }
+    this.documents.delete(documentId);
+    await this.deleteDocumentChunks(workspaceId, documentId);
+    return copyDocument(document);
+  }
 }
 
 export class InMemoryKnowledgeAccessGrantRepository
@@ -182,6 +199,17 @@ export class InMemoryKnowledgeAccessGrantRepository
     this.grants.set(grant.knowledgeAccessGrantId, copyAccessGrant(grant));
     return copyAccessGrant(grant);
   }
+
+  async deleteAccessGrantsForDocument(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<void> {
+    for (const [grantId, grant] of this.grants) {
+      if (grant.workspaceId === workspaceId && grant.documentId === documentId) {
+        this.grants.delete(grantId);
+      }
+    }
+  }
 }
 
 export class InMemoryKnowledgeIngestionJobRepository
@@ -241,6 +269,60 @@ export class InMemoryKnowledgeIngestionJobRepository
   async saveIngestionJob(job: KnowledgeIngestionJob) {
     this.jobs.set(job.jobId, copyIngestionJob(job));
     return copyIngestionJob(job);
+  }
+
+  async deleteIngestionJobsForDocument(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<void> {
+    for (const [jobId, job] of this.jobs) {
+      if (job.workspaceId === workspaceId && job.documentId === documentId) {
+        this.jobs.delete(jobId);
+      }
+    }
+  }
+}
+
+export class InMemoryKnowledgeDocumentDeletionRepository
+  implements KnowledgeDocumentDeletionRepository
+{
+  private readonly documentRepository: InMemoryKnowledgeDocumentRepository;
+  private readonly accessGrantRepository?: InMemoryKnowledgeAccessGrantRepository;
+  private readonly ingestionJobRepository?: InMemoryKnowledgeIngestionJobRepository;
+
+  constructor(
+    documentRepository: InMemoryKnowledgeDocumentRepository,
+    accessGrantRepository?: InMemoryKnowledgeAccessGrantRepository,
+    ingestionJobRepository?: InMemoryKnowledgeIngestionJobRepository
+  ) {
+    this.documentRepository = documentRepository;
+    this.accessGrantRepository = accessGrantRepository;
+    this.ingestionJobRepository = ingestionJobRepository;
+  }
+
+  async deleteDocumentCascade(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<DeletedKnowledgeDocument | null> {
+    await this.accessGrantRepository?.deleteAccessGrantsForDocument(
+      workspaceId,
+      documentId
+    );
+    await this.ingestionJobRepository?.deleteIngestionJobsForDocument(
+      workspaceId,
+      documentId
+    );
+    const deleted = await this.documentRepository.deleteDocumentForWorkspace(
+      workspaceId,
+      documentId
+    );
+    if (!deleted) return null;
+    return {
+      documentId: deleted.documentId,
+      workspaceId: deleted.workspaceId,
+      sourceType: deleted.sourceType,
+      storageKey: deleted.storageKey
+    };
   }
 }
 

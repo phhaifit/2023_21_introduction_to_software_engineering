@@ -1,4 +1,5 @@
 import type {
+  DeleteKnowledgeDocumentResponse,
   KnowledgeDocumentChunkDto,
   KnowledgeDocumentDto
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
@@ -11,16 +12,31 @@ import {
   toKnowledgeDocumentChunkDto,
   toKnowledgeDocumentDto
 } from "./dto-mappers.ts";
+import type { KnowledgeDocumentDeletionRepository } from "./knowledge-document-deletion-repository.ts";
+import type { KnowledgeFileStorage } from "./knowledge-file-storage.ts";
+import {
+  KnowledgeBaseRagValidationError,
+  KnowledgeDocumentNotFoundError
+} from "./knowledge-base-rag-errors.ts";
 
 export type KnowledgeDocumentUseCaseDependencies = {
   documentRepository: KnowledgeDocumentRepository;
+  documentDeletionRepository?: KnowledgeDocumentDeletionRepository;
+  fileStorage?: Pick<KnowledgeFileStorage, "remove">;
+  logger?: Pick<Console, "warn">;
 };
 
 export class KnowledgeDocumentUseCases {
   private readonly documentRepository: KnowledgeDocumentRepository;
+  private readonly documentDeletionRepository?: KnowledgeDocumentDeletionRepository;
+  private readonly fileStorage?: Pick<KnowledgeFileStorage, "remove">;
+  private readonly logger?: Pick<Console, "warn">;
 
   constructor(dependencies: KnowledgeDocumentUseCaseDependencies) {
     this.documentRepository = dependencies.documentRepository;
+    this.documentDeletionRepository = dependencies.documentDeletionRepository;
+    this.fileStorage = dependencies.fileStorage;
+    this.logger = dependencies.logger ?? console;
   }
 
   async listDocuments(
@@ -65,4 +81,63 @@ export class KnowledgeDocumentUseCases {
       total: result.total
     };
   }
+
+  async deleteDocument(
+    workspaceId: EntityId<"workspaceId">,
+    documentId: EntityId<"documentId">
+  ): Promise<DeleteKnowledgeDocumentResponse> {
+    if (!this.documentDeletionRepository) {
+      throw new KnowledgeBaseRagValidationError([
+        "Document deletion is not configured."
+      ]);
+    }
+
+    const document = await this.documentRepository.getDocumentById(
+      workspaceId,
+      documentId
+    );
+    if (!document) {
+      throw new KnowledgeDocumentNotFoundError(documentId);
+    }
+    if (!isTerminalDocument(document)) {
+      throw new KnowledgeBaseRagValidationError([
+        "Cannot delete while processing."
+      ]);
+    }
+
+    const deleted = await this.documentDeletionRepository.deleteDocumentCascade(
+      workspaceId,
+      documentId
+    );
+    if (!deleted) {
+      throw new KnowledgeDocumentNotFoundError(documentId);
+    }
+
+    if (deleted.storageKey && this.fileStorage) {
+      await this.fileStorage.remove(deleted.storageKey).catch(() => {
+        this.logger?.warn(
+          "Knowledge document storage cleanup failed after database deletion.",
+          {
+            workspaceId,
+            documentId
+          }
+        );
+      });
+    }
+
+    return {
+      documentId,
+      deleted: true
+    };
+  }
+}
+
+function isTerminalDocument(document: {
+  status: string;
+  ingestionStatus: string;
+  indexingStatus: string;
+}): boolean {
+  return [document.status, document.ingestionStatus, document.indexingStatus].every(
+    (status) => status === "ready" || status === "failed"
+  );
 }

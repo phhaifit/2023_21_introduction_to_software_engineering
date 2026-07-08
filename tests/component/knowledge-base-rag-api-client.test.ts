@@ -179,6 +179,27 @@ describe("Knowledge Base / RAG API client", () => {
     );
   });
 
+  it("deletes a knowledge document with encoded workspace and document IDs", async () => {
+    const fetchImplementation = vi.fn(async () =>
+      success({ documentId: "document-a", deleted: true })
+    );
+    const client = createKnowledgeBaseRagApiClient({ fetchImplementation });
+
+    const result = await client.deleteKnowledgeDocument(
+      workspaceId,
+      "document-a" as EntityId<"documentId">
+    );
+
+    expect(result).toEqual({ documentId: "document-a", deleted: true });
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      `${encodedWorkspacePath}/documents/document-a`,
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({ accept: "application/json" })
+      })
+    );
+  });
+
   it("validates upload candidates with metadata-only JSON payload", async () => {
     const validation = {
       results: [{ clientFileId: "file-a", fileName: "Runbook.pdf", status: "accepted" }],

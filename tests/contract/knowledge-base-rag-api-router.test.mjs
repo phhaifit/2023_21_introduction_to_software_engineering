@@ -16,7 +16,9 @@ import { KnowledgeIngestionUseCases } from "@vcp/backend/modules/knowledge-base-
 import { KnowledgeSyncUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-sync-use-cases.ts";
 import { KnowledgeUploadUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
 import {
+  InMemoryKnowledgeAccessGrantRepository,
   InMemoryKnowledgeDataSourceRepository,
+  InMemoryKnowledgeDocumentDeletionRepository,
   InMemoryKnowledgeDocumentRepository,
   InMemoryKnowledgeIngestionJobRepository,
   InMemoryKnowledgeSyncJobRepository,
@@ -284,6 +286,137 @@ await withKnowledgeBaseRagApi(runtime.useCases, async (baseUrl) => {
     "prepared and uploaded documents queue pending ingestion metadata"
   );
 
+  await runtime.documentRepository.saveDocument({
+    documentId: "document-delete-ready",
+    workspaceId: "workspace-a",
+    uploadedByUserId: "user-a",
+    displayName: "Delete me.pdf",
+    fileName: "Delete me.pdf",
+    mimeType: "application/pdf",
+    fileType: "pdf",
+    sizeBytes: 512,
+    sourceType: "upload",
+    storageKey: "private/workspace-a/document-delete-ready/delete-me.pdf",
+    status: "ready",
+    ingestionStatus: "ready",
+    indexingStatus: "ready",
+    chunkCount: 1,
+    indexedChunkCount: 1,
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:00.000Z"
+  });
+  await runtime.documentRepository.saveDocumentChunk({
+    chunkId: "chunk-delete-ready-0",
+    workspaceId: "workspace-a",
+    documentId: "document-delete-ready",
+    chunkIndex: 0,
+    contentText: "Delete-only answer.",
+    embeddingStatus: "ready",
+    vectorRef: "vector-delete-ready-0",
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:00.000Z"
+  });
+  await runtime.ingestionJobRepository.saveIngestionJob({
+    jobId: "ingestion-delete-ready",
+    workspaceId: "workspace-a",
+    documentId: "document-delete-ready",
+    status: "ready",
+    progress: 100,
+    queuedAt: "2026-06-26T00:00:00.000Z",
+    startedAt: "2026-06-26T00:00:01.000Z",
+    completedAt: "2026-06-26T00:00:02.000Z",
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:02.000Z"
+  });
+  await runtime.accessGrantRepository.saveAccessGrant({
+    knowledgeAccessGrantId: "grant-delete-ready",
+    workspaceId: "workspace-a",
+    documentId: "document-delete-ready",
+    agentId: "agent-a",
+    status: "active",
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:00.000Z"
+  });
+
+  const deleteResponse = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/documents/document-delete-ready",
+    { method: "DELETE" }
+  );
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual(deleteResponse.body.data, {
+    documentId: "document-delete-ready",
+    deleted: true
+  });
+  assert.equal(
+    await runtime.documentRepository.getDocumentById(
+      "workspace-a",
+      "document-delete-ready"
+    ),
+    null
+  );
+  assert.equal(
+    (
+      await runtime.documentRepository.listDocumentChunks(
+        "workspace-a",
+        "document-delete-ready"
+      )
+    ).total,
+    0
+  );
+  assert.equal(
+    (
+      await runtime.ingestionJobRepository.listIngestionJobs("workspace-a", {
+        documentId: "document-delete-ready"
+      })
+    ).total,
+    0
+  );
+  assert.equal(
+    await runtime.accessGrantRepository.hasActiveDocumentGrant(
+      "workspace-a",
+      "agent-a",
+      "document-delete-ready"
+    ),
+    false
+  );
+  assert.deepEqual(runtime.storageRemovals, [
+    "private/workspace-a/document-delete-ready/delete-me.pdf"
+  ]);
+
+  await runtime.documentRepository.saveDocument({
+    documentId: "document-other-workspace",
+    workspaceId: "workspace-b",
+    uploadedByUserId: "user-b",
+    displayName: "Other workspace.txt",
+    fileName: "Other workspace.txt",
+    mimeType: "text/plain",
+    fileType: "txt",
+    sizeBytes: 128,
+    sourceType: "upload",
+    status: "ready",
+    ingestionStatus: "ready",
+    indexingStatus: "ready",
+    chunkCount: 0,
+    indexedChunkCount: 0,
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:00.000Z"
+  });
+  const wrongWorkspaceDelete = await requestJson(
+    baseUrl,
+    "/api/workspaces/workspace-a/knowledge/documents/document-other-workspace",
+    { method: "DELETE" }
+  );
+  assert.equal(wrongWorkspaceDelete.status, 404);
+  assert.equal(wrongWorkspaceDelete.body.error.code, "workspace.not_found");
+  assert.notEqual(
+    await runtime.documentRepository.getDocumentById(
+      "workspace-b",
+      "document-other-workspace"
+    ),
+    null
+  );
+
   const dataSources = await requestJson(
     baseUrl,
     "/api/workspaces/workspace-a/knowledge/data-sources"
@@ -517,18 +650,36 @@ function createKnowledgeBaseRagRuntime() {
   const now = () => "2026-06-26T00:00:00.000Z";
   const documentRepository = new InMemoryKnowledgeDocumentRepository();
   const ingestionJobRepository = new InMemoryKnowledgeIngestionJobRepository();
+  const accessGrantRepository = new InMemoryKnowledgeAccessGrantRepository();
   const dataSourceRepository = new InMemoryKnowledgeDataSourceRepository();
   const syncScopeRepository = new InMemoryKnowledgeSyncScopeRepository();
   const syncJobRepository = new InMemoryKnowledgeSyncJobRepository();
+  const storageRemovals = [];
+  const documentDeletionRepository = new InMemoryKnowledgeDocumentDeletionRepository(
+    documentRepository,
+    accessGrantRepository,
+    ingestionJobRepository
+  );
 
   return {
     documentRepository,
     ingestionJobRepository,
+    accessGrantRepository,
     dataSourceRepository,
     syncScopeRepository,
     syncJobRepository,
+    storageRemovals,
     useCases: {
-      documentUseCases: new KnowledgeDocumentUseCases({ documentRepository }),
+      documentUseCases: new KnowledgeDocumentUseCases({
+        documentRepository,
+        documentDeletionRepository,
+        fileStorage: {
+          async remove(storageKey) {
+            storageRemovals.push(storageKey);
+          }
+        },
+        logger: { warn() {} }
+      }),
       uploadUseCases: new KnowledgeUploadUseCases({
         documentRepository,
         ingestionJobRepository,

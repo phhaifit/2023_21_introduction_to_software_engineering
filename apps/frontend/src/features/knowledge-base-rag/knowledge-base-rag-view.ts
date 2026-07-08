@@ -56,6 +56,7 @@ export type ProcessingJob = {
   documentId: string;
   documentName: string;
   documentStatus: KnowledgeDocumentStatus;
+  documentSource: "upload" | "google_drive" | "notion" | "confluence";
   mediaType: string;
   fileType: KnowledgeDocumentType;
   sourceName: string;

@@ -115,6 +115,23 @@ export function createKnowledgeBaseRagRouter(
     }
   );
 
+  router.delete(
+    KNOWLEDGE_BASE_RAG_API_ROUTES.document,
+    async (request: Request, response: Response) => {
+      await handleKnowledgeBaseRagRequest(request, response, async () => {
+        const { workspaceId } = enforceKnowledgePermission(
+          request,
+          accessPolicy,
+          "document:delete"
+        );
+        return dependencies.documentUseCases.deleteDocument(
+          workspaceId,
+          requirePathParam(request, "documentId") as EntityId<"documentId">
+        );
+      });
+    }
+  );
+
   router.post(
     KNOWLEDGE_BASE_RAG_API_ROUTES.googleDriveOAuthStart,
     async (request: Request, response: Response) => {
@@ -693,8 +710,17 @@ async function handleKnowledgeBaseRagRequest<T>(
       return;
     }
 
+    if (error instanceof KnowledgeDocumentNotFoundError) {
+      sendKnowledgeBaseRagApiFailure(
+        request,
+        response,
+        "workspace.not_found",
+        error.message
+      );
+      return;
+    }
+
     if (
-      error instanceof KnowledgeDocumentNotFoundError ||
       error instanceof KnowledgeIngestionJobNotFoundError ||
       error instanceof KnowledgeDataSourceNotFoundError ||
       error instanceof KnowledgeSyncJobNotFoundError

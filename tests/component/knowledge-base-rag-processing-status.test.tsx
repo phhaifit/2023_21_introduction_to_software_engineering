@@ -63,6 +63,10 @@ function createClient(overrides: Partial<KnowledgeBaseRagApiClient> = {}) {
       items: [],
       pagination: { ...pagination, totalItems: 0 }
     })),
+    deleteKnowledgeDocument: vi.fn(async (workspaceId, documentId) => ({
+      documentId,
+      deleted: true
+    })),
     ...overrides
   } as unknown as KnowledgeBaseRagApiClient;
 }
@@ -169,6 +173,119 @@ describe("Knowledge Base / RAG Processing Status", () => {
 
     expect(await screen.findByText("No processing jobs")).toBeTruthy();
     expect(screen.queryByText("Employee Handbook.pdf")).toBeNull();
+  });
+
+  it("shows delete only as an enabled action for terminal document cards", async () => {
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient()}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const readyCard = (await screen.findByText("Ready.pdf")).closest("article");
+    const failedCard = screen.getByText("Failed.txt").closest("article");
+    const processingCard = screen.getByText("Processing.docx").closest("article");
+    expect(
+      within(readyCard!).getByRole("button", { name: "Delete document" })
+    ).toBeEnabled();
+    expect(
+      within(failedCard!).getByRole("button", { name: "Delete document" })
+    ).toBeEnabled();
+    const processingDelete = within(processingCard!).getByRole("button", {
+      name: "Delete document"
+    });
+    expect(processingDelete).toBeDisabled();
+    expect(processingDelete).toHaveAttribute(
+      "title",
+      "Cannot delete while processing."
+    );
+  });
+
+  it("opens and cancels the delete confirmation dialog with the document title", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient()}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const readyCard = (await screen.findByText("Ready.pdf")).closest("article");
+    await user.click(
+      within(readyCard!).getByRole("button", { name: "Delete document" })
+    );
+    const dialog = screen.getByRole("dialog", { name: "Delete document?" });
+    expect(within(dialog).getByText("Ready.pdf")).toBeTruthy();
+    expect(
+      within(dialog).getByText(/remove the document from the workspace knowledge base/i)
+    ).toBeTruthy();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Delete document?" })).toBeNull();
+  });
+
+  it("deletes a completed document and removes its processing card", async () => {
+    const user = userEvent.setup();
+    const deleteKnowledgeDocument = vi.fn(async (workspaceId, documentId) => ({
+      documentId,
+      deleted: true as const
+    }));
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({ deleteKnowledgeDocument })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const readyCard = (await screen.findByText("Ready.pdf")).closest("article");
+    await user.click(
+      within(readyCard!).getByRole("button", { name: "Delete document" })
+    );
+    const dialog = screen.getByRole("dialog", { name: "Delete document?" });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete document" })
+    );
+
+    expect(deleteKnowledgeDocument).toHaveBeenCalledWith(
+      workspaceId,
+      "document-ready"
+    );
+    expect(await screen.findByText("Document deleted")).toBeTruthy();
+    expect(screen.queryByText("Ready.pdf")).toBeNull();
+  });
+
+  it("keeps the document card visible when delete fails", async () => {
+    const user = userEvent.setup();
+    const deleteKnowledgeDocument = vi.fn(async () => {
+      throw new Error("delete failed");
+    });
+
+    render(
+      <KnowledgeBaseProcessingStatusScreen
+        apiClient={createClient({ deleteKnowledgeDocument })}
+        workspaceId={workspaceId}
+      />
+    );
+
+    const readyCard = (await screen.findByText("Ready.pdf")).closest("article");
+    await user.click(
+      within(readyCard!).getByRole("button", { name: "Delete document" })
+    );
+    const dialog = screen.getByRole("dialog", { name: "Delete document?" });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete document" })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to delete document"
+    );
+    expect(within(readyCard!).getByText("Ready.pdf")).toBeTruthy();
+    expect(
+      within(dialog).getByRole("button", { name: "Delete document" })
+    ).toBeEnabled();
   });
 
   it("labels scheduled Google Drive jobs as automatic sync", async () => {

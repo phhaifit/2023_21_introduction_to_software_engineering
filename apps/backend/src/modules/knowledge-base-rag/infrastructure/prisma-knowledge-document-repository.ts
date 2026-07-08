@@ -52,7 +52,7 @@ export class PrismaKnowledgeDocumentRepository implements KnowledgeDocumentRepos
     documentId: EntityId<"documentId">
   ): Promise<KnowledgeDocument | null> {
     const record = await this.prisma.document.findFirst({
-      where: { workspaceId, documentId }
+      where: { workspaceId, documentId, deletedAt: null }
     });
 
     return record ? toKnowledgeDocumentDomain(record) : null;
@@ -114,7 +114,7 @@ export class PrismaKnowledgeDocumentRepository implements KnowledgeDocumentRepos
     workspaceId: EntityId<"workspaceId">,
     filters: KnowledgeDocumentListFilters
   ) {
-    const where: Record<string, unknown> = { workspaceId };
+    const where: Record<string, unknown> = { workspaceId, deletedAt: null };
 
     if (filters.statuses && filters.statuses.length > 0) {
       where.indexingStatus = { in: [...filters.statuses] };

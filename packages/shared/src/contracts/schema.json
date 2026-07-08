@@ -306,6 +306,7 @@
   "knowledgeBaseRag": {
     "routes": [
       { "method": "GET", "path": "/api/workspaces/:workspaceId/knowledge/documents" },
+      { "method": "DELETE", "path": "/api/workspaces/:workspaceId/knowledge/documents/:documentId" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/validate" },
       { "method": "POST", "path": "/api/workspaces/:workspaceId/knowledge/uploads/prepare" },
@@ -332,6 +333,7 @@
     ],
     "dtoExports": [
       "KnowledgeDocumentDto",
+      "DeleteKnowledgeDocumentResponse",
       "KnowledgeDocumentChunkDto",
       "UploadCandidateFileDto",
       "UploadValidationRequest",

@@ -19,6 +19,7 @@ const schema = JSON.parse(readFileSync(join(contractsDir, "schema.json"), "utf8"
 
 const expectedDtoExports = [
   "KnowledgeDocumentDto",
+  "DeleteKnowledgeDocumentResponse",
   "KnowledgeDocumentChunkDto",
   "UploadCandidateFileDto",
   "UploadValidationRequest",
@@ -62,6 +63,7 @@ assert.match(
 
 const expectedRoutes = [
   ["GET", "/api/workspaces/:workspaceId/knowledge/documents"],
+  ["DELETE", "/api/workspaces/:workspaceId/knowledge/documents/:documentId"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/validate"],
   ["POST", "/api/workspaces/:workspaceId/knowledge/uploads/prepare"],

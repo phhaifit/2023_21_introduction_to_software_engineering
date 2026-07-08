@@ -77,6 +77,7 @@ import { createKnowledgeVectorIndexAdapterFromEnvironment } from "./modules/know
 import {
   InMemoryKnowledgeDataSourceRepository,
   InMemoryKnowledgeAccessGrantRepository,
+  InMemoryKnowledgeDocumentDeletionRepository,
   InMemoryKnowledgeDocumentRepository,
   InMemoryKnowledgeIngestionJobRepository,
   InMemoryKnowledgeSyncJobRepository,
@@ -84,6 +85,7 @@ import {
 } from "./modules/knowledge-base-rag/infrastructure/in-memory-knowledge-base-rag-repositories.ts";
 import { PrismaKnowledgeDataSourceRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-data-source-repository.ts";
 import { PrismaKnowledgeAccessGrantRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-access-grant-repository.ts";
+import { PrismaKnowledgeDocumentDeletionRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-document-deletion-repository.ts";
 import { PrismaKnowledgeDocumentRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-document-repository.ts";
 import { PrismaKnowledgeIngestionJobRepository } from "./modules/knowledge-base-rag/infrastructure/prisma-knowledge-ingestion-job-repository.ts";
 import {
@@ -702,6 +704,13 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   const knowledgeAccessGrantRepository = prisma
     ? new PrismaKnowledgeAccessGrantRepository(prisma)
     : new InMemoryKnowledgeAccessGrantRepository();
+  const knowledgeDocumentDeletionRepository = prisma
+    ? new PrismaKnowledgeDocumentDeletionRepository(prisma)
+    : new InMemoryKnowledgeDocumentDeletionRepository(
+        knowledgeDocumentRepository as InMemoryKnowledgeDocumentRepository,
+        knowledgeAccessGrantRepository as InMemoryKnowledgeAccessGrantRepository,
+        knowledgeIngestionJobRepository as InMemoryKnowledgeIngestionJobRepository
+      );
   const knowledgeAccessPolicy = new KnowledgeBaseRagAccessPolicy(
     knowledgeAccessGrantRepository
   );
@@ -975,7 +984,9 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
   }
   const knowledgeBaseRagUseCases = {
     documentUseCases: new KnowledgeDocumentUseCases({
-      documentRepository: knowledgeDocumentRepository
+      documentRepository: knowledgeDocumentRepository,
+      documentDeletionRepository: knowledgeDocumentDeletionRepository,
+      fileStorage: knowledgeFileStorage
     }),
     uploadUseCases,
     ingestionUseCases: new KnowledgeIngestionUseCases({

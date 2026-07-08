@@ -11,6 +11,14 @@ The system SHALL allow authorized users to upload workspace knowledge documents.
 - **WHEN** a user uploads an unsupported file type
 - **THEN** the system rejects the upload with a validation error response
 
+#### Scenario: Document deleted from local knowledge base
+- **WHEN** an authorized user deletes a terminal workspace knowledge document
+- **THEN** the system removes the document, its chunks, vector/index rows, ingestion and runtime processing rows, and document access grants inside the workspace boundary
+- **AND** future retrieval, agent assignment lists, and citations do not include the deleted document
+- **AND** local uploaded file storage is removed on a best-effort basis without exposing private paths
+- **AND** Google Drive-sourced document deletion removes only the local indexed copy and does not delete the remote Drive file or account connection
+- **AND** documents still queued or processing are not deleted unless a reviewed cancellation flow exists
+
 ### Requirement: Public API and DTO Boundary
 The system SHALL define workspace-scoped Knowledge Base / RAG public API and DTO contracts before runtime handlers are implemented.
 
@@ -80,6 +88,7 @@ The system SHALL expose KB/RAG application use cases through workspace-scoped ba
 #### Scenario: Workspace-scoped route family is exposed
 - **WHEN** a backend client calls KB/RAG HTTP routes
 - **THEN** the router exposes only `/api/workspaces/:workspaceId/knowledge/...` routes for documents, upload validation, upload preparation, ingestion jobs, data sources, sync scope, and sync jobs
+- **AND** document deletion is exposed through `DELETE /api/workspaces/:workspaceId/knowledge/documents/:documentId`
 - **AND** it does not expose the older `/api/knowledge-base/...` candidate route family
 
 #### Scenario: Router remains a thin application adapter
@@ -98,6 +107,7 @@ The system SHALL provide a typed frontend KB/RAG API client before existing UI s
 #### Scenario: Client calls finalized workspace-scoped routes
 - **WHEN** frontend code calls the KB/RAG API client
 - **THEN** the client builds only `/api/workspaces/:workspaceId/knowledge/...` URLs for documents, upload validation, upload preparation, ingestion jobs, data sources, sync scope, and sync jobs
+- **AND** it deletes documents only through the workspace-scoped document delete route
 - **AND** it encodes `workspaceId`, `sourceId`, and query values safely
 - **AND** it does not call the older `/api/knowledge-base/...` candidate route family
 

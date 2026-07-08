@@ -110,6 +110,7 @@ The platform SHALL maintain a reviewed API contract matrix that lists each plann
 #### Scenario: Knowledge API boundaries are defined
 - **WHEN** the matrix is reviewed
 - **THEN** it SHALL include `GET /api/workspaces/:workspaceId/knowledge/documents` owned by Knowledge Base / RAG
+- **AND** it SHALL include `DELETE /api/workspaces/:workspaceId/knowledge/documents/:documentId` owned by Knowledge Base / RAG
 - **AND** it SHALL include `POST /api/workspaces/:workspaceId/knowledge/uploads/validate` owned by Knowledge Base / RAG
 - **AND** it SHALL include `POST /api/workspaces/:workspaceId/knowledge/uploads/prepare` owned by Knowledge Base / RAG
 - **AND** it SHALL include `GET /api/workspaces/:workspaceId/knowledge/ingestion-jobs` owned by Knowledge Base / RAG

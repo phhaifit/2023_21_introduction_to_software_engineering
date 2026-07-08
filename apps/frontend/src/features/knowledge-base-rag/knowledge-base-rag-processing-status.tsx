@@ -1,4 +1,4 @@
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
@@ -56,6 +56,12 @@ export function KnowledgeBaseProcessingStatusScreen(
     useState<"loading" | "loaded" | "error">("loading");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedSyncJobId, setSelectedSyncJobId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProcessingJob | null>(null);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const metrics = useMemo(() => createProcessingStatusMetrics(jobs), [jobs]);
   const selectedJob =
@@ -96,6 +102,33 @@ export function KnowledgeBaseProcessingStatusScreen(
       isActive = false;
     };
   }, [apiClient, refreshKey, workspaceId]);
+
+  async function confirmDeleteDocument() {
+    if (!deleteTarget || deletingDocumentId) return;
+    setDeletingDocumentId(deleteTarget.documentId);
+    setDeleteMessage(null);
+    try {
+      await apiClient.deleteKnowledgeDocument(
+        workspaceId,
+        deleteTarget.documentId as EntityId<"documentId">
+      );
+      setJobs((current) =>
+        current.filter((job) => job.documentId !== deleteTarget.documentId)
+      );
+      if (selectedJobId === deleteTarget.jobId) {
+        setSelectedJobId(null);
+      }
+      setDeleteTarget(null);
+      setDeleteMessage({ type: "success", text: "Document deleted" });
+    } catch {
+      setDeleteMessage({
+        type: "error",
+        text: "Unable to delete document. Try again."
+      });
+    } finally {
+      setDeletingDocumentId(null);
+    }
+  }
 
   return (
     <div className="knowledge-base-rag-processing-status">
@@ -152,6 +185,15 @@ export function KnowledgeBaseProcessingStatusScreen(
           </div>
         ) : null}
 
+        {deleteMessage ? (
+          <div
+            className={`knowledge-base-rag-processing-status-message knowledge-base-rag-processing-status-message--${deleteMessage.type}`}
+            role={deleteMessage.type === "error" ? "alert" : "status"}
+          >
+            {deleteMessage.text}
+          </div>
+        ) : null}
+
         {loadState === "error" ? (
           <div className="knowledge-base-rag-processing-status-feedback" role="alert">
             <div>
@@ -174,6 +216,11 @@ export function KnowledgeBaseProcessingStatusScreen(
                 isSelected={selectedJob?.jobId === job.jobId}
                 job={job}
                 key={job.jobId}
+                isDeleting={deletingDocumentId === job.documentId}
+                onRequestDelete={() => {
+                  setDeleteMessage(null);
+                  setDeleteTarget(job);
+                }}
                 onViewDetails={() => setSelectedJobId(job.jobId)}
               />
             ))}
@@ -223,6 +270,16 @@ export function KnowledgeBaseProcessingStatusScreen(
         <SyncJobDetails
           job={selectedSyncJob}
           onClose={() => setSelectedSyncJobId(null)}
+        />
+      ) : null}
+      {deleteTarget ? (
+        <DeleteDocumentConfirmationDialog
+          isDeleting={deletingDocumentId === deleteTarget.documentId}
+          job={deleteTarget}
+          onCancel={() => {
+            if (!deletingDocumentId) setDeleteTarget(null);
+          }}
+          onConfirm={() => void confirmDeleteDocument()}
         />
       ) : null}
     </div>
@@ -474,6 +531,7 @@ function toProcessingJob(
     documentStatus: mapDocumentStatus(document?.status ?? job.status),
     mediaType: document?.mediaType ?? "Unknown",
     fileType: inferDocumentType(document),
+    documentSource: document?.source ?? "upload",
     sourceName: document ? formatSourceName(document.source) : "Workspace",
     status,
     progress: mapProgress(status, job.progressPercent),
@@ -595,11 +653,20 @@ function formatDateTime(value: string): string {
 
 type ProcessingJobCardProps = {
   isSelected: boolean;
+  isDeleting: boolean;
   job: ProcessingJob;
+  onRequestDelete: () => void;
   onViewDetails: () => void;
 };
 
-function ProcessingJobCard({ isSelected, job, onViewDetails }: ProcessingJobCardProps) {
+function ProcessingJobCard({
+  isDeleting,
+  isSelected,
+  job,
+  onRequestDelete,
+  onViewDetails
+}: ProcessingJobCardProps) {
+  const canDelete = job.status === "completed" || job.status === "failed";
   return (
     <article
       className={`knowledge-base-rag-processing-job${
@@ -638,6 +705,16 @@ function ProcessingJobCard({ isSelected, job, onViewDetails }: ProcessingJobCard
         <button type="button" onClick={onViewDetails}>
           View details
         </button>
+        <button
+          type="button"
+          className="knowledge-base-rag-processing-job__delete"
+          disabled={!canDelete || isDeleting}
+          onClick={onRequestDelete}
+          title={canDelete ? "Delete document" : "Cannot delete while processing."}
+        >
+          <Trash2 aria-hidden="true" size={16} />
+          {isDeleting ? "Deleting..." : "Delete document"}
+        </button>
         {job.status === "failed" ? (
           <button
             type="button"
@@ -649,6 +726,80 @@ function ProcessingJobCard({ isSelected, job, onViewDetails }: ProcessingJobCard
         ) : null}
       </div>
     </article>
+  );
+}
+
+function DeleteDocumentConfirmationDialog({
+  isDeleting,
+  job,
+  onCancel,
+  onConfirm
+}: {
+  isDeleting: boolean;
+  job: ProcessingJob;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="knowledge-base-rag-processing-details-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-document-title"
+    >
+      <div
+        className="knowledge-base-rag-processing-details-modal__backdrop"
+        onClick={isDeleting ? undefined : onCancel}
+      />
+      <section className="knowledge-base-rag-processing-details-modal__panel">
+        <header className="knowledge-base-rag-processing-details-modal__header">
+          <div>
+            <p>Knowledge document</p>
+            <h2 id="delete-document-title">Delete document?</h2>
+          </div>
+          <button
+            type="button"
+            disabled={isDeleting}
+            onClick={onCancel}
+            aria-label="Close delete document confirmation"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        <p className="knowledge-base-rag-processing-delete-copy">
+          This will remove the document from the workspace knowledge base, delete
+          its chunks and vector index, and remove it from any agent assigned
+          knowledge. This action cannot be undone.
+        </p>
+        {job.documentSource === "google_drive" ? (
+          <p className="knowledge-base-rag-processing-delete-copy">
+            This removes the local indexed copy only. The original Google Drive
+            file will not be deleted.
+          </p>
+        ) : null}
+
+        <KnowledgeBaseMetadataList
+          className="knowledge-base-rag-processing-status-details__metadata"
+          items={[{ label: "Document", value: job.documentName }]}
+        />
+
+        <footer>
+          <button type="button" disabled={isDeleting} onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="knowledge-base-rag-processing-job__delete"
+            disabled={isDeleting}
+            onClick={onConfirm}
+          >
+            <Trash2 aria-hidden="true" size={16} />
+            {isDeleting ? "Deleting..." : "Delete document"}
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }
 
