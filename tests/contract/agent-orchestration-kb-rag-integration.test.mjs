@@ -147,7 +147,7 @@ await grantRepository.saveAccessGrant(
   grant({ updatedAt: "2026-07-04T00:02:00.000Z" })
 );
 const filtered = await orchestration.ask(workspaceId, agentId, {
-  message: "policy",
+  message: "What is the equipment policy?",
   filters: {
     documentIds: ["document-policy", "document-private"]
   }

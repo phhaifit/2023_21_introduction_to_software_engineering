@@ -326,14 +326,14 @@ async function testAgentScopedRetrievalAndRag() {
     answerProvider: {
       async generateAnswer(input) {
         providerEvidence = input.evidence;
-        return { answer: "Use the granted policy. [E1]", citationIds: ["E1"] };
+        return { answer: "Use the granted approval evidence. [E1]", citationIds: ["E1"] };
       }
     },
     generateAnswerId: () => "answer-access"
   });
   const answer = await answerUseCase.answer(
     "workspace-a",
-    { query: "policy" },
+    { query: "What approval is granted?" },
     { agentId: "agent-multi" }
   );
   assert.equal(answer.status, "answered");
@@ -349,7 +349,7 @@ async function testAgentScopedRetrievalAndRag() {
   providerEvidence = undefined;
   const deniedAnswer = await answerUseCase.answer(
     "workspace-a",
-    { query: "policy" },
+    { query: "What approval is granted?" },
     { agentId: "agent-without-grants" }
   );
   assert.equal(deniedAnswer.status, "insufficient_evidence");
@@ -628,7 +628,7 @@ async function seedDocument(repository, workspaceId, documentId, chunkId) {
     workspaceId,
     documentId,
     chunkIndex: 0,
-    contentText: `Evidence for ${documentId}.`,
+    contentText: `Granted approval evidence for ${documentId}.`,
     embeddingStatus: "ready",
     sourceLocator: "text:0",
     createdAt: "2026-07-03T00:00:00.000Z",

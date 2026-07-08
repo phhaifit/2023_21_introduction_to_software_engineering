@@ -137,7 +137,9 @@ async function testProviderFallbacks() {
       answerProvider,
       generateAnswerId: () => "answer-fallback"
     });
-    const response = await failing.answer("workspace-a", { query: "policy" });
+    const response = await failing.answer("workspace-a", {
+      query: "Who handles escalations?"
+    });
     assert.equal(response.status, "provider_error");
     assertSafePublicValue(response);
   }

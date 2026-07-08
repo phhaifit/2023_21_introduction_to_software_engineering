@@ -16,6 +16,8 @@ import type {
 export const AGENT_KNOWLEDGE_INSUFFICIENT_EVIDENCE_ANSWER =
   "I could not find enough information in this agent's assigned knowledge documents to answer reliably.";
 export const MAX_AGENT_ORCHESTRATION_ANSWER_LENGTH = 1_200;
+export const MIN_AGENT_KNOWLEDGE_EVIDENCE_SCORE =
+  DEFAULT_KNOWLEDGE_ANSWERABILITY_MIN_SCORE;
 
 export type AgentGroundedResponseComposer = {
   compose(input: {
@@ -67,6 +69,19 @@ export class AgentKnowledgeOrchestrationUseCase {
       };
     }
 
+    const relevantEvidence = retrieval.evidence.filter((item) =>
+      isKnowledgeEvidenceAnswerable({
+        query: request.message,
+        evidenceTitle: item.documentTitle,
+        evidenceText: item.snippet,
+        score: item.score,
+        minScore: MIN_AGENT_KNOWLEDGE_EVIDENCE_SCORE
+      })
+    );
+    if (relevantEvidence.length === 0) {
+      return insufficientEvidenceResponse();
+    }
+
     try {
       const composer =
         this.dependencies.responseComposer ??
@@ -74,17 +89,17 @@ export class AgentKnowledgeOrchestrationUseCase {
       const answer = normalizeAnswer(
         await composer.compose({
           message: request.message,
-          evidence: retrieval.evidence
+          evidence: relevantEvidence
         })
       );
       if (!answer) {
-        return safeError();
+        return insufficientEvidenceResponse();
       }
 
       return {
         status: "answered",
         answer,
-        citations: retrieval.evidence.map((item) => ({
+        citations: relevantEvidence.map((item) => ({
           citationId: item.citationId,
           documentId: item.documentId,
           documentTitle: item.documentTitle,
@@ -134,5 +149,14 @@ function safeError(): AgentKnowledgeAskResponse {
     answer: "",
     citations: [],
     warnings: ["Agent grounded response is unavailable."]
+  };
+}
+
+function insufficientEvidenceResponse(): AgentKnowledgeAskResponse {
+  return {
+    status: "insufficient_evidence",
+    answer: AGENT_KNOWLEDGE_INSUFFICIENT_EVIDENCE_ANSWER,
+    citations: [],
+    warnings: ["insufficient_evidence"]
   };
 }

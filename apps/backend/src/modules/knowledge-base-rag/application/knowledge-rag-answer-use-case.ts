@@ -19,6 +19,7 @@ import {
   KnowledgeBaseRagValidationError,
   KnowledgeRagAnswerError
 } from "./knowledge-base-rag-errors.ts";
+import { isKnowledgeEvidenceAnswerable } from "./knowledge-answerability.ts";
 
 export const DEFAULT_RAG_MAX_ANSWER_LENGTH = 1_200;
 export const MIN_RAG_MAX_ANSWER_LENGTH = 100;
@@ -82,7 +83,9 @@ export class KnowledgeRagAnswerUseCase {
       );
     }
 
-    const evidence = retrieval.results.filter(isSufficientEvidence);
+    const evidence = retrieval.results.filter((item) =>
+      isSufficientEvidence(normalized.query, item)
+    );
     if (evidence.length === 0) {
       return createFallback(
         answerId,
@@ -209,14 +212,19 @@ function normalizeRequest(request: KnowledgeRagAnswerRequest): NormalizedRequest
   };
 }
 
-function isSufficientEvidence(evidence: KnowledgeEvidenceDto): boolean {
+function isSufficientEvidence(query: string, evidence: KnowledgeEvidenceDto): boolean {
   return (
     Boolean(evidence.evidenceId) &&
     Boolean(evidence.documentId) &&
     Boolean(evidence.chunkId) &&
     Boolean(evidence.snippet.trim()) &&
-    Number.isFinite(evidence.score) &&
-    evidence.score >= MIN_RAG_EVIDENCE_SCORE
+    isKnowledgeEvidenceAnswerable({
+      query,
+      evidenceTitle: evidence.documentTitle,
+      evidenceText: evidence.snippet,
+      score: evidence.score,
+      minScore: MIN_RAG_EVIDENCE_SCORE
+    })
   );
 }
 
