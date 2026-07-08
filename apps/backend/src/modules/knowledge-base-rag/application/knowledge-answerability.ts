@@ -20,6 +20,7 @@ const GENERIC_TERMS = new Set([
   "internal",
   "is",
   "knowledge",
+  "need",
   "much",
   "of",
   "or",
@@ -37,6 +38,7 @@ const GENERIC_TERMS = new Set([
   "workspace",
   "bao",
   "cac",
+  "can",
   "cho",
   "chinh",
   "co",
@@ -46,9 +48,13 @@ const GENERIC_TERMS = new Set([
   "hoi",
   "khach",
   "la",
+  "lam",
   "lieu",
+  "moi",
   "muc",
   "nay",
+  "ngay",
+  "nhan",
   "nhieu",
   "noi",
   "phai",
@@ -60,6 +66,8 @@ const GENERIC_TERMS = new Set([
   "tra",
   "trong",
   "chuan",
+  "viec",
+  "vien",
   "ve"
 ]);
 
@@ -110,6 +118,37 @@ export function explainKnowledgeEvidenceAnswerability(
   }
 
   const questionTerms = meaningfulTerms(input.query);
+  const normalizedQuery = normalizeForRelevance(input.query);
+  const normalizedEvidence = normalizeForRelevance(
+    `${input.evidenceTitle ?? ""} ${input.evidenceText}`
+  );
+  if (
+    normalizedQuery.includes("onboarding") &&
+    !normalizedEvidence.includes("onboarding")
+  ) {
+    return {
+      ...base,
+      questionTerms: [...new Set(questionTerms)],
+      answerable: false,
+      reason: "missing_onboarding_intent"
+    };
+  }
+  const queryNumbers = extractNumericTokens(input.query);
+  if (
+    queryNumbers.size > 0 &&
+    ![...queryNumbers].some((number) =>
+      extractNumericTokens(`${input.evidenceTitle ?? ""} ${input.evidenceText}`).has(
+        number
+      )
+    )
+  ) {
+    return {
+      ...base,
+      questionTerms: [...new Set(questionTerms)],
+      answerable: false,
+      reason: "missing_numeric_overlap"
+    };
+  }
   const evidenceTerms = new Set(
     meaningfulTerms(`${input.evidenceTitle ?? ""} ${input.evidenceText}`)
   );
@@ -199,18 +238,108 @@ export function selectMostRelevantEvidenceSentence(
   }
 
   let bestSentence = "";
-  let bestOverlap = 0;
+  let bestScore = Number.NEGATIVE_INFINITY;
   for (const sentence of sentences) {
-    const sentenceTerms = new Set(meaningfulTerms(sentence));
-    const overlap = [...questionTerms].filter((term) =>
-      sentenceTerms.has(term)
-    ).length;
-    if (overlap > bestOverlap) {
+    const score = scoreEvidenceSentence(query, sentence, questionTerms);
+    if (score > bestScore) {
       bestSentence = sentence;
-      bestOverlap = overlap;
+      bestScore = score;
     }
   }
   return bestSentence || firstSentence(evidenceText);
+}
+
+function scoreEvidenceSentence(
+  query: string,
+  sentence: string,
+  questionTerms: Set<string>
+): number {
+  const sentenceTerms = new Set(meaningfulTerms(sentence));
+  const overlap = [...questionTerms].filter((term) =>
+    sentenceTerms.has(term)
+  ).length;
+  let score = overlap * 10;
+
+  const queryNumbers = extractNumericTokens(query);
+  if (queryNumbers.size > 0) {
+    const sentenceNumbers = extractNumericTokens(sentence);
+    const exactMatches = [...queryNumbers].filter((number) =>
+      sentenceNumbers.has(number)
+    ).length;
+    const conflictingNumbers = [...sentenceNumbers].filter(
+      (number) => !queryNumbers.has(number)
+    ).length;
+    score += exactMatches * 100;
+    if (exactMatches === 0 && conflictingNumbers > 0) {
+      score -= conflictingNumbers * 80;
+    }
+  }
+
+  if (isChecklistQuestion(query)) {
+    if (isChecklistLikeSentence(sentence)) {
+      score += 80;
+    }
+    if (isTitleOrIntroSentence(sentence)) {
+      score -= 25;
+    }
+  }
+  if (isQuantityQuestion(query)) {
+    if (extractNumericTokens(sentence).size > 0) {
+      score += 35;
+    }
+    if (isTitleOrIntroSentence(sentence)) {
+      score -= 15;
+    }
+  }
+
+  return score;
+}
+
+function extractNumericTokens(value: string): Set<string> {
+  const normalized = normalizeForRelevance(value);
+  return new Set(
+    normalized
+      .match(/\d+(?:[.,]\d+)*(?:\s*%)?/g)
+      ?.map((token) => token.replace(/[.,\s]+/g, ""))
+      .filter(Boolean) ?? []
+  );
+}
+
+function isChecklistQuestion(query: string): boolean {
+  const normalized = normalizeForRelevance(query);
+  return (
+    normalized.includes("checklist") ||
+    normalized.includes("gom nhung gi") ||
+    normalized.includes("bao gom")
+  );
+}
+
+function isQuantityQuestion(query: string): boolean {
+  const normalized = normalizeForRelevance(query);
+  return (
+    normalized.includes("bao nhieu") ||
+    normalized.includes("how many") ||
+    normalized.includes("how much")
+  );
+}
+
+function isChecklistLikeSentence(sentence: string): boolean {
+  const normalized = normalizeForRelevance(sentence);
+  return (
+    normalized.includes("checklist") ||
+    normalized.includes("bao gom") ||
+    normalized.includes(" gom ") ||
+    /[:;,-]/.test(sentence)
+  );
+}
+
+function isTitleOrIntroSentence(sentence: string): boolean {
+  const normalized = normalizeForRelevance(sentence);
+  return (
+    normalized.includes("manual") ||
+    normalized.includes("tai lieu nay") ||
+    normalized.includes("huong dan")
+  );
 }
 
 function meaningfulTerms(value: string): string[] {

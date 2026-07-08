@@ -7,6 +7,7 @@ import {
 import { AgentKnowledgeRetrievalTool } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
 import { KnowledgeBaseRagAccessPolicy } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeRetrievalSearchUseCase } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
+import { selectMostRelevantEvidenceSentence } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-answerability.ts";
 import {
   InMemoryKnowledgeAccessGrantRepository,
   InMemoryKnowledgeDocumentRepository
@@ -71,6 +72,53 @@ async function testRelevantFinanceDocumentAnswersWithLiveScoreRange() {
   assert.deepEqual(citationTitles(response), [
     "04_finance_approval_policy.docx"
   ]);
+}
+
+async function testRelevantFinanceDocumentAnswersSpecificThreshold() {
+  const runtime = await createRuntime(["finance"]);
+  const response = await runtime.ask(
+    "Cac khoan chi tren 2000 USD can them phe duyet cua ai?"
+  );
+
+  assert.equal(response.status, "answered");
+  assert.match(response.answer, /Workspace Admin/i);
+  assert.doesNotMatch(response.answer, /Finance Manager/i);
+  assert.deepEqual(citationTitles(response), [
+    "04_finance_approval_policy.docx"
+  ]);
+}
+
+async function testOnboardingMixedWithHrCitesOnlyOnboarding() {
+  const runtime = await createRuntime(["onboarding", "hr"]);
+  const response = await runtime.ask(
+    "Nhan vien moi can hoan tat onboarding trong bao nhieu ngay?"
+  );
+
+  assert.equal(response.status, "answered");
+  assert.match(response.answer, /7 ngay/i);
+  assert.doesNotMatch(response.answer, /nghi phep|12 ngay|01_hr_policy/i);
+  assert.deepEqual(citationTitles(response), ["05_onboarding_manual.pdf"]);
+}
+
+async function testOnboardingChecklistSelectsChecklistItems() {
+  const runtime = await createRuntime(["onboarding"]);
+  const response = await runtime.ask("Checklist onboarding gom nhung gi?");
+
+  assert.equal(response.status, "answered");
+  assert.match(response.answer, /tao tai khoan/i);
+  assert.match(response.answer, /doc chinh sach noi bo/i);
+  assert.match(response.answer, /training bao mat/i);
+  assert.doesNotMatch(response.answer, /Manual|huong dan/i);
+  assert.deepEqual(citationTitles(response), ["05_onboarding_manual.pdf"]);
+}
+
+async function testHrOnlyOnboardingChecklistFallsBack() {
+  const runtime = await createRuntime(["hr"]);
+  const beforeComposer = runtime.composerCalls.length;
+  const response = await runtime.ask("Checklist onboarding gom nhung gi?");
+
+  assertFallback(response);
+  assert.equal(runtime.composerCalls.length, beforeComposer);
 }
 
 async function testMixedDocumentsCiteOnlySales() {
@@ -156,7 +204,11 @@ async function createRuntime(assignedKeys) {
     responseComposer: {
       async compose(input) {
         composerCalls.push(input);
-        return input.evidence.map((item) => item.snippet.split(".").at(-2)?.trim() ?? item.snippet).join(" ");
+        return input.evidence
+          .map((item) =>
+            selectMostRelevantEvidenceSentence(input.message, item.snippet)
+          )
+          .join(" ");
       }
     }
   });
@@ -252,7 +304,7 @@ const DOCUMENTS = {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     fileType: "docx",
     text:
-      "Finance Approval Policy - Workspace Demo. Tai lieu nay mo ta quy tac phe duyet chi phi noi bo. Cac khoan chi tren 500 USD can phe duyet boi Finance Manager."
+      "Finance Approval Policy - Workspace Demo. Tai lieu nay mo ta quy tac phe duyet chi phi noi bo. Cac khoan chi tren 500 USD can phe duyet boi Finance Manager. Cac khoan chi tren 2000 USD can them phe duyet cua Workspace Admin."
   },
   onboarding: {
     documentId: "document-onboarding",
@@ -261,7 +313,7 @@ const DOCUMENTS = {
     mimeType: "application/pdf",
     fileType: "pdf",
     text:
-      "Onboarding Manual - Workspace Demo. Nhan vien moi can hoan tat quy trinh onboarding trong vong 7 ngay dau tien."
+      "Onboarding Manual - Workspace Demo. Tai lieu nay huong dan nhan vien moi hoan tat quy trinh onboarding. Nhan vien moi can hoan tat onboarding trong vong 7 ngay dau tien. Checklist onboarding gom: tao tai khoan, doc chinh sach noi bo, hoan tat training bao mat."
   }
 };
 
@@ -270,6 +322,10 @@ await testIrrelevantHrDocumentFallsBack();
 await testManyIrrelevantDocumentsStillFallback();
 await testRelevantSalesDocumentAnswers();
 await testRelevantFinanceDocumentAnswersWithLiveScoreRange();
+await testRelevantFinanceDocumentAnswersSpecificThreshold();
+await testOnboardingMixedWithHrCitesOnlyOnboarding();
+await testOnboardingChecklistSelectsChecklistItems();
+await testHrOnlyOnboardingChecklistFallsBack();
 await testMixedDocumentsCiteOnlySales();
 
 console.log("KB/RAG agent answer relevance checks passed");

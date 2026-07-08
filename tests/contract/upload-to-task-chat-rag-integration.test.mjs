@@ -98,7 +98,7 @@ async function verifyUploadToTaskChatRagFlow() {
     fileName: "05_onboarding_manual.pdf",
     mediaType: "application/pdf",
     content: createPdf(
-      "Nhan vien moi onboarding 7 ngay. Hoan tat onboarding trong thoi han nay."
+      "Nhan vien moi onboarding 7 ngay. Checklist onboarding gom: tao tai khoan, doc chinh sach noi bo, hoan tat training bao mat."
     )
   });
 
@@ -279,6 +279,30 @@ async function verifyUploadToTaskChatRagFlow() {
       "04_finance_approval_policy.docx"
     ]);
 
+    const financeSpecificAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Cac khoan chi tren 2000 USD can them phe duyet cua ai?",
+      topK: 5
+    });
+    assert.equal(financeSpecificAnswer.status, 200);
+    assert.equal(
+      financeSpecificAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Cac khoan chi tren 2000 USD can them phe duyet cua ai?"
+      )
+    );
+    assert.match(financeSpecificAnswer.body.data.answer, /Workspace Admin/i);
+    assert.doesNotMatch(
+      financeSpecificAnswer.body.data.answer,
+      /Finance Manager/i
+    );
+    assert.deepEqual(citationTitles(financeSpecificAnswer), [
+      "04_finance_approval_policy.docx"
+    ]);
+
     await assignOnlyViaApi(api, "agent-a", [onboardingDocumentId]);
     const onboardingAnswer = await api.ask("workspace-a", {
       agentId: "agent-a",
@@ -299,6 +323,65 @@ async function verifyUploadToTaskChatRagFlow() {
     assert.deepEqual(citationTitles(onboardingAnswer), [
       "05_onboarding_manual.pdf"
     ]);
+
+    await assignOnlyViaApi(api, "agent-a", [
+      onboardingDocumentId,
+      hrDocumentId
+    ]);
+    const mixedOnboardingAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Nhan vien moi can hoan tat onboarding trong bao nhieu ngay?",
+      topK: 5
+    });
+    assert.equal(mixedOnboardingAnswer.status, 200);
+    assert.equal(
+      mixedOnboardingAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Nhan vien moi can hoan tat onboarding trong bao nhieu ngay?"
+      )
+    );
+    assert.match(mixedOnboardingAnswer.body.data.answer, /7 ngay/i);
+    assert.doesNotMatch(
+      mixedOnboardingAnswer.body.data.answer,
+      /nghi phep|12 ngay|01_hr_policy/i
+    );
+    assert.deepEqual(citationTitles(mixedOnboardingAnswer), [
+      "05_onboarding_manual.pdf"
+    ]);
+
+    const checklistAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Checklist onboarding gom nhung gi?",
+      topK: 5
+    });
+    assert.equal(checklistAnswer.status, 200);
+    assert.equal(
+      checklistAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Checklist onboarding gom nhung gi?"
+      )
+    );
+    assert.match(checklistAnswer.body.data.answer, /tao tai khoan/i);
+    assert.match(checklistAnswer.body.data.answer, /doc chinh sach noi bo/i);
+    assert.match(checklistAnswer.body.data.answer, /training bao mat/i);
+    assert.doesNotMatch(checklistAnswer.body.data.answer, /Manual|huong dan/i);
+    assert.deepEqual(citationTitles(checklistAnswer), [
+      "05_onboarding_manual.pdf"
+    ]);
+
+    await assignOnlyViaApi(api, "agent-a", [hrDocumentId]);
+    const hrOnlyChecklist = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Checklist onboarding gom nhung gi?",
+      topK: 5
+    });
+    assertFallback(hrOnlyChecklist);
 
     await assignOnlyViaApi(api, "agent-a", [
       hrDocumentId,
@@ -716,8 +799,10 @@ async function assignOnlyViaApi(api, agentId, documentIds) {
   const next = await api.listAssigned("workspace-a", agentId);
   assert.equal(next.status, 200);
   assert.deepEqual(
-    next.body.data.map((assignment) => assignment.document.documentId),
-    documentIds
+    next.body.data
+      .map((assignment) => assignment.document.documentId)
+      .sort(),
+    [...documentIds].sort()
   );
 }
 
@@ -864,8 +949,17 @@ function createZip(entries) {
 }
 
 function createPdf(text) {
-  const escapedText = text.replace(/([\\()])/g, "\\$1");
-  const stream = text ? `BT /F1 18 Tf 72 720 Td (${escapedText}) Tj ET` : "";
+  const lines = wrapPdfText(text, 48);
+  const stream = lines.length
+    ? [
+        "BT /F1 12 Tf 72 720 Td",
+        ...lines.map((line, index) => {
+          const escapedLine = line.replace(/([\\()])/g, "\\$1");
+          return `${index === 0 ? "" : "0 -18 Td "}(${escapedLine}) Tj`;
+        }),
+        "ET"
+      ].join("\n")
+    : "";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -887,6 +981,25 @@ function createPdf(text) {
     .join("");
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
   return Buffer.from(body);
+}
+
+function wrapPdfText(text, maxLength) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxLength && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) {
+    lines.push(current);
+  }
+  return lines;
 }
 
 function crc32(data) {
