@@ -12,6 +12,7 @@ import {
   AgentKnowledgeOrchestrationUseCase
 } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
 import { AgentKnowledgeRetrievalTool } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
+import { isKnowledgeEvidenceAnswerable } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-answerability.ts";
 import { KnowledgeBaseRagAccessPolicy } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeRetrievalSearchUseCase } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeUploadUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
@@ -33,6 +34,8 @@ const storageRoot = await mkdtemp(join(tmpdir(), "kb-rag-manual-agent-smoke-"));
 const HR_QUESTION = "Nhan vien muon nghi phep phai bao truoc bao nhieu ngay?";
 const SALES_QUESTION =
   "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?";
+const PRODUCT_PRICE_QUESTION =
+  "Goi Virtual Company Pro co gia bao nhieu moi thang?";
 
 try {
   await runSmoke();
@@ -60,7 +63,11 @@ async function runSmoke() {
 
   await assignOnly(runtime, agentId, [uploads.sales.documentId]);
   const salesAnswer = await runtime.ask(agentId, SALES_QUESTION);
-  assert.equal(salesAnswer.status, "answered");
+  assert.equal(
+    salesAnswer.status,
+    "answered",
+    await diagnosticMessage(runtime, agentId, SALES_QUESTION)
+  );
   assert.match(salesAnswer.answer, /8%/);
   assert.deepEqual(citationTitles(salesAnswer), ["02_sales_guide.md"]);
 
@@ -81,10 +88,27 @@ async function runSmoke() {
     uploads.product.documentId
   ]);
   const mixed = await runtime.ask(agentId, SALES_QUESTION);
-  assert.equal(mixed.status, "answered");
+  assert.equal(
+    mixed.status,
+    "answered",
+    await diagnosticMessage(runtime, agentId, SALES_QUESTION)
+  );
   assert.match(mixed.answer, /8%/);
   assert.deepEqual(citationTitles(mixed), ["02_sales_guide.md"]);
   assert.doesNotMatch(mixed.answer, /nghi phep|990000|2490000|AGENT-ADDON/i);
+
+  const productPrice = await runtime.ask(agentId, PRODUCT_PRICE_QUESTION);
+  assert.equal(
+    productPrice.status,
+    "answered",
+    await diagnosticMessage(runtime, agentId, PRODUCT_PRICE_QUESTION)
+  );
+  assert.match(productPrice.answer, /2\.490\.000 VND|2490000/);
+  assert.deepEqual(citationTitles(productPrice), ["03_product_catalog.csv"]);
+  assert.doesNotMatch(
+    productPrice.answer,
+    /monthly_price_vnd|product_code|VCP-STD|AGENT-ADDON/i
+  );
 
   assertSafe({
     uploads,
@@ -92,7 +116,8 @@ async function runSmoke() {
     hrOnlySales,
     salesAnswer,
     irrelevantOnly,
-    mixed
+    mixed,
+    productPrice
   });
 }
 
@@ -347,6 +372,7 @@ function createRuntime() {
     agentUseCases,
     assignmentUseCase,
     documentRepository,
+    retrievalTool,
     uploadUseCases,
     ask(agentId, message) {
       return orchestration.ask(workspaceId, agentId, { message, topK: 5 });
@@ -365,6 +391,42 @@ function assertFallback(response) {
     citations: [],
     warnings: ["insufficient_evidence"]
   });
+}
+
+async function diagnosticMessage(runtime, agentId, message) {
+  const assignments = await runtime.assignmentUseCase.listAssignedDocuments(
+    workspaceId,
+    agentId,
+    "admin"
+  );
+  const retrieval = await runtime.retrievalTool.execute({
+    workspaceId,
+    agentId,
+    query: message,
+    topK: 5
+  });
+  return JSON.stringify(
+    {
+      assignedDocumentTitles: assignments.map((assignment) => assignment.document.name),
+      retrievalStatus: retrieval.status,
+      retrievedEvidence:
+        retrieval.status === "found"
+          ? retrieval.evidence.map((item) => ({
+              documentTitle: item.documentTitle,
+              score: item.score,
+              answerable: isKnowledgeEvidenceAnswerable({
+                query: message,
+                evidenceTitle: item.documentTitle,
+                evidenceText: item.snippet,
+                score: item.score
+              }),
+              snippet: item.snippet
+            }))
+          : []
+    },
+    null,
+    2
+  );
 }
 
 function assertSafe(value) {

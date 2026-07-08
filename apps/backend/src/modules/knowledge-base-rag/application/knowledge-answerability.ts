@@ -102,6 +102,11 @@ export function selectMostRelevantEvidenceSentence(
   query: string,
   evidenceText: string
 ): string {
+  const tabularAnswer = selectTabularPriceAnswer(query, evidenceText);
+  if (tabularAnswer) {
+    return tabularAnswer;
+  }
+
   const questionTerms = new Set(meaningfulTerms(query));
   const sentences = splitSentences(evidenceText);
   if (questionTerms.size === 0 || sentences.length === 0) {
@@ -156,9 +161,11 @@ function stemTerm(term: string): string {
 }
 
 function splitSentences(value: string): string[] {
-  return value
+  const sentenceText = value
+    .replace(/\r?\n/g, ". ")
     .replace(/\s+/g, " ")
-    .trim()
+    .trim();
+  return sentenceText
     .split(/(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
     .filter(Boolean);
@@ -166,4 +173,102 @@ function splitSentences(value: string): string[] {
 
 function firstSentence(value: string): string {
   return splitSentences(value)[0] ?? "";
+}
+
+function selectTabularPriceAnswer(query: string, evidenceText: string): string {
+  const normalizedQuery = normalizeForRelevance(query);
+  if (
+    !normalizedQuery.includes("gia") &&
+    !normalizedQuery.includes("price") &&
+    !normalizedQuery.includes("monthly")
+  ) {
+    return "";
+  }
+
+  const rows = parseCsvLikeRows(evidenceText);
+  if (rows.length === 0) {
+    return "";
+  }
+
+  const bestRow = rows
+    .map((row) => ({ row, score: scoreCsvRowAgainstQuery(row, query) }))
+    .sort((left, right) => right.score - left.score)[0];
+  if (!bestRow || bestRow.score <= 0) {
+    return "";
+  }
+
+  const price = bestRow.row.monthlyPriceVnd;
+  if (!price || !/^\d+$/.test(price)) {
+    return "";
+  }
+
+  const productName = bestRow.row.productName || bestRow.row.productCode;
+  if (!productName) {
+    return "";
+  }
+
+  return `Gói ${productName} có giá ${formatVnd(price)} mỗi tháng.`;
+}
+
+type CsvLikeProductRow = {
+  productCode: string;
+  productName: string;
+  monthlyPriceVnd: string;
+};
+
+function parseCsvLikeRows(value: string): CsvLikeProductRow[] {
+  const compact = value.replace(/\s+/g, " ").trim();
+  const header = "product_code,product_name,category,monthly_price_vnd,warranty_months,note";
+  const headerIndex = compact.toLowerCase().indexOf(header);
+  if (headerIndex < 0) {
+    return [];
+  }
+
+  const table = compact.slice(headerIndex + header.length).trim();
+  if (!table) {
+    return [];
+  }
+
+  return table
+    .split(/\s+(?=[A-Z0-9]+(?:-[A-Z0-9]+)+,)/)
+    .map((row) => row.trim())
+    .filter(Boolean)
+    .map((row) => row.split(","))
+    .filter((columns) => columns.length >= 5)
+    .map((columns) => ({
+      productCode: columns[0]?.trim() ?? "",
+      productName: columns[1]?.trim() ?? "",
+      monthlyPriceVnd: columns[3]?.trim() ?? ""
+    }))
+    .filter(
+      (row) =>
+        row.productCode.length > 0 &&
+        row.productName.length > 0 &&
+        row.monthlyPriceVnd.length > 0
+    );
+}
+
+function scoreCsvRowAgainstQuery(
+  row: CsvLikeProductRow,
+  query: string
+): number {
+  const normalizedQuery = normalizeForRelevance(query);
+  const productName = normalizeForRelevance(row.productName);
+  const productCode = normalizeForRelevance(row.productCode);
+  if (productName && normalizedQuery.includes(productName)) {
+    return 100;
+  }
+  if (productCode && normalizedQuery.includes(productCode)) {
+    return 90;
+  }
+
+  const queryTerms = new Set(meaningfulTerms(query));
+  const rowTerms = new Set(
+    meaningfulTerms(`${row.productCode} ${row.productName}`)
+  );
+  return [...queryTerms].filter((term) => rowTerms.has(term)).length;
+}
+
+function formatVnd(value: string): string {
+  return `${Number(value).toLocaleString("vi-VN")} VND`;
 }

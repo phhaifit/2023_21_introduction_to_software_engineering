@@ -13,6 +13,7 @@ import {
   AgentKnowledgeOrchestrationUseCase
 } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-orchestration-use-case.ts";
 import { AgentKnowledgeRetrievalTool } from "@vcp/backend/modules/knowledge-base-rag/application/agent-knowledge-retrieval-tool.ts";
+import { isKnowledgeEvidenceAnswerable } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-answerability.ts";
 import { KnowledgeBaseRagAccessPolicy } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-base-rag-access-policy.ts";
 import { KnowledgeRetrievalSearchUseCase } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-retrieval-search-use-case.ts";
 import { KnowledgeUploadUseCases } from "@vcp/backend/modules/knowledge-base-rag/application/knowledge-upload-use-cases.ts";
@@ -52,6 +53,29 @@ async function verifyUploadToTaskChatRagFlow() {
     fileName: "workspace-b-policy.txt",
     content:
       "Workspace B policy: private records must not answer workspace A requests."
+  });
+  const hrDocumentId = await uploadDocument(runtime, {
+    workspaceId: "workspace-a",
+    clientFileId: "hr-policy",
+    fileName: "01_hr_policy.txt",
+    content:
+      "Chinh sach nhan su noi bo - Workspace Demo.\n\nNhan vien duoc nghi phep nam toi da 12 ngay lam viec moi nam.\nNeu muon nghi phep, nhan vien phai gui yeu cau truoc it nhat 3 ngay lam viec.\nTu khoa kiem thu: HR-POLICY-ALPHA."
+  });
+  const salesDocumentId = await uploadDocument(runtime, {
+    workspaceId: "workspace-a",
+    clientFileId: "sales-guide",
+    fileName: "02_sales_guide.md",
+    mediaType: "text/markdown",
+    content:
+      "# Sales Guide - Workspace Demo\n\nKhach hang doanh nghiep duoc ap dung muc chiet khau tieu chuan la 8%.\n\nNeu muc chiet khau de xuat vuot qua 12%, Sales Agent phai xin phe duyet tu Sales Manager.\n\nTu khoa kiem thu: SALES-GUIDE-BETA."
+  });
+  const productDocumentId = await uploadDocument(runtime, {
+    workspaceId: "workspace-a",
+    clientFileId: "product-catalog",
+    fileName: "03_product_catalog.csv",
+    mediaType: "text/csv",
+    content:
+      "product_code,product_name,category,monthly_price_vnd,warranty_months,note\nVCP-STD,Virtual Company Standard,Subscription,990000,0,Goi tieu chuan cho nhom nho\nVCP-PRO,Virtual Company Pro,Subscription,2490000,0,Goi nang cao cho team can nhieu agent\nAGENT-ADDON,Additional Agent Add-on,Add-on,300000,0,Them mot agent hoat dong trong workspace"
   });
 
   assert.notEqual(policyDocumentId, unassignedDocumentId);
@@ -96,7 +120,6 @@ async function verifyUploadToTaskChatRagFlow() {
     assert.match(answered.body.data.citations[0].snippet, /over 500 USD/i);
     assert.ok(answered.body.data.citations[0].snippet.length <= 400);
     assertSafe(answered.body);
-    assert.ok(runtime.composerCalls.length >= 1);
 
     const callsAfterAnswered = callCounts(runtime);
     const unassigned = await post("workspace-a", {
@@ -135,6 +158,112 @@ async function verifyUploadToTaskChatRagFlow() {
     });
     assertFallback(revoked);
     assert.deepEqual(callCounts(runtime), callsAfterAnswered);
+
+    await runtime.assignmentUseCase.assignDocument(
+      "workspace-a",
+      "agent-a",
+      hrDocumentId,
+      "admin"
+    );
+    const hrAnswer = await post("workspace-a", {
+      agentId: "agent-a",
+      message: "Nhan vien muon nghi phep phai bao truoc bao nhieu ngay?",
+      topK: 5
+    });
+    assert.equal(hrAnswer.status, 200);
+    assert.equal(
+      hrAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Nhan vien muon nghi phep phai bao truoc bao nhieu ngay?"
+      )
+    );
+    assert.match(hrAnswer.body.data.answer, /3 ngay lam viec/i);
+    assert.deepEqual(citationTitles(hrAnswer), ["01_hr_policy.txt"]);
+
+    const hrOnlySalesQuestion = await post("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assertFallback(hrOnlySalesQuestion);
+
+    await runtime.assignmentUseCase.assignDocument(
+      "workspace-a",
+      "agent-a",
+      salesDocumentId,
+      "admin"
+    );
+    const salesAnswer = await post("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assert.equal(salesAnswer.status, 200);
+    assert.equal(
+      salesAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?"
+      )
+    );
+    assert.match(salesAnswer.body.data.answer, /8%/);
+    assert.deepEqual(citationTitles(salesAnswer), ["02_sales_guide.md"]);
+    assert.doesNotMatch(salesAnswer.body.data.answer, /nghi phep|3 ngay/i);
+
+    await runtime.assignmentUseCase.assignDocument(
+      "workspace-a",
+      "agent-a",
+      productDocumentId,
+      "admin"
+    );
+    const mixedSalesAnswer = await post("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assert.equal(mixedSalesAnswer.status, 200);
+    assert.equal(
+      mixedSalesAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?"
+      )
+    );
+    assert.match(mixedSalesAnswer.body.data.answer, /8%/);
+    assert.deepEqual(citationTitles(mixedSalesAnswer), ["02_sales_guide.md"]);
+    assert.doesNotMatch(
+      mixedSalesAnswer.body.data.answer,
+      /monthly_price_vnd|VCP-STD|VCP-PRO|nghi phep/i
+    );
+
+    const productAnswer = await post("workspace-a", {
+      agentId: "agent-a",
+      message: "Goi Virtual Company Pro co gia bao nhieu moi thang?",
+      topK: 5
+    });
+    assert.equal(productAnswer.status, 200);
+    assert.equal(
+      productAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Goi Virtual Company Pro co gia bao nhieu moi thang?"
+      )
+    );
+    assert.match(productAnswer.body.data.answer, /2\.490\.000 VND|2490000/);
+    assert.deepEqual(citationTitles(productAnswer), ["03_product_catalog.csv"]);
+    assert.doesNotMatch(
+      productAnswer.body.data.answer,
+      /monthly_price_vnd|VCP-STD|AGENT-ADDON|product_code/i
+    );
   });
 }
 
@@ -148,7 +277,10 @@ async function uploadPolicyDocument(runtime) {
   });
 }
 
-async function uploadDocument(runtime, { workspaceId, clientFileId, fileName, content }) {
+async function uploadDocument(
+  runtime,
+  { workspaceId, clientFileId, fileName, content, mediaType = "text/plain" }
+) {
   const upload = await runtime.uploadUseCases.uploadDocuments(
     workspaceId,
     "user-a",
@@ -156,7 +288,7 @@ async function uploadDocument(runtime, { workspaceId, clientFileId, fileName, co
       {
         clientFileId,
         fileName,
-        mediaType: "text/plain",
+        mediaType,
         content: new TextEncoder().encode(content)
       }
     ]
@@ -184,7 +316,6 @@ function createRuntime() {
   const vectorUpsertCalls = [];
   const vectorQueryCalls = [];
   const vectorRecords = [];
-  const composerCalls = [];
   let sequence = 0;
   let documentSequence = 0;
   let jobSequence = 0;
@@ -293,13 +424,7 @@ function createRuntime() {
     agentLookup
   });
   const orchestrationUseCase = new AgentKnowledgeOrchestrationUseCase({
-    knowledgeRetrievalTool,
-    responseComposer: {
-      async compose(input) {
-        composerCalls.push(input);
-        return input.evidence[0]?.snippet.split(".")[0] ?? "";
-      }
-    }
+    knowledgeRetrievalTool
   });
   const assignmentUseCase = new AgentKnowledgeAssignmentUseCase({
     accessGrantRepository,
@@ -312,9 +437,9 @@ function createRuntime() {
 
   return {
     assignmentUseCase,
-    composerCalls,
     documentRepository,
     embeddingCalls,
+    knowledgeRetrievalTool,
     queryEmbeddingCalls,
     uploadUseCases,
     vectorQueryCalls,
@@ -378,10 +503,49 @@ async function withTaskChatApi(runtime, callback) {
 
 function callCounts(runtime) {
   return {
-    composerCalls: runtime.composerCalls.length,
     queryEmbeddingCalls: runtime.queryEmbeddingCalls.length,
     vectorQueryCalls: runtime.vectorQueryCalls.length
   };
+}
+
+function citationTitles(response) {
+  return response.body.data.citations.map((citation) => citation.documentTitle);
+}
+
+async function diagnosticMessage(runtime, agentId, message) {
+  const assignments = await runtime.assignmentUseCase.listAssignedDocuments(
+    "workspace-a",
+    agentId,
+    "admin"
+  );
+  const retrieval = await runtime.knowledgeRetrievalTool.execute({
+    workspaceId: "workspace-a",
+    agentId,
+    query: message,
+    topK: 5
+  });
+  return JSON.stringify(
+    {
+      assignedDocumentTitles: assignments.map((assignment) => assignment.document.name),
+      retrievalStatus: retrieval.status,
+      retrievedEvidence:
+        retrieval.status === "found"
+          ? retrieval.evidence.map((item) => ({
+              documentTitle: item.documentTitle,
+              score: item.score,
+              answerable: isKnowledgeEvidenceAnswerable({
+                query: message,
+                evidenceTitle: item.documentTitle,
+                evidenceText: item.snippet,
+                score: item.score
+              }),
+              snippet: item.snippet
+            }))
+          : []
+    },
+    null,
+    2
+  );
 }
 
 function assertFallback(response) {
