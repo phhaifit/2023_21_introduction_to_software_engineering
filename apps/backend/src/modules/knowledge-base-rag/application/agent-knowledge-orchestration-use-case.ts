@@ -3,6 +3,11 @@ import type {
   AgentKnowledgeAskResponse
 } from "@vcp/shared/contracts/knowledge-base-rag.ts";
 import type { EntityId } from "@vcp/shared/contracts/ids.ts";
+import {
+  DEFAULT_KNOWLEDGE_ANSWERABILITY_MIN_SCORE,
+  isKnowledgeEvidenceAnswerable,
+  selectMostRelevantEvidenceSentence
+} from "./knowledge-answerability.ts";
 import type {
   AgentKnowledgeRetrievalTool,
   AgentKnowledgeRetrievalToolEvidence
@@ -105,18 +110,10 @@ export class DeterministicAgentGroundedResponseComposer
     evidence: readonly AgentKnowledgeRetrievalToolEvidence[];
   }): Promise<string> {
     const statements = input.evidence
-      .map((item) => firstStatement(item.snippet))
+      .map((item) => selectMostRelevantEvidenceSentence(input.message, item.snippet))
       .filter(Boolean);
     return statements.join(" ");
   }
-}
-
-function firstStatement(snippet: string): string {
-  const normalized = snippet.replace(/\s+/g, " ").trim();
-  const sentenceEnd = normalized.search(/[.!?](?:\s|$)/);
-  return sentenceEnd >= 0
-    ? normalized.slice(0, sentenceEnd + 1)
-    : normalized;
 }
 
 function normalizeAnswer(value: unknown): string {
