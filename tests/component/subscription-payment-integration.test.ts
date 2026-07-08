@@ -8,6 +8,7 @@ describe("Subscription & Payment Integration Flow", () => {
   let server: http.Server;
   let client: SubscriptionPaymentApiClient;
   let runtime: any;
+  let authToken = "";
   const PORT = 3099;
 
   beforeAll(async () => {
@@ -23,6 +24,14 @@ describe("Subscription & Payment Integration Flow", () => {
       
       // Khởi tạo frontend API client trỏ vào server test
       client = new SubscriptionPaymentApiClient(`http://127.0.0.1:${PORT}`);
+      const loginResponse = await fetch(`http://127.0.0.1:${PORT}/api/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "dev@local.test", password: "Password123!" })
+      });
+      const loginJson = await loginResponse.json();
+      authToken = loginJson.data.session.token;
+      localStorage.setItem("vcp.auth.token", authToken);
     } finally {
       // Khôi phục lại biến môi trường
       if (originalDatabaseUrl) {
@@ -32,6 +41,7 @@ describe("Subscription & Payment Integration Flow", () => {
   });
 
   beforeEach(() => {
+    localStorage.setItem("vcp.auth.token", authToken);
     // Dọn dẹp dữ liệu in-memory trước mỗi test case để đảm bảo tính cô lập (Test Isolation)
     if (runtime && runtime.subscriptionRepository) {
       (runtime.subscriptionRepository as any).subscriptions.clear();

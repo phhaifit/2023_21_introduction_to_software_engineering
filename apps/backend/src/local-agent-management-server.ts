@@ -5,6 +5,11 @@ import { pathToFileURL } from "node:url";
 import express, { type Express } from "express";
 
 import { DEMO_WORKSPACE_ID } from "@vcp/shared/demo-workspace.ts";
+import {
+  PLATFORM_DEMO_USERS,
+  PLATFORM_DEMO_WORKSPACES,
+  seedPlatformDemoData
+} from "./platform-demo-seed.ts";
 import type { AgentRepository } from "./modules/agent-management/application/agent-repository.ts";
 import type { AgentSkillWriter } from "./modules/agent-management/application/agent-skill-writer.ts";
 import { AgentLifecycleUseCases, type AgentRuntimeProfileReader } from "./modules/agent-management/application/agent-lifecycle-use-cases.ts";
@@ -656,6 +661,10 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     "http://127.0.0.1:5173";
 
   const prisma = await getPrismaClient();
+  if (prisma && process.env.VCP_SEED_DEMO_ON_START?.trim().toLowerCase() === "true") {
+    await seedPlatformDemoData(prisma);
+    console.log("Platform demo seed completed during local API startup.");
+  }
   const workflowRepository = prisma ? new PrismaWorkflowRepository(prisma) : new InMemoryWorkflowRepository();
   const knowledgeDocumentRepository = prisma
     ? new PrismaKnowledgeDocumentRepository(prisma)
@@ -1036,20 +1045,25 @@ export async function createLocalAgentManagementRuntime(): Promise<LocalAgentMan
     generateId: () => randomUUID(),
     sessionRepository: authSessionRepository,
   });
-  await workspaceUserManagementRepo.createWorkspace({
-    workspaceId: DEMO_WORKSPACE_ID,
-    name: "Demo Workspace",
-    createdAt: new Date().toISOString(),
-    ownerId: "local-dev-user"
-  });
-  await workspaceUserManagementRepo.addWorkspaceMember({
-    memberId: "local-member",
-    workspaceId: DEMO_WORKSPACE_ID,
-    userId: "local-dev-user",
-    role: "host",
-    isAccepted: true,
-    joinedAt: new Date().toISOString()
-  });
+  for (const workspace of PLATFORM_DEMO_WORKSPACES) {
+    await workspaceUserManagementRepo.createWorkspace({
+      workspaceId: workspace.workspaceId,
+      name: workspace.name,
+      createdAt: new Date().toISOString(),
+      ownerId: workspace.userId
+    });
+
+    for (const user of PLATFORM_DEMO_USERS.filter((candidate) => candidate.role)) {
+      await workspaceUserManagementRepo.addWorkspaceMember({
+        memberId: `member-${workspace.workspaceId}-${user.userId}`,
+        workspaceId: workspace.workspaceId,
+        userId: user.userId,
+        role: user.role as any,
+        isAccepted: true,
+        joinedAt: new Date().toISOString()
+      });
+    }
+  }
   if (localEmailUserEmail && localEmailUserEmail !== "dev@local.test") {
     await workspaceUserManagementRepo.addWorkspaceMember({
       memberId: "local-email-member",

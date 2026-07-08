@@ -6,11 +6,13 @@
   "exports": {
     ".": "./src/local-agent-management-server.ts",
     "./local-agent-management-server.ts": "./src/local-agent-management-server.ts",
+    "./platform-demo-seed.ts": "./src/platform-demo-seed.ts",
     "./modules/*": "./src/modules/*",
     "./shared/*": "./src/shared/*"
   },
   "scripts": {
     "dev": "tsx --env-file=../../.env src/local-agent-management-server.ts",
+    "seed:platform-demo": "tsx --env-file=../../.env src/seed-platform-demo.ts",
     "test": "cd ../.. && vitest run --config vitest.config.ts apps/backend/src/modules/authentication/**/*.test.ts",
     "build": "..\\..\\node_modules\\.bin\\tsc.cmd --noEmit --module ESNext --moduleResolution bundler --target ES2022 --strict --skipLibCheck --allowImportingTsExtensions src/modules/authentication/application/password-hasher.ts src/modules/authentication/application/session-repository.ts src/modules/authentication/application/user-repository.ts src/modules/authentication/domain/session.ts src/modules/authentication/domain/user.ts src/modules/authentication/infrastructure/bcrypt-password-hasher.ts src/modules/authentication/infrastructure/bcrypt-password-hasher.test.ts src/modules/authentication/infrastructure/in-memory-session-repository.ts src/modules/authentication/infrastructure/in-memory-session-repository.test.ts src/modules/authentication/infrastructure/in-memory-user-repository.ts src/modules/authentication/infrastructure/in-memory-user-repository.test.ts"
   },

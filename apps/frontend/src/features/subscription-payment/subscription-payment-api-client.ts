@@ -99,7 +99,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async deletePaymentMethod(workspaceId: string, methodId: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/payment-method/${encodeURIComponent(methodId)}?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/payment-method/${encodeURIComponent(methodId)}?workspaceId=${encodeURIComponent(workspaceId)}`, {
       method: "DELETE"
     });
     if (!response.ok) {
@@ -110,7 +110,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async cancelSubscription(workspaceId: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/cancel`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/cancel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId })
@@ -123,7 +123,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async chargeSavedMethod(workspaceId: string, plan: string, methodId: string, promoCode?: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/vnpay/charge-saved-method`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/vnpay/charge-saved-method`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, plan, methodId, promoCode })
@@ -136,7 +136,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async initiateVnPayBinding(workspaceId: string, returnUrl: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/vnpay/initiate-binding`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/vnpay/initiate-binding`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, returnUrl })
@@ -149,7 +149,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async createStripeSetupIntent(workspaceId: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/stripe/setup-intent`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/stripe/setup-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId })
@@ -162,7 +162,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async confirmStripeBinding(workspaceId: string, paymentMethodId: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/stripe/confirm-binding`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/stripe/confirm-binding`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, paymentMethodId })
@@ -175,7 +175,7 @@ export class SubscriptionPaymentApiClient {
   }
 
   async chargeStripePayment(workspaceId: string, plan: string, paymentMethodId: string, promoCode?: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/stripe/charge`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/stripe/charge`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, plan, paymentMethodId, promoCode })
@@ -223,7 +223,7 @@ export class SubscriptionPaymentApiClient {
     subscriptionId: string;
     transactionId: string;
   }> {
-    const response = await fetch(`${this.baseUrl}/api/subscriptions/vnpay/checkout`, {
+    const response = await authorizedFetch(`${this.baseUrl}/api/subscriptions/vnpay/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, plan, promoCode, returnUrl })
