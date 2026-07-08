@@ -60,6 +60,19 @@ async function testRelevantSalesDocumentAnswers() {
   assert.deepEqual(citationTitles(response), ["02_sales_guide.md"]);
 }
 
+async function testRelevantFinanceDocumentAnswersWithLiveScoreRange() {
+  const runtime = await createRuntime(["finance"]);
+  const response = await runtime.ask(
+    "Cac khoan chi tren 500 USD can ai phe duyet?"
+  );
+
+  assert.equal(response.status, "answered");
+  assert.match(response.answer, /Finance Manager/i);
+  assert.deepEqual(citationTitles(response), [
+    "04_finance_approval_policy.docx"
+  ]);
+}
+
 async function testMixedDocumentsCiteOnlySales() {
   const runtime = await createRuntime(["hr", "sales", "product"]);
   const response = await runtime.ask(discountQuestion);
@@ -94,12 +107,19 @@ async function createRuntime(assignedKeys) {
     });
   }
 
-  const vectorRecords = Object.keys(DOCUMENTS).map((key, index) => ({
+  const vectorScores = {
+    hr: 0.99,
+    sales: 0.4398731383260164,
+    product: 0.97,
+    finance: 0.46400374909109265,
+    onboarding: 0.95
+  };
+  const vectorRecords = Object.keys(DOCUMENTS).map((key) => ({
     workspaceId,
     documentId: DOCUMENTS[key].documentId,
     chunkId: DOCUMENTS[key].chunkId,
     chunkIndex: 0,
-    score: 0.99 - index * 0.01,
+    score: vectorScores[key],
     metadata: { sourceLocator: "text:0" }
   }));
   const retrievalSearchUseCase = new KnowledgeRetrievalSearchUseCase({
@@ -249,6 +269,7 @@ await testRelevantHrDocumentAnswers();
 await testIrrelevantHrDocumentFallsBack();
 await testManyIrrelevantDocumentsStillFallback();
 await testRelevantSalesDocumentAnswers();
+await testRelevantFinanceDocumentAnswersWithLiveScoreRange();
 await testMixedDocumentsCiteOnlySales();
 
 console.log("KB/RAG agent answer relevance checks passed");

@@ -1,4 +1,5 @@
 export const DEFAULT_KNOWLEDGE_ANSWERABILITY_MIN_SCORE = 0.5;
+const LOW_SCORE_STRONG_OVERLAP_MIN_SCORE = 0.4;
 
 const GENERIC_TERMS = new Set([
   "a",
@@ -100,11 +101,11 @@ export function explainKnowledgeEvidenceAnswerability(
     overlapCount: 0,
     overlapRatio: 0
   };
-  if (!Number.isFinite(input.score) || input.score < minScore) {
+  if (!Number.isFinite(input.score)) {
     return {
       ...base,
       answerable: false,
-      reason: "score_below_threshold"
+      reason: "invalid_score"
     };
   }
 
@@ -136,6 +137,24 @@ export function explainKnowledgeEvidenceAnswerability(
     overlapRatio
   };
 
+  if (input.score < minScore) {
+    if (
+      input.score >= LOW_SCORE_STRONG_OVERLAP_MIN_SCORE &&
+      hasStrongMeaningfulOverlap(overlapCount, overlapRatio)
+    ) {
+      return {
+        ...explanation,
+        answerable: true,
+        reason: "strong_meaningful_overlap_low_score"
+      };
+    }
+    return {
+      ...explanation,
+      answerable: false,
+      reason: "score_below_threshold"
+    };
+  }
+
   if (overlapCount >= 2 && overlapRatio >= 0.3) {
     return {
       ...explanation,
@@ -155,6 +174,13 @@ export function explainKnowledgeEvidenceAnswerability(
     answerable: false,
     reason: "insufficient_meaningful_overlap"
   };
+}
+
+function hasStrongMeaningfulOverlap(
+  overlapCount: number,
+  overlapRatio: number
+): boolean {
+  return overlapCount >= 3 && overlapRatio >= 0.5;
 }
 
 export function selectMostRelevantEvidenceSentence(

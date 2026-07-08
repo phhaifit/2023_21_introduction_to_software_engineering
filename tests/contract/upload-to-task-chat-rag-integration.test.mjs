@@ -92,6 +92,15 @@ async function verifyUploadToTaskChatRagFlow() {
       "Tu khoa kiem thu: FINANCE-APPROVAL-GAMMA."
     ])
   });
+  const onboardingDocumentId = await uploadDocument(runtime, {
+    workspaceId: "workspace-a",
+    clientFileId: "onboarding-manual",
+    fileName: "05_onboarding_manual.pdf",
+    mediaType: "application/pdf",
+    content: createPdf(
+      "Nhan vien moi onboarding 7 ngay. Hoan tat onboarding trong thoi han nay."
+    )
+  });
 
   assert.notEqual(policyDocumentId, unassignedDocumentId);
   assert.notEqual(policyDocumentId, workspaceBDocumentId);
@@ -270,6 +279,27 @@ async function verifyUploadToTaskChatRagFlow() {
       "04_finance_approval_policy.docx"
     ]);
 
+    await assignOnlyViaApi(api, "agent-a", [onboardingDocumentId]);
+    const onboardingAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Nhan vien moi can hoan tat onboarding trong bao nhieu ngay?",
+      topK: 5
+    });
+    assert.equal(onboardingAnswer.status, 200);
+    assert.equal(
+      onboardingAnswer.body.data.status,
+      "answered",
+      await diagnosticMessage(
+        runtime,
+        "agent-a",
+        "Nhan vien moi can hoan tat onboarding trong bao nhieu ngay?"
+      )
+    );
+    assert.match(onboardingAnswer.body.data.answer, /7 ngay/i);
+    assert.deepEqual(citationTitles(onboardingAnswer), [
+      "05_onboarding_manual.pdf"
+    ]);
+
     await assignOnlyViaApi(api, "agent-a", [
       hrDocumentId,
       salesDocumentId,
@@ -296,6 +326,35 @@ async function verifyUploadToTaskChatRagFlow() {
     assert.doesNotMatch(
       mixedSalesAnswer.body.data.answer,
       /monthly_price_vnd|VCP-STD|VCP-PRO|nghi phep|Finance Manager/i
+    );
+
+    await assignOnlyViaApi(api, "agent-a", [
+      hrDocumentId,
+      productDocumentId,
+      financeDocumentId,
+      onboardingDocumentId
+    ]);
+    const mixedWithoutSalesAnswer = await api.ask("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assertFallback(mixedWithoutSalesAnswer);
+    const mixedWithoutSalesDebug = await api.debugAsk("workspace-a", {
+      agentId: "agent-a",
+      message: "Muc chiet khau tieu chuan cho khach hang doanh nghiep la bao nhieu?",
+      topK: 5
+    });
+    assertDebugTrace(
+      mixedWithoutSalesDebug,
+      [
+        "01_hr_policy.txt",
+        "03_product_catalog.csv",
+        "04_finance_approval_policy.docx",
+        "05_onboarding_manual.pdf"
+      ],
+      [],
+      []
     );
   });
 }
@@ -802,6 +861,32 @@ function createZip(entries) {
   end.writeUInt32LE(directory.length, 12);
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...localParts, directory, end]);
+}
+
+function createPdf(text) {
+  const escapedText = text.replace(/([\\()])/g, "\\$1");
+  const stream = text ? `BT /F1 18 Tf 72 720 Td (${escapedText}) Tj ET` : "";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(body));
+    body += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+  const xrefOffset = Buffer.byteLength(body);
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  body += offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
+    .join("");
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return Buffer.from(body);
 }
 
 function crc32(data) {
