@@ -94,9 +94,9 @@
 
 .knowledge-base-rag-processing-job__actions button.knowledge-base-rag-processing-job__delete,
 .knowledge-base-rag-processing-details-modal footer button.knowledge-base-rag-processing-job__delete {
-  border: 1px solid #b91c1c;
-  background: #dc2626;
-  color: #ffffff;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .knowledge-base-rag-processing-status-message {
